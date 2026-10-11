@@ -1,5 +1,6 @@
 import Foundation
 import LpmTailnet
+import Network
 import Observation
 import UIKit
 
@@ -36,6 +37,7 @@ final class BuiltInTailscale {
     private(set) var status = Status()
     private var started = false
     private var watcher: Thread?
+    private var pathMonitor: NWPathMonitor?
     private var lastAwake: Date?
     private var heartbeatTimer: Timer?
     private var stateWhenBackgrounded: String?
@@ -128,6 +130,7 @@ final class BuiltInTailscale {
         }
         started = true
         tailnetRouting.set(true)
+        watchNetwork()
         let name = deviceName
         queue.async {
             let failure = dir.path.withCString { d in name.withCString { h in Self.take(LpmTailnetStart(d, h)) } }
@@ -187,6 +190,25 @@ final class BuiltInTailscale {
         thread.name = "lpm-tailnet-status"
         thread.start()
         watcher = thread
+    }
+
+    /// Report each network switch (Wi-Fi off, onto cellular, another Wi-Fi) to
+    /// the node, which would otherwise keep using the network it started on.
+    /// Only physical interfaces count: another VPN's tunnel isn't where the
+    /// node's own traffic should go.
+    private func watchNetwork() {
+        guard pathMonitor == nil else { return }
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { path in
+            guard path.status == .satisfied,
+                  let iface = path.availableInterfaces.first(where: {
+                      [.wifi, .cellular, .wiredEthernet].contains($0.type)
+                  })
+            else { return }
+            iface.name.withCString { LpmTailnetNetworkChanged($0) }
+        }
+        monitor.start(queue: DispatchQueue(label: "cx.lpm.tailnet.path"))
+        pathMonitor = monitor
     }
 
     private nonisolated static func take(_ raw: UnsafeMutablePointer<CChar>?) -> String? {

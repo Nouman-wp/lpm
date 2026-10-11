@@ -17,6 +17,7 @@ import (
 	"unsafe"
 
 	"lpm.cx/tailnet/node"
+	"tailscale.com/net/netmon"
 )
 
 const (
@@ -67,6 +68,17 @@ func LpmTailnetLogout() *C.char {
 	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
 	defer cancel()
 	return errString(nd.Logout(ctx))
+}
+
+// LpmTailnetNetworkChanged tells the node which interface iOS now sends traffic
+// through (en0, pdp_ip0, ...). The node binds its sockets to the interface it
+// believes is the default, so after Wi-Fi turns off it would keep sending
+// through Wi-Fi until told otherwise.
+//
+//export LpmTailnetNetworkChanged
+func LpmTailnetNetworkChanged(iface *C.char) {
+	netmon.UpdateLastKnownDefaultRouteInterface(C.GoString(iface))
+	nd.NetworkChanged()
 }
 
 // LpmTailnetWaitStatus blocks until the status changes from version since, or

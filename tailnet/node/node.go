@@ -224,6 +224,21 @@ func (n *Node) SetForwards(ports map[uint16]string) {
 	}
 }
 
+// NetworkChanged makes a running node look at the device's networks again and
+// move its connections to the one now in use, for platforms where it can't see
+// the switch on its own.
+func (n *Node) NetworkChanged() {
+	n.mu.Lock()
+	srv, ready := n.srv, n.lc != nil
+	n.mu.Unlock()
+	if !ready {
+		return
+	}
+	if mon, ok := srv.Sys().NetMon.GetOK(); ok {
+		mon.InjectEvent()
+	}
+}
+
 // Dial opens a connection to addr across the tailnet, waiting for the node to
 // come up first.
 func (n *Node) Dial(ctx context.Context, addr string) (net.Conn, error) {

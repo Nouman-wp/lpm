@@ -9,6 +9,7 @@ void LpmTailnetStop(void);
 char *LpmTailnetRestart(const char *dir, const char *hostname);
 char *LpmTailnetLogin(void);
 char *LpmTailnetLogout(void);
+void LpmTailnetNetworkChanged(const char *iface);
 char *LpmTailnetWaitStatus(unsigned long long since, int timeoutMs);
 int LpmTailnetBridge(const char *host, int port);
 void LpmTailnetFree(char *p);
