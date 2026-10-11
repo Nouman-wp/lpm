@@ -16,7 +16,8 @@ interface JobListSectionsProps {
   onRemove: (job: ScheduledJob) => void;
 }
 
-// The flat Automations feed: everything unread first, then the rest. The
+// The flat Automations feed, read like a messenger's chat list: everything
+// unread first, then the rest. Each unread row carries its own dot, and the
 // project each job runs in rides on the row, so the list never groups.
 export function JobListSections({
   unreadRows,
@@ -31,11 +32,11 @@ export function JobListSections({
   onEdit,
   onRemove,
 }: JobListSectionsProps) {
-  const renderRows = (jobs: ScheduledJob[], sectionKey: string) => (
-    <div className="space-y-0.5">
-      {jobs.map((job) => (
+  return (
+    <div className="-mx-1 flex flex-col" style={{ zoom }}>
+      {[...unreadRows, ...readRows].map((job) => (
         <JobRow
-          key={`${sectionKey}/${rowKeyOf(job)}`}
+          key={rowKeyOf(job)}
           job={job}
           scopeLabel={scopeLabelFor(job)}
           onRunNow={() => onRunNow(job)}
@@ -46,31 +47,6 @@ export function JobListSections({
           onRemove={(j) => onRemove(j as ScheduledJob)}
         />
       ))}
-    </div>
-  );
-
-  return (
-    <div className="-mx-1 space-y-4" style={{ zoom }}>
-      {unreadRows.length > 0 && (
-        <section key="unread">
-          <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent-blue-text)]">
-            New
-          </span>
-          <div className="mt-1">{renderRows(unreadRows, "unread")}</div>
-        </section>
-      )}
-      {readRows.length > 0 && (
-        <section key="read">
-          {unreadRows.length > 0 && (
-            <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-              Earlier
-            </span>
-          )}
-          <div className={unreadRows.length > 0 ? "mt-1" : ""}>
-            {renderRows(readRows, "read")}
-          </div>
-        </section>
-      )}
     </div>
   );
 }

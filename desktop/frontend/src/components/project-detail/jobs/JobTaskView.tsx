@@ -47,6 +47,7 @@ import {
   jobResultLabel,
   jobResultTone,
   jobThreadTail,
+  stripCitationMarkers,
   TONE_DOT_CLASS,
   type JobHistoryEntry,
   type JobInfo,
@@ -231,7 +232,7 @@ export function JobTaskView({
 
   const root = thread?.root;
   const meta = root
-    ? [project, jobResultLabel(root.result), ago(root.at)].join(" · ")
+    ? [project, jobResultLabel(root.result), ago(root.at)].filter(Boolean).join(" · ")
     : project;
 
   return (
@@ -579,7 +580,8 @@ function EntryHeader({
 
 /// The message body plus its actions. The block being spoken is tinted —
 /// see `speakingLineAt` for why that is approximate rather than word-exact.
-function EntryOutput({ text }: { text: string }) {
+function EntryOutput({ text: raw }: { text: string }) {
+  const text = useMemo(() => stripCitationMarkers(raw), [raw]);
   const startReading = useTTSStore((s) => s.startReading);
   const readingText = useTTSStore((s) => s.text);
   const status = useTTSStore((s) => s.status);

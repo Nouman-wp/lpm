@@ -13,6 +13,7 @@ import {
   groupJobThreads,
   isThreadUnread,
   jobOutputSnippet,
+  stripCitationMarkers,
   jobThreadTail,
   liveOutputTail,
   jobResultLabel,
@@ -243,6 +244,21 @@ describe("jobOutputSnippet", () => {
     ).toBe("Done Upgraded 3 deps via PR. - all tests pass");
     expect(jobOutputSnippet(undefined)).toBe("");
     expect(jobOutputSnippet("x".repeat(200), 10)).toBe(`${"x".repeat(10)}…`);
+  });
+
+  it("drops Codex citation markers", () => {
+    expect(
+      jobOutputSnippet("Volume rose **37.1%**. citeturn3view0\n- Next point"),
+    ).toBe("Volume rose 37.1%. - Next point");
+  });
+});
+
+describe("stripCitationMarkers", () => {
+  it("removes whole markers and stray marker characters", () => {
+    expect(
+      stripCitationMarkers("Up 12%. citeturn3view0turn4view2\n- Sales "),
+    ).toBe("Up 12%.\n- Sales ");
+    expect(stripCitationMarkers("plain text")).toBe("plain text");
   });
 });
 

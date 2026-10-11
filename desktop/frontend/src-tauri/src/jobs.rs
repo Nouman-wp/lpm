@@ -1266,6 +1266,21 @@ fn unread_count(st: &JobState) -> u32 {
         .count() as u32
 }
 
+const PREVIEW_CHARS: usize = 400;
+
+/// The newest message the job left — a run's answer or a reply — cut to the
+/// head the job list previews, with when it landed.
+fn latest_message(st: &JobState) -> Option<(u64, String)> {
+    st.history
+        .iter()
+        .filter(|h| is_readable_outcome(&h.result))
+        .filter_map(|h| {
+            let out = h.output.as_deref()?.trim();
+            (!out.is_empty()).then(|| (h.at, out.chars().take(PREVIEW_CHARS).collect()))
+        })
+        .max_by_key(|(at, _)| *at)
+}
+
 /// Append a history entry, capped at the newest `HISTORY_CAP`.
 fn push_history(st: &mut JobState, at: u64, result: &str, copy: Option<String>) {
     push_entry(
@@ -3508,10 +3523,16 @@ fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Valu
     let mut last_result: Option<String> = None;
     let mut next: Option<i64> = None;
     let mut unread: u32 = 0;
+    let mut latest: Option<(u64, String)> = None;
     for t in &run_targets {
         let key = state_key(t, id);
         let st = load_job_state(&key);
         unread += unread_count(&st);
+        if let Some(msg) = latest_message(&st) {
+            if latest.as_ref().map_or(true, |(at, _)| msg.0 > *at) {
+                latest = Some(msg);
+            }
+        }
         let job_enabled = match &resolved {
             Ok(job) => st.enabled_override.unwrap_or(job.enabled),
             Err(_) => st.enabled_override.unwrap_or(false),
@@ -3564,6 +3585,7 @@ fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Valu
                 "targets": targets,
                 "standalone": standalone,
                 "unread": unread,
+                "lastMessage": latest.map(|(_, m)| m),
             });
             if let RunTarget::Prompt {
                 agent,
@@ -3668,6 +3690,7 @@ pub fn list_jobs(project: String) -> Result<Vec<Value>, String> {
                         "running": since.is_some(),
                         "runningSince": since,
                         "unread": unread_count(&st),
+                        "lastMessage": latest_message(&st).map(|(_, m)| m),
                     });
                     if let RunTarget::Prompt {
                         agent,
@@ -5675,6 +5698,26 @@ mod tests {
             resumed: resumed.map(str::to_string),
             ..HistoryEntry::default()
         }
+    }
+
+    #[test]
+    fn latest_message_is_the_newest_readable_output() {
+        let mut st = JobState::default();
+        st.history = vec![
+            entry(1, COMPLETED, Some("first"), None, None, None),
+            entry(2, COMPLETED, Some("  second  "), None, None, None),
+            entry(3, NOTHING_TO_DO, Some("quiet reason"), None, None, None),
+            entry(4, ERROR, Some("   "), None, None, None),
+        ];
+        assert_eq!(latest_message(&st), Some((2, "second".to_string())));
+
+        let long = "é".repeat(PREVIEW_CHARS + 10);
+        st.history.push(entry(5, COMPLETED, Some(&long), None, None, None));
+        let (at, text) = latest_message(&st).expect("a message");
+        assert_eq!(at, 5);
+        assert_eq!(text.chars().count(), PREVIEW_CHARS);
+
+        assert_eq!(latest_message(&JobState::default()), None);
     }
 
     #[test]

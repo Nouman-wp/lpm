@@ -109,6 +109,8 @@ export interface JobInfo {
   // Runs that landed since the user last opened the job, folded across its
   // projects for a shared job.
   unread?: number;
+  // The head of the newest run answer or reply, for the list's preview line.
+  lastMessage?: string;
 }
 
 export const STANDALONE_PROJECT_LABEL = "No project";
@@ -288,9 +290,18 @@ export function formatRunningFor(
 
 // One-line plain-text preview of a run's output for list rows: markdown
 // dressing stripped, whitespace collapsed, tail elided.
+// Codex wraps its web citations in private-use characters
+// (`citeturn3view0`) that only its own UI understands —
+// anywhere else they render as boxes.
+export function stripCitationMarkers(text: string): string {
+  return text
+    .replace(/[ \t]*[^]*/g, "")
+    .replace(/[-]/g, "");
+}
+
 export function jobOutputSnippet(output: string | undefined, max = 160): string {
   if (!output) return "";
-  const flat = output
+  const flat = stripCitationMarkers(output)
     .replace(/```[\s\S]*?(```|$)/g, " ")
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/[#*_>`|]/g, "")

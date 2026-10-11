@@ -1,17 +1,14 @@
-import { Switch } from "../../ui/Switch";
-import { ClockIcon, PencilIcon, StopIcon, TrashIcon } from "../../icons";
+import { CirclePlay, Pause } from "lucide-react";
+import { ChevronRightIcon, ClockIcon, PencilIcon, StopIcon, TrashIcon } from "../../icons";
 import { PlayIcon } from "../icons";
-import { JobScopeTag } from "./JobScopeTag";
+import { HoverActionButton } from "./HoverActionButton";
+import { jobRowPreview, type JobPreviewTone } from "./jobRowPreview";
 import { relativeTime } from "../../../relativeTime";
 import { useNow } from "../../../hooks/useNow";
 import {
   formatNextRun,
   formatRunningFor,
   formatSchedule,
-  isBlockedResult,
-  jobResultLabel,
-  jobResultTone,
-  TONE_DOT_CLASS,
   type JobInfo,
 } from "../../../jobsFormat";
 
@@ -28,75 +25,25 @@ interface JobRowProps {
   onRemove: (job: JobInfo) => void;
 }
 
+const TONE_CLASS: Record<JobPreviewTone, string> = {
+  error: "text-[var(--accent-red-text)]",
+  warning: "text-[var(--accent-amber-text)]",
+  running: "text-[var(--accent-cyan-text)]",
+  unread: "text-[var(--text-secondary)]",
+  muted: "text-[var(--text-muted)]",
+};
+
+// One automation as a conversation in a messenger list: who it is, where and
+// when it runs, and the last thing it said. Its buttons take the place of the
+// time while the row is hovered.
 export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onOpen, onEdit, onRemove }: JobRowProps) {
   const now = useNow(job.running === true);
   const unread = job.unread ?? 0;
+  const enabled = job.enabled;
   // A repo-declared job lives in the repo's own config file, which stays the
   // user's to edit — no delete from here.
   const removable = job.source !== "repo";
-  const removeButton = removable && (
-    <button
-      type="button"
-      onClick={() => onRemove(job)}
-      title="Remove"
-      aria-label="Remove job"
-      className="shrink-0 rounded-md p-2 text-[var(--text-muted)] opacity-0 transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)] focus-visible:opacity-100 group-hover:opacity-100"
-    >
-      <TrashIcon size={13} />
-    </button>
-  );
 
-  if (!job.valid) {
-    return (
-      <div className="group flex items-start gap-2.5 rounded-lg py-3 pl-2 pr-1">
-        <span className="flex w-1.5 shrink-0 justify-center pt-[7px]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-red)]" />
-        </span>
-        <button
-          type="button"
-          onClick={() => onEdit(job)}
-          className="min-w-0 flex-1 text-left"
-        >
-          <span className="flex min-w-0 items-baseline gap-2">
-            <span className="min-w-0 shrink truncate text-[13px] font-medium text-[var(--text-primary)]">
-              {job.label || job.id}
-            </span>
-            {scopeLabel && (
-              <JobScopeTag label={scopeLabel} inRepo={job.source === "repo"} />
-            )}
-          </span>
-          <span className="block truncate text-[12px] text-[var(--accent-red)]">
-            {job.error || "This job can't run — open it to fix its settings."}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => onEdit(job)}
-          title="Edit"
-          aria-label="Edit job"
-          className="shrink-0 rounded-md p-2 text-[var(--text-muted)] opacity-0 transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:opacity-100 group-hover:opacity-100"
-        >
-          <PencilIcon size={13} />
-        </button>
-        {removeButton}
-      </div>
-    );
-  }
-
-  const enabled = job.enabled;
-  const blocked = isBlockedResult(job.lastResult);
-  // A manual job only ever runs from this button, so keep it visible rather than
-  // revealing it on hover like the scheduled jobs' shortcut.
-  const isManual = job.schedule?.mode === "manual";
-  const scheduleText = job.schedule ? formatSchedule(job.schedule) : "";
-  const nextRunText = enabled ? formatNextRun(job.nextFireAt) : "";
-  const lastRunText = job.lastRunAt
-    ? relativeTime(job.lastRunAt) === "now"
-      ? "just now"
-      : `${relativeTime(job.lastRunAt)} ago`
-    : "";
-  const tone = jobResultTone(job.lastResult);
-  const description = job.description?.replace(/\s+/g, " ").trim();
   // A shared job runs in many folders at once, so its "running" line aggregates
   // how many are live rather than a single elapsed clock.
   const runningFor = formatRunningFor(job.runningSince, now);
@@ -107,137 +54,108 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
     job.targetCount && job.targetCount > 1
       ? `Running in ${job.runningCount ?? 0} of ${job.targetCount}${elapsedSuffix}`
       : runningFor;
+  const preview = jobRowPreview(job, runningText);
+
+  const meta = [
+    scopeLabel,
+    job.source === "repo" ? "in repo" : "",
+    job.valid && job.schedule ? formatSchedule(job.schedule) : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const nextRun = job.valid && enabled ? formatNextRun(job.nextFireAt) : "";
+  const when = !job.valid
+    ? ""
+    : !enabled
+      ? "Paused"
+      : job.lastRunAt
+        ? relativeTime(job.lastRunAt)
+        : "";
+  const toggleTitle =
+    job.source === "global"
+      ? `${enabled ? "Pause" : "Resume"} in this project only`
+      : enabled
+        ? "Pause"
+        : "Resume";
 
   return (
-    <div
-      className={`group flex items-start gap-2.5 rounded-lg py-3 pl-2 pr-1 transition-colors hover:bg-[var(--bg-hover)] ${
-        unread > 0 ? "bg-[var(--accent-blue)]/8" : ""
-      } ${enabled ? "" : "opacity-60"}`}
-    >
-      <span className="flex w-1.5 shrink-0 justify-center pt-[7px]">
+    <div className="group flex items-start gap-3 rounded-[14px] py-3 pl-1 pr-3 transition-colors focus-within:bg-[var(--bg-secondary)] hover:bg-[var(--bg-secondary)]">
+      <span className="flex w-2.5 shrink-0 justify-center pt-[19px]">
         {unread > 0 && (
-          <span
-            aria-hidden
-            className="h-1.5 w-1.5 rounded-full bg-[var(--accent-blue)]"
-          />
+          <span aria-hidden className="h-[9px] w-[9px] rounded-full bg-[var(--accent-blue)]" />
         )}
       </span>
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--bg-hover)] text-[15px] text-[var(--text-muted)]">
-        {job.emoji || <ClockIcon size={15} />}
+      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[var(--bg-hover)] text-[23px] text-[var(--text-muted)]">
+        {job.emoji || <ClockIcon size={20} />}
       </span>
 
       <button
         type="button"
-        onClick={() => onOpen(job)}
-        className="min-w-0 flex-1 text-left"
+        onClick={() => (job.valid ? onOpen(job) : onEdit(job))}
+        className="min-w-0 flex-1 pt-0.5 text-left"
       >
         <span className="flex min-w-0 items-baseline gap-2">
           <span
-            className={`min-w-0 shrink truncate text-[13px] text-[var(--text-primary)] ${
-              unread > 0 ? "font-semibold" : "font-medium"
-            }`}
+            className={`min-w-0 truncate text-[14.5px] ${
+              enabled || !job.valid ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
+            } ${unread > 0 ? "font-semibold" : "font-medium"}`}
           >
             {job.label || job.id}
           </span>
-          {scopeLabel && <JobScopeTag label={scopeLabel} inRepo={job.source === "repo"} />}
-        </span>
-        {description && (
-          <span className="mt-1 line-clamp-2 break-words text-[12px] leading-snug text-[var(--text-secondary)] [overflow-wrap:anywhere]">
-            {description}
-          </span>
-        )}
-        <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
-          {job.running ? (
-            <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
-          ) : (
-            job.lastResult && (
-              <span
-                className={`h-1.5 w-1.5 shrink-0 rounded-full ${TONE_DOT_CLASS[tone]}`}
-              />
-            )
+          {meta && (
+            <span
+              title={nextRun || undefined}
+              className="min-w-0 shrink-[4] truncate text-[12px] text-[var(--text-muted)]"
+            >
+              {meta}
+            </span>
           )}
-          <span className="min-w-0 truncate">
-            {unread > 0 && !job.running && (
-              <span className="font-medium text-[var(--accent-blue-text)]">
-                {unread > 9 ? "9+" : unread} new{" "}
-                {unread === 1 ? "message" : "messages"}
-                {" · "}
-              </span>
-            )}
-            {job.running ? (
-              <span className="text-[var(--accent-cyan)]">
-                {runningText}
-              </span>
-            ) : blocked ? (
-              <span className="text-[var(--accent-amber)]">
-                Waiting — the copy from the last run is still open
-              </span>
-            ) : (
-              [
-                scheduleText,
-                !enabled ? "Paused" : nextRunText,
-                job.lastResult && lastRunText
-                  ? `${jobResultLabel(job.lastResult)}, ${lastRunText}`
-                  : "",
-              ]
-                .filter(Boolean)
-                .join(" · ")
-            )}
-          </span>
+        </span>
+        <span
+          className={`mt-1 line-clamp-2 break-words text-[13.5px] leading-[1.45] [overflow-wrap:anywhere] ${TONE_CLASS[preview.tone]}`}
+        >
+          {preview.prefix && (
+            <span className="font-medium text-[var(--text-primary)]">{preview.prefix}</span>
+          )}
+          {preview.text}
         </span>
       </button>
 
-      {job.running ? (
-        <button
-          type="button"
-          onClick={() => onStop(job.id)}
-          title="Stop"
-          aria-label="Stop run"
-          className="shrink-0 rounded-md p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
-        >
-          <StopIcon />
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={() => onRunNow(job.id)}
-          title="Run now"
-          aria-label="Run now"
-          className={`shrink-0 rounded-md p-2 text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:opacity-100 group-hover:opacity-100 ${isManual ? "opacity-100" : "opacity-0"}`}
-        >
-          <PlayIcon />
-        </button>
-      )}
-
-      <button
-        type="button"
-        onClick={() => onEdit(job)}
-        title="Edit"
-        aria-label="Edit job"
-        className="shrink-0 rounded-md p-2 text-[var(--text-muted)] opacity-0 transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:opacity-100 group-hover:opacity-100"
-      >
-        <PencilIcon size={13} />
-      </button>
-
-      {removeButton}
-
-      <button
-        type="button"
-        role="switch"
-        aria-checked={enabled}
-        aria-label={enabled ? "Pause job" : "Resume job"}
-        title={
-          job.source === "global"
-            ? enabled
-              ? "Pause in this project only"
-              : "Resume in this project only"
-            : undefined
-        }
-        onClick={() => onToggleEnabled(job.id, !enabled)}
-        className="shrink-0"
-      >
-        <Switch checked={enabled} />
-      </button>
+      <span className="flex shrink-0 items-center gap-1 pt-1 group-focus-within:hidden group-hover:hidden">
+        {when && <span className="text-[12px] tabular-nums text-[var(--text-muted)]">{when}</span>}
+        <span className="scale-90 text-[var(--text-muted)] opacity-70">
+          <ChevronRightIcon />
+        </span>
+      </span>
+      <span className="hidden shrink-0 items-center gap-1 group-focus-within:flex group-hover:flex">
+        {job.valid &&
+          (job.running ? (
+            <HoverActionButton label="Stop run" title="Stop" danger onClick={() => onStop(job.id)}>
+              <StopIcon />
+            </HoverActionButton>
+          ) : (
+            <HoverActionButton label="Run now" onClick={() => onRunNow(job.id)}>
+              <PlayIcon />
+            </HoverActionButton>
+          ))}
+        {job.valid && (
+          <HoverActionButton
+            label={enabled ? "Pause job" : "Resume job"}
+            title={toggleTitle}
+            onClick={() => onToggleEnabled(job.id, !enabled)}
+          >
+            {enabled ? <Pause size={14} /> : <CirclePlay size={15} />}
+          </HoverActionButton>
+        )}
+        <HoverActionButton label="Edit job" title="Edit" onClick={() => onEdit(job)}>
+          <PencilIcon size={13} />
+        </HoverActionButton>
+        {removable && (
+          <HoverActionButton label="Remove job" title="Remove" danger onClick={() => onRemove(job)}>
+            <TrashIcon size={13} />
+          </HoverActionButton>
+        )}
+      </span>
     </div>
   );
 }
