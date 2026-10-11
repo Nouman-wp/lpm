@@ -1,29 +1,37 @@
 import type { ReactNode } from "react";
-import { originActionLabel, originMark, originMarkTitle, type OriginMark } from "../originStatus";
+import {
+  heldByChanges,
+  originActionLabel,
+  originHeldTitle,
+  originMark,
+  originMarkTitle,
+  type OriginMark,
+} from "../originStatus";
 import { useOriginStatus } from "../store/originStatus";
+import { useSettingsStore } from "../store/settings";
 import { SpinnerIcon } from "./project-detail/icons";
 
 const INCOMING = "text-[var(--accent-sky-text)]";
 const QUIET = "text-[var(--text-muted)]";
 
-function markText(mark: OriginMark): ReactNode {
+function markText(mark: OriginMark, incoming = INCOMING): ReactNode {
   switch (mark.kind) {
     case "behind":
-      return <span className={INCOMING}>↓{mark.behind}</span>;
+      return <span className={incoming}>↓{mark.behind}</span>;
     case "diverged":
       return (
         <>
           <span className={`${QUIET} mr-1.5`}>↑{mark.ahead}</span>
-          <span className={INCOMING}>↓{mark.behind}</span>
+          <span className={incoming}>↓{mark.behind}</span>
         </>
       );
     case "base":
       return mark.onBase ? (
-        <span className={INCOMING}>↓{mark.behind}</span>
+        <span className={incoming}>↓{mark.behind}</span>
       ) : (
         <>
           <span className={`${QUIET} mr-1`}>{mark.base}</span>
-          <span className={INCOMING}>+{mark.behind}</span>
+          <span className={incoming}>+{mark.behind}</span>
         </>
       );
     case "conflict":
@@ -33,9 +41,11 @@ function markText(mark: OriginMark): ReactNode {
 
 // The end of a project row when its branch on origin has moved on: "↓3" at rest.
 // On hover it steps aside for SidebarOriginAction, keeping an invisible copy of
-// that button's label so the name truncates to make room for it.
+// that button's label so the name truncates to make room for it. Grayed, with no
+// button, while uncommitted changes stand in the pull's way.
 export function SidebarOriginMark({ root }: { root: string }) {
   const entry = useOriginStatus((s) => s.entries[root]);
+  const autostash = useSettingsStore((s) => !!s.gitPull?.autostash);
   if (!entry) return null;
   if (entry.running) {
     return (
@@ -53,6 +63,16 @@ export function SidebarOriginMark({ root }: { root: string }) {
   }
   const mark = originMark(entry.status);
   if (!mark) return null;
+  if (heldByChanges(entry.status, mark, autostash)) {
+    return (
+      <span
+        className="ml-auto flex shrink-0 items-center text-[11px] font-medium tabular-nums opacity-60"
+        title={originHeldTitle(mark, entry.status)}
+      >
+        {markText(mark, QUIET)}
+      </span>
+    );
+  }
   return (
     <span
       className="ml-auto flex shrink-0 items-center text-[11px] font-medium tabular-nums"

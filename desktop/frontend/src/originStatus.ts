@@ -9,6 +9,8 @@ export interface OriginStatus {
   base: string;
   baseBehind: number;
   conflicted: boolean;
+  // Tracked files with uncommitted changes; counted only while origin has news.
+  changes: number;
   fetched: boolean;
 }
 
@@ -42,6 +44,14 @@ export function isPlainPull(mark: OriginMark | null): boolean {
   return mark?.kind === "behind" || (mark?.kind === "base" && mark.onBase);
 }
 
+// Uncommitted changes stop a pull or merge whose incoming files they touch, so a
+// project with any waits until they're committed or stashed. A pull set to
+// autostash carries them across instead; a merge has no such setting here.
+export function heldByChanges(status: OriginStatus, mark: OriginMark | null, autostash: boolean): boolean {
+  if (!mark || mark.kind === "conflict" || !status.changes) return false;
+  return !(autostash && (mark.kind === "behind" || mark.kind === "diverged"));
+}
+
 const commits = (n: number) => `${n} new commit${n === 1 ? "" : "s"}`;
 
 export function originMarkTitle(mark: OriginMark, branch: string): string {
@@ -57,6 +67,11 @@ export function originMarkTitle(mark: OriginMark, branch: string): string {
     case "conflict":
       return "The last pull or merge stopped on conflicts";
   }
+}
+
+export function originHeldTitle(mark: OriginMark, status: OriginStatus): string {
+  const files = status.changes === 1 ? "1 file here has" : `${status.changes} files here have`;
+  return `${originMarkTitle(mark, status.branch)}. ${files} uncommitted changes: commit or stash them first`;
 }
 
 export function originActionLabel(mark: OriginMark): string {
@@ -109,6 +124,7 @@ export function sameOriginStatus(a: OriginStatus | undefined, b: OriginStatus): 
     a.behind === b.behind &&
     a.base === b.base &&
     a.baseBehind === b.baseBehind &&
-    a.conflicted === b.conflicted
+    a.conflicted === b.conflicted &&
+    a.changes === b.changes
   );
 }

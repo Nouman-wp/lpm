@@ -1,6 +1,7 @@
 import { runOriginAction } from "../originActions";
-import { originActionLabel, originActionTitle, originMark } from "../originStatus";
+import { heldByChanges, originActionLabel, originActionTitle, originMark } from "../originStatus";
 import { useOriginStatus } from "../store/originStatus";
+import { useSettingsStore } from "../store/settings";
 
 const FILL = {
   incoming:
@@ -24,8 +25,9 @@ export function SidebarOriginAction({
   onResolve: () => void;
 }) {
   const entry = useOriginStatus((s) => s.entries[root]);
+  const autostash = useSettingsStore((s) => !!s.gitPull?.autostash);
   const mark = entry && !entry.running && !entry.done ? originMark(entry.status) : null;
-  if (!entry || !mark) return null;
+  if (!entry || !mark || heldByChanges(entry.status, mark, autostash)) return null;
   const conflict = mark.kind === "conflict";
   const title = originActionTitle(mark, entry.status.branch);
   return (

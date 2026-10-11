@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { EventsOn } from "../../bridge/runtime";
 import { recheckOrigin } from "../originActions";
+import { originMark } from "../originStatus";
 import { isPeerRoot } from "../peer/markers";
 import { useOriginStatus } from "../store/originStatus";
 import { GIT_CHANGED_EVENT, type ProjectInfo } from "../types";
@@ -86,8 +87,10 @@ export function useOriginStatusPoller(projects: ProjectInfo[], enabled: boolean)
     const pending = new Map<string, ReturnType<typeof setTimeout>>();
     const cancel = EventsOn(GIT_CHANGED_EVENT, (payload: { path?: string; files?: string[] | null }) => {
       const root = payload?.path;
-      // Working-tree edits carry a file list and can't move a branch.
-      if (!root || payload.files || !rootsRef.current.includes(root)) return;
+      if (!root || !rootsRef.current.includes(root)) return;
+      // Working-tree edits carry a file list. They can't move a branch, but they
+      // can stand in the way of a pull from origin, or stop doing so.
+      if (payload.files && !originMark(useOriginStatus.getState().entries[root]?.status)) return;
       clearTimeout(pending.get(root));
       pending.set(root, setTimeout(() => {
         pending.delete(root);

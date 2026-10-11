@@ -22,6 +22,7 @@ const status = (over: Partial<OriginStatus> = {}): OriginStatus => ({
   base: "",
   baseBehind: 0,
   conflicted: false,
+  changes: 0,
   fetched: true,
   ...over,
 });
@@ -93,6 +94,20 @@ describe("SidebarDeckPullRow", () => {
     const trees = COPIES.map((c) => ({ ...c, worktree: true }));
     behind(...trees);
     expect(show([LPM, ...trees])!.textContent).toBe("↓ Pull lpm and 4 worktrees");
+  });
+
+  it("leaves out copies with uncommitted changes, and says which", () => {
+    behind(...COPIES);
+    act(() => {
+      for (const c of [COPIES[1], COPIES[2]]) {
+        useOriginStatus.getState().setStatus(c.root, status({ behind: 1, changes: 2 }));
+      }
+    });
+    const row = show()!;
+    expect(row.textContent).toBe("↓ Pull 2 duplicates");
+    expect(row.title).toBe("Pull lpm-duplicate, lpm-sidebar. lpm-demo, lpm-ads have uncommitted changes");
+    act(() => useOriginStatus.getState().setStatus(COPIES[2].root, status({ behind: 1 })));
+    expect(show()!.textContent).toBe("↓ Pull 3 duplicates");
   });
 
   it("leaves out a row whose own pull is already running", () => {

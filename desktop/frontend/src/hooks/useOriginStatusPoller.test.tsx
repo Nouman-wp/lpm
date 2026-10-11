@@ -35,7 +35,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   useOriginStatus.getState().reset();
   mocks.status.mockImplementation(async () => ({
-    branch: "main", hasUpstream: true, ahead: 0, behind: 2, base: "", baseBehind: 0, conflicted: false, fetched: true,
+    branch: "main", hasUpstream: true, ahead: 0, behind: 2, base: "", baseBehind: 0, conflicted: false, changes: 0, fetched: true,
   }));
   container = document.createElement("div");
   root = createRoot(container);
@@ -75,6 +75,25 @@ describe("useOriginStatusPoller", () => {
     mocks.status.mockClear();
     await act(async () => { await vi.advanceTimersByTimeAsync(FETCH_EVERY_MS); });
     expect(mocks.status.mock.calls).toEqual([["/p/lpm", true], ["/p/reader", true]]);
+  });
+
+  it("recounts on working-tree edits only while the project shows a mark", async () => {
+    act(() => root.render(<Harness enabled />));
+    const calls = mocks.eventsOn.mock.calls as unknown as [string, (payload: unknown) => void][];
+    const onGitChanged = calls.find(([event]) => event === "git-changed")![1];
+    const edit = async () => {
+      act(() => onGitChanged({ path: "/p/reader", files: ["src/a.ts"] }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_500); });
+    };
+
+    await edit();
+    expect(mocks.status).not.toHaveBeenCalled();
+
+    const behind = await mocks.status();
+    mocks.status.mockClear();
+    act(() => useOriginStatus.getState().setStatus("/p/reader", behind));
+    await edit();
+    expect(mocks.status).toHaveBeenCalledWith("/p/reader", false);
   });
 
   it("clears every mark when switched off", async () => {

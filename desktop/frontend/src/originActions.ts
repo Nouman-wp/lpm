@@ -1,7 +1,14 @@
 import { toast } from "sonner";
 import { GitMerge, GitOriginStatus, GitPush, PullBranch } from "../bridge/commands";
 import { DEFAULT_PULL_CONFIG, DEFAULT_PUSH_CONFIG, pullFlags, pushFlags } from "./gitOptions";
-import { isPlainPull, originDoneText, originMark, type OriginMark, type OriginStatus } from "./originStatus";
+import {
+  heldByChanges,
+  isPlainPull,
+  originDoneText,
+  originMark,
+  type OriginMark,
+  type OriginStatus,
+} from "./originStatus";
 import { useDeckPull } from "./store/deckPull";
 import { getSettings } from "./store/settings";
 import { useOriginStatus } from "./store/originStatus";
@@ -71,7 +78,8 @@ export function plainPullMark(root: string): OriginMark | null {
   const entry = useOriginStatus.getState().entries[root];
   if (!entry || entry.running) return null;
   const mark = originMark(entry.status);
-  return isPlainPull(mark) ? mark : null;
+  const autostash = !!getSettings().gitPull?.autostash;
+  return isPlainPull(mark) && !heldByChanges(entry.status, mark, autostash) ? mark : null;
 }
 
 const PULLS_AT_ONCE = 4;
@@ -95,15 +103,24 @@ function repoLanes(rows: DeckPullRow[]): DeckPullRow[][] {
 }
 
 // Pull every row of a deck that only needs a plain pull, separate repositories
-// side by side.
+// side by side. Rows with uncommitted changes in the way are left alone.
 export async function pullDeck(deck: string, rows: DeckPullRow[]): Promise<void> {
   if (useDeckPull.getState().decks[deck]?.running) return;
-  const todo = rows.filter((row) => plainPullMark(row.root));
+  let todo = rows.filter((row) => plainPullMark(row.root));
   if (todo.length === 0) return;
   const failed: string[] = [];
   let done = 0;
   const publish = (running: boolean) =>
     useDeckPull.getState().setDeck(deck, { total: todo.length, done, running, failed: [...failed] });
+  publish(true);
+  // Only the open project's edits are watched, so a copy may have picked up
+  // uncommitted changes since its last check.
+  await Promise.all(todo.map((row) => recheckOrigin(row.root)));
+  todo = todo.filter((row) => plainPullMark(row.root));
+  if (todo.length === 0) {
+    useDeckPull.getState().setDeck(deck, undefined);
+    return;
+  }
   publish(true);
   const queue = repoLanes(todo);
   const worker = async () => {

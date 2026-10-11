@@ -18,6 +18,7 @@ const status = (over: Partial<OriginStatus> = {}): OriginStatus => ({
   base: "",
   baseBehind: 0,
   conflicted: false,
+  changes: 0,
   fetched: true,
   ...over,
 });
@@ -71,6 +72,15 @@ describe("SidebarOriginMark", () => {
   it("spins while catching up, then confirms", () => {
     expect(show({ behind: 3 }, { running: true })!.title).toBe("Catching up with origin…");
     expect(show({}, { done: "Pulled 3" })!.textContent).toBe("✓ Pulled 3");
+  });
+
+  it("grays the count, with no hover label, while uncommitted changes are in the way", () => {
+    const mark = show({ behind: 1, changes: 3 })!;
+    expect(mark.textContent).toBe("↓1");
+    expect(mark.className).toContain("opacity-60");
+    expect(mark.title).toBe(
+      "Origin has 1 new commit on main. 3 files here have uncommitted changes: commit or stash them first",
+    );
   });
 
   it("flags a stopped pull", () => {

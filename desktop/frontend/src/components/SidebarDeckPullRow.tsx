@@ -1,7 +1,8 @@
 import { pullDeck } from "../originActions";
-import { isPlainPull, originMark } from "../originStatus";
+import { heldByChanges, isPlainPull, originMark } from "../originStatus";
 import { useDeckPull } from "../store/deckPull";
 import { useOriginStatus } from "../store/originStatus";
+import { useSettingsStore } from "../store/settings";
 import { SpinnerIcon } from "./project-detail/icons";
 import { deckKindLabel } from "./sidebarDeck";
 
@@ -15,7 +16,8 @@ export interface DeckPullTarget {
 const ROW_CLASS = "relative flex h-7 w-full items-center gap-1.5 rounded-md pr-3 text-left text-[12px] font-medium";
 
 // The deck's last row while two or more of its projects only need a pull: one
-// press pulls them all, then it reports how that went and steps away.
+// press pulls them all, then it reports how that went and steps away. Projects
+// with uncommitted changes in the way sit out until those are committed.
 export function SidebarDeckPullRow({
   deck,
   parentLabel,
@@ -29,14 +31,20 @@ export function SidebarDeckPullRow({
 }) {
   const entries = useOriginStatus((s) => s.entries);
   const pull = useDeckPull((s) => s.decks[deck]);
+  const autostash = useSettingsStore((s) => !!s.gitPull?.autostash);
   // Text starts on the names above it: `px-3` plus the 8px dot and `gap-3`, or
   // the folder's 27px step in place of `px-3`.
   const pad = indented ? "pl-[47px]" : "pl-8";
 
-  const pullable = targets.filter((target) => {
+  const ready = targets.filter((target) => {
     const entry = entries[target.root];
     return !!entry && !entry.running && !entry.done && isPlainPull(originMark(entry.status));
   });
+  const held = ready.filter((target) => {
+    const status = entries[target.root].status;
+    return heldByChanges(status, originMark(status), autostash);
+  });
+  const pullable = ready.filter((target) => !held.includes(target));
 
   if (pull?.running) {
     return (
@@ -93,11 +101,15 @@ export function SidebarDeckPullRow({
     copies.length < pullable.length
       ? `Pull ${parentLabel} and ${copies.length} ${kind}`
       : `Pull ${copies.length} ${kind}`;
+  const waiting =
+    held.length === 0
+      ? ""
+      : `. ${held.map((target) => target.name).join(", ")} ${held.length === 1 ? "has" : "have"} uncommitted changes`;
   return (
     <button
       type="button"
       onClick={() => void pullDeck(deck, targets)}
-      title={`Pull ${pullable.map((target) => target.name).join(", ")}`}
+      title={`Pull ${pullable.map((target) => target.name).join(", ")}${waiting}`}
       className={`${ROW_CLASS} ${pad} text-[var(--accent-sky-text)] outline-none transition-colors hover:bg-[var(--bg-hover)] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-cyan)]/60`}
     >
       ↓ {label}

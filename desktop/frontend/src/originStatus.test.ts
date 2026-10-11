@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  heldByChanges,
   originActionLabel,
   originDoneText,
+  originHeldTitle,
   originMark,
   originMarkTitle,
   sameOriginStatus,
@@ -16,6 +18,7 @@ const status = (over: Partial<OriginStatus> = {}): OriginStatus => ({
   base: "",
   baseBehind: 0,
   conflicted: false,
+  changes: 0,
   fetched: true,
   ...over,
 });
@@ -67,10 +70,41 @@ describe("originMark", () => {
   });
 });
 
+describe("heldByChanges", () => {
+  const held = (over: Partial<OriginStatus>, autostash = false) => {
+    const st = status(over);
+    return heldByChanges(st, originMark(st), autostash);
+  };
+
+  it("holds back a catch-up while tracked files have uncommitted changes", () => {
+    expect(held({ behind: 1, changes: 3 })).toBe(true);
+    expect(held({ ahead: 2, behind: 1, changes: 1 })).toBe(true);
+    expect(held({ hasUpstream: false, base: "main", baseBehind: 2, changes: 1 })).toBe(true);
+    expect(held({ behind: 1 })).toBe(false);
+  });
+
+  it("lets an autostash pull through, but not a merge", () => {
+    expect(held({ behind: 1, changes: 3 }, true)).toBe(false);
+    expect(held({ hasUpstream: false, base: "main", baseBehind: 2, changes: 1 }, true)).toBe(true);
+  });
+
+  it("leaves a conflict to show as one", () => {
+    expect(held({ behind: 1, conflicted: true, changes: 2 })).toBe(false);
+  });
+
+  it("says what is in the way", () => {
+    const st = status({ behind: 1, changes: 3 });
+    expect(originHeldTitle(originMark(st)!, st)).toBe(
+      "Origin has 1 new commit on main. 3 files here have uncommitted changes: commit or stash them first",
+    );
+  });
+});
+
 describe("sameOriginStatus", () => {
   it("ignores whether the last fetch landed", () => {
     expect(sameOriginStatus(status({ fetched: true }), status({ fetched: false }))).toBe(true);
     expect(sameOriginStatus(status(), status({ behind: 1 }))).toBe(false);
+    expect(sameOriginStatus(status({ behind: 1 }), status({ behind: 1, changes: 2 }))).toBe(false);
     expect(sameOriginStatus(undefined, status())).toBe(false);
   });
 });

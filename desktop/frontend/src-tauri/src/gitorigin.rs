@@ -22,6 +22,9 @@ pub struct OriginStatus {
     pub base: String,
     pub base_behind: i64,
     pub conflicted: bool,
+    /// Tracked files with uncommitted changes, which can stop a pull or merge.
+    /// Only counted while origin has something new.
+    pub changes: i64,
     /// Whether a requested fetch landed. When it didn't, the counts are as old
     /// as the last fetch that did.
     pub fetched: bool,
@@ -29,6 +32,28 @@ pub struct OriginStatus {
 
 #[tauri::command(async)]
 pub fn git_origin_status(cwd: String, fetch: bool) -> OriginStatus {
+    let mut st = origin_counts(cwd.clone(), fetch);
+    if st.behind > 0 || st.base_behind > 0 {
+        st.changes = uncommitted_files(&cwd);
+    }
+    st
+}
+
+fn uncommitted_files(cwd: &str) -> i64 {
+    git_out(
+        cwd,
+        &[
+            "--no-optional-locks",
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=no",
+        ],
+    )
+    .map(|out| out.lines().count() as i64)
+    .unwrap_or(0)
+}
+
+fn origin_counts(cwd: String, fetch: bool) -> OriginStatus {
     let mut st = OriginStatus::default();
     // Detached HEADs and folders that aren't repos have nothing to compare.
     let Ok(head) = git_out(&cwd, &["symbolic-ref", "-q", "HEAD"]) else {
@@ -197,6 +222,18 @@ mod tests {
         crate::git::pull_branch(mine.clone(), "ff".into(), vec![]).unwrap();
         let st = git_origin_status(mine, false);
         assert_eq!((st.ahead, st.behind), (2, 0));
+    }
+
+    #[test]
+    fn edits_to_tracked_files_are_counted_once_origin_has_news() {
+        let (_d, mine, theirs) = setup();
+        std::fs::write(Path::new(&mine).join("a.txt"), "edited\n").unwrap();
+        std::fs::write(Path::new(&mine).join("scratch.txt"), "untracked\n").unwrap();
+        assert_eq!(git_origin_status(mine.clone(), false).changes, 0);
+
+        push_news(&theirs, &["b.txt"]);
+        let st = git_origin_status(mine, true);
+        assert_eq!((st.behind, st.changes), (1, 1));
     }
 
     #[test]

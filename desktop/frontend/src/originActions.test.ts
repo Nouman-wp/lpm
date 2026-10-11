@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   merge: vi.fn(),
   toastError: vi.fn(),
+  autostash: true,
 }));
 
 vi.mock("../bridge/commands", () => ({
@@ -18,7 +19,7 @@ vi.mock("../bridge/commands", () => ({
 vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
 vi.mock("./store/settings", () => ({
   getSettings: () => ({
-    gitPull: { strategy: "ff-only", autostash: true, noVerify: false },
+    gitPull: { strategy: "ff-only", autostash: mocks.autostash, noVerify: false },
     gitPush: { mode: "default", noVerify: false, tags: false },
   }),
 }));
@@ -36,6 +37,7 @@ const status = (over: Partial<OriginStatus> = {}): OriginStatus => ({
   base: "",
   baseBehind: 0,
   conflicted: false,
+  changes: 0,
   fetched: false,
   ...over,
 });
@@ -43,6 +45,7 @@ const entry = () => useOriginStatus.getState().entries[ROOT];
 
 beforeEach(() => {
   vi.useFakeTimers();
+  mocks.autostash = true;
   useOriginStatus.getState().reset();
   useDeckPull.getState().reset();
   useOriginStatus.getState().setStatus(ROOT, status({ behind: 3 }));
@@ -130,6 +133,7 @@ describe("pullDeck", () => {
   beforeEach(() => {
     useOriginStatus.getState().setStatus(COPY, status({ behind: 1 }));
     useOriginStatus.getState().setStatus(AHEAD, status({ ahead: 2, behind: 1 }));
+    mocks.status.mockImplementation(async (root: string) => useOriginStatus.getState().entries[root].status);
   });
 
   it("pulls the rows that only need a pull, side by side, then steps away", async () => {
@@ -192,6 +196,27 @@ describe("pullDeck", () => {
     );
     vi.advanceTimersByTime(2500);
     expect(pulls()).toMatchObject({ running: false, failed: [ROOT] });
+  });
+
+  it("recounts first, and leaves a copy that has picked up uncommitted changes alone", async () => {
+    mocks.autostash = false;
+    mocks.status.mockImplementation(async (root: string) =>
+      root === COPY ? status({ behind: 1, changes: 2 }) : useOriginStatus.getState().entries[root].status,
+    );
+    await pullDeck("reader", deck);
+
+    expect(mocks.status).toHaveBeenCalledWith(COPY, false);
+    expect(mocks.pull.mock.calls.map((call) => call[0])).toEqual([ROOT]);
+    expect(pulls()).toMatchObject({ total: 1, done: 1, failed: [] });
+    expect(mocks.toastError).not.toHaveBeenCalled();
+  });
+
+  it("steps away when the recount leaves nothing to pull", async () => {
+    mocks.autostash = false;
+    mocks.status.mockResolvedValue(status({ behind: 1, changes: 1 }));
+    await pullDeck("reader", deck);
+    expect(mocks.pull).not.toHaveBeenCalled();
+    expect(pulls()).toBeUndefined();
   });
 
   it("leaves a row alone once its own button is already pulling it", async () => {
