@@ -4982,6 +4982,20 @@ mod tests {
     }
 
     #[test]
+    fn run_env_points_the_memory_skill_at_the_project() {
+        let env = run_env("blog", "nightly", "/tmp", Trigger::Manual, None, None, false);
+        let dir = env
+            .iter()
+            .find(|(k, _)| k == "LPM_MEMORY_DIR")
+            .map(|(_, v)| std::path::PathBuf::from(v))
+            .expect("LPM_MEMORY_DIR");
+        assert!(dir.ends_with(std::path::Path::new("memory").join("blog")));
+
+        let standalone = run_env("", "nightly", "/tmp", Trigger::Manual, None, None, false);
+        assert!(standalone.iter().all(|(k, _)| k != "LPM_MEMORY_DIR"));
+    }
+
+    #[test]
     fn check_times_out_and_is_killed() {
         let root = std::env::temp_dir().to_string_lossy().into_owned();
         let start = std::time::Instant::now();

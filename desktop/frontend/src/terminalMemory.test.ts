@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isMemoryPending,
+  memoryInvocation,
   mergeMemoryRef,
   scanMemoryInvocation,
   soleChangedSession,
@@ -58,6 +59,24 @@ describe("scanMemoryInvocation", () => {
   it("normalizes the session to the slug's own casing", () => {
     expect(scanMemoryInvocation("/LPM-MEMORY Auth-Refactor")).toEqual({
       session: "auth-refactor",
+    });
+  });
+});
+
+describe("memoryInvocation", () => {
+  it("writes Claude's slash command and every other agent's skill mention", () => {
+    expect(memoryInvocation("claude", "auth-refactor")).toBe("/lpm-memory auth-refactor ");
+    expect(memoryInvocation("codex", "auth-refactor")).toBe("$lpm-memory auth-refactor ");
+    expect(memoryInvocation(null, "auth-refactor")).toBe("$lpm-memory auth-refactor ");
+  });
+
+  it("keeps the bare save free of a trailing space", () => {
+    expect(memoryInvocation("claude", "")).toBe("/lpm-memory");
+  });
+
+  it("is read back as the session it names", () => {
+    expect(scanMemoryInvocation(memoryInvocation("claude", "billing"))).toEqual({
+      session: "billing",
     });
   });
 });

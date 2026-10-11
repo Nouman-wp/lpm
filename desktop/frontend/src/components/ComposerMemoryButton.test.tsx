@@ -122,6 +122,14 @@ describe("ComposerMemoryButton", () => {
     expect(rows()).toHaveLength(0);
   });
 
+  it("leaves out the Open action where there is no Memory tab", () => {
+    render({ onView: undefined });
+    click(trigger());
+
+    expect(document.querySelector("button[aria-label='Open auth-refactor in Memory']")).toBeNull();
+    expect(document.querySelector("button[aria-label='Rename auth-refactor']")).not.toBeNull();
+  });
+
   it("deletes only after the confirmation is accepted", () => {
     const onDelete = vi.fn();
     render({ onDelete });
