@@ -201,6 +201,9 @@ mod trash;
 mod treecopy;
 mod openaitts;
 mod secrets;
+mod sendto;
+mod telegram;
+mod telegramlink;
 mod tts;
 mod uninstall;
 mod updatejob;
@@ -308,6 +311,7 @@ use tailnet_cmds::{tailnet_set_enabled, tailnet_sign_in, tailnet_sign_out, tailn
 use tauri::Manager;
 use templates::*;
 use transfer::*;
+use telegram::*;
 use tts::*;
 use uninstall::*;
 use updates::*;

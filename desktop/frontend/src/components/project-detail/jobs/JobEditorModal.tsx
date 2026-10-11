@@ -17,6 +17,8 @@ import { ClockIcon, XIcon } from "../../icons";
 import { RowModelSelect } from "./RowModelSelect";
 import { RunKindPicker } from "./RunKindPicker";
 import { JobScopeRow } from "./JobScopeRow";
+import { SendToConnectModal } from "./SendToConnectModal";
+import type { ConnectIntent } from "../../../sendToConnectors";
 import { JobFrequencyCard } from "./JobFrequencyCard";
 import { JobCheckField } from "./JobCheckField";
 import { CheckAIModal } from "./CheckAIModal";
@@ -89,6 +91,10 @@ export function JobEditorModal({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteCopies, setDeleteCopies] = useState(false);
   const [checkAIOpen, setCheckAIOpen] = useState(false);
+  // The outside service being linked (or given another chat) from the editor.
+  const [connecting, setConnecting] = useState<{ service: string; intent: ConnectIntent } | null>(
+    null,
+  );
   // Whether the user has edited anything yet — the "what's missing" hint
   // stays quiet on a freshly opened editor.
   const [touched, setTouched] = useState(false);
@@ -141,6 +147,7 @@ export function JobEditorModal({
     if (!open) return;
     setConfirmDelete(false);
     setCheckAIOpen(false);
+    setConnecting(null);
     setSaving(false);
     setTouched(false);
     setComposerSession((n) => n + 1);
@@ -326,8 +333,8 @@ export function JobEditorModal({
       <Modal
         open={open}
         onClose={requestClose}
-        closeOnEscape={!confirmDelete && !guardOpen && !checkAIOpen}
-        closeOnBackdrop={!confirmDelete && !guardOpen && !checkAIOpen}
+        closeOnEscape={!confirmDelete && !guardOpen && !checkAIOpen && !connecting}
+        closeOnBackdrop={!confirmDelete && !guardOpen && !checkAIOpen && !connecting}
         backdropClassName="bg-black/50 backdrop-blur-sm"
         contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
       >
@@ -455,6 +462,7 @@ export function JobEditorModal({
                   canDuplicate={canDuplicate}
                   skippedCopies={skippedCopies}
                   problem={isStandalone && draft.runMode === "action"}
+                  onConnect={(service, intent) => setConnecting({ service, intent })}
                 />
                 <JobCheckField
                   key={`check-${composerSession}`}
@@ -532,6 +540,17 @@ export function JobEditorModal({
           onUse={(check) => set("check", check)}
         />
       )}
+      <SendToConnectModal
+        destination={connecting?.service ?? null}
+        intent={connecting?.intent}
+        onClose={() => setConnecting(null)}
+        onAdded={(ids) => {
+          // A chat added from this job is one it means to send to.
+          if (connecting?.intent !== "add") return;
+          setTouched(true);
+          setDraft((d) => ({ ...d, sendTo: [...d.sendTo, ...ids.filter((id) => !d.sendTo.includes(id))] }));
+        }}
+      />
       {dialog}
     </>
   );

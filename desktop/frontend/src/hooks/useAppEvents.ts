@@ -27,10 +27,20 @@ export function useAmbientAppEvents(): void {
         result: string;
         copy?: string;
         detail?: string;
+        manual?: boolean;
+        notify?: boolean;
       }) => {
-        if (!payload?.project) return;
         // The name the user gave it, not the id it is filed under.
-        const name = payload.label || payload.jobId;
+        const name = payload?.label || payload?.jobId;
+        // A quiet job's run that found nothing stays silent — unless someone
+        // pressed Run now and is waiting to hear it finished.
+        if (payload?.result === "quiet") {
+          if (payload.manual) toast(`"${name}" found nothing to report.`);
+          return;
+        }
+        // The job sends its results elsewhere, not to lpm.
+        if (payload?.notify === false) return;
+        if (!payload?.project) return;
         // What the run actually reported — "finished" alone doesn't say whether
         // it did what it was asked.
         const detail = payload.detail ? ` ${payload.detail}` : "";
@@ -49,6 +59,18 @@ export function useAmbientAppEvents(): void {
             `"${name}" in ${payload.project} ran too long and was stopped.`,
           );
         }
+      },
+    );
+
+    // A job's results couldn't reach an outside destination — say so here, or
+    // the message it carried would vanish without a word.
+    const cancelSendToFailed = EventsOn(
+      "send-to-failed",
+      (payload: { destination: string; title: string; error: string }) => {
+        if (!payload?.destination) return;
+        toast.error(`Couldn't send to ${payload.destination}`, {
+          description: `${payload.title} ${payload.error}`,
+        });
       },
     );
 
@@ -86,6 +108,7 @@ export function useAmbientAppEvents(): void {
     return () => {
       if (typeof cancelSyncError === "function") cancelSyncError();
       if (typeof cancelJobStatus === "function") cancelJobStatus();
+      if (typeof cancelSendToFailed === "function") cancelSendToFailed();
       if (typeof cancelFollowPaused === "function") cancelFollowPaused();
       if (typeof cancelFollowReplaced === "function") cancelFollowReplaced();
       if (typeof cancelPeerSettings === "function") cancelPeerSettings();

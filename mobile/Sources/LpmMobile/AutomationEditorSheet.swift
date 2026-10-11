@@ -68,6 +68,8 @@ private struct JobEditorDraft {
     var model = ""
     var effort = ""
     var access = "full"             // full | read
+    var quiet = false               // report only runs that found something (set on the Mac)
+    var sendTo: Any?                // where results go (set on the Mac); nil = lpm alone
     var targets: [String] = []      // "runs in"; empty = standalone
     /// A schedule set on the Mac that this editor has no controls for (several
     /// times a day, dates of the month, a one-off date, an interval held to some
@@ -781,11 +783,13 @@ struct AutomationEditorSheet: View {
                 d.model = run["model"] as? String ?? ""
                 d.effort = (run["effort"] as? String ?? "").lowercased()
                 if (run["access"] as? String)?.lowercased() == "read" { d.access = "read" }
+                d.quiet = run["quiet"] as? Bool ?? false
             }
         }
 
         if let check = body["check"] as? String { d.check = check }
         if let verify = body["verify"] as? String { d.verify = verify }
+        d.sendTo = body["sendTo"]
         if let projects = body["projects"] as? [Any] {
             d.targets = projects.map { String(describing: $0) }
             scopeHasProjectsKey = true
@@ -824,6 +828,7 @@ struct AutomationEditorSheet: View {
         if !verify.isEmpty, draft.runMode != "action" { payload["verify"] = verify }
         if let duplicate = buildDuplicate() { payload["duplicate"] = duplicate }
         payload["run"] = buildRun()
+        if let sendTo = draft.sendTo { payload["sendTo"] = sendTo }
         // The "runs in" list lives only on global-layer jobs; a project/repo job
         // is bound to its file. An every-project global job (scope read-only)
         // keeps that meaning by omitting `projects`.
@@ -881,6 +886,7 @@ struct AutomationEditorSheet: View {
             let e = draft.effort.trimmed
             if !e.isEmpty { block["effort"] = e }
             if draft.access == "read" { block["access"] = "read" }
+            if draft.quiet { block["quiet"] = true }
             return block
         }
     }

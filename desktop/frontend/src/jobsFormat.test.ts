@@ -731,6 +731,37 @@ describe("draft <-> payload round-trip", () => {
     expect(full.run).toEqual({ prompt: "Summarize open TODOs" });
     expect(payloadToDraft(full).access).toBe("full");
   });
+
+  it("round-trips where results are sent, writing nothing for lpm alone", () => {
+    const job: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Nightly",
+      runMode: "cmd",
+      cmd: "make",
+      sendTo: ["lpm", "telegram"],
+    };
+    expect(buildJobPayload(job).sendTo).toEqual(["lpm", "telegram"]);
+    expect(payloadToDraft(buildJobPayload(job))).toEqual(job);
+    expect(buildJobPayload({ ...job, sendTo: ["lpm"] })).not.toHaveProperty("sendTo");
+    expect(validateJobDraft({ ...job, sendTo: [] })).toBe("Choose where to send this job's results.");
+  });
+
+  it("round-trips reporting only findings, on prompt runs alone", () => {
+    const quiet: JobDraft = {
+      ...defaultJobDraft(),
+      label: "New models",
+      runMode: "prompt",
+      prompt: prompt("Check whether any new AI models were released"),
+      quiet: true,
+    };
+    expect(buildJobPayload(quiet).run).toEqual({
+      prompt: "Check whether any new AI models were released",
+      quiet: true,
+    });
+    expect(payloadToDraft(buildJobPayload(quiet))).toEqual(quiet);
+    expect(buildJobPayload({ ...quiet, quiet: false }).run).not.toHaveProperty("quiet");
+    expect(buildJobPayload({ ...quiet, runMode: "cmd", cmd: "make" }).run).toEqual({ cmd: "make" });
+  });
 });
 
 describe("prompt attachments", () => {

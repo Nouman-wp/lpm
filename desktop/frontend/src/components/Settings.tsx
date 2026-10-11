@@ -87,6 +87,8 @@ import { modalInputClass, modalInputDefaults } from "../forms/styles";
 import { SettingsSearch } from "./SettingsSearch";
 import { SettingsSelect } from "./SettingsSelect";
 import { OpenAIKeyRow, OpenAIVoiceRow } from "./OpenAITTSRows";
+import { TelegramRow } from "./TelegramRow";
+import { sendToRequestUrl } from "../githubIssue";
 import {
   buildSearchEntries,
   matchSettings,
@@ -726,6 +728,12 @@ export function Settings({
                     />
                   </SettingsRow>
                 ))}
+              <TelegramRow />
+              <SettingsRow {...rowProps("notifications.sendToRequest")}>
+                <button onClick={() => BrowserOpenURL(sendToRequestUrl())} className={BTN_SECONDARY}>
+                  Request on GitHub
+                </button>
+              </SettingsRow>
               <SettingsRow
                 {...rowProps("notifications.hooks", {
                   description: HOOKS_DESCRIPTION[hooksStatus],

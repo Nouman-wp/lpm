@@ -8,6 +8,7 @@ export function SettingsRow({
   children,
   details,
   below,
+  footer,
 }: {
   id?: string;
   label: string;
@@ -15,6 +16,7 @@ export function SettingsRow({
   children: ReactNode;
   details?: ReactNode;
   below?: ReactNode;
+  footer?: ReactNode;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   return (
@@ -38,6 +40,7 @@ export function SettingsRow({
         </div>
         <div className="shrink-0">{children}</div>
       </div>
+      {footer}
       {details && (
         <div
           className={`grid transition-[grid-template-rows] duration-200 ease-out ${detailsOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}

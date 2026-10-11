@@ -5,6 +5,7 @@
 import { composerValueToText, EMPTY_COMPOSER, textToPrompt } from "./composerValue";
 import type { ComposerValue } from "./composerValue";
 import { describeCronText } from "./cronDescribe";
+import { DEFAULT_SEND_TO, readSendTo, writeSendTo } from "./sendTo";
 import {
   dateRulePhrase,
   hasDateRule,
@@ -594,6 +595,11 @@ export interface JobDraft {
   model: string;
   effort: string;
   access: "full" | "read";
+  // Report only runs that found something; a prompt run that finds nothing
+  // leaves no trace.
+  quiet: boolean;
+  // Where the job's results go (see sendTo.ts); lpm alone by default.
+  sendTo: string[];
   // The projects the job runs in (empty = standalone). `everyProject` marks a
   // legacy job that runs wherever projects exist: the editor preserves it, but
   // never sets it — the picker only names concrete projects.
@@ -645,6 +651,8 @@ export function defaultJobDraft(): JobDraft {
     model: "",
     effort: "",
     access: "full",
+    quiet: false,
+    sendTo: [...DEFAULT_SEND_TO],
     targets: [],
     everyProject: false,
   };
@@ -681,6 +689,7 @@ export function validateJobDraft(
   if (draft.runMode === "prompt" && !draft.prompt.text.trim()) {
     return "Enter a prompt to run.";
   }
+  if (draft.sendTo.length === 0) return "Choose where to send this job's results.";
   return null;
 }
 
@@ -699,6 +708,7 @@ function buildRunBlock(draft: JobDraft): Record<string, unknown> {
   if (draft.model.trim()) block.model = draft.model.trim();
   if (draft.effort.trim()) block.effort = draft.effort.trim();
   if (draft.access === "read") block.access = "read";
+  if (draft.quiet) block.quiet = true;
   return block;
 }
 
@@ -749,6 +759,8 @@ export function buildJobPayload(draft: JobDraft): Record<string, unknown> {
   const duplicate = buildDuplicateValue(draft);
   if (duplicate !== null) payload.duplicate = duplicate;
   payload.run = buildRunBlock(draft);
+  const sendTo = writeSendTo(draft.sendTo);
+  if (sendTo) payload.sendTo = sendTo;
   return payload;
 }
 
@@ -761,6 +773,7 @@ export function payloadToDraft(payload: Record<string, unknown>): JobDraft {
   if (typeof payload.emoji === "string") draft.emoji = payload.emoji;
   if (typeof payload.verify === "string") draft.verify = payload.verify;
   readDuplicateInto(draft, payload.duplicate);
+  draft.sendTo = readSendTo(payload.sendTo);
 
   const schedule = payload.schedule;
   if (schedule && typeof schedule === "object") {
@@ -786,6 +799,7 @@ export function payloadToDraft(payload: Record<string, unknown>): JobDraft {
       if (typeof r.access === "string" && r.access.trim().toLowerCase() === "read") {
         draft.access = "read";
       }
+      draft.quiet = r.quiet === true;
     }
   }
 

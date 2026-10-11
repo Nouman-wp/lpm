@@ -5,6 +5,7 @@
 // and the pipeline runs on worker threads so one slow job never stalls the tick.
 use crate::config;
 use crate::jobcal::{self, AtValue, DateRule, DaysValue, IntervalLimits, ParsedDays, DAY_NAMES};
+use crate::sendto;
 use chrono::{Datelike, TimeZone};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -42,6 +43,13 @@ const PENDING_WINDOW: &str = "pending-window";
 const SKIPPED_CAPACITY: &str = "skipped-capacity";
 // Event-only status emitted when a run starts, never written to history.
 const RUNNING: &str = "running";
+// Event-only status for a quiet job's run that found nothing: it leaves no
+// entry and interrupts no one.
+const QUIET: &str = "quiet";
+
+/// The whole reply a quiet job's agent gives when its run turned up nothing.
+const NOTHING_TO_REPORT: &str = "NOTHING_TO_REPORT";
+const QUIET_INSTRUCTION: &str = "If you find nothing new or worth reporting, reply with exactly NOTHING_TO_REPORT and nothing else.";
 
 // ---- config parsing ---------------------------------------------------------
 
@@ -75,6 +83,17 @@ struct JobDef {
     /// empty list = standalone (no project, runs in the home directory).
     #[serde(default)]
     projects: Option<Vec<String>>,
+    /// Where the job's results go (see sendto.rs); absent = lpm alone.
+    #[serde(default, rename = "sendTo")]
+    send_to: Option<SendToValue>,
+}
+
+/// `sendTo: telegram` or `sendTo: [lpm, telegram]`.
+#[derive(Deserialize, Clone)]
+#[serde(untagged)]
+enum SendToValue {
+    One(String),
+    Many(Vec<String>),
 }
 
 /// `duplicate: true` stays readable forever — an older build that meets the
@@ -222,6 +241,10 @@ struct RunDef {
     effort: String,
     #[serde(default)]
     access: String,
+    /// Report only runs that found something: the agent answers
+    /// NOTHING_TO_REPORT otherwise, and that run leaves no trace.
+    #[serde(default)]
+    quiet: bool,
 }
 
 const KNOWN_AGENTS: [&str; 4] = ["claude", "codex", "gemini", "opencode"];
@@ -280,6 +303,7 @@ enum RunTarget {
         model: String,
         effort: String,
         full_access: bool,
+        quiet: bool,
     },
 }
 
@@ -293,6 +317,7 @@ struct JobResolved {
     duplicate: DuplicateSpec,
     run: RunTarget,
     enabled: bool,
+    send_to: Vec<String>,
 }
 
 fn parse_every_secs(v: &EveryValue) -> Result<u64, String> {
@@ -519,6 +544,10 @@ fn resolve_run(project: &str, run: &RunDef) -> Result<RunTarget, String> {
     if count > 1 {
         return Err("A job can run only one of an action, a command, or a prompt.".into());
     }
+    // Only an agent can be asked to say it found nothing.
+    if run.quiet && (!action.is_empty() || !cmd.is_empty()) {
+        return Err("Staying quiet when nothing is found is only for AI prompts.".into());
+    }
     if !action.is_empty() {
         let Some(resolved) = config::resolve_action_full(project, action) else {
             return Err(format!(
@@ -558,7 +587,39 @@ fn resolve_run(project: &str, run: &RunDef) -> Result<RunTarget, String> {
         model: run.model.trim().to_string(),
         effort: run.effort.trim().to_lowercase(),
         full_access: access != "read",
+        quiet: run.quiet,
     })
+}
+
+impl JobResolved {
+    fn quiet(&self) -> bool {
+        matches!(self.run, RunTarget::Prompt { quiet: true, .. })
+    }
+
+    fn sends_to(&self, destination: &str) -> bool {
+        self.send_to.iter().any(|d| d == destination)
+    }
+}
+
+fn resolve_send_to(value: Option<&SendToValue>) -> Result<Vec<String>, String> {
+    let ids: Vec<String> = match value {
+        None => return Ok(vec![sendto::LPM.to_string()]),
+        Some(SendToValue::One(id)) => vec![id.clone()],
+        Some(SendToValue::Many(ids)) => ids.clone(),
+    };
+    let mut out: Vec<String> = Vec::new();
+    for id in ids.iter().map(|id| id.trim().to_lowercase()) {
+        if !sendto::is_known(&id) {
+            return Err(format!("\"{id}\" isn't a place lpm can send results to."));
+        }
+        if !out.contains(&id) {
+            out.push(id);
+        }
+    }
+    if out.is_empty() {
+        return Err("Choose at least one place to send this job's results.".into());
+    }
+    Ok(out)
 }
 
 fn resolve_job(project: &str, id: &str, def: &JobDef) -> Result<JobResolved, String> {
@@ -592,6 +653,7 @@ fn resolve_job(project: &str, id: &str, def: &JobDef) -> Result<JobResolved, Str
         duplicate: resolve_duplicate(&def.duplicate)?,
         run,
         enabled: def.enabled.unwrap_or(true),
+        send_to: resolve_send_to(def.send_to.as_ref())?,
     })
 }
 
@@ -1112,6 +1174,10 @@ struct ActiveRun {
     follows: Option<u64>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     compacted: bool,
+    /// The run belongs to a quiet job, so finding nothing leaves no trace —
+    /// still true when a relaunched app salvages it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    quiet: bool,
     /// When the machine that spawned the pid booted — a pid from before a
     /// reboot can only be a stranger wearing the same number.
     #[serde(default, rename = "bootAt", skip_serializing_if = "Option::is_none")]
@@ -2087,6 +2153,10 @@ struct CaptureSpec {
     /// actually did what it was asked. Absent on replies — a conversational
     /// answer is not a run to check.
     verify: Option<String>,
+    /// A run that answers NOTHING_TO_REPORT leaves no trace; `manual` says a
+    /// person pressed Run now and is waiting to hear it finished.
+    quiet: bool,
+    manual: bool,
 }
 
 impl CaptureSpec {
@@ -2102,6 +2172,8 @@ impl CaptureSpec {
             compacted: false,
             env: Vec::new(),
             verify: None,
+            quiet: false,
+            manual: false,
         }
     }
 
@@ -2117,6 +2189,35 @@ impl CaptureSpec {
         self.env = env;
         self
     }
+
+    fn with_quiet(mut self, quiet: bool, trigger: Trigger) -> Self {
+        self.quiet = quiet;
+        self.manual = trigger == Trigger::Manual;
+        self
+    }
+}
+
+/// The prompt a run hands its agent: a quiet job's carries the one line that
+/// lets the agent say it found nothing.
+fn run_prompt(prompt: &str, quiet: bool) -> String {
+    if quiet {
+        format!("{prompt}\n\n{QUIET_INSTRUCTION}")
+    } else {
+        prompt.to_string()
+    }
+}
+
+/// Whether a quiet job's run came back with the agreed answer and nothing
+/// else. Anything more, however empty it sounds, is reported as usual — a
+/// wrong guess here should cost a notification, never a finding.
+fn found_nothing(quiet: bool, result: &str, output: Option<&str>) -> bool {
+    quiet
+        && result == COMPLETED
+        && output.is_some_and(|o| {
+            o.trim()
+                .trim_matches(|c: char| matches!(c, '`' | '*' | '"' | '\'' | '.') || c.is_whitespace())
+                == NOTHING_TO_REPORT
+        })
 }
 
 /// Wait out one spawned attempt and classify it. A reply that fails on the
@@ -2197,6 +2298,8 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
         compacted,
         env,
         verify,
+        quiet,
+        manual,
     } = spec;
     let env2 = env.clone();
     let log_path = logs.join(format!("{}-{}.log", key.replace('/', "_"), now_secs()));
@@ -2221,6 +2324,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                     resumed: resumed.clone(),
                     follows,
                     compacted,
+                    quiet,
                     boot_at: Some(boot_epoch()),
                     proc_start: proc_start(child.id()),
                 });
@@ -2268,6 +2372,15 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                     }
                 }
                 active_runs().lock().unwrap().remove(&key2);
+                if found_nothing(quiet, result, output.as_deref()) {
+                    let _ = with_state(|f| {
+                        if let Some(st) = f.jobs.get_mut(&key2) {
+                            st.active_run = None;
+                        }
+                    });
+                    emit_quiet(&app2, &key2, manual);
+                    return;
+                }
                 let at = now_secs();
                 // After the final attempt, including the condensed retry — a
                 // run that needed a second try still gets checked once.
@@ -2289,6 +2402,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                     .collect::<Vec<_>>()
                     .join(" · ");
                 let detail = (!detail.is_empty()).then_some(detail);
+                let report = report_text(output.as_deref(), verified);
                 let _ = with_state(|f| {
                     // The job may have been deleted (its state cleared) while
                     // this run was live — don't resurrect it with a ghost entry.
@@ -2316,7 +2430,12 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                     }
                 });
                 let (project, job_id) = key2.split_once('/').unwrap_or((key2.as_str(), ""));
-                emit_status_detail(&app2, project, job_id, result, &None, detail);
+                let send_out = if is_reply {
+                    SendOut::No
+                } else {
+                    SendOut::Report(report.as_deref())
+                };
+                emit_status_detail(&app2, project, job_id, result, &None, detail, send_out);
             });
             Dispatch::Captured
         }
@@ -2342,6 +2461,7 @@ fn dispatch_run(
     target: &str,
     job: &JobResolved,
     env: Vec<(String, String)>,
+    trigger: Trigger,
 ) -> Dispatch {
     let project = key.split_once('/').map(|(p, _)| p).unwrap_or(key);
     let copy = (target != project).then(|| target.to_string());
@@ -2394,6 +2514,7 @@ fn dispatch_run(
             model,
             effort,
             full_access,
+            quiet,
         } => {
             let root = match dispatch_root(target) {
                 Some(r) => r,
@@ -2409,12 +2530,19 @@ fn dispatch_run(
                 key,
                 &root,
                 CaptureSpec::run(
-                    agent_prompt_cmdline(&agent, model, effort, *full_access, prompt),
+                    agent_prompt_cmdline(
+                        &agent,
+                        model,
+                        effort,
+                        *full_access,
+                        &run_prompt(prompt, *quiet),
+                    ),
                     Some(agent),
                     copy,
                 )
                 .with_verify(&job.verify)
-                .with_env(env),
+                .with_env(env)
+                .with_quiet(*quiet, trigger),
             )
         }
     }
@@ -2536,7 +2664,7 @@ fn pipeline_body(
 
     let run_root = dispatch_root(&target).unwrap_or_else(|| root.clone());
     let dispatch_env = context(&run_root, copy.is_some());
-    dispatch_outcome(dispatch_run(app, key, &target, job, dispatch_env), copy)
+    dispatch_outcome(dispatch_run(app, key, &target, job, dispatch_env, trigger), copy)
 }
 
 fn dispatch_outcome(dispatch: Dispatch, copy: Option<String>) -> Outcome {
@@ -2574,8 +2702,8 @@ fn dispatch_outcome(dispatch: Dispatch, copy: Option<String>) -> Outcome {
 
 /// The name the user gave the job. Notifications were the one surface still
 /// showing the internal id.
-fn job_label(project: &str, job_id: &str) -> String {
-    let resolved = if project.is_empty() {
+fn find_job(project: &str, job_id: &str) -> Option<JobResolved> {
+    if project.is_empty() {
         resolve_standalone_jobs()
             .into_iter()
             .find(|(id, _)| id == job_id)
@@ -2585,11 +2713,17 @@ fn job_label(project: &str, job_id: &str) -> String {
             .into_iter()
             .find(|(id, _, _)| id == job_id)
             .and_then(|(_, _, r)| r.ok())
-    };
-    resolved
-        .map(|j| j.label)
+    }
+}
+
+fn label_of(job: Option<&JobResolved>, job_id: &str) -> String {
+    job.map(|j| j.label.clone())
         .filter(|l| !l.trim().is_empty())
         .unwrap_or_else(|| job_id.to_string())
+}
+
+fn job_label(project: &str, job_id: &str) -> String {
+    label_of(find_job(project, job_id).as_ref(), job_id)
 }
 
 /// The run's own verdict, short enough for a notification: what the agent said
@@ -2604,6 +2738,23 @@ fn notification_detail(output: Option<&str>, cost: Option<f64>) -> Option<String
         parts.push(format!("${c:.2}"));
     }
     (!parts.is_empty()).then(|| parts.join(" · "))
+}
+
+/// The report outside destinations get: what the run said, and how the check
+/// after it went when the job has one.
+fn report_text(output: Option<&str>, verified: Option<bool>) -> Option<String> {
+    let check = match verified {
+        Some(true) => Some("Checks passed."),
+        Some(false) => Some("Checks failed."),
+        None => None,
+    };
+    let parts: Vec<&str> = output
+        .map(str::trim)
+        .filter(|o| !o.is_empty())
+        .into_iter()
+        .chain(check)
+        .collect();
+    (!parts.is_empty()).then(|| parts.join("\n\n"))
 }
 
 /// How a run's check reads in a notification. Nothing is said when the job
@@ -2625,10 +2776,36 @@ fn first_line(text: &str, max: usize) -> Option<String> {
     Some(out)
 }
 
-fn emit_status(app: &AppHandle, project: &str, job_id: &str, result: &str, copy: &Option<String>) {
-    emit_status_detail(app, project, job_id, result, copy, None);
+/// A quiet job's run that found nothing: enough for the views to drop its
+/// running state, and for a Run now someone is waiting on to say it finished —
+/// no entry, no notification.
+fn emit_quiet(app: &AppHandle, key: &str, manual: bool) {
+    let (project, job_id) = key.split_once('/').unwrap_or((key, ""));
+    let payload = json!({
+        "project": project,
+        "jobId": job_id,
+        "result": QUIET,
+        "label": job_label(project, job_id),
+        "manual": manual,
+    });
+    let _ = app.emit("job-status", payload);
 }
 
+/// What outside destinations get for a status: the run's report (or nothing
+/// more than how it ended), or nothing at all — a run that has only just
+/// started, or a reply someone is reading in lpm, isn't news to send out.
+enum SendOut<'a> {
+    No,
+    Report(Option<&'a str>),
+}
+
+fn emit_status(app: &AppHandle, project: &str, job_id: &str, result: &str, copy: &Option<String>) {
+    emit_status_detail(app, project, job_id, result, copy, None, SendOut::Report(None));
+}
+
+/// Every status goes to the views; how a run ended also goes wherever the job
+/// sends its results — lpm's own toast, banner and phone push only when lpm
+/// is one of them.
 fn emit_status_detail(
     app: &AppHandle,
     project: &str,
@@ -2636,8 +2813,11 @@ fn emit_status_detail(
     result: &str,
     copy: &Option<String>,
     detail: Option<String>,
+    send_out: SendOut,
 ) {
-    let label = job_label(project, job_id);
+    let job = find_job(project, job_id);
+    let label = label_of(job.as_ref(), job_id);
+    let in_lpm = job.as_ref().map_or(true, |j| j.sends_to(sendto::LPM));
     let mut payload =
         json!({ "project": project, "jobId": job_id, "result": result, "label": label });
     if let Some(c) = copy {
@@ -2646,8 +2826,48 @@ fn emit_status_detail(
     if let Some(d) = &detail {
         payload["detail"] = json!(d);
     }
+    if !in_lpm {
+        payload["notify"] = json!(false);
+    }
     let _ = app.emit("job-status", payload);
-    notify_if_unattended(app, project, &label, result, detail.as_deref());
+    if in_lpm {
+        notify_if_unattended(app, project, &label, result, detail.as_deref());
+    }
+    let (Some(job), SendOut::Report(report), Some((_, verb, mark))) =
+        (job, send_out, outcome_words(result))
+    else {
+        return;
+    };
+    sendto::deliver(
+        app,
+        &job.send_to,
+        sendto::Report {
+            mark,
+            title: format!("\"{label}\"{} {verb}.", project_suffix(project)),
+            body: report.map(str::to_string).or(detail),
+        },
+    );
+}
+
+/// How the outcomes worth telling anyone about read: a notification's title,
+/// the verb after the job's name, and the mark a message leads with.
+fn outcome_words(result: &str) -> Option<(&'static str, &'static str, &'static str)> {
+    Some(match result {
+        COMPLETED => ("Automation finished", "is done", "✅"),
+        FOUND_WORK => ("Automation found work", "started working", "▶️"),
+        ERROR => ("Automation hit a problem", "needs a look", "⚠️"),
+        TIMED_OUT => ("Automation stopped", "ran too long and was stopped", "⏱️"),
+        _ => return None,
+    })
+}
+
+/// " in Web", or nothing for a job that runs in no project.
+fn project_suffix(project: &str) -> String {
+    if project.is_empty() {
+        String::new()
+    } else {
+        format!(" in {}", crate::config::project_display_name(project))
+    }
 }
 
 /// Jobs exist to work while the user is away — when the window is hidden or in
@@ -2661,22 +2881,13 @@ fn notify_if_unattended(
     result: &str,
     detail: Option<&str>,
 ) {
-    let (title, verb) = match result {
-        COMPLETED => ("Automation finished", "is done"),
-        FOUND_WORK => ("Automation found work", "started working"),
-        ERROR => ("Automation hit a problem", "needs a look"),
-        TIMED_OUT => ("Automation stopped", "ran too long and was stopped"),
-        _ => return,
+    let Some((title, verb, _)) = outcome_words(result) else {
+        return;
     };
     if !crate::statusnotify::should_notify(app) {
         return;
     }
-    let at = if project.is_empty() {
-        String::new()
-    } else {
-        format!(" in {}", crate::config::project_display_name(project))
-    };
-    let mut body = format!("\"{label}\"{at} {verb}.");
+    let mut body = format!("\"{label}\"{} {verb}.", project_suffix(project));
     if let Some(d) = detail {
         body.push(' ');
         body.push_str(d);
@@ -2766,7 +2977,8 @@ fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved, trigger: Trig
         // like the agent watcher, never resurrect it with a ghost entry.
         if let Some(st) = f.jobs.get_mut(&key) {
             st.running = None;
-            if outcome.record {
+            // A quiet job's check finding nothing is a quiet day too.
+            if outcome.record && !(job.quiet() && outcome.result == NOTHING_TO_DO) {
                 push_entry(
                     st,
                     HistoryEntry {
@@ -2783,7 +2995,25 @@ fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved, trigger: Trig
             }
         }
     });
-    emit_status(app, project, &job.id, outcome.result, &outcome.copy);
+    if job.quiet() && outcome.result == NOTHING_TO_DO {
+        emit_quiet(app, &key, trigger == Trigger::Manual);
+        return;
+    }
+    // A quiet job's agent has only just started: whether it found anything is
+    // for its own run to report, so the start stays as quiet as the outcome.
+    let result = if job.quiet() && outcome.result == FOUND_WORK {
+        RUNNING
+    } else {
+        outcome.result
+    };
+    // An agent run that has just been handed off reports for itself when it
+    // ends; anything else ending here is the run's whole story.
+    let send_out = if outcome.result == FOUND_WORK && !outcome.record {
+        SendOut::No
+    } else {
+        SendOut::Report(outcome.note.as_deref())
+    };
+    emit_status_detail(app, project, &job.id, result, &outcome.copy, None, send_out);
 }
 
 fn spawn_pipeline(app: &AppHandle, project: &str, job: JobResolved, trigger: Trigger) {
@@ -2925,7 +3155,17 @@ fn finish_orphan(
     let log = std::fs::read_to_string(&run.log_path).unwrap_or_default();
     let at = now_secs();
     let entry = orphan_entry(run, &log, canceled, timed_out, at, ended_at);
+    if found_nothing(run.quiet, &entry.result, entry.output.as_deref()) {
+        let _ = with_state(|f| {
+            if let Some(st) = f.jobs.get_mut(key) {
+                st.active_run = None;
+            }
+        });
+        emit_quiet(app, key, false);
+        return;
+    }
     let result = entry.result.clone();
+    let report = entry.output.clone();
     let _ = with_state(|f| {
         if let Some(st) = f.jobs.get_mut(key) {
             st.active_run = None;
@@ -2933,7 +3173,13 @@ fn finish_orphan(
         }
     });
     let (project, job_id) = key.split_once('/').unwrap_or((key, ""));
-    emit_status(app, project, job_id, &result, &None);
+    // A salvaged reply was asked for in lpm, so its answer stays there.
+    let send_out = if run.question.is_some() {
+        SendOut::No
+    } else {
+        SendOut::Report(report.as_deref())
+    };
+    emit_status_detail(app, project, job_id, &result, &None, None, send_out);
 }
 
 /// Re-own a run that outlived the previous app process: register it as running
@@ -3612,6 +3858,8 @@ pub fn send_job_followup(
             compacted: false,
             env: reply_env.clone(),
             verify: None,
+            quiet: false,
+            manual: false,
         },
         None => CaptureSpec {
             cmdline: agent_prompt_cmdline(&agent, &model, &effort, full_access, &condensed),
@@ -3624,6 +3872,8 @@ pub fn send_job_followup(
             compacted: true,
             env: reply_env,
             verify: None,
+            quiet: false,
+            manual: false,
         },
     };
     match spawn_captured(&app, &key, &root, spec) {
@@ -4333,6 +4583,7 @@ mod tests {
                 model: String::new(),
                 effort: String::new(),
                 full_access: true,
+                quiet: false,
             },
         );
         assert_eq!(
@@ -4353,6 +4604,7 @@ mod tests {
                 model: "gpt-5.6-sol".into(),
                 effort: String::new(),
                 full_access: false,
+                quiet: false,
             },
         );
         assert!(resolve_run(
@@ -5159,6 +5411,7 @@ mod tests {
             resumed: None,
             follows: None,
             compacted: false,
+            quiet: false,
             boot_at: None,
             proc_start: None,
         };
@@ -5543,6 +5796,7 @@ mod tests {
             resumed: None,
             follows: None,
             compacted: false,
+            quiet: false,
             boot_at: None,
             proc_start: None,
         });
@@ -5851,5 +6105,72 @@ mod tests {
             &def_with_projects(Some(vec![])),
             "web"
         ));
+    }
+
+    #[test]
+    fn quiet_is_only_for_prompts() {
+        let quiet = |run: RunDef| resolve_run("p", &RunDef { quiet: true, ..run });
+        assert!(matches!(
+            quiet(RunDef {
+                prompt: "any new models?".into(),
+                ..Default::default()
+            }),
+            Ok(RunTarget::Prompt { quiet: true, .. })
+        ));
+        assert!(quiet(RunDef {
+            cmd: "make".into(),
+            ..Default::default()
+        })
+        .unwrap_err()
+        .contains("only for AI prompts"));
+    }
+
+    #[test]
+    fn a_quiet_run_asks_for_the_marker_and_goes_quiet_only_on_it() {
+        assert_eq!(run_prompt("Check", false), "Check");
+        assert!(run_prompt("Check", true).ends_with(QUIET_INSTRUCTION));
+        assert!(QUIET_INSTRUCTION.contains(NOTHING_TO_REPORT));
+
+        let nothing = |output: &str| found_nothing(true, COMPLETED, Some(output));
+        assert!(nothing("NOTHING_TO_REPORT"));
+        assert!(nothing("  `NOTHING_TO_REPORT`.\n"));
+        assert!(nothing("**NOTHING_TO_REPORT**"));
+        assert!(!nothing("Nothing new today."));
+        assert!(!nothing("NOTHING_TO_REPORT\nBut one thing: Opus 5.5 is out."));
+        assert!(!nothing("Found two models. NOTHING_TO_REPORT otherwise."));
+        assert!(!found_nothing(true, COMPLETED, None));
+        assert!(!found_nothing(true, ERROR, Some("NOTHING_TO_REPORT")));
+        assert!(!found_nothing(false, COMPLETED, Some("NOTHING_TO_REPORT")));
+    }
+
+    #[test]
+    fn send_to_defaults_to_lpm_and_takes_only_known_places() {
+        let send_to = |v: Option<SendToValue>| resolve_send_to(v.as_ref());
+        assert_eq!(send_to(None).unwrap(), vec!["lpm"]);
+        assert_eq!(send_to(Some(SendToValue::One("Telegram".into()))).unwrap(), vec!["telegram"]);
+        assert_eq!(
+            send_to(Some(SendToValue::Many(vec!["lpm".into(), "telegram".into(), "lpm".into()])))
+                .unwrap(),
+            vec!["lpm", "telegram"]
+        );
+        assert_eq!(
+            send_to(Some(SendToValue::Many(vec!["Telegram:Releases".into(), "telegram:ops".into()])))
+                .unwrap(),
+            vec!["telegram:releases", "telegram:ops"]
+        );
+        assert!(send_to(Some(SendToValue::One("telegram:".into()))).is_err());
+        assert!(send_to(Some(SendToValue::Many(vec![]))).unwrap_err().contains("at least one"));
+        assert!(send_to(Some(SendToValue::One("fax".into()))).unwrap_err().contains("\"fax\""));
+    }
+
+    #[test]
+    fn a_report_carries_what_the_run_said_and_how_its_check_went() {
+        assert_eq!(report_text(Some("  Two new models.\n"), None).as_deref(), Some("Two new models."));
+        assert_eq!(
+            report_text(Some("Upgraded."), Some(false)).as_deref(),
+            Some("Upgraded.\n\nChecks failed.")
+        );
+        assert_eq!(report_text(None, Some(true)).as_deref(), Some("Checks passed."));
+        assert_eq!(report_text(Some(" "), None), None);
     }
 }

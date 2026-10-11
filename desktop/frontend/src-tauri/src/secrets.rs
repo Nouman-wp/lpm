@@ -8,6 +8,7 @@
 // renderer that only needs to know whether one is set.
 
 pub const OPENAI_API_KEY: &str = "openai-api-key";
+pub const TELEGRAM_BOT_TOKEN: &str = "telegram-bot-token";
 
 #[cfg(target_os = "macos")]
 mod imp {

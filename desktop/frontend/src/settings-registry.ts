@@ -202,6 +202,22 @@ export const ROWS = {
       "Show a notification when an agent or automation needs you and lpm isn't in front",
     keywords: ["banner", "alert", "desktop", "background", "away"],
   },
+  "notifications.telegram": {
+    kind: "row",
+    tab: "notifications",
+    id: "notifications.telegram",
+    label: "Telegram",
+    description: "Send automation results to a Telegram chat",
+    keywords: ["telegram", "bot", "chat", "automation", "job", "send to", "message"],
+  },
+  "notifications.sendToRequest": {
+    kind: "row",
+    tab: "notifications",
+    id: "notifications.sendToRequest",
+    label: "Another place to send results",
+    description: "Slack, Discord, email… ask for the one you'd use",
+    keywords: ["slack", "discord", "email", "webhook", "request", "github", "send to", "automation"],
+  },
   "notifications.hooks": {
     kind: "row",
     tab: "notifications",

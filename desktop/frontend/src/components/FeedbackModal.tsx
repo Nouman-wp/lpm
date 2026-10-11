@@ -12,8 +12,7 @@ import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { useAppStore } from "../store/app";
 import { XIcon } from "./icons";
 import { Modal } from "./ui/Modal";
-
-const REPO = "gug007/lpm";
+import { newIssueUrl } from "../githubIssue";
 
 type FieldDef = {
   key: string;
@@ -108,13 +107,6 @@ function composeBody(kind: KindDef, values: Record<string, string>) {
     .join("\n\n");
 }
 
-function strictEncode(value: string): string {
-  return encodeURIComponent(value).replace(
-    /[!'()*~]/g,
-    (character) =>
-      "%" + character.charCodeAt(0).toString(16).toUpperCase(),
-  );
-}
 
 export function FeedbackModal() {
   const open = useAppStore((state) => state.feedbackOpen);
@@ -157,11 +149,9 @@ export function FeedbackModal() {
     if (!kind || !title.trim()) return;
     const body = composeBody(kind, values);
     const footer = `\n\n---\nlpm ${version || "dev"} · ${platform || navigator.platform}`;
-    const query =
-      `title=${strictEncode(title.trim())}` +
-      `&body=${strictEncode(body + footer)}` +
-      `&labels=${strictEncode(kind.label)}`;
-    BrowserOpenURL(`https://github.com/${REPO}/issues/new?${query}`);
+    BrowserOpenURL(
+      newIssueUrl({ title: title.trim(), body: body + footer, labels: [kind.label] }),
+    );
     onClose();
   };
 

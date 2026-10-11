@@ -892,6 +892,24 @@ export function SetOpenAIKey(key) {
 export function HasOpenAIKey() {
   return invoke("has_openai_key", {});
 }
+export function TelegramStatus() {
+  return invoke("telegram_status", {});
+}
+export function TelegramConnect(token) {
+  return invoke("telegram_connect", { token });
+}
+export function TelegramFindChats() {
+  return invoke("telegram_find_chats", {});
+}
+export function TelegramTest(key) {
+  return invoke("telegram_test", { key: key ?? null });
+}
+export function TelegramRemoveChat(key) {
+  return invoke("telegram_remove_chat", { key });
+}
+export function TelegramDisconnect() {
+  return invoke("telegram_disconnect", {});
+}
 export function ClearOpenAIKey() {
   return invoke("clear_openai_key", {});
 }

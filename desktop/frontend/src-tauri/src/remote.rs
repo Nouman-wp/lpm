@@ -5401,6 +5401,10 @@ fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
             .and_then(Value::as_str)
             .unwrap_or_default();
         let detail = payload.get("detail").and_then(Value::as_str);
+        // The job sends its results elsewhere, not to lpm.
+        if payload.get("notify").and_then(Value::as_bool) == Some(false) {
+            return;
+        }
         push_automation_notification(&h, project, job_id, label, result, detail);
     });
     // Plan-usage meters change when an agent CLI reports new numbers; the event

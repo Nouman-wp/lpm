@@ -1,0 +1,76 @@
+import { useState } from "react";
+import { SettingsRow } from "./SettingsRow";
+import { TelegramChatList } from "./TelegramChatList";
+import { SendToConnectModal } from "./project-detail/jobs/SendToConnectModal";
+import { BTN_SECONDARY } from "./ui/buttons";
+import { rowProps } from "../settings-registry";
+import { useTelegramLink } from "../hooks/useTelegramLink";
+import type { ConnectIntent } from "../sendToConnectors";
+
+const CHAT_BTN =
+  "rounded-md px-2 py-1 text-[11.5px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40";
+
+// Telegram as a place automations send their results. Connecting happens in
+// the same dialog the job editor uses; once linked, the row lists the chats
+// jobs can pick from, with a test and a remove for each.
+export function TelegramRow() {
+  const link = useTelegramLink();
+  const { status, waiting, busy, bot } = link;
+  const [dialog, setDialog] = useState<ConnectIntent | null>(null);
+
+  const description =
+    status === undefined
+      ? "Checking…"
+      : status.connected
+        ? `Posts through ${bot}. Each job picks which of these chats it sends to.`
+        : waiting
+          ? `Almost there: open ${bot} in Telegram and tap Start`
+          : "Send automation results to a Telegram chat, group or channel";
+
+  return (
+    <>
+      <SettingsRow
+        {...rowProps("notifications.telegram", { description })}
+        footer={
+          status?.connected && (
+            <div className="mt-3">
+              <TelegramChatList
+                chats={status.chats}
+                actions={(chat) => (
+                  <>
+                    <button onClick={() => link.test(chat.key)} disabled={busy} className={CHAT_BTN}>
+                      Send test
+                    </button>
+                    <button onClick={() => link.removeChat(chat.key)} disabled={busy} className={CHAT_BTN}>
+                      Remove
+                    </button>
+                  </>
+                )}
+              />
+            </div>
+          )
+        }
+      >
+        {status === undefined ? null : status.connected ? (
+          <div className="flex items-center gap-2">
+            <button onClick={() => setDialog("add")} disabled={busy} className={BTN_SECONDARY}>
+              Add chat
+            </button>
+            <button onClick={link.disconnect} disabled={busy} className={BTN_SECONDARY}>
+              Disconnect
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => setDialog("connect")} className={BTN_SECONDARY}>
+            {waiting ? "Finish connecting" : "Connect"}
+          </button>
+        )}
+      </SettingsRow>
+      <SendToConnectModal
+        destination={dialog ? "telegram" : null}
+        intent={dialog ?? "connect"}
+        onClose={() => setDialog(null)}
+      />
+    </>
+  );
+}
