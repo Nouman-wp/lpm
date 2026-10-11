@@ -14,15 +14,13 @@ import { InputComposer } from "../../InputComposer";
 import { EmojiSlotButton } from "../../EmojiPickerButton";
 import { displayNameForProjectName } from "../../ProjectNameDisplay";
 import { ClockIcon, XIcon } from "../../icons";
-import { RowSelect } from "./RowSelect";
-import { RowMultiSelect } from "./RowMultiSelect";
 import { RowModelSelect } from "./RowModelSelect";
 import { RunKindPicker } from "./RunKindPicker";
+import { JobScopeRow } from "./JobScopeRow";
 import { JobFrequencyCard } from "./JobFrequencyCard";
 import { JobCheckField } from "./JobCheckField";
 import { CheckAIModal } from "./CheckAIModal";
 import { JobEditorFooter } from "./JobEditorFooter";
-import { Card, GroupLabel, Row } from "./JobFormRows";
 import { ClearJobState, ClearJobStateGlobal } from "../../../../bridge/commands";
 import {
   deleteJob,
@@ -38,8 +36,8 @@ import {
   validateJobDraft,
   type JobDraft,
   type JobInfo,
-  type DuplicateMode,
 } from "../../../jobsFormat";
+import { validateDraftSchedule } from "../../../jobsScheduleDraft";
 import { EMPTY_COMPOSER, type ComposerValue } from "../../../composerValue";
 import { checkTask } from "../../../jobsCheckAI";
 import { findActionByPath } from "../../../actionTree";
@@ -218,6 +216,7 @@ export function JobEditorModal({
 
   const isStandalone = !draft.everyProject && draft.targets.length === 0;
   const scheduleSummary = useMemo(() => describeDraftSchedule(draft), [draft]);
+  const scheduleProblem = useMemo(() => validateDraftSchedule(draft), [draft]);
   const validationError = validateJobDraft(draft, isStandalone);
   // Saving mid-save would write a prompt whose image isn't on disk yet.
   const imagesPending = draft.prompt.pending;
@@ -336,7 +335,7 @@ export function JobEditorModal({
       >
         <div
           onKeyDown={onKeyDown}
-          className="flex max-h-[min(820px,92vh)] w-[min(640px,calc(100vw-32px))] flex-col"
+          className="flex h-[min(900px,94vh)] w-[min(720px,calc(100vw-32px))] flex-col"
         >
           <header className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-6 py-4">
             <div className="flex items-center gap-2.5">
@@ -446,6 +445,19 @@ export function JobEditorModal({
                     memory={memoryFor(actionAgent)}
                   />
                 )}
+                <JobScopeRow
+                  draft={draft}
+                  patch={patch}
+                  onScope={setScope}
+                  options={projects.map((p) => ({
+                    value: p,
+                    label: displayNameForProjectName(p, storeProjects),
+                  }))}
+                  lockedScope={lockedScope}
+                  canDuplicate={canDuplicate}
+                  skippedCopies={skippedCopies}
+                  problem={isStandalone && draft.runMode === "action"}
+                />
                 <JobCheckField
                   key={`check-${composerSession}`}
                   value={draft.check}
@@ -455,73 +467,11 @@ export function JobEditorModal({
                 />
               </div>
 
-              <div>
-                <GroupLabel>Details</GroupLabel>
-                <Card>
-                  <Row label="Runs in">
-                    {lockedScope ? (
-                      <span className="text-[13px] text-[var(--text-secondary)]">
-                        {lockedScope}
-                      </span>
-                    ) : (
-                      <RowMultiSelect
-                        value={draft.targets}
-                        onChange={setScope}
-                        options={projects.map((p) => ({
-                          value: p,
-                          label: displayNameForProjectName(p, storeProjects),
-                        }))}
-                      />
-                    )}
-                  </Row>
-                  {canDuplicate && (
-                    <Row label="Works on">
-                      <RowSelect
-                        value={draft.duplicateMode}
-                        onChange={(mode) =>
-                          set("duplicateMode", mode as DuplicateMode)
-                        }
-                        options={[
-                          { value: "none", label: "The project itself" },
-                          { value: "copy", label: "A fresh copy of it" },
-                          { value: "worktree", label: "A Git worktree of it" },
-                        ]}
-                      />
-                    </Row>
-                  )}
-                  {draft.runMode === "prompt" && (
-                    <Row label="Access">
-                      <RowSelect
-                        value={draft.access}
-                        onChange={(v) => set("access", v as "full" | "read")}
-                        options={[
-                          { value: "full", label: "Full access" },
-                          { value: "read", label: "Read only" },
-                        ]}
-                      />
-                    </Row>
-                  )}
-                </Card>
-                {skippedCopies.length > 0 && (
-                  <p className="mt-2 text-[12px] leading-snug text-[var(--text-muted)]">
-                    A job that runs in more than one project skips copies — it
-                    won't run in {listNames(skippedCopies)}.
-                  </p>
-                )}
-                {canDuplicate && draft.duplicateMode !== "none" && (
-                  <p className="mt-2 text-[12px] leading-snug text-[var(--text-muted)]">
-                    Each run works in a new{" "}
-                    {draft.duplicateMode === "worktree" ? "worktree" : "copy"},
-                    leaving the project untouched. The next run waits until
-                    you've looked at the last one and removed it.
-                  </p>
-                )}
-              </div>
-
               <JobFrequencyCard
                 draft={draft}
                 patch={patch}
                 summary={scheduleSummary}
+                problem={scheduleProblem}
               />
             </div>
           )}
@@ -588,11 +538,3 @@ export function JobEditorModal({
     </>
   );
 }
-
-// "Foo", "Foo and Bar", "Foo, Bar and 3 more".
-function listNames(names: string[]): string {
-  if (names.length <= 2) return names.join(" and ");
-  return `${names.slice(0, 2).join(", ")} and ${names.length - 2} more`;
-}
-
-

@@ -191,6 +191,9 @@ struct ScheduleDef {
     /// The job never fires on its own — it only runs when started by hand.
     #[serde(default)]
     manual: bool,
+    /// A five-field cron line, standing in for every other timing key.
+    #[serde(default)]
+    cron: String,
 }
 
 /// `every: 6h` / `every: 2d` (string with an h/d suffix) or a bare integer read
@@ -254,6 +257,7 @@ enum Schedule {
         limits: Option<IntervalLimits>,
     },
     Calendar(CalendarSpec),
+    Cron(crate::jobcron::CronSpec),
     /// Never fires automatically; runs only when started by hand.
     Manual,
 }
@@ -444,6 +448,14 @@ fn resolve_pick_days(pick: Option<u32>, days: &[u8]) -> Result<Option<u32>, Stri
 fn resolve_schedule(sched: &ScheduleDef) -> Result<Schedule, String> {
     if sched.manual {
         return Ok(Schedule::Manual);
+    }
+    let cron = sched.cron.trim();
+    if !cron.is_empty() {
+        let no_days = matches!(&sched.days, DaysValue::List(v) if v.is_empty());
+        if sched.every.is_some() || !sched.at.is_empty() || !no_days {
+            return Err("A cron line says when the job runs on its own — drop at, every and days.".into());
+        }
+        return crate::jobcron::parse(cron, MIN_INTERVAL_SECS).map(Schedule::Cron);
     }
     match (&sched.every, sched.at.is_empty()) {
         (Some(every), _) => resolve_interval(sched, every),
@@ -947,6 +959,9 @@ fn is_due(schedule: &Schedule, last_run: u64, now: u64, seed: u64) -> bool {
             }
             None => false,
         },
+        Schedule::Cron(spec) => spec
+            .last_at_or_before(now as i64)
+            .is_some_and(|occ| occ as u64 > last_run),
         Schedule::Manual => false,
     }
 }
@@ -971,6 +986,7 @@ fn next_fire_at(schedule: &Schedule, last_run: u64, now: u64, seed: u64) -> Opti
             }
         }
         Schedule::Calendar(spec) => next_fire_point(spec, now as i64, seed),
+        Schedule::Cron(spec) => spec.next_after(now as i64),
         Schedule::Manual => None,
     }
 }
@@ -1453,6 +1469,7 @@ fn due_fire_at(schedule: &Schedule, last_run: u64, now: u64, seed: u64) -> Optio
         }
         Schedule::Calendar(spec) => most_recent_fire_point(spec, now as i64, seed)
             .map(|o| o as u64 + implicit_jitter(spec, seed)),
+        Schedule::Cron(spec) => spec.last_at_or_before(now as i64).map(|o| o as u64),
         Schedule::Manual => None,
     }
 }
@@ -3205,6 +3222,7 @@ fn schedule_json(schedule: &Schedule) -> Value {
             }
             v
         }
+        Schedule::Cron(spec) => json!({ "mode": "cron", "cron": spec.source }),
         Schedule::Manual => json!({ "mode": "manual" }),
     }
 }
@@ -4738,6 +4756,23 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(resolve_schedule(&sched), Ok(Schedule::Manual));
+    }
+
+    #[test]
+    fn cron_schedules_fire_on_their_line() {
+        let s = resolve_yaml("cron: '0 18 * * 5'").unwrap();
+        assert_eq!(schedule_json(&s), json!({ "mode": "cron", "cron": "0 18 * * 5" }));
+        // Friday 2026-07-10: due once 18:00 has passed a run made before it,
+        // and only then.
+        let six = local_epoch(chrono::NaiveDate::from_ymd_opt(2026, 7, 10).unwrap(), 18 * 60).unwrap() as u64;
+        assert!(!is_due(&s, six - 3_600, six - 60, 0));
+        assert!(is_due(&s, six - 3_600, six + 60, 0));
+        assert!(!is_due(&s, six + 30, six + 60, 0));
+        assert_eq!(due_fire_at(&s, six - 3_600, six + 60, 0), Some(six));
+        assert_eq!(next_fire_at(&s, six, six, 0), Some((six + 7 * 86_400) as i64));
+
+        assert!(resolve_yaml("cron: '0 18 * * 5'\nat: '09:00'").is_err());
+        assert!(resolve_yaml("cron: '* * * * *'").unwrap_err().contains("5 minutes"));
     }
 
     #[test]

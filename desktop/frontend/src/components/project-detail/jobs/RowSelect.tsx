@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { RowMenu } from "./RowMenu";
 import { RowMenuItem } from "./RowMenuItem";
 
@@ -8,14 +9,16 @@ export function RowSelect({
   value,
   onChange,
   options,
+  ...trigger
 }: {
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
-}) {
+} & Pick<ComponentProps<typeof RowMenu>, "variant" | "icon" | "ariaLabel">) {
   const selected = options.find((o) => o.value === value);
   return (
     <RowMenu
+      {...trigger}
       label={selected?.label ?? ""}
       menuClassName="min-w-[200px] overflow-y-auto p-1"
     >

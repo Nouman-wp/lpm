@@ -581,6 +581,10 @@ fn humanize_schedule(schedule: &Value) -> String {
                 format!("{} at {time}", days.join(","))
             }
         }
+        Some("cron") => match schedule.get("cron").and_then(Value::as_str) {
+            Some(line) => format!("cron {line}"),
+            None => "—".into(),
+        },
         _ => "—".into(),
     }
 }
@@ -614,6 +618,10 @@ mod tests {
                 &json!({ "mode": "calendar", "atMinutes": 450, "days": ["mon", "thu"] })
             ),
             "mon,thu at 07:30"
+        );
+        assert_eq!(
+            humanize_schedule(&json!({ "mode": "cron", "cron": "0 18 * * 5" })),
+            "cron 0 18 * * 5"
         );
     }
 

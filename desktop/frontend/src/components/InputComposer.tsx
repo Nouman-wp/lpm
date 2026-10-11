@@ -30,7 +30,11 @@ import { DICTATION_AVAILABLE } from "../hooks/useVoiceDictation";
 import { ComposerActionsModal } from "./ComposerActionsModal";
 import { ComposerVariantsModal } from "./ComposerVariantsModal";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
-import { InputComposerMemory, type InputComposerMemorySource } from "./InputComposerMemory";
+import { InputComposerMemory } from "./InputComposerMemory";
+import {
+  useInputComposerMemory,
+  type InputComposerMemorySource,
+} from "../hooks/useInputComposerMemory";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
 import { loadImageDataUrl } from "./imageDataUrl";
 import {
@@ -160,6 +164,8 @@ export function InputComposer({
   // transform gets the actions button's spinner.
   const editable = !busy && !disabled;
   const showActions = !!aiCwd && ai.anyAvailable;
+  const memoryState = useInputComposerMemory(memory, editorRef);
+  const { highlight } = memoryState;
 
   const report = useCallback(() => {
     const editor = editorRef.current;
@@ -212,7 +218,8 @@ export function InputComposer({
     }
     hydrateChips();
     report();
-  }, [hydrateChips, report]);
+    highlight();
+  }, [hydrateChips, report, highlight]);
 
   // After a caret move WebKit may inject stray chars around a chip; clean them in
   // a rAF (before the next paint) rather than on input — caret moves fire none.
@@ -728,8 +735,13 @@ export function InputComposer({
               onPick={loadFromHistory}
             />
           )}
-          {memory && !disabled && (
-            <InputComposerMemory {...memory} editorRef={editorRef} onInserted={syncState} />
+          {memory && memoryState.enabled && !disabled && (
+            <InputComposerMemory
+              {...memory}
+              state={memoryState}
+              editorRef={editorRef}
+              onInserted={syncState}
+            />
           )}
           {footer}
         </div>

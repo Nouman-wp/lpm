@@ -29,10 +29,12 @@ export function JobFrequencyCard({
   draft,
   patch,
   summary,
+  problem,
 }: {
   draft: JobDraft;
   patch: (values: Partial<JobDraft>) => void;
   summary: string;
+  problem: string | null;
 }) {
   const repeat = repeatOf(draft);
   const atTime = draft.scheduleMode === "time";
@@ -41,9 +43,33 @@ export function JobFrequencyCard({
   const dayPool = draft.days.length === 0 ? 7 : draft.days.length;
   const picked = draft.randomDays ? Math.min(draft.pickDays, dayPool) : 0;
 
+  const notes = [
+    atTime &&
+      !draft.randomWindow &&
+      "It starts within a few minutes of the set time, so automations set to the same hour don't all begin at once.",
+    atTime &&
+      draft.randomWindow &&
+      "The time inside the window is picked for you and changes each day.",
+    repeat === "monthly" &&
+      draft.dayRule === "dates" &&
+      draft.monthDates.some((d) => d > 28) &&
+      (draft.shortMonths === "last"
+        ? "Months without that date run on their last day instead."
+        : "Months without that date are skipped."),
+    repeat === "once" && "After that it stays in the list until you remove it.",
+    repeat === "interval" &&
+      draft.varyInterval &&
+      "The gap is picked fresh after every run.",
+    repeat === "interval" &&
+      (draft.intervalWindow || draft.intervalDays.length > 0) &&
+      "Outside those hours it waits, and starts again when they open.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <div>
-      <GroupLabel>When</GroupLabel>
+      <GroupLabel>Schedule</GroupLabel>
       <Card>
         <Row label="Repeat">
           <SegmentedControl
@@ -93,29 +119,16 @@ export function JobFrequencyCard({
         {repeat === "interval" && <IntervalRows draft={draft} patch={patch} />}
         {atTime && <TimeOfDayRows draft={draft} patch={patch} />}
       </Card>
-      {summary && (
-        <p className="mt-2 text-[12px] text-[var(--text-muted)]">
-          {summary}.
-          {atTime &&
-            !draft.randomWindow &&
-            " It starts within a few minutes of that time, so automations set to the same hour don't all begin at once."}
-          {atTime &&
-            draft.randomWindow &&
-            " The time inside the window is picked for you and changes each day."}
-          {repeat === "monthly" &&
-            draft.dayRule === "dates" &&
-            draft.monthDates.some((d) => d > 28) &&
-            (draft.shortMonths === "last"
-              ? " Months without that date run on their last day instead."
-              : " Months without that date are skipped.")}
-          {repeat === "once" && " After that it stays in the list until you remove it."}
-          {repeat === "interval" &&
-            draft.varyInterval &&
-            " The gap is picked fresh after every run."}
-          {repeat === "interval" &&
-            (draft.intervalWindow || draft.intervalDays.length > 0) &&
-            " Outside those hours it waits, and starts again when they open."}
+      {problem ? (
+        <p className="mt-2 px-1 text-[12px] leading-snug text-[var(--accent-amber-text)]">
+          {problem}
         </p>
+      ) : (
+        summary && (
+          <p className="mt-2 px-1 text-[12px] leading-snug text-[var(--text-muted)]">
+            {summary}.{notes && ` ${notes}`}
+          </p>
+        )
       )}
       {repeat !== "manual" && (
         <>
