@@ -713,7 +713,11 @@ enabled: bool
 duplicate: bool
 runKind: "action" | "cmd" | "prompt"
 description: string       // what it runs: the prompt, the command, or the action name
-schedule: { mode: "interval", everySecs: N } | { mode: "calendar", atMinutes: N, days: ["mon"…] }
+schedule: { mode: "interval", everySecs: N, everyMaxSecs?, fromMinutes?, untilMinutes?, days? }
+        | { mode: "calendar", atMinutes: N, alsoAtMinutes?: [N], days: ["mon"…], untilMinutes?, times?, pickDays?,
+            monthDays?: [N], lastDay?, shortMonths?: "last", nth?: "first"…"last", nthOf?: "mon"…|"day"|"weekday",
+            onDates?: ["YYYY-MM-DD"] }
+        | { mode: "manual" }
 lastRunAt: unix seconds | null
 lastResult: string | null
 nextFireAt: unix seconds | null

@@ -695,6 +695,24 @@ describe("draft <-> payload round-trip", () => {
     expect(draft.intervalUnit).toBe("hours");
   });
 
+  it("round-trips the prompt handed to an agent-launching action", () => {
+    const draft: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Nightly review",
+      runMode: "action",
+      action: "claude-max:ultracode",
+      prompt: prompt("Review yesterday's commits"),
+    };
+    expect(buildJobPayload(draft).run).toEqual({
+      action: "claude-max:ultracode",
+      prompt: "Review yesterday's commits",
+    });
+    expect(payloadToDraft(buildJobPayload(draft))).toEqual(draft);
+    expect(buildJobPayload({ ...draft, prompt: prompt("") }).run).toEqual({
+      action: "claude-max:ultracode",
+    });
+  });
+
   it("round-trips read-only access and omits the default full access", () => {
     const readOnly: JobDraft = {
       ...defaultJobDraft(),

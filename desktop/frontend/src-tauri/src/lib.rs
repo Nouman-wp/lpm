@@ -83,6 +83,7 @@ mod hookform;
 mod hooks;
 mod hostautoupdate;
 mod ipc;
+mod jobcal;
 mod jobs;
 #[cfg(any(target_os = "linux", test))]
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]

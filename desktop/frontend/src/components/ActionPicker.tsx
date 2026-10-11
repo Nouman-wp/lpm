@@ -13,6 +13,7 @@ import {
   isRunnableAction,
 } from "../actionTree";
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon } from "./icons";
+import { loadRememberedChild, resolvePrimaryChild } from "./splitPrimary";
 
 interface ActionPickerProps {
   // The full action tree. Runnable leaves and split-button defaults are
@@ -20,12 +21,22 @@ interface ActionPickerProps {
   actions: ActionInfo[];
   value: string;
   onChange: (name: string) => void;
+  // Where split buttons remember their last-used child — the project whose
+  // header shows them.
+  scope?: string;
 }
 
 const GAP = 6;
 const MARGIN = 12;
 
-export function ActionPicker({ actions, value, onChange }: ActionPickerProps) {
+// The child a menu's own button runs (its `primary`), when that child can run
+// unattended — so the menu reads and picks the way it does in the header.
+function runnablePrimary(menu: ActionInfo, scope: string): ActionInfo | null {
+  const child = resolvePrimaryChild(menu, loadRememberedChild(scope, menu.name));
+  return child && isRunnableAction(child) ? child : null;
+}
+
+export function ActionPicker({ actions, value, onChange, scope = "global" }: ActionPickerProps) {
   const [open, setOpen] = useState(false);
   // The chain of parents drilled into; the last one's children are shown.
   const [stack, setStack] = useState<ActionInfo[]>([]);
@@ -159,14 +170,21 @@ export function ActionPicker({ actions, value, onChange }: ActionPickerProps) {
 
             {items.map((a) => {
               const branch = !!a.children?.length;
-              const isSelected = a.name === value;
+              // What a split row's label picks: the parent's own command, or the
+              // child its button runs.
+              const target = branch
+                ? isRunnableAction(a)
+                  ? a
+                  : runnablePrimary(a, scope)
+                : a;
+              const isSelected = target?.name === value;
               const rowText = isSelected
                 ? "text-[var(--text-primary)]"
                 : "text-[var(--text-secondary)]";
 
-              // Split button: a runnable parent with children — the label selects
-              // its default action, a trailing chevron drills into the rest.
-              if (branch && isRunnableAction(a)) {
+              // Split button: the label selects its default action, a trailing
+              // chevron drills into the rest.
+              if (branch && target) {
                 return (
                   <div
                     key={a.name}
@@ -174,10 +192,10 @@ export function ActionPicker({ actions, value, onChange }: ActionPickerProps) {
                   >
                     <button
                       type="button"
-                      onClick={() => pick(a)}
+                      onClick={() => pick(target)}
                       className={`flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left ${rowText} hover:text-[var(--text-primary)]`}
                     >
-                      <RowBody action={a} />
+                      <RowBody action={target} />
                       {isSelected && <SelectedCheck />}
                     </button>
                     <button

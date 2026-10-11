@@ -9,6 +9,8 @@ import { displayNameForProjectName } from "../../ProjectNameDisplay";
 import { ChevronDownIcon, ClockIcon, XIcon } from "../../icons";
 import { RowSelect } from "./RowSelect";
 import { RowMultiSelect } from "./RowMultiSelect";
+import { RowModelSelect } from "./RowModelSelect";
+import { RunKindPicker } from "./RunKindPicker";
 import { JobFrequencyCard } from "./JobFrequencyCard";
 import { Card, GroupLabel, Row } from "./JobFormRows";
 import {
@@ -30,14 +32,14 @@ import {
   validateJobDraft,
   type JobDraft,
   type JobInfo,
-  type JobRunKind,
   type DuplicateMode,
 } from "../../../jobsFormat";
-import { type ComposerValue } from "../../../composerValue";
+import { EMPTY_COMPOSER, type ComposerValue } from "../../../composerValue";
+import { findActionByPath } from "../../../actionTree";
+import { detectAICLI } from "../../../slashCommands";
 import { isDuplicate, type ActionInfo } from "../../../types";
 import { useDiscardGuard } from "../../../hooks/useDiscardGuard";
 import { useAppStore } from "../../../store/app";
-import { effortsFor, MODEL_OPTIONS } from "../../../agentModelOptions";
 
 interface JobEditorModalProps {
   open: boolean;
@@ -60,16 +62,6 @@ type TestState =
   | { kind: "work"; output?: string }
   | { kind: "nowork"; output?: string }
   | { kind: "error"; message: string };
-
-// The UI's repeat vocabulary, derived from (and written back to) the draft's
-// schedule fields.
-type Repeat = "daily" | "days" | "interval" | "manual";
-
-const RUN_LABEL: Record<JobRunKind, string> = {
-  prompt: "AI prompt",
-  cmd: "Command",
-  action: "Action",
-};
 
 // Same prompt content — `pending` (an image still saving) aside.
 function samePrompt(a: ComposerValue, b: ComposerValue): boolean {
@@ -119,6 +111,10 @@ export function JobEditorModal({
   // A standalone job runs in the home folder, so there is no project to copy.
   const canDuplicate = draft.targets.length > 0 || draft.everyProject;
   const actions = actionsAvailable && runProject ? actionsFor(runProject) : [];
+  // A terminal action that starts an agent CLI can be handed a prompt to work on.
+  const selectedAction = findActionByPath(actions, draft.action);
+  const actionLaunchesAgent =
+    selectedAction?.type === "terminal" && detectAICLI(selectedAction.cmd) !== null;
   // AI-edit runs in the project the job runs in; a standalone or multi-project
   // job has no single root, so it gets a plain prompt field.
   const storeProjects = useAppStore((s) => s.projects);
@@ -254,7 +250,9 @@ export function JobEditorModal({
     setSaving(true);
     try {
       await saveJobDraft(
-        draft,
+        draft.runMode === "action" && !actionLaunchesAgent
+          ? { ...draft, prompt: EMPTY_COMPOSER }
+          : draft,
         editing ? { project: editing.project, id: editing.job.id, source } : null,
         knownIds?.(null) ?? [],
       );
@@ -390,27 +388,72 @@ export function JobEditorModal({
                 />
               </div>
 
-              {draft.runMode === "prompt" && (
-                <InputComposer
-                  key={composerSession}
-                  defaultValue={draft.prompt}
-                  onChange={setPrompt}
-                  placeholder="Check for dependency updates. If there are none, stop. Otherwise duplicate this project with the lpm CLI, upgrade them in the copy, and run the tests."
-                  history={composerHistory}
-                  aiCwd={aiCwd}
+              <div className="space-y-2">
+                <RunKindPicker
+                  value={draft.runMode}
+                  onChange={(mode) => set("runMode", mode)}
+                  actionsAvailable={actionsAvailable}
                 />
-              )}
-              {draft.runMode === "cmd" && (
-                <input
-                  value={draft.cmd}
-                  onChange={(e) => set("cmd", e.target.value)}
-                  placeholder="npm run refresh-fixtures"
-                  spellCheck={false}
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  className="w-full rounded-xl border border-transparent bg-[var(--bg-secondary)]/40 px-4 py-3 font-mono text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]/60"
-                />
-              )}
+                {draft.runMode === "prompt" && (
+                  <InputComposer
+                    key={composerSession}
+                    defaultValue={draft.prompt}
+                    onChange={setPrompt}
+                    placeholder="Check for dependency updates. If there are none, stop. Otherwise duplicate this project with the lpm CLI, upgrade them in the copy, and run the tests."
+                    history={composerHistory}
+                    aiCwd={aiCwd}
+                    footer={
+                      <>
+                        <span className="min-w-0 flex-1" />
+                        <RowModelSelect
+                          agent={draft.agent}
+                          model={draft.model}
+                          effort={draft.effort}
+                          onChange={patch}
+                        />
+                      </>
+                    }
+                  />
+                )}
+                {draft.runMode === "cmd" && (
+                  <input
+                    value={draft.cmd}
+                    onChange={(e) => set("cmd", e.target.value)}
+                    placeholder="npm run refresh-fixtures"
+                    spellCheck={false}
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    className="w-full rounded-xl border border-transparent bg-[var(--bg-secondary)]/40 px-4 py-3 font-mono text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]/60"
+                  />
+                )}
+                {draft.runMode === "action" && actionsAvailable && (
+                  <div className="rounded-xl bg-[var(--bg-secondary)]/40 px-4 py-3">
+                    {actions.length > 0 ? (
+                      <ActionPicker
+                        actions={actions}
+                        value={draft.action}
+                        onChange={(name) => set("action", name)}
+                        scope={runProject}
+                      />
+                    ) : (
+                      <p className="text-[12px] text-[var(--text-muted)]">
+                        This project has no actions yet. Pick a command or AI
+                        prompt instead.
+                      </p>
+                    )}
+                  </div>
+                )}
+                {draft.runMode === "action" && actionLaunchesAgent && (
+                  <InputComposer
+                    key={composerSession}
+                    defaultValue={draft.prompt}
+                    onChange={setPrompt}
+                    placeholder={`What should ${selectedAction?.label || "the agent"} work on? Leave empty to just open it.`}
+                    history={composerHistory}
+                    aiCwd={aiCwd}
+                  />
+                )}
+              </div>
 
               <div>
                 <GroupLabel>Details</GroupLabel>
@@ -446,44 +489,6 @@ export function JobEditorModal({
                       />
                     </Row>
                   )}
-                  <Row label="Does">
-                    <RowSelect
-                      value={draft.runMode}
-                      onChange={(mode) => set("runMode", mode as JobRunKind)}
-                      options={(actionsAvailable
-                        ? (["prompt", "cmd", "action"] as JobRunKind[])
-                        : (["prompt", "cmd"] as JobRunKind[])
-                      ).map((k) => ({ value: k, label: RUN_LABEL[k] }))}
-                    />
-                  </Row>
-                  {draft.runMode === "prompt" && (
-                    <Row label="Model">
-                      <RowSelect
-                        value={`${draft.agent}|${draft.model}`}
-                        onChange={(v) => {
-                          const [agent, model] = v.split("|");
-                          setTouched(true);
-                          setDraft((prev) => {
-                            const efforts = effortsFor(agent, model);
-                            const effort = efforts.some((e) => e.value === prev.effort)
-                              ? prev.effort
-                              : "";
-                            return { ...prev, agent, model, effort };
-                          });
-                        }}
-                        options={MODEL_OPTIONS}
-                      />
-                    </Row>
-                  )}
-                  {draft.runMode === "prompt" && effortsFor(draft.agent, draft.model).length > 0 && (
-                    <Row label="Effort">
-                      <RowSelect
-                        value={draft.effort}
-                        onChange={(v) => set("effort", v)}
-                        options={effortsFor(draft.agent, draft.model)}
-                      />
-                    </Row>
-                  )}
                   {draft.runMode === "prompt" && (
                     <Row label="Access">
                       <RowSelect
@@ -495,22 +500,6 @@ export function JobEditorModal({
                         ]}
                       />
                     </Row>
-                  )}
-                  {draft.runMode === "action" && actionsAvailable && (
-                    <div className="px-4 py-3">
-                      {actions.length > 0 ? (
-                        <ActionPicker
-                          actions={actions}
-                          value={draft.action}
-                          onChange={(name) => set("action", name)}
-                        />
-                      ) : (
-                        <p className="text-[12px] text-[var(--text-muted)]">
-                          This project has no actions yet. Pick a command or AI
-                          prompt instead.
-                        </p>
-                      )}
-                    </div>
                   )}
                 </Card>
                 {skippedCopies.length > 0 && (

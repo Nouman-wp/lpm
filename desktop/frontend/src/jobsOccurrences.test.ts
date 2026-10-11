@@ -43,6 +43,67 @@ describe("expandSchedule", () => {
     expect(expandSchedule(all, WEEK).slots).toHaveLength(7);
   });
 
+  it("puts every set time of a day on the board", () => {
+    const sched: JobSchedule = {
+      mode: "calendar",
+      atMinutes: 540,
+      alsoAtMinutes: [1050],
+      days: ["tue"],
+    };
+    expect(expandSchedule(sched, WEEK).slots.map((s) => s.at)).toEqual([at(1, 9), at(1, 17, 30)]);
+  });
+
+  it("places dates of the month, positions in it and one-off dates", () => {
+    const month = { from: secs(new Date(2026, 9, 1)), to: secs(new Date(2026, 10, 1)) };
+    const dates: JobSchedule = {
+      mode: "calendar",
+      atMinutes: 480,
+      days: [],
+      monthDays: [1, 15],
+      lastDay: true,
+    };
+    expect(expandSchedule(dates, month).slots.map((s) => new Date(s.at * 1000).getDate())).toEqual([
+      1, 15, 31,
+    ]);
+    const firstMonday: JobSchedule = {
+      mode: "calendar",
+      atMinutes: 600,
+      days: [],
+      nth: "first",
+      nthOf: "mon",
+    };
+    expect(expandSchedule(firstMonday, month).slots.map((s) => new Date(s.at * 1000).getDate())).toEqual([5]);
+    const once: JobSchedule = {
+      mode: "calendar",
+      atMinutes: 840,
+      days: [],
+      onDates: ["2026-10-20"],
+    };
+    expect(expandSchedule(once, month).slots.map((s) => s.at)).toEqual([
+      secs(new Date(2026, 9, 20, 14, 0)),
+    ]);
+  });
+
+  it("lays an interval held to some hours out from each day's opening", () => {
+    const sched: JobSchedule = {
+      mode: "interval",
+      everySecs: 3 * 3600,
+      fromMinutes: 540,
+      untilMinutes: 1080,
+      days: ["mon", "fri"],
+    };
+    expect(expandSchedule(sched, WEEK).slots.map((s) => s.at)).toEqual([
+      at(0, 9),
+      at(0, 12),
+      at(0, 15),
+      at(0, 18),
+      at(4, 9),
+      at(4, 12),
+      at(4, 15),
+      at(4, 18),
+    ]);
+  });
+
   it("places a named-day job only on those days", () => {
     const sched: JobSchedule = { mode: "calendar", atMinutes: 540, days: ["sat"] };
     const { slots } = expandSchedule(sched, WEEK);

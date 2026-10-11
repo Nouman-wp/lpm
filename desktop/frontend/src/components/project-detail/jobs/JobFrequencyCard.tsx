@@ -1,14 +1,14 @@
+import { SegmentedControl } from "../../ui/SegmentedControl";
 import { WeekdayPicker } from "./WeekdayPicker";
 import { RowSelect } from "./RowSelect";
-import { Card, GroupLabel, Row, RowNumber } from "./JobFormRows";
-import type { IntervalUnit, JobDraft } from "../../../jobsFormat";
-
-// The UI's repeat vocabulary, derived from (and written back to) the draft's
-// schedule fields.
-export type Repeat = "daily" | "days" | "interval" | "manual";
-
-const TIME_INPUT_CLASS =
-  "border-none bg-transparent text-right text-[13px] text-[var(--text-secondary)] outline-none transition-colors hover:text-[var(--text-primary)] focus:text-[var(--text-primary)]";
+import { MonthlyRows } from "./MonthlyRows";
+import { IntervalRows } from "./IntervalRows";
+import { TimeOfDayRows } from "./TimeOfDayRows";
+import { NextRunsPreview } from "./NextRunsPreview";
+import { CronEquivalentLine } from "./CronEquivalentLine";
+import { Card, GroupLabel, Row, TIME_INPUT_CLASS } from "./JobFormRows";
+import type { JobDraft } from "../../../jobsFormat";
+import { REPEAT_OPTIONS, repeatOf, repeatPatch } from "../../../jobsRepeat";
 
 // "1 random day a week", "2 random days a week" … up to one short of the pool,
 // since picking all of them is what "all of them" already means.
@@ -23,8 +23,8 @@ function pickOptions(pool: number): { value: string; label: string }[] {
   return options;
 }
 
-// When the job runs: how often it repeats, and — for a job that runs at a time
-// of day — whether that time is fixed or drawn fresh from a window each day.
+// When the job runs: how often it repeats, which days, and — for a job that
+// runs at a time of day — set times or a window the time is drawn from.
 export function JobFrequencyCard({
   draft,
   patch,
@@ -34,48 +34,27 @@ export function JobFrequencyCard({
   patch: (values: Partial<JobDraft>) => void;
   summary: string;
 }) {
-  const repeat: Repeat =
-    draft.scheduleMode === "manual"
-      ? "manual"
-      : draft.scheduleMode === "interval"
-        ? "interval"
-        : draft.days.length > 0
-          ? "days"
-          : "daily";
-
-  const setRepeat = (next: Repeat) => {
-    if (next === "manual" || next === "interval") {
-      patch({ scheduleMode: next });
-      return;
-    }
-    patch({
-      scheduleMode: "time",
-      days: next === "daily" ? [] : draft.days.length > 0 ? draft.days : ["mon"],
-    });
-  };
-
-  const atTime = repeat === "daily" || repeat === "days";
+  const repeat = repeatOf(draft);
+  const atTime = draft.scheduleMode === "time";
+  const byWeek = repeat === "daily" || repeat === "weekly";
   // The days a random pick draws from: the ones selected, or all seven.
   const dayPool = draft.days.length === 0 ? 7 : draft.days.length;
   const picked = draft.randomDays ? Math.min(draft.pickDays, dayPool) : 0;
 
   return (
     <div>
-      <GroupLabel>Frequency</GroupLabel>
+      <GroupLabel>When</GroupLabel>
       <Card>
         <Row label="Repeat">
-          <RowSelect
+          <SegmentedControl
+            variant="subtle"
+            ariaLabel="Repeat"
             value={repeat}
-            onChange={(v) => setRepeat(v as Repeat)}
-            options={[
-              { value: "daily", label: "Every day" },
-              { value: "days", label: "On certain days" },
-              { value: "interval", label: "On an interval" },
-              { value: "manual", label: "Manually" },
-            ]}
+            onChange={(next) => patch(repeatPatch(draft, next))}
+            options={REPEAT_OPTIONS}
           />
         </Row>
-        {repeat === "days" && (
+        {repeat === "weekly" && (
           <Row label="On" alignTop>
             <WeekdayPicker
               value={draft.days}
@@ -83,7 +62,19 @@ export function JobFrequencyCard({
             />
           </Row>
         )}
-        {atTime && dayPool > 1 && (
+        {repeat === "monthly" && <MonthlyRows draft={draft} patch={patch} />}
+        {repeat === "once" && (
+          <Row label="On">
+            <input
+              type="date"
+              aria-label="Date"
+              value={draft.onceDate}
+              onChange={(e) => patch({ onceDate: e.target.value })}
+              className={TIME_INPUT_CLASS}
+            />
+          </Row>
+        )}
+        {byWeek && dayPool > 1 && (
           <Row label="Use">
             <RowSelect
               value={String(picked)}
@@ -99,119 +90,8 @@ export function JobFrequencyCard({
             />
           </Row>
         )}
-        {repeat === "interval" && (
-          <>
-            <Row label="Gap">
-              <RowSelect
-                value={draft.varyInterval ? "vary" : "fixed"}
-                onChange={(v) =>
-                  patch({
-                    varyInterval: v === "vary",
-                    intervalMaxValue: Math.max(
-                      draft.intervalMaxValue,
-                      draft.intervalValue,
-                    ),
-                  })
-                }
-                options={[
-                  { value: "fixed", label: "Always the same" },
-                  { value: "vary", label: "Varies within a range" },
-                ]}
-              />
-            </Row>
-            <Row label={draft.varyInterval ? "Between" : "Every"}>
-              <span className="flex items-center gap-2">
-                <RowNumber
-                  value={draft.intervalValue}
-                  min={1}
-                  onChange={(intervalValue) =>
-                    patch({
-                      intervalValue,
-                      intervalMaxValue: Math.max(
-                        draft.intervalMaxValue,
-                        intervalValue,
-                      ),
-                    })
-                  }
-                />
-                {draft.varyInterval && (
-                  <>
-                    <span className="text-[13px] text-[var(--text-muted)]">
-                      and
-                    </span>
-                    <RowNumber
-                      value={draft.intervalMaxValue}
-                      min={draft.intervalValue}
-                      onChange={(intervalMaxValue) =>
-                        patch({ intervalMaxValue })
-                      }
-                    />
-                  </>
-                )}
-                <RowSelect
-                  value={draft.intervalUnit}
-                  onChange={(u) => patch({ intervalUnit: u as IntervalUnit })}
-                  options={[
-                    { value: "minutes", label: "minutes" },
-                    { value: "hours", label: "hours" },
-                    { value: "days", label: "days" },
-                  ]}
-                />
-              </span>
-            </Row>
-          </>
-        )}
-        {atTime && (
-          <>
-            <Row label="Time">
-              <RowSelect
-                value={draft.randomWindow ? "window" : "fixed"}
-                onChange={(v) => patch({ randomWindow: v === "window" })}
-                options={[
-                  { value: "fixed", label: "A set time" },
-                  { value: "window", label: "A random time in a window" },
-                ]}
-              />
-            </Row>
-            <Row label={draft.randomWindow ? "Between" : "At"}>
-              <span className="flex items-center gap-2">
-                <input
-                  type="time"
-                  value={draft.time}
-                  onChange={(e) => patch({ time: e.target.value })}
-                  className={TIME_INPUT_CLASS}
-                />
-                {draft.randomWindow && (
-                  <>
-                    <span className="text-[13px] text-[var(--text-muted)]">
-                      and
-                    </span>
-                    <input
-                      type="time"
-                      value={draft.untilTime}
-                      onChange={(e) => patch({ untilTime: e.target.value })}
-                      className={TIME_INPUT_CLASS}
-                    />
-                  </>
-                )}
-              </span>
-            </Row>
-            {draft.randomWindow && (
-              <Row label="Runs">
-                <span className="flex items-center gap-2">
-                  <RowNumber
-                    value={draft.timesPerDay}
-                    min={1}
-                    onChange={(timesPerDay) => patch({ timesPerDay })}
-                  />
-                  <span className="text-[13px] text-[var(--text-muted)]">
-                    a day
-                  </span>
-                </span>
-              </Row>
-            )}
-          </>
-        )}
+        {repeat === "interval" && <IntervalRows draft={draft} patch={patch} />}
+        {atTime && <TimeOfDayRows draft={draft} patch={patch} />}
       </Card>
       {summary && (
         <p className="mt-2 text-[12px] text-[var(--text-muted)]">
@@ -222,10 +102,26 @@ export function JobFrequencyCard({
           {atTime &&
             draft.randomWindow &&
             " The time inside the window is picked for you and changes each day."}
+          {repeat === "monthly" &&
+            draft.dayRule === "dates" &&
+            draft.monthDates.some((d) => d > 28) &&
+            (draft.shortMonths === "last"
+              ? " Months without that date run on their last day instead."
+              : " Months without that date are skipped.")}
+          {repeat === "once" && " After that it stays in the list until you remove it."}
           {repeat === "interval" &&
             draft.varyInterval &&
             " The gap is picked fresh after every run."}
+          {repeat === "interval" &&
+            (draft.intervalWindow || draft.intervalDays.length > 0) &&
+            " Outside those hours it waits, and starts again when they open."}
         </p>
+      )}
+      {repeat !== "manual" && (
+        <>
+          <NextRunsPreview draft={draft} />
+          <CronEquivalentLine draft={draft} />
+        </>
       )}
     </div>
   );

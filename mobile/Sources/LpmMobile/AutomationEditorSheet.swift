@@ -69,6 +69,28 @@ private struct JobEditorDraft {
     var effort = ""
     var access = "full"             // full | read
     var targets: [String] = []      // "runs in"; empty = standalone
+    /// A schedule set on the Mac that this editor has no controls for (several
+    /// times a day, dates of the month, a one-off date, an interval held to some
+    /// hours). It is written back exactly as read, never rebuilt into something
+    /// it isn't.
+    var keptSchedule: [String: Any]?
+    /// The task an agent-launching action is handed, set on the Mac; carried
+    /// through a save untouched since this editor has no box for it.
+    var actionPrompt = ""
+}
+
+/// Whether a YAML schedule uses anything beyond weekdays, one time or window,
+/// and a plain interval — the shapes this editor can rebuild faithfully.
+private func scheduleNeedsMac(_ schedule: [String: Any]) -> Bool {
+    if schedule["at"] is [Any] || schedule["shortMonths"] != nil { return true }
+    if schedule["every"] != nil {
+        return schedule["at"] != nil || schedule["until"] != nil || schedule["days"] != nil
+    }
+    if schedule["days"] is String { return true }
+    if let days = schedule["days"] as? [Any] {
+        return days.contains { !WEEKDAYS.contains(String(describing: $0).lowercased()) }
+    }
+    return false
 }
 
 /// The mobile equivalent of the desktop JobEditorModal: create or edit a
@@ -133,7 +155,7 @@ struct AutomationEditorSheet: View {
         if isStandalone && draft.runMode == "action" {
             return "Standalone jobs can't run an action."
         }
-        if draft.scheduleMode == "time" {
+        if draft.keptSchedule == nil, draft.scheduleMode == "time" {
             guard let at = parseTimeMinutes(draft.time) else { return "Pick a valid time." }
             if draft.randomWindow {
                 guard let until = parseTimeMinutes(draft.untilTime) else {
@@ -146,7 +168,7 @@ struct AutomationEditorSheet: View {
             }
             if draft.randomDays, draft.pickDays < 1 { return "Pick at least one day." }
         }
-        if draft.scheduleMode == "interval" {
+        if draft.keptSchedule == nil, draft.scheduleMode == "interval" {
             if draft.intervalValue < 1 { return "The interval must be at least 1." }
             if draft.varyInterval, draft.intervalMaxValue < draft.intervalValue {
                 return "The longest gap has to be at least the shortest."
@@ -378,6 +400,20 @@ struct AutomationEditorSheet: View {
     }
 
     @ViewBuilder private var frequencySection: some View {
+        if draft.keptSchedule != nil {
+            Section {
+                Text(editingJob.map(automationScheduleText) ?? "Set on your Mac")
+            } header: {
+                Text("Frequency")
+            } footer: {
+                Text("This schedule was set on your Mac. Change it there; everything else can be edited here.")
+            }
+        } else {
+            editableFrequencySection
+        }
+    }
+
+    @ViewBuilder private var editableFrequencySection: some View {
         Section {
             Picker("Repeat", selection: repeatBinding) {
                 Text("Every day").tag("daily")
@@ -697,7 +733,9 @@ struct AutomationEditorSheet: View {
             d.duplicateExcludeUncommitted = options["excludeUncommitted"] as? Bool
         }
 
-        if let schedule = body["schedule"] as? [String: Any] {
+        if let schedule = body["schedule"] as? [String: Any], scheduleNeedsMac(schedule) {
+            d.keptSchedule = schedule
+        } else if let schedule = body["schedule"] as? [String: Any] {
             if (schedule["manual"] as? Bool) == true {
                 d.scheduleMode = "manual"
             } else if let every = schedule["every"] {
@@ -732,6 +770,7 @@ struct AutomationEditorSheet: View {
             if let action = (run["action"] as? String)?.trimmed, !action.isEmpty {
                 d.runMode = "action"
                 d.action = action
+                d.actionPrompt = (run["prompt"] as? String)?.trimmed ?? ""
             } else if let cmd = (run["cmd"] as? String)?.trimmed, !cmd.isEmpty {
                 d.runMode = "cmd"
                 d.cmd = cmd
@@ -793,6 +832,7 @@ struct AutomationEditorSheet: View {
     }
 
     private func buildSchedule() -> [String: Any] {
+        if let kept = draft.keptSchedule { return kept }
         switch draft.scheduleMode {
         case "manual": return ["manual": true]
         case "interval":
@@ -827,7 +867,10 @@ struct AutomationEditorSheet: View {
 
     private func buildRun() -> [String: Any] {
         switch draft.runMode {
-        case "action": return ["action": draft.action.trimmed]
+        case "action":
+            var block: [String: Any] = ["action": draft.action.trimmed]
+            if !draft.actionPrompt.isEmpty { block["prompt"] = draft.actionPrompt }
+            return block
         case "cmd": return ["cmd": draft.cmd.trimmed]
         default:
             var block: [String: Any] = ["prompt": draft.prompt.trimmed]

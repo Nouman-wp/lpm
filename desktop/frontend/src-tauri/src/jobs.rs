@@ -4,6 +4,7 @@
 // wall-clock thread modelled on updates::start_auto_check so it survives sleep,
 // and the pipeline runs on worker threads so one slow job never stalls the tick.
 use crate::config;
+use crate::jobcal::{self, AtValue, DateRule, DaysValue, IntervalLimits, ParsedDays, DAY_NAMES};
 use chrono::{Datelike, TimeZone};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -41,8 +42,6 @@ const PENDING_WINDOW: &str = "pending-window";
 const SKIPPED_CAPACITY: &str = "skipped-capacity";
 // Event-only status emitted when a run starts, never written to history.
 const RUNNING: &str = "running";
-
-const DAY_NAMES: [&str; 7] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 // ---- config parsing ---------------------------------------------------------
 
@@ -170,8 +169,9 @@ fn global_resolves_for(def: &JobDef, project: &str) -> bool {
 
 #[derive(Deserialize, Default, Clone)]
 struct ScheduleDef {
+    /// One time of day, or a list of them.
     #[serde(default)]
-    at: String,
+    at: AtValue,
     /// End of the window the run lands somewhere inside, instead of `at` being
     /// the fire point itself.
     #[serde(default)]
@@ -179,7 +179,11 @@ struct ScheduleDef {
     /// Runs per day, spread across that window.
     times: Option<u32>,
     #[serde(default)]
-    days: Vec<String>,
+    days: DaysValue,
+    /// For dates of the month: run a date a short month lacks on its last day
+    /// (`last`) or skip that month (`skip`, the default).
+    #[serde(default, rename = "shortMonths")]
+    short_months: String,
     /// Use only this many of `days` each week, chosen at random.
     #[serde(default, rename = "pickDays")]
     pick_days: Option<u32>,
@@ -229,10 +233,15 @@ const KNOWN_AGENTS: [&str; 4] = ["claude", "codex", "gemini", "opencode"];
 #[derive(Clone, Debug, PartialEq)]
 struct CalendarSpec {
     at_min: u32,
+    /// Further fixed times on the same days, later than `at_min`.
+    also_at: Vec<u32>,
     until_min: Option<u32>,
     times: u32,
     days: Vec<u8>,
     pick_days: Option<u32>,
+    /// Dates of the month, a position in it, or calendar dates — replaces
+    /// `days` when set.
+    dates: Option<DateRule>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -242,6 +251,7 @@ enum Schedule {
     Interval {
         min_secs: u64,
         max_secs: u64,
+        limits: Option<IntervalLimits>,
     },
     Calendar(CalendarSpec),
     /// Never fires automatically; runs only when started by hand.
@@ -250,7 +260,12 @@ enum Schedule {
 
 #[derive(Clone, Debug, PartialEq)]
 enum RunTarget {
-    Action(String),
+    /// `prompt` is handed to the agent a terminal action launches, once it's
+    /// ready; empty leaves the action's own prompt (if any) in charge.
+    Action {
+        name: String,
+        prompt: String,
+    },
     Cmd(String),
     /// `full_access` grants the agent its autonomous mode (edit files, run
     /// commands); without it a headless run can only read and report — any
@@ -349,28 +364,22 @@ fn parse_at_minutes(at: &str) -> Result<u32, String> {
     Ok(h * 60 + m)
 }
 
-fn parse_day(d: &str) -> Result<u8, String> {
-    let d = d.trim().to_lowercase();
-    DAY_NAMES
-        .iter()
-        .position(|n| *n == d)
-        .map(|i| i as u8)
-        .ok_or_else(|| format!("\"{d}\" isn't a valid day."))
-}
-
 fn resolve_calendar(sched: &ScheduleDef) -> Result<CalendarSpec, String> {
-    let at_min = parse_at_minutes(sched.at.trim())?;
-    let mut days: Vec<u8> = Vec::new();
-    for d in &sched.days {
-        let n = parse_day(d)?;
-        if !days.contains(&n) {
-            days.push(n);
+    let mut ats: Vec<u32> = Vec::new();
+    for at in sched.at.items() {
+        let m = parse_at_minutes(at)?;
+        if !ats.contains(&m) {
+            ats.push(m);
         }
     }
-    // Week order, not the order they were written in: a weekly pick draws from
-    // this list by position, so the days a job lands on must not depend on how
-    // its config happened to spell them.
-    days.sort_unstable();
+    ats.sort_unstable();
+    let at_min = ats[0];
+    let also_at = ats[1..].to_vec();
+
+    let (days, dates) = match jobcal::parse_days(&sched.days, &sched.short_months)? {
+        ParsedDays::Weekdays(days) => (days, None),
+        ParsedDays::Rule(rule) => (Vec::new(), Some(rule)),
+    };
 
     let until = sched.until.trim();
     let until_min = if until.is_empty() {
@@ -378,6 +387,9 @@ fn resolve_calendar(sched: &ScheduleDef) -> Result<CalendarSpec, String> {
     } else {
         Some(parse_at_minutes(until)?)
     };
+    if until_min.is_some() && !also_at.is_empty() {
+        return Err("A window starts at one time, not a list of them.".into());
+    }
     if until_min.is_some_and(|u| u <= at_min) {
         return Err("The window has to end after it starts.".into());
     }
@@ -392,14 +404,24 @@ fn resolve_calendar(sched: &ScheduleDef) -> Result<CalendarSpec, String> {
         }
         _ => {}
     }
+    if let Some(gap) = ats.windows(2).map(|w| w[1] - w[0]).min() {
+        if (gap as u64) * 60 < MIN_INTERVAL_SECS {
+            return Err("Keep the times at least 5 minutes apart.".into());
+        }
+    }
 
+    if dates.is_some() && sched.pick_days.is_some() {
+        return Err("Picking days at random works with days of the week only.".into());
+    }
     let pick_days = resolve_pick_days(sched.pick_days, &days)?;
     Ok(CalendarSpec {
         at_min,
+        also_at,
         until_min,
         times,
         days,
         pick_days,
+        dates,
     })
 }
 
@@ -423,30 +445,59 @@ fn resolve_schedule(sched: &ScheduleDef) -> Result<Schedule, String> {
     if sched.manual {
         return Ok(Schedule::Manual);
     }
-    let has_at = !sched.at.trim().is_empty();
-    let has_every = sched.every.is_some();
-    match (has_at, has_every) {
-        (true, false) => Ok(Schedule::Calendar(resolve_calendar(sched)?)),
-        (false, true) => {
-            if !sched.until.trim().is_empty() || sched.times.is_some() {
-                return Err("A window belongs to a job that runs at a time of day.".into());
-            }
-            if sched.pick_days.is_some() {
-                return Err("Picking days belongs to a job that runs at a time of day.".into());
-            }
-            let (min_secs, max_secs) = parse_every_band(sched.every.as_ref().unwrap())?;
-            Ok(Schedule::Interval { min_secs, max_secs })
-        }
-        (false, false) => Err("Give this job a time or an interval.".into()),
-        (true, true) => Err("Give this job either a time or an interval, not both.".into()),
+    match (&sched.every, sched.at.is_empty()) {
+        (Some(every), _) => resolve_interval(sched, every),
+        (None, false) => Ok(Schedule::Calendar(resolve_calendar(sched)?)),
+        (None, true) => Err("Give this job a time or an interval.".into()),
     }
+}
+
+/// An interval job may be held to a daily window (`at` … `until`) and to some
+/// weekdays; between those it keeps its own gap.
+fn resolve_interval(sched: &ScheduleDef, every: &EveryValue) -> Result<Schedule, String> {
+    if sched.times.is_some() {
+        return Err("Runs a day belong to a job that runs at a time of day.".into());
+    }
+    if sched.pick_days.is_some() {
+        return Err("Picking days belongs to a job that runs at a time of day.".into());
+    }
+    let ats = sched.at.items();
+    let until = sched.until.trim();
+    let window = match (ats.as_slice(), until.is_empty()) {
+        ([], true) => None,
+        ([at], false) => {
+            let (from, to) = (parse_at_minutes(at)?, parse_at_minutes(until)?);
+            if to <= from {
+                return Err("The window has to end after it starts.".into());
+            }
+            Some((from, to))
+        }
+        ([], false) => return Err("Give the window a start time.".into()),
+        ([_], true) => return Err("Give the window an end time.".into()),
+        _ => return Err("An interval takes one window, not a list of times.".into()),
+    };
+    let days = match jobcal::parse_days(&sched.days, &sched.short_months)? {
+        ParsedDays::Weekdays(days) => days,
+        ParsedDays::Rule(_) => {
+            return Err("An interval can only be limited to days of the week.".into())
+        }
+    };
+    let (min_secs, max_secs) = parse_every_band(every)?;
+    let limits = (window.is_some() || !days.is_empty()).then_some(IntervalLimits { window, days });
+    Ok(Schedule::Interval {
+        min_secs,
+        max_secs,
+        limits,
+    })
 }
 
 fn resolve_run(project: &str, run: &RunDef) -> Result<RunTarget, String> {
     let action = run.action.trim();
     let cmd = run.cmd.trim();
     let prompt = run.prompt.trim();
-    let count = [!action.is_empty(), !cmd.is_empty(), !prompt.is_empty()]
+    // An action may carry a prompt for the agent it launches; otherwise the
+    // three are alternatives.
+    let count = [!action.is_empty(), !cmd.is_empty(), !prompt.is_empty() && action.is_empty()]
         .iter()
         .filter(|b| **b)
         .count();
@@ -457,12 +508,18 @@ fn resolve_run(project: &str, run: &RunDef) -> Result<RunTarget, String> {
         return Err("A job can run only one of an action, a command, or a prompt.".into());
     }
     if !action.is_empty() {
-        if config::resolve_action_full(project, action).is_none() {
+        let Some(resolved) = config::resolve_action_full(project, action) else {
             return Err(format!(
                 "The action \"{action}\" doesn't exist in this project."
             ));
+        };
+        if !prompt.is_empty() && resolved.kind != "terminal" {
+            return Err("Only an action that opens a terminal can take a prompt.".into());
         }
-        return Ok(RunTarget::Action(action.to_string()));
+        return Ok(RunTarget::Action {
+            name: action.to_string(),
+            prompt: prompt.to_string(),
+        });
     }
     if !cmd.is_empty() {
         return Ok(RunTarget::Cmd(cmd.to_string()));
@@ -506,7 +563,7 @@ fn resolve_job(project: &str, id: &str, def: &JobDef) -> Result<JobResolved, Str
     let verify = def.verify.trim();
     // lpm hands an action off and never learns how it ended, so there is no
     // moment at which a check after the run could mean anything.
-    if !verify.is_empty() && matches!(run, RunTarget::Action(_)) {
+    if !verify.is_empty() && matches!(run, RunTarget::Action { .. }) {
         return Err("A check after the run isn't available for actions.".into());
     }
     Ok(JobResolved {
@@ -707,6 +764,9 @@ fn picked_days(pool: &[u8], n: usize, week_seed: u64) -> Vec<u8> {
 }
 
 fn day_ok(date: chrono::NaiveDate, spec: &CalendarSpec, seed: u64) -> bool {
+    if let Some(rule) = &spec.dates {
+        return rule.matches(date);
+    }
     let weekday = date.weekday().num_days_from_monday() as u8;
     let pool = day_pool(&spec.days);
     if !pool.contains(&weekday) {
@@ -723,7 +783,7 @@ fn day_ok(date: chrono::NaiveDate, spec: &CalendarSpec, seed: u64) -> bool {
 /// Local wall-clock to epoch, surviving DST folds: an ambiguous time (clocks
 /// fell back) takes its first occurrence, a nonexistent time (clocks sprang
 /// forward) slides an hour later — the job still runs that day.
-fn local_epoch(date: chrono::NaiveDate, at_min: u32) -> Option<i64> {
+pub(crate) fn local_epoch(date: chrono::NaiveDate, at_min: u32) -> Option<i64> {
     let t = chrono::NaiveTime::from_hms_opt(at_min / 60, at_min % 60, 0)?;
     let dt = date.and_time(t);
     match chrono::Local.from_local_datetime(&dt) {
@@ -741,10 +801,19 @@ fn local_epoch(date: chrono::NaiveDate, at_min: u32) -> Option<i64> {
 /// pair it lands on in the next, so a week's worth of lookahead isn't enough.
 const LOOKAROUND_DAYS: i64 = 16;
 
-/// Every instant the spec fires at on `date`. An exact-time spec has one; a
-/// windowed spec has `times`, each drawn from its own equal slice of the window
-/// so two runs of the same job can't crowd together.
+/// Every instant the spec fires at on `date`. An exact-time spec has one per
+/// time it names; a windowed spec has `times`, each drawn from its own equal
+/// slice of the window so two runs of the same job can't crowd together.
 fn day_fire_points(date: chrono::NaiveDate, spec: &CalendarSpec, seed: u64) -> Vec<i64> {
+    if !spec.also_at.is_empty() {
+        let mut points: Vec<i64> = std::iter::once(spec.at_min)
+            .chain(spec.also_at.iter().copied())
+            .filter_map(|m| local_epoch(date, m))
+            .collect();
+        points.sort_unstable();
+        points.dedup();
+        return points;
+    }
     let Some(start) = local_epoch(date, spec.at_min) else {
         return Vec::new();
     };
@@ -777,10 +846,40 @@ fn day_fire_points(date: chrono::NaiveDate, spec: &CalendarSpec, seed: u64) -> V
         .collect()
 }
 
+/// The days worth looking at for a fire point, nearest first, going forward from
+/// `today` or back from it. Calendar dates are listed outright, however far off.
+fn candidate_days(spec: &CalendarSpec, today: chrono::NaiveDate, forward: bool) -> Vec<chrono::NaiveDate> {
+    if let Some(DateRule::On(dates)) = &spec.dates {
+        let mut days: Vec<_> = dates
+            .iter()
+            .copied()
+            .filter(|d| if forward { *d >= today } else { *d <= today })
+            .collect();
+        if !forward {
+            days.reverse();
+        }
+        return days;
+    }
+    let span = if spec.dates.is_some() {
+        jobcal::MONTH_LOOKAROUND_DAYS
+    } else {
+        LOOKAROUND_DAYS
+    };
+    (0..span)
+        .map(|i| {
+            let step = chrono::Duration::days(i);
+            if forward {
+                today + step
+            } else {
+                today - step
+            }
+        })
+        .collect()
+}
+
 fn most_recent_fire_point(spec: &CalendarSpec, now: i64, seed: u64) -> Option<i64> {
     let today = chrono::Local.timestamp_opt(now, 0).single()?.date_naive();
-    for back in 0..LOOKAROUND_DAYS {
-        let d = today - chrono::Duration::days(back);
+    for d in candidate_days(spec, today, false) {
         if !day_ok(d, spec, seed) {
             continue;
         }
@@ -797,8 +896,7 @@ fn most_recent_fire_point(spec: &CalendarSpec, now: i64, seed: u64) -> Option<i6
 
 fn next_fire_point(spec: &CalendarSpec, now: i64, seed: u64) -> Option<i64> {
     let today = chrono::Local.timestamp_opt(now, 0).single()?.date_naive();
-    for fwd in 0..LOOKAROUND_DAYS {
-        let d = today + chrono::Duration::days(fwd);
+    for d in candidate_days(spec, today, true) {
         if !day_ok(d, spec, seed) {
             continue;
         }
@@ -835,8 +933,13 @@ fn interval_gap(min_secs: u64, max_secs: u64, last_run: u64, seed: u64) -> u64 {
 /// the app was closed into a single run.
 fn is_due(schedule: &Schedule, last_run: u64, now: u64, seed: u64) -> bool {
     match schedule {
-        Schedule::Interval { min_secs, max_secs } => {
+        Schedule::Interval {
+            min_secs,
+            max_secs,
+            limits,
+        } => {
             now.saturating_sub(last_run) >= interval_gap(*min_secs, *max_secs, last_run, seed)
+                && limits.as_ref().is_none_or(|l| l.allows(now as i64))
         }
         Schedule::Calendar(spec) => match most_recent_fire_point(spec, now as i64, seed) {
             Some(occ) => {
@@ -856,8 +959,16 @@ fn is_due(schedule: &Schedule, last_run: u64, now: u64, seed: u64) -> bool {
 /// *is* its schedule, so it is the time to show.
 fn next_fire_at(schedule: &Schedule, last_run: u64, now: u64, seed: u64) -> Option<i64> {
     match schedule {
-        Schedule::Interval { min_secs, max_secs } => {
-            Some((last_run + interval_gap(*min_secs, *max_secs, last_run, seed)) as i64)
+        Schedule::Interval {
+            min_secs,
+            max_secs,
+            limits,
+        } => {
+            let due = (last_run + interval_gap(*min_secs, *max_secs, last_run, seed)) as i64;
+            match limits {
+                Some(l) => l.next_open(due.max(now as i64)),
+                None => Some(due),
+            }
         }
         Schedule::Calendar(spec) => next_fire_point(spec, now as i64, seed),
         Schedule::Manual => None,
@@ -1329,8 +1440,16 @@ impl Trigger {
 /// asleep can only tell the difference if it is told both.
 fn due_fire_at(schedule: &Schedule, last_run: u64, now: u64, seed: u64) -> Option<u64> {
     match schedule {
-        Schedule::Interval { min_secs, max_secs } => {
-            Some(last_run + interval_gap(*min_secs, *max_secs, last_run, seed))
+        Schedule::Interval {
+            min_secs,
+            max_secs,
+            limits,
+        } => {
+            let due = last_run + interval_gap(*min_secs, *max_secs, last_run, seed);
+            match limits {
+                Some(l) => l.next_open(due as i64).map(|t| t as u64),
+                None => Some(due),
+            }
         }
         Schedule::Calendar(spec) => most_recent_fire_point(spec, now as i64, seed)
             .map(|o| o as u64 + implicit_jitter(spec, seed)),
@@ -2219,18 +2338,17 @@ fn dispatch_run(
                     .with_env(env),
             )
         }
-        RunTarget::Action(id) => {
+        RunTarget::Action { name: id, prompt } => {
             let terminal = config::resolve_action_full(target, id)
                 .map(|a| a.kind == "terminal")
                 .unwrap_or(false);
             if terminal {
-                emit_or_park(
-                    app,
-                    key,
-                    target,
-                    // A scheduled run stays on the project's fixed account.
-                    json!({ "kind": "action", "actionName": id, "fixedAccount": true }),
-                )
+                // A scheduled run stays on the project's fixed account.
+                let mut task = json!({ "kind": "action", "actionName": id, "fixedAccount": true });
+                if !prompt.is_empty() {
+                    task["prompt"] = json!(prompt);
+                }
+                emit_or_park(app, key, target, task)
             } else {
                 let app2 = app.clone();
                 let target2 = target.to_string();
@@ -3030,7 +3148,7 @@ pub fn start_scheduler(app: AppHandle) {
 
 fn run_kind(run: &RunTarget) -> &'static str {
     match run {
-        RunTarget::Action(_) => "action",
+        RunTarget::Action { .. } => "action",
         RunTarget::Cmd(_) => "cmd",
         RunTarget::Prompt { .. } => "prompt",
     }
@@ -3040,7 +3158,7 @@ fn run_kind(run: &RunTarget) -> &'static str {
 /// text, the command, or the action name.
 fn run_description(run: &RunTarget) -> String {
     match run {
-        RunTarget::Action(a) => a.clone(),
+        RunTarget::Action { name, .. } => name.clone(),
         RunTarget::Cmd(c) => c.clone(),
         RunTarget::Prompt { prompt, .. } => prompt.clone(),
     }
@@ -3048,10 +3166,17 @@ fn run_description(run: &RunTarget) -> String {
 
 fn schedule_json(schedule: &Schedule) -> Value {
     match schedule {
-        Schedule::Interval { min_secs, max_secs } => {
+        Schedule::Interval {
+            min_secs,
+            max_secs,
+            limits,
+        } => {
             let mut v = json!({ "mode": "interval", "everySecs": min_secs });
             if max_secs > min_secs {
                 v["everyMaxSecs"] = json!(max_secs);
+            }
+            if let Some(l) = limits {
+                l.write_json(&mut v);
             }
             v
         }
@@ -3066,6 +3191,12 @@ fn schedule_json(schedule: &Schedule) -> Value {
             }
             if let Some(n) = spec.pick_days {
                 v["pickDays"] = json!(n);
+            }
+            if !spec.also_at.is_empty() {
+                v["alsoAtMinutes"] = json!(spec.also_at);
+            }
+            if let Some(rule) = &spec.dates {
+                rule.write_json(&mut v);
             }
             v
         }
@@ -3961,7 +4092,7 @@ mod tests {
 
     fn sched(at: &str, days: &[&str], every: Option<EveryValue>) -> ScheduleDef {
         ScheduleDef {
-            at: at.to_string(),
+            at: at.into(),
             days: days.iter().map(|s| s.to_string()).collect(),
             every,
             ..Default::default()
@@ -3971,10 +4102,12 @@ mod tests {
     fn cal(at_min: u32, days: Vec<u8>) -> CalendarSpec {
         CalendarSpec {
             at_min,
+            also_at: vec![],
             until_min: None,
             times: 1,
             days,
             pick_days: None,
+            dates: None,
         }
     }
 
@@ -4022,10 +4155,10 @@ mod tests {
 
     #[test]
     fn day_parsing() {
-        assert_eq!(parse_day("mon").unwrap(), 0);
-        assert_eq!(parse_day("SUN").unwrap(), 6);
-        assert_eq!(parse_day(" thu ").unwrap(), 3);
-        assert!(parse_day("funday").is_err());
+        assert_eq!(jobcal::parse_day("mon").unwrap(), 0);
+        assert_eq!(jobcal::parse_day("SUN").unwrap(), 6);
+        assert_eq!(jobcal::parse_day(" thu ").unwrap(), 3);
+        assert!(jobcal::parse_day("funday").is_err());
     }
 
     #[test]
@@ -4038,7 +4171,8 @@ mod tests {
             resolve_schedule(&sched("", &[], Some(EveryValue::Str("6h".into())))).unwrap(),
             Schedule::Interval {
                 min_secs: 6 * 3600,
-                max_secs: 6 * 3600
+                max_secs: 6 * 3600,
+                limits: None,
             },
         );
         // days default to all
@@ -4095,10 +4229,12 @@ mod tests {
             resolve_schedule(&windowed("09:00", "17:00", Some(3))).unwrap(),
             Schedule::Calendar(CalendarSpec {
                 at_min: 540,
+                also_at: vec![],
                 until_min: Some(17 * 60),
                 times: 3,
                 days: vec![],
                 pick_days: None,
+                dates: None,
             }),
         );
         // A window has to end after it starts, and can't be asked for more runs
@@ -4130,10 +4266,12 @@ mod tests {
             resolve_schedule(&picking(&["mon", "tue", "wed"], Some(2))).unwrap(),
             Schedule::Calendar(CalendarSpec {
                 at_min: 540,
+                also_at: vec![],
                 until_min: None,
                 times: 1,
                 days: vec![0, 1, 2],
                 pick_days: Some(2),
+                dates: None,
             }),
         );
         // Asking for every day it has is just "all of them" — no drawing needed.
@@ -4241,6 +4379,7 @@ mod tests {
         let s = Schedule::Interval {
             min_secs: 3600,
             max_secs: 3600,
+            limits: None,
         };
         let last = 1_000_000u64;
         // due exactly at the boundary (>= interval)
@@ -4253,6 +4392,7 @@ mod tests {
         let s = Schedule::Interval {
             min_secs: 3600,
             max_secs: 3600,
+            limits: None,
         };
         let last = 1_000_000u64;
         // A job with jitter keeps the interval it was given: charging the
@@ -4279,6 +4419,7 @@ mod tests {
         let s = Schedule::Interval {
             min_secs: 4 * 3600,
             max_secs: 8 * 3600,
+            limits: None,
         };
         let seed = job_seed("proj", "poll");
         // The gap is stable for a given last run — the tick that asks whether
@@ -4302,6 +4443,72 @@ mod tests {
             })
             .collect();
         assert!(gaps.len() > 20, "band collapsed to {} gaps", gaps.len());
+    }
+
+    fn local(y: i32, m: u32, d: u32, h: u32, min: u32) -> i64 {
+        local_epoch(chrono::NaiveDate::from_ymd_opt(y, m, d).unwrap(), h * 60 + min).unwrap()
+    }
+
+    fn resolve_yaml(yaml: &str) -> Result<Schedule, String> {
+        let def: ScheduleDef = serde_norway::from_str(yaml).unwrap();
+        resolve_schedule(&def)
+    }
+
+    #[test]
+    fn several_times_a_day() {
+        let Schedule::Calendar(spec) = resolve_yaml("at: ['17:30', '09:00']\ndays: [mon]").unwrap() else {
+            panic!("expected a calendar schedule")
+        };
+        assert_eq!((spec.at_min, spec.also_at.clone()), (540, vec![17 * 60 + 30]));
+        // Monday 12 October 2026.
+        let monday = chrono::NaiveDate::from_ymd_opt(2026, 10, 12).unwrap();
+        assert_eq!(
+            day_fire_points(monday, &spec, 0),
+            vec![local(2026, 10, 12, 9, 0), local(2026, 10, 12, 17, 30)]
+        );
+        assert!(resolve_yaml("at: ['09:00', '09:03']").is_err());
+        assert!(resolve_yaml("at: ['09:00', '12:00']\nuntil: '17:00'").is_err());
+    }
+
+    #[test]
+    fn monthly_and_one_off_dates() {
+        let Schedule::Calendar(spec) = resolve_yaml("at: '08:00'\ndays: [1, last]").unwrap() else {
+            panic!("expected a calendar schedule")
+        };
+        let now = local(2026, 10, 11, 12, 0);
+        assert_eq!(next_fire_point(&spec, now, 0), Some(local(2026, 10, 31, 8, 0)));
+        assert_eq!(most_recent_fire_point(&spec, now, 0), Some(local(2026, 10, 1, 8, 0)));
+
+        let Schedule::Calendar(nth) = resolve_yaml("at: '10:00'\ndays: first mon").unwrap() else {
+            panic!("expected a calendar schedule")
+        };
+        assert_eq!(next_fire_point(&nth, now, 0), Some(local(2026, 11, 2, 10, 0)));
+
+        let Schedule::Calendar(once) = resolve_yaml("at: '14:00'\ndays: [2027-03-01]").unwrap() else {
+            panic!("expected a calendar schedule")
+        };
+        assert_eq!(next_fire_point(&once, now, 0), Some(local(2027, 3, 1, 14, 0)));
+        assert_eq!(next_fire_point(&once, local(2027, 3, 1, 15, 0), 0), None);
+
+        assert!(resolve_yaml("at: '08:00'\ndays: [1]\npickDays: 1").is_err());
+        assert!(resolve_yaml("at: '08:00'\ndays: [mon]\nshortMonths: last").is_err());
+    }
+
+    #[test]
+    fn interval_held_to_a_window() {
+        let s = resolve_yaml("every: 30m\nat: '09:00'\nuntil: '18:00'\ndays: [mon, tue, wed, thu, fri]").unwrap();
+        let Schedule::Interval { limits: Some(_), .. } = &s else {
+            panic!("expected an interval with limits")
+        };
+        let friday_evening = local(2026, 10, 16, 17, 50) as u64;
+        assert!(is_due(&s, friday_evening - 1800, friday_evening, 0));
+        assert!(!is_due(&s, friday_evening, friday_evening + 1800, 0));
+        assert_eq!(
+            next_fire_at(&s, friday_evening, friday_evening + 60, 0),
+            Some(local(2026, 10, 19, 9, 0))
+        );
+        assert!(resolve_yaml("every: 30m\nat: '09:00'").is_err());
+        assert!(resolve_yaml("every: 30m\ndays: [1, 15]").is_err());
     }
 
     #[test]
@@ -4346,10 +4553,12 @@ mod tests {
     fn window_lands_inside_itself_and_replaces_the_implicit_jitter() {
         let spec = CalendarSpec {
             at_min: 9 * 60,
+            also_at: vec![],
             until_min: Some(17 * 60),
             times: 1,
             days: Vec::new(),
             pick_days: None,
+            dates: None,
         };
         // A window is the job's own spread, so the blind 0-5 minute offset that
         // would push a run past 17:00 is not charged on top of it.
@@ -4373,10 +4582,12 @@ mod tests {
     fn window_is_stable_per_day_and_moves_between_days() {
         let spec = CalendarSpec {
             at_min: 9 * 60,
+            also_at: vec![],
             until_min: Some(17 * 60),
             times: 1,
             days: Vec::new(),
             pick_days: None,
+            dates: None,
         };
         let seed = job_seed("proj", "sweep");
         let date = chrono::NaiveDate::from_ymd_opt(2026, 3, 4).unwrap();
@@ -4400,10 +4611,12 @@ mod tests {
     fn several_runs_a_day_spread_across_the_window_without_crowding() {
         let spec = CalendarSpec {
             at_min: 9 * 60,
+            also_at: vec![],
             until_min: Some(17 * 60),
             times: 3,
             days: Vec::new(),
             pick_days: None,
+            dates: None,
         };
         let date = chrono::NaiveDate::from_ymd_opt(2026, 3, 4).unwrap();
         let start = local_epoch(date, 9 * 60).unwrap();
@@ -4427,10 +4640,12 @@ mod tests {
     fn each_run_in_the_window_fires_once() {
         let spec = CalendarSpec {
             at_min: 0,
+            also_at: vec![],
             until_min: Some(23 * 60),
             times: 3,
             days: Vec::new(),
             pick_days: None,
+            dates: None,
         };
         let s = Schedule::Calendar(spec.clone());
         let seed = job_seed("proj", "thrice");
@@ -4451,10 +4666,12 @@ mod tests {
     fn picked_days_takes_the_asked_for_number_from_the_week() {
         let spec = CalendarSpec {
             at_min: 9 * 60,
+            also_at: vec![],
             until_min: None,
             times: 1,
             days: vec![0, 1, 2, 3, 4],
             pick_days: Some(2),
+            dates: None,
         };
         let seed = job_seed("proj", "weekly-sweep");
         let monday = chrono::NaiveDate::from_ymd_opt(2026, 3, 2).unwrap();
@@ -4483,10 +4700,12 @@ mod tests {
         // lands on and the pair the next does — the search has to look that far.
         let spec = CalendarSpec {
             at_min: 9 * 60,
+            also_at: vec![],
             until_min: None,
             times: 1,
             days: Vec::new(),
             pick_days: Some(1),
+            dates: None,
         };
         let now = local_epoch(chrono::NaiveDate::from_ymd_opt(2026, 3, 2).unwrap(), 0).unwrap();
         for id in 0..40 {
@@ -5412,6 +5631,7 @@ mod tests {
         let interval = Schedule::Interval {
             min_secs: 3600,
             max_secs: 3600,
+            limits: None,
         };
         let last = 1_000_000u64;
         assert_eq!(

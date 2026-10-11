@@ -4,6 +4,7 @@
 // schedule here. Pure so the expansion rules can be tested directly.
 
 import { WEEKDAYS, type JobInfo, type JobSchedule, type Weekday } from "./jobsFormat";
+import { dateRuleMatches, hasDateRule } from "./jobsScheduleRules";
 
 export type OccurrenceState =
   | "ran"
@@ -76,11 +77,16 @@ function expandCalendar(
     schedule.untilMinutes !== undefined || (schedule.pickDays ?? 0) > 0;
   const count = Math.max(1, schedule.times ?? 1);
 
+  const byDate = hasDateRule(schedule);
+  const minutes = [schedule.atMinutes, ...(schedule.alsoAtMinutes ?? [])];
+
   let day = startOfDay(window.from * 1000);
   const end = window.to * 1000;
   while (day <= end && slots.length < MAX_SLOTS) {
-    if (runsOnDay(schedule.days, weekdayOf(day))) {
-      const at = day / 1000 + schedule.atMinutes * 60;
+    const runs = byDate
+      ? dateRuleMatches(schedule, new Date(day))
+      : runsOnDay(schedule.days, weekdayOf(day));
+    if (runs) {
       // An `until` before `at` would draw a backwards block; treat it as absent
       // rather than inventing a wrap into the next day.
       const until =
@@ -88,8 +94,37 @@ function expandCalendar(
         schedule.untilMinutes > schedule.atMinutes
           ? day / 1000 + schedule.untilMinutes * 60
           : undefined;
-      if ((until ?? at) >= window.from && at <= window.to) {
-        slots.push({ at, untilAt: until, approximate, count });
+      for (const m of until === undefined ? minutes : [schedule.atMinutes]) {
+        const at = day / 1000 + m * 60;
+        if ((until ?? at) >= window.from && at <= window.to) {
+          slots.push({ at, untilAt: until, approximate, count });
+        }
+      }
+    }
+    day = startOfDay(day + 36 * 3600 * 1000);
+  }
+  return { slots, truncated: slots.length >= MAX_SLOTS };
+}
+
+// An interval held to some hours and days restarts its cadence when each
+// day's window opens, so its runs are laid out per day from that opening.
+function expandLimitedInterval(
+  schedule: Extract<JobSchedule, { mode: "interval" }>,
+  window: Window,
+  step: number,
+  approximate: boolean,
+): ExpandResult {
+  const from = schedule.fromMinutes ?? 0;
+  const until = schedule.untilMinutes ?? 24 * 60 - 1;
+  const days = schedule.days ?? [];
+  const slots: RawSlot[] = [];
+  let day = startOfDay(window.from * 1000);
+  while (day <= window.to * 1000 && slots.length < MAX_SLOTS) {
+    if (runsOnDay(days, weekdayOf(day))) {
+      const open = day / 1000 + from * 60;
+      const close = day / 1000 + until * 60;
+      for (let at = open; at <= close && slots.length < MAX_SLOTS; at += step) {
+        if (at >= window.from && at <= window.to) slots.push({ at, approximate, count: 1 });
       }
     }
     day = startOfDay(day + 36 * 3600 * 1000);
@@ -103,17 +138,21 @@ function expandInterval(
   anchors: { nextFireAt?: number; lastRunAt?: number },
 ): ExpandResult {
   const step = Math.max(60, Math.round(schedule.everySecs));
+
+  // A gap drawn from a band only pins the next fire; everything either side of
+  // it is the stated cadence, not a promise.
+  const approximate =
+    schedule.everyMaxSecs !== undefined && schedule.everyMaxSecs > step;
+  if (schedule.fromMinutes !== undefined || (schedule.days?.length ?? 0) > 0) {
+    return expandLimitedInterval(schedule, window, step, approximate);
+  }
+
   // Without a fire point there is nothing to hang the cadence on — the backend
   // supplies one for every enabled job, and a paused job keeps its last run.
   const anchor =
     anchors.nextFireAt ??
     (anchors.lastRunAt !== undefined ? anchors.lastRunAt + step : undefined);
   if (anchor === undefined) return { slots: [], truncated: false };
-
-  // A gap drawn from a band only pins the next fire; everything either side of
-  // it is the stated cadence, not a promise.
-  const approximate =
-    schedule.everyMaxSecs !== undefined && schedule.everyMaxSecs > step;
 
   const first = anchor - Math.ceil((anchor - window.from) / step) * step;
   const slots: RawSlot[] = [];

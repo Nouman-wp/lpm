@@ -4,18 +4,23 @@
 
 import { composerValueToText, EMPTY_COMPOSER, textToPrompt } from "./composerValue";
 import type { ComposerValue } from "./composerValue";
+import {
+  dateRulePhrase,
+  hasDateRule,
+  isOnce,
+  type DateRuleFields,
+  type NthOf,
+  type NthWord,
+} from "./jobsScheduleRules";
+import {
+  draftToSchedule,
+  readScheduleIntoDraft,
+  scheduleBlockFromDraft,
+  validateDraftSchedule,
+} from "./jobsScheduleDraft";
+import { WEEKDAYS, type Weekday } from "./weekdays";
 
-export type Weekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-
-export const WEEKDAYS: Weekday[] = [
-  "mon",
-  "tue",
-  "wed",
-  "thu",
-  "fri",
-  "sat",
-  "sun",
-];
+export { WEEKDAYS, type Weekday };
 
 const DAY_SHORT: Record<Weekday, string> = {
   mon: "Mon",
@@ -43,16 +48,27 @@ export type JobRunKind = "action" | "cmd" | "prompt";
 // a range the actual run time is drawn from, rather than a fixed point; `times`
 // puts more than one run in that window and `pickDays` uses only some of `days`
 // each week. All are absent on a schedule that fires at a fixed point.
+// `alsoAtMinutes` adds further fixed times, and the date-rule fields replace
+// `days` with dates of the month, a position in it, or calendar dates. An
+// interval's `fromMinutes`..`untilMinutes` and `days` hold it to those hours.
 export type JobSchedule =
-  | { mode: "interval"; everySecs: number; everyMaxSecs?: number }
   | {
+      mode: "interval";
+      everySecs: number;
+      everyMaxSecs?: number;
+      fromMinutes?: number;
+      untilMinutes?: number;
+      days?: Weekday[];
+    }
+  | ({
       mode: "calendar";
       atMinutes: number;
+      alsoAtMinutes?: number[];
       days: Weekday[];
       untilMinutes?: number;
       times?: number;
       pickDays?: number;
-    }
+    } & DateRuleFields)
   | { mode: "manual" };
 
 // Which config layer defines the job: the project registry file, the repo's
@@ -336,8 +352,12 @@ function orderDays(days: Weekday[]): Weekday[] {
   return WEEKDAYS.filter((d) => days.includes(d));
 }
 
-// "Mondays", "Mondays and Thursdays", "Mondays, Wednesdays and Fridays".
+// "Mondays", "Mondays and Thursdays", "Mondays, Wednesdays and Fridays",
+// "weekdays".
 function joinDayPhrase(days: Weekday[]): string {
+  const key = orderDays(days).join(",");
+  if (key === "mon,tue,wed,thu,fri") return "weekdays";
+  if (key === "sat,sun") return "weekends";
   const named = orderDays(days).map((d) => DAY_PLURAL[d]);
   if (named.length === 0) return "";
   if (named.length === 1) return named[0];
@@ -364,11 +384,14 @@ function dayPoolNoun(days: Weekday[], count: number): string {
   return `day${s}`;
 }
 
-// When in the day it runs: "at 09:00", or "between 09:00 and 17:00" when the
-// time is drawn from a window.
-function timePhrase(atMinutes: number, untilMinutes?: number): string {
+// When in the day it runs: "at 09:00", "at 09:00 and 17:30", or "between 09:00
+// and 17:00" when the time is drawn from a window.
+function timePhrase(atMinutes: number, untilMinutes?: number, alsoAt: number[] = []): string {
   const at = formatMinutes(atMinutes);
-  if (untilMinutes === undefined) return `at ${at}`;
+  if (untilMinutes === undefined) {
+    const all = [at, ...alsoAt.map(formatMinutes)];
+    return `at ${all.length === 1 ? at : `${all.slice(0, -1).join(", ")} and ${all[all.length - 1]}`}`;
+  }
   return `between ${at} and ${formatMinutes(untilMinutes)}`;
 }
 
@@ -384,16 +407,34 @@ export function formatSchedule(schedule: JobSchedule): string {
     return "Manual";
   }
   if (schedule.mode === "interval") {
-    return formatInterval(schedule.everySecs, schedule.everyMaxSecs);
+    return formatInterval(schedule.everySecs, schedule.everyMaxSecs) + intervalLimitsPhrase(schedule);
+  }
+  const time = timePhrase(schedule.atMinutes, schedule.untilMinutes, schedule.alsoAtMinutes);
+  const times = schedule.times ?? 1;
+  if (hasDateRule(schedule)) {
+    const rule = dateRulePhrase(schedule);
+    if (times > 1) return `${times} times ${rule} ${time}`;
+    if (isOnce(schedule)) return `Once, ${rule} ${time}`;
+    return `${capitalize(rule)} ${time}`;
   }
   const days = dayPhrase(schedule.days, schedule.pickDays);
-  const time = timePhrase(schedule.atMinutes, schedule.untilMinutes);
-  const times = schedule.times ?? 1;
   if (times > 1) {
     const where = days === "every day" ? "a day" : `on ${days}`;
     return `${times} times ${where} ${time}`;
   }
   return `${capitalize(days)} ${time}`;
+}
+
+// " between 09:00 and 18:00 on weekdays" — the hours and days an interval is
+// held to, or nothing when it may run at any time.
+function intervalLimitsPhrase(schedule: Extract<JobSchedule, { mode: "interval" }>): string {
+  let out = "";
+  if (schedule.fromMinutes !== undefined && schedule.untilMinutes !== undefined) {
+    out += ` between ${formatMinutes(schedule.fromMinutes)} and ${formatMinutes(schedule.untilMinutes)}`;
+  }
+  const days = schedule.days ?? [];
+  if (days.length > 0 && days.length < 7) out += ` on ${dayPhrase(days)}`;
+  return out;
 }
 
 // "6 hours" / "30 minutes" / "2 days" — the number and its unit, sized to the
@@ -471,6 +512,10 @@ export function formatNextRun(
 
 export type ScheduleMode = "time" | "interval" | "manual";
 
+// Which days a time-of-day job runs on: weekdays (`days`, empty = every day),
+// dates of the month, a position in the month, or one calendar date.
+export type DayRule = "week" | "dates" | "nth" | "once";
+
 export type DuplicateMode = "none" | "copy" | "worktree";
 export type IntervalUnit = "minutes" | "hours" | "days";
 
@@ -479,7 +524,18 @@ export interface JobDraft {
   emoji: string;
   scheduleMode: ScheduleMode;
   time: string;
+  // Further fixed times on the same days; unused while the time is drawn from
+  // a window.
+  moreTimes: string[];
+  dayRule: DayRule;
   days: Weekday[];
+  monthDates: number[];
+  lastDay: boolean;
+  // A picked date a short month lacks: run on its last day, or skip the month.
+  shortMonths: "skip" | "last";
+  nth: NthWord;
+  nthOf: NthOf;
+  onceDate: string;
   // Randomized timing. Each is gated by its own toggle so turning one off and
   // back on doesn't lose what was typed into it: `randomWindow` draws the run
   // time from `time`..`untilTime` and spreads `timesPerDay` runs across it,
@@ -494,6 +550,12 @@ export interface JobDraft {
   intervalUnit: IntervalUnit;
   varyInterval: boolean;
   intervalMaxValue: number;
+  // The hours (`intervalFrom`..`intervalUntil`) and weekdays an interval job is
+  // held to; empty days = every day.
+  intervalWindow: boolean;
+  intervalFrom: string;
+  intervalUntil: string;
+  intervalDays: Weekday[];
   check: string;
   // Run after the agent exits: it decides whether the run is reported as having
   // worked. Empty = the run is unverified.
@@ -532,7 +594,15 @@ export function defaultJobDraft(): JobDraft {
     emoji: "",
     scheduleMode: "time",
     time: "09:00",
+    moreTimes: [],
+    dayRule: "week",
     days: [],
+    monthDates: [1],
+    lastDay: false,
+    shortMonths: "skip",
+    nth: "first",
+    nthOf: "mon",
+    onceDate: "",
     randomWindow: false,
     untilTime: "17:00",
     timesPerDay: 1,
@@ -542,6 +612,10 @@ export function defaultJobDraft(): JobDraft {
     intervalUnit: "hours",
     varyInterval: false,
     intervalMaxValue: 12,
+    intervalWindow: false,
+    intervalFrom: "09:00",
+    intervalUntil: "18:00",
+    intervalDays: [],
     check: "",
     verify: "",
     duplicateMode: "none",
@@ -561,76 +635,15 @@ export function defaultJobDraft(): JobDraft {
   };
 }
 
-function parseTimeToMinutes(time: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (h > 23 || min > 59) return null;
-  return h * 60 + min;
-}
-
 // The editor's live "when it runs" summary, derived from the draft alone.
 export function describeDraftSchedule(draft: JobDraft): string {
   if (draft.scheduleMode === "manual") {
     return "Runs only when you start it";
   }
-  if (draft.scheduleMode === "interval") {
-    return formatInterval(intervalSecs(draft), intervalMaxSecs(draft));
-  }
-  const minutes = parseTimeToMinutes(draft.time);
-  if (minutes === null) return "";
-  const until = draftUntilMinutes(draft);
-  if (draft.randomWindow && until === null) return "";
-  return formatSchedule({
-    mode: "calendar",
-    atMinutes: minutes,
-    days: draft.days,
-    untilMinutes: until ?? undefined,
-    times: draft.randomWindow ? Math.max(1, draft.timesPerDay) : 1,
-    pickDays: draftPickDays(draft),
-  });
+  const schedule = draftToSchedule(draft);
+  return schedule ? formatSchedule(schedule) : "";
 }
 
-// The window's end, or null when the draft isn't using one (or hasn't typed a
-// valid time into it yet).
-function draftUntilMinutes(draft: JobDraft): number | null {
-  if (!draft.randomWindow) return null;
-  return parseTimeToMinutes(draft.untilTime);
-}
-
-// How many days a week the draft picks, or undefined when it uses all of them.
-// A pick wider than the days now selected is clamped rather than refused: the
-// control disappears once a single day is left, so an error there would be
-// unfixable, and "1 of [Monday]" is exactly "every Monday" anyway.
-function draftPickDays(draft: JobDraft): number | undefined {
-  if (!draft.randomDays || draft.pickDays < 1) return undefined;
-  const pool = draft.days.length === 0 ? 7 : draft.days.length;
-  return draft.pickDays >= pool ? undefined : draft.pickDays;
-}
-
-const UNIT_SECS: Record<IntervalUnit, number> = {
-  minutes: 60,
-  hours: 3600,
-  days: 86400,
-};
-
-// The scheduler's floor (jobs.rs MIN_INTERVAL_SECS).
-const MIN_INTERVAL_SECS = 300;
-
-function intervalSecs(draft: JobDraft): number {
-  return draft.intervalValue * UNIT_SECS[draft.intervalUnit];
-}
-
-// The far end of a varying gap, or undefined for a fixed one. Both ends share
-// the draft's single unit, so only the number differs.
-function intervalMaxSecs(draft: JobDraft): number | undefined {
-  if (!draft.varyInterval) return undefined;
-  return draft.intervalMaxValue * UNIT_SECS[draft.intervalUnit];
-}
-
-// Mirrors the backend validation (jobs.rs) so save is blocked before a write
-// that the scheduler would reject, and the message reads in product terms.
 export function validateJobDraft(
   draft: JobDraft,
   standalone = false,
@@ -639,30 +652,8 @@ export function validateJobDraft(
   if (standalone && draft.runMode === "action") {
     return "Standalone jobs can't run an action.";
   }
-  if (draft.scheduleMode === "time") {
-    const at = parseTimeToMinutes(draft.time);
-    if (at === null) return "Pick a valid time.";
-    if (draft.randomWindow) {
-      const until = parseTimeToMinutes(draft.untilTime);
-      if (until === null) return "Pick a valid time for the end of the window.";
-      if (until <= at) return "The window has to end after it starts.";
-      const times = Math.max(1, draft.timesPerDay);
-      if (((until - at) * 60) / times < MIN_INTERVAL_SECS) {
-        return "That's more runs than the window has room for.";
-      }
-    }
-    if (draft.randomDays && draft.pickDays < 1) return "Pick at least one day.";
-  } else if (draft.scheduleMode === "interval") {
-    if (!Number.isFinite(draft.intervalValue) || draft.intervalValue < 1) {
-      return "The interval must be at least 1.";
-    }
-    if (intervalSecs(draft) < MIN_INTERVAL_SECS) {
-      return "The interval must be at least 5 minutes.";
-    }
-    if (draft.varyInterval && draft.intervalMaxValue < draft.intervalValue) {
-      return "The longest gap has to be at least the shortest.";
-    }
-  }
+  const scheduleError = validateDraftSchedule(draft);
+  if (scheduleError) return scheduleError;
   if (draft.verify.trim() && draft.runMode === "action") {
     return "A check after the run isn't available for actions.";
   }
@@ -678,34 +669,13 @@ export function validateJobDraft(
   return null;
 }
 
-function buildScheduleBlock(draft: JobDraft): Record<string, unknown> {
-  if (draft.scheduleMode === "manual") {
-    return { manual: true };
-  }
-  if (draft.scheduleMode === "interval") {
-    const suffix = { minutes: "m", hours: "h", days: "d" }[draft.intervalUnit];
-    const vary =
-      draft.varyInterval && draft.intervalMaxValue > draft.intervalValue;
-    const every = vary
-      ? `${draft.intervalValue}-${draft.intervalMaxValue}${suffix}`
-      : `${draft.intervalValue}${suffix}`;
-    return { every };
-  }
-  const block: Record<string, unknown> = { at: draft.time.trim() };
-  if (draft.randomWindow) {
-    block.until = draft.untilTime.trim();
-    if (draft.timesPerDay > 1) block.times = draft.timesPerDay;
-  }
-  if (draft.days.length > 0 && draft.days.length < 7) {
-    block.days = orderDays(draft.days);
-  }
-  const pickDays = draftPickDays(draft);
-  if (pickDays !== undefined) block.pickDays = pickDays;
-  return block;
-}
-
 function buildRunBlock(draft: JobDraft): Record<string, unknown> {
-  if (draft.runMode === "action") return { action: draft.action.trim() };
+  if (draft.runMode === "action") {
+    // A prompt rides along only for an action that launches an agent; the
+    // editor blanks it for any other action before saving.
+    const text = composerValueToText(draft.prompt).trim();
+    return text ? { action: draft.action.trim(), prompt: text } : { action: draft.action.trim() };
+  }
   if (draft.runMode === "cmd") return { cmd: draft.cmd.trim() };
   const block: Record<string, unknown> = {
     prompt: composerValueToText(draft.prompt),
@@ -758,41 +728,13 @@ function readDuplicateInto(draft: JobDraft, value: unknown): void {
 export function buildJobPayload(draft: JobDraft): Record<string, unknown> {
   const payload: Record<string, unknown> = { label: draft.label.trim() };
   if (draft.emoji.trim()) payload.emoji = draft.emoji.trim();
-  payload.schedule = buildScheduleBlock(draft);
+  payload.schedule = scheduleBlockFromDraft(draft);
   if (draft.check.trim()) payload.check = draft.check.trim();
   if (draft.verify.trim()) payload.verify = draft.verify.trim();
   const duplicate = buildDuplicateValue(draft);
   if (duplicate !== null) payload.duplicate = duplicate;
   payload.run = buildRunBlock(draft);
   return payload;
-}
-
-// `every` is "6h" / "2d" / a bare number read as hours, or a band ("4h-8h",
-// "4-8h") whose ends may share one unit written on the far side.
-function parseEvery(every: unknown): {
-  value: number;
-  unit: IntervalUnit;
-  maxValue?: number;
-} {
-  if (typeof every === "number") {
-    return { value: Math.max(1, Math.round(every)), unit: "hours" };
-  }
-  const s = String(every ?? "").trim().toLowerCase();
-  const m = /^(\d+)\s*([mhd]?)(?:\s*-\s*(\d+)\s*([mhd]?))?$/.exec(s);
-  if (!m) return { value: 6, unit: "hours" };
-  const value = Math.max(1, Number(m[1]));
-  // Both ends share the draft's one unit; the far end's is the one written.
-  const suffix = m[3] !== undefined ? m[4] || m[2] : m[2];
-  const unit: IntervalUnit =
-    suffix === "d" ? "days" : suffix === "m" ? "minutes" : "hours";
-  if (m[3] === undefined) return { value, unit };
-  return { value, unit, maxValue: Math.max(value, Number(m[3])) };
-}
-
-function asStringArray(value: unknown): Weekday[] {
-  if (!Array.isArray(value)) return [];
-  const set = new Set(value.map((v) => String(v).trim().toLowerCase()));
-  return WEEKDAYS.filter((d) => set.has(d));
 }
 
 // Reverse of buildJobPayload: seed the editor from an existing job's YAML body.
@@ -807,36 +749,7 @@ export function payloadToDraft(payload: Record<string, unknown>): JobDraft {
 
   const schedule = payload.schedule;
   if (schedule && typeof schedule === "object") {
-    const s = schedule as Record<string, unknown>;
-    if (s.manual === true) {
-      draft.scheduleMode = "manual";
-    } else if (s.every !== undefined && s.every !== null) {
-      const { value, unit, maxValue } = parseEvery(s.every);
-      draft.scheduleMode = "interval";
-      draft.intervalValue = value;
-      draft.intervalUnit = unit;
-      if (maxValue !== undefined && maxValue > value) {
-        draft.varyInterval = true;
-        draft.intervalMaxValue = maxValue;
-      }
-    } else {
-      draft.scheduleMode = "time";
-      if (typeof s.at === "string" && s.at.trim()) draft.time = s.at.trim();
-      draft.days = asStringArray(s.days);
-      if (typeof s.until === "string" && s.until.trim()) {
-        draft.randomWindow = true;
-        draft.untilTime = s.until.trim();
-        const times = Number(s.times);
-        if (Number.isFinite(times) && times > 1) {
-          draft.timesPerDay = Math.floor(times);
-        }
-      }
-      const pickDays = Number(s.pickDays);
-      if (Number.isFinite(pickDays) && pickDays >= 1) {
-        draft.randomDays = true;
-        draft.pickDays = Math.floor(pickDays);
-      }
-    }
+    readScheduleIntoDraft(draft, schedule as Record<string, unknown>);
   }
 
   const run = payload.run;
@@ -845,6 +758,7 @@ export function payloadToDraft(payload: Record<string, unknown>): JobDraft {
     if (typeof r.action === "string" && r.action.trim()) {
       draft.runMode = "action";
       draft.action = r.action.trim();
+      if (typeof r.prompt === "string" && r.prompt.trim()) draft.prompt = textToPrompt(r.prompt);
     } else if (typeof r.cmd === "string" && r.cmd.trim()) {
       draft.runMode = "cmd";
       draft.cmd = r.cmd.trim();

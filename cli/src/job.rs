@@ -515,32 +515,67 @@ fn render_history(style: &Style, entries: &[Value], now_ms: i64) -> String {
 }
 
 fn humanize_schedule(schedule: &Value) -> String {
+    let strings = |key: &str| -> Vec<String> {
+        schedule
+            .get(key)
+            .and_then(Value::as_array)
+            .map(|items| items.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .unwrap_or_default()
+    };
+    let clock = |minutes: i64| format!("{:02}:{:02}", minutes / 60, minutes % 60);
     match schedule.get("mode").and_then(Value::as_str) {
         Some("interval") => {
             let seconds = schedule
                 .get("everySecs")
                 .and_then(Value::as_i64)
                 .unwrap_or_default();
-            if seconds > 0 && seconds % 86_400 == 0 {
+            let mut text = if seconds > 0 && seconds % 86_400 == 0 {
                 format!("every {}d", seconds / 86_400)
             } else if seconds > 0 && seconds < 3_600 {
                 format!("every {}m", (seconds / 60).max(1))
             } else {
                 format!("every {}h", seconds / 3600)
+            };
+            let from = schedule.get("fromMinutes").and_then(Value::as_i64);
+            let until = schedule.get("untilMinutes").and_then(Value::as_i64);
+            if let (Some(from), Some(until)) = (from, until) {
+                text.push_str(&format!(" {}-{}", clock(from), clock(until)));
             }
+            let days = strings("days");
+            if !days.is_empty() {
+                text.push_str(&format!(" {}", days.join(",")));
+            }
+            text
         }
         Some("calendar") => {
             let at = schedule
                 .get("atMinutes")
                 .and_then(Value::as_i64)
                 .unwrap_or_default();
-            let time = format!("{:02}:{:02}", at / 60, at % 60);
-            let days = schedule
-                .get("days")
+            let mut times = vec![clock(at)];
+            if let Some(more) = schedule.get("alsoAtMinutes").and_then(Value::as_array) {
+                times.extend(more.iter().filter_map(Value::as_i64).map(clock));
+            }
+            let time = times.join(",");
+            let mut month_days: Vec<String> = schedule
+                .get("monthDays")
                 .and_then(Value::as_array)
-                .map(|days| days.iter().filter_map(Value::as_str).collect::<Vec<_>>())
+                .map(|items| items.iter().filter_map(Value::as_i64).map(|d| d.to_string()).collect())
                 .unwrap_or_default();
-            if days.is_empty() {
+            if schedule.get("lastDay").and_then(Value::as_bool) == Some(true) {
+                month_days.push("last".into());
+            }
+            let on_dates = strings("onDates");
+            let nth = schedule.get("nth").and_then(Value::as_str);
+            let nth_of = schedule.get("nthOf").and_then(Value::as_str);
+            let days = strings("days");
+            if !on_dates.is_empty() {
+                format!("once on {} at {time}", on_dates.join(","))
+            } else if let (Some(nth), Some(of)) = (nth, nth_of) {
+                format!("{nth} {of} monthly at {time}")
+            } else if !month_days.is_empty() {
+                format!("monthly on {} at {time}", month_days.join(","))
+            } else if days.is_empty() {
                 format!("daily at {time}")
             } else {
                 format!("{} at {time}", days.join(","))
@@ -579,6 +614,36 @@ mod tests {
                 &json!({ "mode": "calendar", "atMinutes": 450, "days": ["mon", "thu"] })
             ),
             "mon,thu at 07:30"
+        );
+    }
+
+    #[test]
+    fn schedule_words_cover_monthly_once_and_limits() {
+        assert_eq!(
+            humanize_schedule(&json!({
+                "mode": "calendar", "atMinutes": 540, "alsoAtMinutes": [1020],
+                "days": [], "monthDays": [1, 15], "lastDay": true,
+            })),
+            "monthly on 1,15,last at 09:00,17:00"
+        );
+        assert_eq!(
+            humanize_schedule(&json!({
+                "mode": "calendar", "atMinutes": 600, "days": [], "nth": "first", "nthOf": "mon",
+            })),
+            "first mon monthly at 10:00"
+        );
+        assert_eq!(
+            humanize_schedule(&json!({
+                "mode": "calendar", "atMinutes": 840, "days": [], "onDates": ["2026-10-20"],
+            })),
+            "once on 2026-10-20 at 14:00"
+        );
+        assert_eq!(
+            humanize_schedule(&json!({
+                "mode": "interval", "everySecs": 1800, "fromMinutes": 540, "untilMinutes": 1080,
+                "days": ["mon", "fri"],
+            })),
+            "every 30m 09:00-18:00 mon,fri"
         );
     }
 

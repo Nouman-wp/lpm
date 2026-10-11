@@ -39,6 +39,9 @@ export function Row({
   );
 }
 
+export const TIME_INPUT_CLASS =
+  "border-none bg-transparent text-right text-[13px] text-[var(--text-secondary)] outline-none transition-colors hover:text-[var(--text-primary)] focus:text-[var(--text-primary)]";
+
 // The quiet right-aligned number field the rows use for counts and lengths.
 export function RowNumber({
   value,

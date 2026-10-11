@@ -1127,6 +1127,18 @@ struct AutomationJob: Identifiable {
     let untilMinutes: Int?
     let times: Int
     let pickDays: Int
+    // Further fixed times, and days that aren't weekdays: dates of the month
+    // (with each month's last day), a position in the month ("first" "mon"),
+    // or one-off calendar dates. An interval held to some hours carries
+    // `fromMinutes`..`untilMinutes` and its `days`. Older servers omit them all.
+    let alsoAtMinutes: [Int]
+    let monthDays: [Int]
+    let lastDay: Bool
+    let shortMonths: String
+    let nth: String
+    let nthOf: String
+    let onDates: [String]
+    let fromMinutes: Int?
     let lastRunAt: Int?
     let lastResult: String
     let nextFireAt: Int?
@@ -1167,6 +1179,14 @@ struct AutomationJob: Identifiable {
         untilMinutes = schedule["untilMinutes"] as? Int
         times = schedule["times"] as? Int ?? 1
         pickDays = schedule["pickDays"] as? Int ?? 0
+        alsoAtMinutes = schedule["alsoAtMinutes"] as? [Int] ?? []
+        monthDays = schedule["monthDays"] as? [Int] ?? []
+        lastDay = schedule["lastDay"] as? Bool ?? false
+        shortMonths = schedule["shortMonths"] as? String ?? ""
+        nth = schedule["nth"] as? String ?? ""
+        nthOf = schedule["nthOf"] as? String ?? ""
+        onDates = schedule["onDates"] as? [String] ?? []
+        fromMinutes = schedule["fromMinutes"] as? Int
         lastRunAt = o["lastRunAt"] as? Int
         lastResult = o["lastResult"] as? String ?? ""
         nextFireAt = o["nextFireAt"] as? Int

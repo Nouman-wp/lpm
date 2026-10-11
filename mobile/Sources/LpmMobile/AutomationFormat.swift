@@ -126,20 +126,71 @@ private func pluralized(_ value: Int, _ unit: String) -> String {
     value == 1 ? unit : "\(unit)s"
 }
 
-func automationScheduleText(_ job: AutomationJob) -> String {
-    if job.scheduleMode == "interval" {
-        let lo = intervalParts(job.everySecs)
-        guard job.everyMaxSecs > job.everySecs else {
-            return lo.value == 1 ? "Every \(lo.unit)" : "Every \(lo.value) \(pluralized(lo.value, lo.unit))"
-        }
+private func clockText(_ minutes: Int) -> String {
+    String(format: "%02d:%02d", minutes / 60, minutes % 60)
+}
+
+private func ordinalText(_ n: Int) -> String {
+    let suffix: String
+    switch (n % 100, n % 10) {
+    case (11...13, _): suffix = "th"
+    case (_, 1): suffix = "st"
+    case (_, 2): suffix = "nd"
+    case (_, 3): suffix = "rd"
+    default: suffix = "th"
+    }
+    return "\(n)\(suffix)"
+}
+
+private func joinedWords(_ words: [String]) -> String {
+    guard words.count > 1 else { return words.first ?? "" }
+    return words.dropLast().joined(separator: ", ") + " and " + words[words.count - 1]
+}
+
+private func intervalText(_ job: AutomationJob) -> String {
+    let lo = intervalParts(job.everySecs)
+    var text: String
+    if job.everyMaxSecs > job.everySecs {
         let hi = intervalParts(job.everyMaxSecs)
-        if lo.unit == hi.unit {
-            return "Every \(lo.value)–\(hi.value) \(pluralized(hi.value, hi.unit))"
-        }
-        return "Every \(lo.value) \(pluralized(lo.value, lo.unit)) to \(hi.value) \(pluralized(hi.value, hi.unit))"
+        text = lo.unit == hi.unit
+            ? "Every \(lo.value)–\(hi.value) \(pluralized(hi.value, hi.unit))"
+            : "Every \(lo.value) \(pluralized(lo.value, lo.unit)) to \(hi.value) \(pluralized(hi.value, hi.unit))"
+    } else {
+        text = lo.value == 1 ? "Every \(lo.unit)" : "Every \(lo.value) \(pluralized(lo.value, lo.unit))"
+    }
+    if let from = job.fromMinutes, let until = job.untilMinutes {
+        text += " between \(clockText(from)) and \(clockText(until))"
+    }
+    if !job.days.isEmpty {
+        text += " on " + job.days.map { $0.prefix(1).uppercased() + String($0.dropFirst()) }
+            .joined(separator: ", ")
+    }
+    return text
+}
+
+/// Days that aren't weekdays: "on the 1st and last day of every month", "on
+/// the first Mon of every month", "on 2026-10-20". Nil for a weekday schedule.
+private func automationDateRulePhrase(_ job: AutomationJob) -> String? {
+    if !job.onDates.isEmpty { return "on " + joinedWords(job.onDates) }
+    if !job.nth.isEmpty {
+        let of = job.nthOf.count == 3 ? job.nthOf.prefix(1).uppercased() + job.nthOf.dropFirst() : job.nthOf
+        return "on the \(job.nth) \(of) of every month"
+    }
+    guard !job.monthDays.isEmpty || job.lastDay else { return nil }
+    var words = job.monthDays.map(ordinalText)
+    if job.lastDay { words.append("last day") }
+    return "on the \(joinedWords(words)) of every month"
+}
+
+func automationScheduleText(_ job: AutomationJob) -> String {
+    if job.scheduleMode == "interval" { return intervalText(job) }
+    let time = automationTimePhrase(job)
+    if let rule = automationDateRulePhrase(job) {
+        if job.times > 1 { return "\(job.times) times \(rule) \(time)" }
+        if !job.onDates.isEmpty { return "Once, \(rule) \(time)" }
+        return rule.prefix(1).uppercased() + rule.dropFirst() + " " + time
     }
     let days = automationDayPhrase(job)
-    let time = automationTimePhrase(job)
     guard job.times > 1 else { return days.prefix(1).uppercased() + days.dropFirst() + " " + time }
     return "\(job.times) times \(days == "every day" ? "a day" : "on \(days)") \(time)"
 }
@@ -164,11 +215,13 @@ private func automationDayPhrase(_ job: AutomationJob) -> String {
     return "\(job.pickDays) random \(noun) a week"
 }
 
-/// When in the day: "at 09:00", or the window a random time is drawn from.
+/// When in the day: "at 09:00", "at 09:00 and 17:30", or the window a random
+/// time is drawn from.
 private func automationTimePhrase(_ job: AutomationJob) -> String {
-    let clock = { (minutes: Int) in String(format: "%02d:%02d", minutes / 60, minutes % 60) }
-    guard let until = job.untilMinutes else { return "at \(clock(job.atMinutes))" }
-    return "between \(clock(job.atMinutes)) and \(clock(until))"
+    guard let until = job.untilMinutes else {
+        return "at " + joinedWords(([job.atMinutes] + job.alsoAtMinutes).map(clockText))
+    }
+    return "between \(clockText(job.atMinutes)) and \(clockText(until))"
 }
 
 // MARK: - Status
