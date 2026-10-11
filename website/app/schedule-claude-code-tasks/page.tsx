@@ -13,6 +13,7 @@ import {
   breadcrumbJsonLd,
   jsonLdString,
   webPageJsonLd,
+  youtubeLessonJsonLd,
 } from "@/lib/structured-data";
 import AutomationsPreview from "./_components/automations-preview";
 import Cta from "./_components/cta";
@@ -22,6 +23,7 @@ import Guardrails from "./_components/guardrails";
 import Hero from "./_components/hero";
 import HowItWorks from "./_components/how-it-works";
 import JobKinds from "./_components/job-kinds";
+import Lesson from "./_components/lesson";
 import Limits from "./_components/limits";
 import RunHistory from "./_components/run-history";
 import Schedules from "./_components/schedules";
@@ -80,6 +82,7 @@ const structuredData = [
     { name: "Home", path: "/" },
     { name: "Schedule Claude Code Tasks", path: AUTOMATIONS_PATH },
   ]),
+  youtubeLessonJsonLd("create-an-automation"),
 ];
 
 export default function ScheduleClaudeCodeTasksPage() {
@@ -92,6 +95,7 @@ export default function ScheduleClaudeCodeTasksPage() {
       <Hero />
       <AutomationsPreview />
       <HowItWorks />
+      <Lesson />
       <JobKinds />
       <Schedules />
       <Examples />

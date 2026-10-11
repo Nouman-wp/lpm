@@ -93,6 +93,13 @@ const LESSONS = {
       "Run Claude Code on your Mac from your iPhone, at home or on cellular: connect lpm Link to lpm, set up Built-in Tailscale on both devices, pair them and send a prompt from your phone.",
     uploadDate: "2026-10-09T09:00:00+00:00",
   },
+  "create-an-automation": {
+    id: "WWG_380qtXs",
+    name: "Create an Automation",
+    description:
+      "Create an automation in lpm, step by step: a job that runs an AI agent, a shell command or a project action on a schedule, and keeps what it found for you to read.",
+    uploadDate: "2026-10-11T09:00:00+00:00",
+  },
   "sixty-seconds": {
     id: "H46vW5DPbZk",
     name: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",
