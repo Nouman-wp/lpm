@@ -92,7 +92,7 @@ pub fn message_history_path() -> PathBuf {
     lpm_dir().join("message-history.db")
 }
 
-const RESERVED_PROJECT_NAME: &str = "__global__";
+pub(crate) const RESERVED_PROJECT_NAME: &str = "__global__";
 /// What the app calls the reserved project: the global Terminals view.
 const RESERVED_PROJECT_LABEL: &str = "Terminals";
 
@@ -843,17 +843,26 @@ fn account_signin_status(id: &str) -> (bool, String) {
 /// `CLAUDE_CONFIG_DIR`, Claude Code keeps it in `~/.claude.json` — beside the
 /// `~/.claude` dir, not inside it.
 fn default_signin_status() -> (bool, String) {
+    default_claude_json()
+        .map(|v| claude_status_from_json(&v))
+        .unwrap_or((false, String::new()))
+}
+
+fn default_claude_json() -> Option<Value> {
     let base = std::env::var_os(CLAUDE_CONFIG_DIR_ENV)
         .filter(|v| !v.is_empty())
         .map(PathBuf::from)
         .unwrap_or_else(|| dirs::home_dir().unwrap_or_default());
-    let path = base.join(".claude.json");
-    match std::fs::read(&path) {
-        Ok(bytes) => serde_json::from_slice::<Value>(&bytes)
-            .map(|v| claude_status_from_json(&v))
-            .unwrap_or((false, String::new())),
-        Err(_) => (false, String::new()),
-    }
+    let bytes = std::fs::read(base.join(".claude.json")).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+/// Whether Claude Code's sessions get Claude in Chrome by default (its /chrome
+/// setting). Interactive sessions honour it on their own; headless ones don't.
+pub fn claude_chrome_by_default() -> bool {
+    default_claude_json()
+        .and_then(|v| v.get("claudeInChromeDefaultEnabled").and_then(Value::as_bool))
+        .unwrap_or(false)
 }
 
 /// Per-account sign-in status for every id in accounts.json plus the ambient

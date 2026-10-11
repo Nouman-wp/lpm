@@ -69,6 +69,7 @@ private struct JobEditorDraft {
     var effort = ""
     var access = "full"             // full | read
     var quiet = false               // report only runs that found something (set on the Mac)
+    var memory = true               // each run recalls and saves the job's memory (set on the Mac)
     var sendTo: Any?                // where results go (set on the Mac); nil = lpm alone
     var targets: [String] = []      // "runs in"; empty = standalone
     /// A schedule set on the Mac that this editor has no controls for (several
@@ -784,6 +785,7 @@ struct AutomationEditorSheet: View {
                 d.effort = (run["effort"] as? String ?? "").lowercased()
                 if (run["access"] as? String)?.lowercased() == "read" { d.access = "read" }
                 d.quiet = run["quiet"] as? Bool ?? false
+                d.memory = run["memory"] as? Bool ?? false
             }
         }
 
@@ -887,6 +889,7 @@ struct AutomationEditorSheet: View {
             if !e.isEmpty { block["effort"] = e }
             if draft.access == "read" { block["access"] = "read" }
             if draft.quiet { block["quiet"] = true }
+            if draft.memory { block["memory"] = true }
             return block
         }
     }

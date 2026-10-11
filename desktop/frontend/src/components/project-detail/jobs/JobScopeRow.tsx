@@ -2,6 +2,7 @@ import { Bell, BellOff, Lock, LockOpen } from "lucide-react";
 import { RowSelect } from "./RowSelect";
 import { JobRunsInMenu } from "./JobRunsInMenu";
 import { JobSendToMenu } from "./JobSendToMenu";
+import { JobMemoryToggle } from "./JobMemoryToggle";
 import type { JobDraft } from "../../../jobsFormat";
 import {
   LPM_DESTINATION,
@@ -68,6 +69,13 @@ export function JobScopeRow({
   return (
     <div className="space-y-1.5">
       <div className="flex flex-wrap items-center gap-2">
+        {draft.runMode === "prompt" && (
+          <JobMemoryToggle
+            value={draft.memory}
+            readOnly={draft.access === "read"}
+            onChange={(memory) => patch({ memory })}
+          />
+        )}
         <JobRunsInMenu
           targets={draft.targets}
           onTargets={onScope}

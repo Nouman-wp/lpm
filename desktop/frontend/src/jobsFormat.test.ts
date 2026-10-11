@@ -401,7 +401,7 @@ describe("draft <-> payload round-trip", () => {
       schedule: { at: "09:00", days: ["mon", "thu"] },
       check: 'test -n "$(npm outdated)"',
       duplicate: true,
-      run: { prompt: "Upgrade dependencies" },
+      run: { prompt: "Upgrade dependencies", memory: true },
     });
   });
 
@@ -740,11 +740,12 @@ describe("draft <-> payload round-trip", () => {
     expect(buildJobPayload(readOnly).run).toEqual({
       prompt: "Summarize open TODOs",
       access: "read",
+      memory: true,
     });
     expect(payloadToDraft(buildJobPayload(readOnly))).toEqual(readOnly);
 
     const full = buildJobPayload({ ...readOnly, access: "full" });
-    expect(full.run).toEqual({ prompt: "Summarize open TODOs" });
+    expect(full.run).toEqual({ prompt: "Summarize open TODOs", memory: true });
     expect(payloadToDraft(full).access).toBe("full");
   });
 
@@ -773,10 +774,26 @@ describe("draft <-> payload round-trip", () => {
     expect(buildJobPayload(quiet).run).toEqual({
       prompt: "Check whether any new AI models were released",
       quiet: true,
+      memory: true,
     });
     expect(payloadToDraft(buildJobPayload(quiet))).toEqual(quiet);
     expect(buildJobPayload({ ...quiet, quiet: false }).run).not.toHaveProperty("quiet");
     expect(buildJobPayload({ ...quiet, runMode: "cmd", cmd: "make" }).run).toEqual({ cmd: "make" });
+  });
+
+  it("remembers earlier runs on a new prompt job, and not on a job saved without it", () => {
+    const job: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Deps",
+      runMode: "prompt",
+      prompt: prompt("Check for dependency updates"),
+    };
+    expect(job.memory).toBe(true);
+    expect(payloadToDraft(buildJobPayload(job))).toEqual(job);
+    const off = { ...job, memory: false };
+    expect(buildJobPayload(off).run).not.toHaveProperty("memory");
+    expect(payloadToDraft(buildJobPayload(off))).toEqual(off);
+    expect(buildJobPayload({ ...job, runMode: "cmd", cmd: "make" }).run).toEqual({ cmd: "make" });
   });
 });
 
@@ -793,6 +810,7 @@ describe("prompt attachments", () => {
     };
     expect(buildJobPayload(draft).run).toEqual({
       prompt: "Match /tmp/lpm/before.png and\nthen /tmp/lpm/after.jpeg ship it",
+      memory: true,
     });
   });
 
@@ -804,7 +822,7 @@ describe("prompt attachments", () => {
         runMode: "prompt",
         prompt: prompt("look [Image #1] here"),
       }).run,
-    ).toEqual({ prompt: "look  here" });
+    ).toEqual({ prompt: "look  here", memory: true });
   });
 
   it("rebuilds attachments from the stored text, numbering them in order", () => {

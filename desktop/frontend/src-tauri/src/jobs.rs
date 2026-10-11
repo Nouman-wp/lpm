@@ -245,6 +245,9 @@ struct RunDef {
     /// NOTHING_TO_REPORT otherwise, and that run leaves no trace.
     #[serde(default)]
     quiet: bool,
+    /// Every run recalls and saves the job's lpm-memory session (jobmemory.rs).
+    #[serde(default)]
+    memory: bool,
 }
 
 const KNOWN_AGENTS: [&str; 4] = ["claude", "codex", "gemini", "opencode"];
@@ -304,6 +307,7 @@ enum RunTarget {
         effort: String,
         full_access: bool,
         quiet: bool,
+        memory: bool,
     },
 }
 
@@ -548,6 +552,9 @@ fn resolve_run(project: &str, run: &RunDef) -> Result<RunTarget, String> {
     if run.quiet && (!action.is_empty() || !cmd.is_empty()) {
         return Err("Staying quiet when nothing is found is only for AI prompts.".into());
     }
+    if run.memory && (!action.is_empty() || !cmd.is_empty()) {
+        return Err("Remembering earlier runs is only for AI prompts.".into());
+    }
     if !action.is_empty() {
         let Some(resolved) = config::resolve_action_full(project, action) else {
             return Err(format!(
@@ -588,6 +595,8 @@ fn resolve_run(project: &str, run: &RunDef) -> Result<RunTarget, String> {
         effort: run.effort.trim().to_lowercase(),
         full_access: access != "read",
         quiet: run.quiet,
+        // A read-only run can't write the session, so it has nothing to remember.
+        memory: run.memory && access != "read",
     })
 }
 
@@ -1739,6 +1748,7 @@ fn agent_prompt_cmdline(
     model: &str,
     effort: &str,
     full_access: bool,
+    browser: bool,
     prompt: &str,
 ) -> String {
     let q = config::shell_quote(prompt);
@@ -1787,8 +1797,16 @@ fn agent_prompt_cmdline(
             }
         }
         // Claude Code takes reasoning effort via `--effort`.
-        _ => claude_cmdline(None, model, effort, full_access, prompt),
+        _ => claude_cmdline(None, model, effort, full_access, browser, prompt),
     }
+}
+
+/// Claude in Chrome for a headless Claude run, on the terms the user's terminals
+/// get it: headless Claude Code ignores its "enabled by default" setting, so the
+/// run has to ask. Only a full-access run can use it — a read-only one has
+/// nobody to approve the browser's tool calls.
+fn browser_tools(full_access: bool) -> bool {
+    full_access && config::claude_chrome_by_default()
 }
 
 /// The shared Claude Code headless invocation; `resume` continues an earlier
@@ -1798,6 +1816,7 @@ fn claude_cmdline(
     model: &str,
     effort: &str,
     full_access: bool,
+    browser: bool,
     prompt: &str,
 ) -> String {
     let q = config::shell_quote(prompt);
@@ -1822,11 +1841,12 @@ fn claude_cmdline(
     } else {
         ""
     };
+    let browser_arg = if browser { " --chrome" } else { "" };
     // stream-json (which requires --verbose in print mode) writes an event per
     // message as the run progresses, so the log can be tailed live; its final
     // `result` event carries the same fields the plain json mode did.
     format!(
-        "claude{resume_arg}{model_arg}{effort_arg}{access_arg} -p --verbose --output-format stream-json {q}"
+        "claude{resume_arg}{model_arg}{effort_arg}{access_arg}{browser_arg} -p --verbose --output-format stream-json {q}"
     )
 }
 
@@ -2219,14 +2239,16 @@ impl CaptureSpec {
     }
 }
 
-/// The prompt a run hands its agent: a quiet job's carries the one line that
-/// lets the agent say it found nothing.
-fn run_prompt(prompt: &str, quiet: bool) -> String {
+/// The prompt a run hands its agent: a memory job's says where its earlier runs
+/// are kept, and a quiet job's carries the one line that lets the agent say it
+/// found nothing — last, as it governs the reply itself.
+fn run_prompt(prompt: &str, memory: Option<&str>, quiet: bool) -> String {
+    let mut parts = vec![prompt];
+    parts.extend(memory);
     if quiet {
-        format!("{prompt}\n\n{QUIET_INSTRUCTION}")
-    } else {
-        prompt.to_string()
+        parts.push(QUIET_INSTRUCTION);
     }
+    parts.join("\n\n")
 }
 
 /// Whether a quiet job's run came back with the agreed answer and nothing
@@ -2537,6 +2559,7 @@ fn dispatch_run(
             effort,
             full_access,
             quiet,
+            memory,
         } => {
             let root = match dispatch_root(target) {
                 Some(r) => r,
@@ -2547,6 +2570,15 @@ fn dispatch_run(
             } else {
                 agent.clone()
             };
+            let mut env = env;
+            let memory = memory.then(|| crate::jobmemory::dir(project)).flatten();
+            let memory_note = memory.as_ref().map(|dir| {
+                // A standalone run has no project folder in its env; the skill
+                // reads this one before guessing from the working directory.
+                env.retain(|(k, _)| k != "LPM_MEMORY_DIR");
+                env.push(("LPM_MEMORY_DIR".to_string(), dir.to_string_lossy().into_owned()));
+                crate::jobmemory::instruction(dir, &job.id)
+            });
             spawn_captured(
                 app,
                 key,
@@ -2557,7 +2589,8 @@ fn dispatch_run(
                         model,
                         effort,
                         *full_access,
-                        &run_prompt(prompt, *quiet),
+                        browser_tools(*full_access),
+                        &run_prompt(prompt, memory_note.as_deref(), *quiet),
                     ),
                     Some(agent),
                     copy,
@@ -3873,9 +3906,10 @@ pub fn send_job_followup(
         None,
         tail.copy.is_some(),
     );
+    let browser = browser_tools(full_access);
     let spec = match resume {
         Some(sid) => CaptureSpec {
-            cmdline: claude_cmdline(Some(&sid), &model, &effort, full_access, &message),
+            cmdline: claude_cmdline(Some(&sid), &model, &effort, full_access, browser, &message),
             agent: Some(agent),
             copy: tail.copy.clone(),
             question: Some(message),
@@ -3886,6 +3920,7 @@ pub fn send_job_followup(
                 &model,
                 &effort,
                 full_access,
+                browser,
                 &condensed,
             )),
             compacted: false,
@@ -3895,7 +3930,7 @@ pub fn send_job_followup(
             manual: false,
         },
         None => CaptureSpec {
-            cmdline: agent_prompt_cmdline(&agent, &model, &effort, full_access, &condensed),
+            cmdline: agent_prompt_cmdline(&agent, &model, &effort, full_access, browser, &condensed),
             agent: Some(agent),
             copy: tail.copy.clone(),
             question: Some(message),
@@ -4639,6 +4674,7 @@ mod tests {
                 effort: String::new(),
                 full_access: true,
                 quiet: false,
+                memory: false,
             },
         );
         assert_eq!(
@@ -4660,6 +4696,7 @@ mod tests {
                 effort: String::new(),
                 full_access: false,
                 quiet: false,
+                memory: false,
             },
         );
         assert!(resolve_run(
@@ -5526,35 +5563,35 @@ mod tests {
     #[test]
     fn agent_cmdlines_run_headless() {
         assert_eq!(
-            agent_prompt_cmdline("claude", "", "", false, "fix it"),
+            agent_prompt_cmdline("claude", "", "", false, false, "fix it"),
             "claude -p --verbose --output-format stream-json 'fix it'"
         );
         assert_eq!(
-            agent_prompt_cmdline("claude", "opus", "", false, "fix it"),
+            agent_prompt_cmdline("claude", "opus", "", false, false, "fix it"),
             "claude --model 'opus' -p --verbose --output-format stream-json 'fix it'"
         );
         assert_eq!(
-            agent_prompt_cmdline("claude", "opus", "high", false, "fix it"),
+            agent_prompt_cmdline("claude", "opus", "high", false, false, "fix it"),
             "claude --model 'opus' --effort 'high' -p --verbose --output-format stream-json 'fix it'"
         );
         assert_eq!(
-            agent_prompt_cmdline("codex", "gpt-5.6-sol", "", false, "fix"),
+            agent_prompt_cmdline("codex", "gpt-5.6-sol", "", false, false, "fix"),
             "codex exec --skip-git-repo-check -m 'gpt-5.6-sol' 'fix'"
         );
         assert_eq!(
-            agent_prompt_cmdline("codex", "gpt-5.6-sol", "high", false, "fix"),
+            agent_prompt_cmdline("codex", "gpt-5.6-sol", "high", false, false, "fix"),
             "codex exec --skip-git-repo-check -m 'gpt-5.6-sol' -c model_reasoning_effort='high' 'fix'"
         );
         assert_eq!(
-            agent_prompt_cmdline("claude", "", "max", false, "fix it"),
+            agent_prompt_cmdline("claude", "", "max", false, false, "fix it"),
             "claude --effort 'max' -p --verbose --output-format stream-json 'fix it'"
         );
         assert_eq!(
-            agent_prompt_cmdline("gemini", "", "", false, "fix"),
+            agent_prompt_cmdline("gemini", "", "", false, false, "fix"),
             "gemini -o json -p 'fix'"
         );
         assert_eq!(
-            agent_prompt_cmdline("opencode", "", "", false, "fix"),
+            agent_prompt_cmdline("opencode", "", "", false, false, "fix"),
             "opencode run 'fix'"
         );
     }
@@ -5562,25 +5599,42 @@ mod tests {
     #[test]
     fn full_access_cmdlines_grant_unattended_mode() {
         assert_eq!(
-            agent_prompt_cmdline("claude", "", "", true, "fix it"),
+            agent_prompt_cmdline("claude", "", "", true, false, "fix it"),
             "claude --dangerously-skip-permissions -p --verbose --output-format stream-json 'fix it'"
         );
         assert_eq!(
-            agent_prompt_cmdline("claude", "haiku", "low", true, "fix it"),
+            agent_prompt_cmdline("claude", "haiku", "low", true, false, "fix it"),
             "claude --model 'haiku' --effort 'low' --dangerously-skip-permissions -p --verbose --output-format stream-json 'fix it'"
         );
         assert_eq!(
-            agent_prompt_cmdline("codex", "", "", true, "fix"),
+            agent_prompt_cmdline("codex", "", "", true, false, "fix"),
             "codex exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox 'fix'"
         );
         assert_eq!(
-            agent_prompt_cmdline("gemini", "", "", true, "fix"),
+            agent_prompt_cmdline("gemini", "", "", true, false, "fix"),
             "gemini --yolo -o json -p 'fix'"
         );
         assert_eq!(
-            agent_prompt_cmdline("opencode", "", "", true, "fix"),
+            agent_prompt_cmdline("opencode", "", "", true, false, "fix"),
             "opencode run 'fix'"
         );
+    }
+
+    #[test]
+    fn browser_runs_hand_claude_its_chrome_tools() {
+        assert_eq!(
+            agent_prompt_cmdline("claude", "", "", true, true, "read my feed"),
+            "claude --dangerously-skip-permissions --chrome -p --verbose --output-format stream-json 'read my feed'"
+        );
+        assert_eq!(
+            claude_cmdline(Some("abc-123"), "", "", true, true, "and then?"),
+            "claude --resume 'abc-123' --dangerously-skip-permissions --chrome -p --verbose --output-format stream-json 'and then?'"
+        );
+        assert_eq!(
+            agent_prompt_cmdline("codex", "", "", true, true, "read my feed"),
+            "codex exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox 'read my feed'"
+        );
+        assert!(!browser_tools(false));
     }
 
     #[test]
@@ -5700,11 +5754,11 @@ mod tests {
     #[test]
     fn resume_cmdline_continues_the_session() {
         assert_eq!(
-            claude_cmdline(Some("abc-123"), "", "", true, "yes, proceed"),
+            claude_cmdline(Some("abc-123"), "", "", true, false, "yes, proceed"),
             "claude --resume 'abc-123' --dangerously-skip-permissions -p --verbose --output-format stream-json 'yes, proceed'"
         );
         assert_eq!(
-            claude_cmdline(Some("abc-123"), "haiku", "low", false, "why?"),
+            claude_cmdline(Some("abc-123"), "haiku", "low", false, false, "why?"),
             "claude --resume 'abc-123' --model 'haiku' --effort 'low' -p --verbose --output-format stream-json 'why?'"
         );
     }
@@ -6212,9 +6266,42 @@ mod tests {
     }
 
     #[test]
+    fn memory_is_only_for_prompts_that_can_write_it() {
+        let memory = |run: RunDef| resolve_run("p", &RunDef { memory: true, ..run });
+        assert!(matches!(
+            memory(RunDef {
+                prompt: "any new models?".into(),
+                ..Default::default()
+            }),
+            Ok(RunTarget::Prompt { memory: true, .. })
+        ));
+        assert!(matches!(
+            memory(RunDef {
+                prompt: "any new models?".into(),
+                access: "read".into(),
+                ..Default::default()
+            }),
+            Ok(RunTarget::Prompt { memory: false, .. })
+        ));
+        assert!(memory(RunDef {
+            cmd: "make".into(),
+            ..Default::default()
+        })
+        .unwrap_err()
+        .contains("only for AI prompts"));
+    }
+
+    #[test]
+    fn a_memory_run_hears_about_its_session_before_the_quiet_marker() {
+        let prompt = run_prompt("Check", Some("Use the memory."), true);
+        assert!(prompt.starts_with("Check\n\nUse the memory.\n\n"));
+        assert!(prompt.ends_with(QUIET_INSTRUCTION));
+    }
+
+    #[test]
     fn a_quiet_run_asks_for_the_marker_and_goes_quiet_only_on_it() {
-        assert_eq!(run_prompt("Check", false), "Check");
-        assert!(run_prompt("Check", true).ends_with(QUIET_INSTRUCTION));
+        assert_eq!(run_prompt("Check", None, false), "Check");
+        assert!(run_prompt("Check", None, true).ends_with(QUIET_INSTRUCTION));
         assert!(QUIET_INSTRUCTION.contains(NOTHING_TO_REPORT));
 
         let nothing = |output: &str| found_nothing(true, COMPLETED, Some(output));

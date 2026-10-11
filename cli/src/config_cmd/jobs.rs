@@ -19,8 +19,8 @@ const JOB_FIELDS: [&str; 10] = [
     "projects",
     "sendTo",
 ];
-const RUN_FIELDS: [&str; 8] = [
-    "action", "cmd", "prompt", "agent", "model", "effort", "access", "quiet",
+const RUN_FIELDS: [&str; 9] = [
+    "action", "cmd", "prompt", "agent", "model", "effort", "access", "quiet", "memory",
 ];
 const DUPLICATE_FIELDS: [&str; 4] = ["mode", "pullLatest", "reinstallDeps", "excludeUncommitted"];
 const AGENTS: [&str; 4] = ["claude", "codex", "gemini", "opencode"];
@@ -160,6 +160,7 @@ fn validate_run(map: &Mapping, path: &str, report: &mut Report) {
         validate_string_field(map, key, &format!("{path}.{key}"), report);
     }
     validate_bool_field(map, "quiet", path, report);
+    validate_bool_field(map, "memory", path, report);
     let (action, cmd, prompt) = (
         text_at(map, "action"),
         text_at(map, "cmd"),
@@ -182,15 +183,14 @@ fn validate_run(map: &Mapping, path: &str, report: &mut Report) {
         report.error(path, "set only one of action, cmd or prompt");
         return;
     }
-    let quiet = map
-        .get(Value::String("quiet".into()))
-        .and_then(Value::as_bool)
-        == Some(true);
-    if quiet && prompt.is_empty() {
-        report.error(
-            &format!("{path}.quiet"),
-            "quiet only goes with an AI prompt",
-        );
+    for key in ["quiet", "memory"] {
+        let on = map.get(Value::String(key.into())).and_then(Value::as_bool) == Some(true);
+        if on && prompt.is_empty() {
+            report.error(
+                &format!("{path}.{key}"),
+                format!("{key} only goes with an AI prompt"),
+            );
+        }
     }
     let agent = text_at(map, "agent").to_lowercase();
     if !agent.is_empty() && !AGENTS.contains(&agent.as_str()) {
@@ -204,6 +204,13 @@ fn validate_run(map: &Mapping, path: &str, report: &mut Report) {
         report.error(
             &format!("{path}.access"),
             "opencode always runs with full access; pick another agent for read-only",
+        );
+    }
+    let memory = map.get(Value::String("memory".into())).and_then(Value::as_bool) == Some(true);
+    if memory && text_at(map, "access").eq_ignore_ascii_case("read") {
+        report.warning(
+            &format!("{path}.memory"),
+            "a read-only run can't save its memory, so each run starts fresh",
         );
     }
 }

@@ -77,7 +77,7 @@ pub struct JobFields {
         long,
         value_name = "COMMAND",
         help_heading = RUN,
-        conflicts_with_all = ["action", "prompt", "agent", "model", "effort", "access", "quiet"],
+        conflicts_with_all = ["action", "prompt", "agent", "model", "effort", "access", "quiet", "memory"],
         help = "Shell command, run in the project"
     )]
     pub cmd: Option<String>,
@@ -107,6 +107,15 @@ pub struct JobFields {
         help = "Leave no trace when the agent finds nothing to report"
     )]
     pub quiet: Option<bool>,
+    #[arg(
+        long,
+        value_name = "BOOL",
+        num_args = 0..=1,
+        default_missing_value = "true",
+        help_heading = RUN,
+        help = "Each run reads what earlier runs did and found, then adds its own (needs full access)"
+    )]
+    pub memory: Option<bool>,
 
     #[arg(
         long,
@@ -173,6 +182,7 @@ impl JobFields {
         .iter()
         .any(|value| value.is_some())
             || self.quiet.is_some()
+            || self.memory.is_some()
     }
 
     fn copy_options_given(&self) -> bool {
@@ -289,7 +299,7 @@ impl JobFields {
         }
         if let Some(action) = &self.action {
             for key in [
-                "cmd", "prompt", "agent", "model", "effort", "access", "quiet",
+                "cmd", "prompt", "agent", "model", "effort", "access", "quiet", "memory",
             ] {
                 run.shift_remove(key);
             }
@@ -303,14 +313,16 @@ impl JobFields {
         put(run, "model", self.model.as_deref());
         put(run, "effort", self.effort.as_deref());
         put(run, "access", self.access.as_deref());
-        match self.quiet {
-            Some(true) => {
-                run.insert("quiet".into(), Value::Bool(true));
+        for (key, value) in [("quiet", self.quiet), ("memory", self.memory)] {
+            match value {
+                Some(true) => {
+                    run.insert(key.into(), Value::Bool(true));
+                }
+                Some(false) => {
+                    run.shift_remove(key);
+                }
+                None => {}
             }
-            Some(false) => {
-                run.shift_remove("quiet");
-            }
-            None => {}
         }
     }
 

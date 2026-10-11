@@ -45,12 +45,13 @@ fn a_new_entry_reads_like_one_the_app_wrote() {
             "--send-to",
             "lpm,telegram",
             "--quiet",
+            "--memory",
         ],
     )
     .unwrap();
     assert_eq!(
         out,
-        "label: Deps\nschedule:\n  at: 09:00\n  days:\n  - mon\n  - thu\ncheck: npm outdated\nduplicate:\n  mode: worktree\nrun:\n  prompt: Find outdated deps\n  agent: claude\n  quiet: true\nsendTo:\n- lpm\n- telegram\n"
+        "label: Deps\nschedule:\n  at: 09:00\n  days:\n  - mon\n  - thu\ncheck: npm outdated\nduplicate:\n  mode: worktree\nrun:\n  prompt: Find outdated deps\n  agent: claude\n  quiet: true\n  memory: true\nsendTo:\n- lpm\n- telegram\n"
     );
 }
 
@@ -86,7 +87,7 @@ fn edits_keep_other_fields_and_their_order() {
 
 #[test]
 fn run_targets_switch_cleanly() {
-    let ai = "run: { prompt: task, agent: codex, quiet: true }\n";
+    let ai = "run: { prompt: task, agent: codex, quiet: true, memory: true }\n";
     assert_eq!(
         applied(ai, &["--cmd", "make"]).unwrap(),
         "run:\n  cmd: make\n"

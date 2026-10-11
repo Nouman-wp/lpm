@@ -609,6 +609,9 @@ export interface JobDraft {
   // Report only runs that found something; a prompt run that finds nothing
   // leaves no trace.
   quiet: boolean;
+  // Every run recalls and saves the job's lpm-memory session, so it knows what
+  // earlier runs did and found. On for a new job; needs full access to save.
+  memory: boolean;
   // Where the job's results go (see sendTo.ts); lpm alone by default.
   sendTo: string[];
   // The projects the job runs in (empty = standalone). `everyProject` marks a
@@ -663,6 +666,7 @@ export function defaultJobDraft(): JobDraft {
     effort: "",
     access: "full",
     quiet: false,
+    memory: true,
     sendTo: [...DEFAULT_SEND_TO],
     targets: [],
     everyProject: false,
@@ -720,6 +724,7 @@ function buildRunBlock(draft: JobDraft): Record<string, unknown> {
   if (draft.effort.trim()) block.effort = draft.effort.trim();
   if (draft.access === "read") block.access = "read";
   if (draft.quiet) block.quiet = true;
+  if (draft.memory) block.memory = true;
   return block;
 }
 
@@ -811,6 +816,7 @@ export function payloadToDraft(payload: Record<string, unknown>): JobDraft {
         draft.access = "read";
       }
       draft.quiet = r.quiet === true;
+      draft.memory = r.memory === true;
     }
   }
 

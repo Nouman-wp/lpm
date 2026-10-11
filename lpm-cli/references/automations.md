@@ -89,6 +89,7 @@ Exactly one of these:
   - `--model` and `--effort`: passed to the agent as written.
   - `--access full|read`. `full` (the default) lets the agent edit files and run commands. `read` makes it read and report only. OpenCode always runs with full access.
   - `--quiet`: if the agent finds nothing worth reporting, the run leaves no entry and sends no notification.
+  - `--memory`: each run reads what earlier runs did and found, and adds its own notes, through the lpm-memory skill (session `job-<id>`). Needs `--access full`. Jobs made in the app have it on.
 
 A headless run has no one to answer its questions, so write the prompt as a complete task: what to inspect, what to change, and what to report.
 

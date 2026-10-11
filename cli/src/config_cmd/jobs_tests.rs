@@ -18,7 +18,7 @@ jobs:
     label: Weekly
     emoji: "🧹"
     schedule: { at: "10:00", days: [mon] }
-    run: { prompt: Summarize news, agent: codex, model: gpt-5, effort: xhigh, access: read, quiet: true }
+    run: { prompt: Summarize news, agent: codex, model: gpt-5, effort: xhigh, access: read, quiet: true, memory: false }
     sendTo: [lpm, telegram]
   band:
     schedule: { every: 4h-8h, at: "09:00", until: "18:00", days: [mon, fri] }
@@ -57,6 +57,7 @@ fn rejects_what_the_app_would_refuse() {
         ("jobs:\n  a: { schedule: { manual: true }, run: {} }", "config.jobs.a.run", "set one of action, cmd or prompt"),
         ("jobs:\n  a: { schedule: { manual: true }, run: { cmd: x, prompt: y } }", "config.jobs.a.run", "set only one of action, cmd or prompt"),
         ("jobs:\n  a: { schedule: { manual: true }, run: { cmd: x, quiet: true } }", "config.jobs.a.run.quiet", "quiet only goes with an AI prompt"),
+        ("jobs:\n  a: { schedule: { manual: true }, run: { cmd: x, memory: true } }", "config.jobs.a.run.memory", "memory only goes with an AI prompt"),
         ("jobs:\n  a: { schedule: { manual: true }, run: { prompt: x, agent: gpt } }", "config.jobs.a.run.agent", "expected one of: claude, codex, gemini, opencode"),
         ("jobs:\n  a: { schedule: { manual: true }, run: { prompt: x, access: none } }", "config.jobs.a.run.access", "expected one of: full, read"),
         ("jobs:\n  a: { schedule: { manual: true }, run: { prompt: x, agent: opencode, access: read } }", "config.jobs.a.run.access", "opencode always runs with full access; pick another agent for read-only"),
@@ -96,4 +97,18 @@ fn ssh_projects_have_no_automations() {
     let source = "ssh: { host: box, user: me, dir: /srv/app }\nservices:\n  web: npm start\njobs:\n  a: { schedule: { manual: true }, run: { cmd: x } }\n";
     assert!(errors(ConfigKind::Project, source)
         .contains(&"config.jobs: automations don't run on SSH projects".into()));
+}
+
+#[test]
+fn memory_on_a_read_only_run_is_flagged_but_allowed() {
+    let source = "root: /tmp\njobs:\n  a: { schedule: { manual: true }, run: { prompt: x, access: read, memory: true } }\n";
+    let (_dir, ctx) = context();
+    let path = ctx.project_path("web");
+    let value: Value = serde_norway::from_str(source).unwrap();
+    let report = validate_value(&ctx, &path, ConfigKind::Project, &value);
+    assert_eq!(report.errors, Vec::<String>::new());
+    assert_eq!(
+        report.warnings,
+        vec!["config.jobs.a.run.memory: a read-only run can't save its memory, so each run starts fresh".to_string()]
+    );
 }
