@@ -4,6 +4,7 @@
 
 import { composerValueToText, EMPTY_COMPOSER, textToPrompt } from "./composerValue";
 import type { ComposerValue } from "./composerValue";
+import { describeCronText } from "./cronDescribe";
 import {
   dateRulePhrase,
   hasDateRule,
@@ -51,6 +52,7 @@ export type JobRunKind = "action" | "cmd" | "prompt";
 // `alsoAtMinutes` adds further fixed times, and the date-rule fields replace
 // `days` with dates of the month, a position in it, or calendar dates. An
 // interval's `fromMinutes`..`untilMinutes` and `days` hold it to those hours.
+// A cron schedule is the five-field line as written.
 export type JobSchedule =
   | {
       mode: "interval";
@@ -69,6 +71,7 @@ export type JobSchedule =
       times?: number;
       pickDays?: number;
     } & DateRuleFields)
+  | { mode: "cron"; cron: string }
   | { mode: "manual" };
 
 // Which config layer defines the job: the project registry file, the repo's
@@ -406,6 +409,9 @@ export function formatSchedule(schedule: JobSchedule): string {
   if (schedule.mode === "manual") {
     return "Manual";
   }
+  if (schedule.mode === "cron") {
+    return describeCronText(schedule.cron) ?? `Cron ${schedule.cron}`;
+  }
   if (schedule.mode === "interval") {
     return formatInterval(schedule.everySecs, schedule.everyMaxSecs) + intervalLimitsPhrase(schedule);
   }
@@ -512,6 +518,9 @@ export function formatNextRun(
 
 export type ScheduleMode = "time" | "interval" | "manual";
 
+// How the schedule is written: with the form's controls, or as a cron line.
+export type ScheduleKind = "form" | "cron";
+
 // Which days a time-of-day job runs on: weekdays (`days`, empty = every day),
 // dates of the month, a position in the month, or one calendar date.
 export type DayRule = "week" | "dates" | "nth" | "once";
@@ -522,6 +531,10 @@ export type IntervalUnit = "minutes" | "hours" | "days";
 export interface JobDraft {
   label: string;
   emoji: string;
+  // The form's fields stay put while the cron line is in use, so switching
+  // back and forth doesn't lose either.
+  scheduleKind: ScheduleKind;
+  cron: string;
   scheduleMode: ScheduleMode;
   time: string;
   // Further fixed times on the same days; unused while the time is drawn from
@@ -592,6 +605,8 @@ export function defaultJobDraft(): JobDraft {
   return {
     label: "",
     emoji: "",
+    scheduleKind: "form",
+    cron: "",
     scheduleMode: "time",
     time: "09:00",
     moreTimes: [],
@@ -637,7 +652,7 @@ export function defaultJobDraft(): JobDraft {
 
 // The editor's live "when it runs" summary, derived from the draft alone.
 export function describeDraftSchedule(draft: JobDraft): string {
-  if (draft.scheduleMode === "manual") {
+  if (draft.scheduleKind === "form" && draft.scheduleMode === "manual") {
     return "Runs only when you start it";
   }
   const schedule = draftToSchedule(draft);

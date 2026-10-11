@@ -4,7 +4,7 @@
 
 import {
   CRON_FIELD_INFO,
-  cronRunsBetween,
+  cronDayMatches,
   cronValue,
   parseCron,
   type CronField,
@@ -93,7 +93,9 @@ function unitPhrase(token: string, field: "minute" | "hour"): string {
   }
 }
 
-function timeSegments(spec: CronSpec): CronSegment[] {
+// The time-of-day words, and whether they name clock times ("At 09:30") rather
+// than a repeat ("Every 15 minutes").
+function timeSegments(spec: CronSpec): { segments: CronSegment[]; clock: boolean } {
   const [minuteToken, hourToken] = spec.tokens;
   const minutes = itemsOf(minuteToken, "minute");
   const hours = itemsOf(hourToken, "hour");
@@ -108,7 +110,7 @@ function timeSegments(spec: CronSpec): CronSegment[] {
       if (i > 0) out.push({ text: i === hourValues.length - 1 ? " and " : ", " });
       out.push({ text: pad2(h), field: "hour" }, { text: ":" }, { text: mm, field: "minute" });
     });
-    return out;
+    return { segments: out, clock: true };
   }
 
   // "Every 15 minutes from 09:00 through 17:59" — a repeating minute inside a
@@ -117,30 +119,42 @@ function timeSegments(spec: CronSpec): CronSegment[] {
   const hour = hours.length === 1 ? hours[0] : null;
   if (repeating && hour && (hour.kind === "value" || hour.kind === "range")) {
     const [a, b] = hour.kind === "value" ? [hour.v, hour.v] : [hour.a, hour.b];
-    return [
-      { text: capitalize(unitPhrase(minuteToken, "minute")), field: "minute" },
-      { text: " from " },
-      { text: `${pad2(a)}:00 through ${pad2(b)}:59`, field: "hour" },
-    ];
+    return {
+      segments: [
+        { text: capitalize(unitPhrase(minuteToken, "minute")), field: "minute" },
+        { text: " from " },
+        { text: `${pad2(a)}:00 through ${pad2(b)}:59`, field: "hour" },
+      ],
+      clock: false,
+    };
   }
 
   if (hours.length === 1 && hours[0].kind === "all") {
     if (minuteValues?.length === 1) {
-      return [
-        { text: "At " },
-        { text: `minute ${minuteValues[0]}`, field: "minute" },
-        { text: " past " },
-        { text: "every hour", field: "hour" },
-      ];
+      return {
+        segments: [
+          { text: "At " },
+          { text: `minute ${minuteValues[0]}`, field: "minute" },
+          { text: " past " },
+          { text: "every hour", field: "hour" },
+        ],
+        clock: false,
+      };
     }
-    return [{ text: capitalize(unitPhrase(minuteToken, "minute")), field: "minute" }];
+    return {
+      segments: [{ text: capitalize(unitPhrase(minuteToken, "minute")), field: "minute" }],
+      clock: false,
+    };
   }
 
   const minutePart: CronSegment[] =
     minuteValues?.length === 1
       ? [{ text: "At " }, { text: `minute ${minuteValues[0]}`, field: "minute" }]
       : [{ text: capitalize(unitPhrase(minuteToken, "minute")), field: "minute" }];
-  return [...minutePart, { text: " past " }, { text: unitPhrase(hourToken, "hour"), field: "hour" }];
+  return {
+    segments: [...minutePart, { text: " past " }, { text: unitPhrase(hourToken, "hour"), field: "hour" }],
+    clock: false,
+  };
 }
 
 function domPhrase(token: string): string {
@@ -182,9 +196,10 @@ function monthPhrase(token: string): string {
 
 export function describeCron(spec: CronSpec): CronSegment[] {
   const [, , dom, month, dow] = spec.tokens;
-  const out = timeSegments(spec);
+  const { segments: out, clock } = timeSegments(spec);
   const hasDom = dom !== "*";
   const hasDow = dow !== "*";
+  if (clock && !hasDom && !hasDow && month === "*") out.push({ text: " every day" });
   if (hasDom) out.push({ text: " " }, { text: domPhrase(dom), field: "dom" });
   if (hasDow) {
     // Both day fields restricted means either is enough (the Vixie rule).
@@ -260,30 +275,39 @@ export const CRON_FIELD_GUIDE: Record<CronField, CronFieldGuide> = {
   },
 };
 
-const DAY_SECS = 86400;
-const runs = (n: number, per: string) => `${n} run${n === 1 ? "" : "s"} a ${per}`;
+const WEEKS = 52;
+const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"}`;
+const runs = (n: number, per: string) => `${plural(n, "run")} a ${per}`;
 
-// "1 run a week", "24 runs a day", "12 runs a year" — how busy the line is.
-export function cronFrequency(spec: CronSpec, now: number): string {
-  const week = cronRunsBetween(spec, now, now + 7 * DAY_SECS, 5000).length;
-  if (week >= 14) return runs(Math.round(week / 7), "day");
-  if (week >= 1) return runs(week, "week");
-  const year = cronRunsBetween(spec, now, now + 366 * DAY_SECS, 400).length;
-  if (year >= 24) return runs(Math.round(year / 12), "month");
-  return year >= 1 ? runs(year, "year") : "";
+function localDay(at: number, offset = 0): Date {
+  const d = new Date(at * 1000);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + offset);
 }
 
-// "in 12 minutes", "in 3 hours", "tomorrow", "in 5 days".
+// "1 run a day", "5 runs a week", "36 runs a day, 5 days a week", "2 runs a
+// month", "4 runs a year" — how busy the line is, read off the year ahead.
+export function cronFrequency(spec: CronSpec, now: number): string {
+  let days = 0;
+  for (let i = 0; i < WEEKS * 7; i++) if (cronDayMatches(spec, localDay(now, i))) days++;
+  const perDay = spec.sets.hour.size * spec.sets.minute.size;
+  if (days === 0) return "";
+  if (days === WEEKS * 7) return runs(perDay, "day");
+  if (days >= WEEKS) {
+    const weekly = Math.round(days / WEEKS);
+    return perDay > 1
+      ? `${runs(perDay, "day")}, ${plural(weekly, "day")} a week`
+      : runs(weekly, "week");
+  }
+  if (days >= 12) return runs(Math.round((days * perDay) / 12), "month");
+  return runs(days * perDay, "year");
+}
+
+// "in 12 minutes", "in 3 hours", "tomorrow", "in 5 days". Past the next few
+// hours it counts calendar days, so two runs tomorrow both read "tomorrow".
 export function cronRelative(at: number, now: number): string {
   const secs = Math.max(0, at - now);
-  if (secs < 3600) {
-    const m = Math.max(1, Math.round(secs / 60));
-    return `in ${m} minute${m === 1 ? "" : "s"}`;
-  }
-  if (secs < DAY_SECS) {
-    const h = Math.floor(secs / 3600);
-    return `in ${h} hour${h === 1 ? "" : "s"}`;
-  }
-  const d = Math.floor(secs / DAY_SECS);
-  return d === 1 ? "tomorrow" : `in ${d} days`;
+  if (secs < 3600) return `in ${plural(Math.max(1, Math.round(secs / 60)), "minute")}`;
+  const days = Math.round((localDay(at).getTime() - localDay(now).getTime()) / 86_400_000);
+  if (days === 0 || secs < 6 * 3600) return `in ${plural(Math.floor(secs / 3600), "hour")}`;
+  return days === 1 ? "tomorrow" : `in ${days} days`;
 }

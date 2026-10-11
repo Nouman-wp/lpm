@@ -2,10 +2,19 @@
 // sit in, and the label/control row itself. Shared by the editor modal and the
 // cards it is assembled from, so every section lines up the same way.
 
-export function GroupLabel({ children }: { children: React.ReactNode }) {
+export function GroupLabel({
+  children,
+  aside,
+}: {
+  children: React.ReactNode;
+  aside?: React.ReactNode;
+}) {
   return (
-    <div className="mb-2 px-1 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
-      {children}
+    <div className="mb-2 flex items-center justify-between gap-3 px-1">
+      <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
+        {children}
+      </span>
+      {aside}
     </div>
   );
 }

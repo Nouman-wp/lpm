@@ -25,6 +25,12 @@ describe("describeCron", () => {
     expect(text("0 9 * */3 *")).toBe("At 09:00 every 3 months");
   });
 
+  it("says a clock time with no days set runs every day", () => {
+    expect(text("0 9 * * *")).toBe("At 09:00 every day");
+    expect(text("@daily")).toBe("At 00:00 every day");
+    expect(text("*/15 * * * *")).toBe("Every 15 minutes");
+  });
+
   it("tags the words each field controls", () => {
     const parsed = parseCron("0 18 * * 5");
     if (!parsed.ok) throw new Error(parsed.error);
@@ -54,15 +60,23 @@ describe("cron helpers", () => {
       return cronFrequency(parsed.spec, now);
     };
     expect(rate("0 18 * * 5")).toBe("1 run a week");
+    expect(rate("0 9 * * *")).toBe("1 run a day");
     expect(rate("0 * * * *")).toBe("24 runs a day");
-    expect(rate("0 9 1 * *")).toBe("12 runs a year");
+    expect(rate("30 9 * * 1-5")).toBe("5 runs a week");
+    expect(rate("*/15 9-17 * * 1-5")).toBe("36 runs a day, 5 days a week");
+    expect(rate("0 9 1 * *")).toBe("1 run a month");
+    expect(rate("0 9 1,15 * *")).toBe("2 runs a month");
+    expect(rate("0 0 1 */3 *")).toBe("4 runs a year");
   });
 
-  it("says how far off a run is", () => {
-    const now = 1_000_000;
-    expect(cronRelative(now + 600, now)).toBe("in 10 minutes");
-    expect(cronRelative(now + 3 * 3600, now)).toBe("in 3 hours");
-    expect(cronRelative(now + 30 * 3600, now)).toBe("tomorrow");
-    expect(cronRelative(now + 5.4 * 86400, now)).toBe("in 5 days");
+  it("says how far off a run is, in calendar days past the next few hours", () => {
+    const at = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m).getTime() / 1000;
+    const now = at(11, 9, 10);
+    expect(cronRelative(at(11, 9, 20), now)).toBe("in 10 minutes");
+    expect(cronRelative(at(11, 12, 30), now)).toBe("in 3 hours");
+    expect(cronRelative(at(12, 9, 0), now)).toBe("tomorrow");
+    expect(cronRelative(at(12, 9, 15), now)).toBe("tomorrow");
+    expect(cronRelative(at(13, 9, 0), now)).toBe("in 2 days");
+    expect(cronRelative(at(12, 2, 0), at(11, 23, 0))).toBe("in 3 hours");
   });
 });

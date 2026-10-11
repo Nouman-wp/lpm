@@ -51,9 +51,9 @@ function calendarCadence(schedule: Calendar): string {
 
 // A random day or gap only promises the earliest the job can start.
 function isRandom(schedule: Exclude<JobSchedule, { mode: "manual" }>): boolean {
-  return schedule.mode === "calendar"
-    ? (schedule.pickDays ?? 0) > 0
-    : (schedule.everyMaxSecs ?? 0) > schedule.everySecs;
+  if (schedule.mode === "calendar") return (schedule.pickDays ?? 0) > 0;
+  if (schedule.mode === "interval") return (schedule.everyMaxSecs ?? 0) > schedule.everySecs;
+  return false;
 }
 
 export function describeFirstRun(
@@ -72,10 +72,11 @@ export function describeFirstRun(
   ).slots.find((s) => s.at > from);
   if (!slot) return null;
 
+  // A cron line runs on its minute; the other schedules spread their starts.
   const time =
     slot.untilAt !== undefined
       ? `between ${formatClock(slot.at)} and ${formatClock(slot.untilAt)}`
-      : `around ${formatClock(slot.at)}`;
+      : `${schedule.mode === "cron" ? "at" : "around"} ${formatClock(slot.at)}`;
   const when = `${slotDate(slot.at, now)} ${time}`;
 
   if (schedule.mode === "calendar" && isOnce(schedule) && schedule.onDates?.length === 1) {
@@ -86,7 +87,7 @@ export function describeFirstRun(
   const cadence =
     schedule.mode === "calendar"
       ? calendarCadence(schedule)
-      : formatSchedule(schedule).replace(/^E/, "e");
+      : formatSchedule(schedule).replace(/^./, (c) => c.toLowerCase());
   return {
     first: `${isRandom(schedule) ? "Earliest run" : lead} ${when}`,
     then: `Then ${cadence}`,

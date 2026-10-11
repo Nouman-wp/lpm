@@ -299,3 +299,18 @@ describe("jobOccurrences", () => {
     expect(keys[0].startsWith("proj/j@")).toBe(true);
   });
 });
+
+describe("expandSchedule for a cron line", () => {
+  it("puts each run the line makes on the board, fixed to its minute", () => {
+    const { slots, truncated } = expandSchedule({ mode: "cron", cron: "30 9,17 * * 1-5" }, WEEK);
+    expect(slots.map((s) => s.at)).toEqual(
+      [0, 1, 2, 3, 4].flatMap((d) => [at(d, 9, 30), at(d, 17, 30)]),
+    );
+    expect(slots.every((s) => !s.approximate && s.count === 1)).toBe(true);
+    expect(truncated).toBe(false);
+  });
+
+  it("draws nothing for a line that doesn't parse", () => {
+    expect(expandSchedule({ mode: "cron", cron: "0 25 * * *" }, WEEK).slots).toEqual([]);
+  });
+});

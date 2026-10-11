@@ -4,6 +4,7 @@
 // the UI describes and draws.
 
 import type { IntervalUnit, JobDraft, JobSchedule } from "./jobsFormat";
+import { normalizeCron, parseCron } from "./cronExpr";
 import {
   parseIsoDate,
   readDaysValue,
@@ -93,6 +94,10 @@ function writesShortMonths(draft: JobDraft): boolean {
 }
 
 export function draftToSchedule(draft: JobDraft): JobSchedule | null {
+  if (draft.scheduleKind === "cron") {
+    const parsed = parseCron(draft.cron);
+    return parsed.ok ? { mode: "cron", cron: parsed.spec.source } : null;
+  }
   if (draft.scheduleMode === "manual") return { mode: "manual" };
   if (draft.scheduleMode === "interval") {
     const schedule: Extract<JobSchedule, { mode: "interval" }> = {
@@ -144,6 +149,9 @@ export function draftToSchedule(draft: JobDraft): JobSchedule | null {
 }
 
 export function scheduleBlockFromDraft(draft: JobDraft): Record<string, unknown> {
+  if (draft.scheduleKind === "cron") {
+    return { cron: normalizeCron(draft.cron) };
+  }
   if (draft.scheduleMode === "manual") {
     return { manual: true };
   }
@@ -217,6 +225,11 @@ function readAts(at: unknown): string[] {
 // Reverse of scheduleBlockFromDraft. Unknown or partial shapes leave the
 // draft's defaults in place so the editor always opens in a sane state.
 export function readScheduleIntoDraft(draft: JobDraft, s: Record<string, unknown>): void {
+  if (typeof s.cron === "string" && s.cron.trim()) {
+    draft.scheduleKind = "cron";
+    draft.cron = normalizeCron(s.cron);
+    return;
+  }
   if (s.manual === true) {
     draft.scheduleMode = "manual";
     return;
@@ -317,6 +330,10 @@ function validateTimeOfDay(draft: JobDraft, now: Date): string | null {
 // Mirrors the backend validation so save is blocked before a write the
 // scheduler would reject, and the message reads in product terms.
 export function validateDraftSchedule(draft: JobDraft, now: Date = new Date()): string | null {
+  if (draft.scheduleKind === "cron") {
+    const parsed = parseCron(draft.cron);
+    return parsed.ok ? null : parsed.error;
+  }
   if (draft.scheduleMode === "time") return validateTimeOfDay(draft, now);
   if (draft.scheduleMode !== "interval") return null;
   if (!Number.isFinite(draft.intervalValue) || draft.intervalValue < 1) {

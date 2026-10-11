@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   cronFieldAt,
   cronRunsBetween,
+  cronTokenRange,
   nextCronRuns,
   parseCron,
   withCronField,
@@ -91,5 +92,12 @@ describe("editing helpers", () => {
     expect(cronFieldAt("0 18 * * 5", 10)).toBe("dow");
     expect(cronFieldAt("0 ", 2)).toBe("hour");
     expect(cronFieldAt("@daily", 3)).toBeNull();
+  });
+
+  it("finds where a field's text sits, to select it", () => {
+    expect(cronTokenRange("0 18 * * 5", "hour")).toEqual([2, 4]);
+    expect(cronTokenRange("  0  18 * * 5", "minute")).toEqual([2, 3]);
+    expect(cronTokenRange("0 18", "dow")).toBeNull();
+    expect(cronTokenRange("@daily", "hour")).toBeNull();
   });
 });

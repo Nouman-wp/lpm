@@ -5,6 +5,7 @@
 
 import { WEEKDAYS, type JobInfo, type JobSchedule, type Weekday } from "./jobsFormat";
 import { dateRuleMatches, hasDateRule } from "./jobsScheduleRules";
+import { cronRunsBetween, parseCron } from "./cronExpr";
 
 export type OccurrenceState =
   | "ran"
@@ -106,6 +107,16 @@ function expandCalendar(
   return { slots, truncated: slots.length >= MAX_SLOTS };
 }
 
+function expandCron(cron: string, window: Window): ExpandResult {
+  const parsed = parseCron(cron);
+  if (!parsed.ok) return { slots: [], truncated: false };
+  const runs = cronRunsBetween(parsed.spec, window.from, window.to, MAX_SLOTS);
+  return {
+    slots: runs.map((at) => ({ at, approximate: false, count: 1 })),
+    truncated: runs.length >= MAX_SLOTS,
+  };
+}
+
 // An interval held to some hours and days restarts its cadence when each
 // day's window opens, so its runs are laid out per day from that opening.
 function expandLimitedInterval(
@@ -171,6 +182,7 @@ export function expandSchedule(
   if (!schedule || schedule.mode === "manual" || window.to <= window.from) {
     return { slots: [], truncated: false };
   }
+  if (schedule.mode === "cron") return expandCron(schedule.cron, window);
   return schedule.mode === "calendar"
     ? expandCalendar(schedule, window)
     : expandInterval(schedule, window, anchors);

@@ -92,6 +92,14 @@ describe("describeFirstRun", () => {
     });
   });
 
+  it("runs a cron line on its minute", () => {
+    const run = describeFirstRun({ mode: "cron", cron: "0 18 * * 5" }, "First run", now);
+    expect(run).toEqual({
+      first: `First run ${dayOf(9, 16)} at 18:00`,
+      then: "Then at 18:00 on Fridays",
+    });
+  });
+
   it("has nothing to schedule for a manual job", () => {
     expect(describeFirstRun({ mode: "manual" }, "First run", now)).toEqual({
       first: "Runs only when you start it",

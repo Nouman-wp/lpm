@@ -134,3 +134,28 @@ describe("repeat", () => {
     expect(repeatOf({ ...once, ...repeatPatch(once, "daily") })).toBe("daily");
   });
 });
+
+describe("cron", () => {
+  const cron = draft({ scheduleKind: "cron", cron: "  0  18 * * fri " });
+
+  it("writes the line alone and reads it back", () => {
+    expect(buildJobPayload(cron).schedule).toEqual({ cron: "0 18 * * fri" });
+    expect(roundTrip(cron)).toEqual({ ...cron, cron: "0 18 * * fri" });
+    expect(describeDraftSchedule(cron)).toBe("At 18:00 on Fridays");
+  });
+
+  it("keeps the form's fields while the line is in use", () => {
+    const d = { ...cron, scheduleMode: "manual" as const };
+    expect(describeDraftSchedule(d)).toBe("At 18:00 on Fridays");
+    expect(repeatOf(d)).toBe("manual");
+  });
+
+  it("reports what's wrong with the line", () => {
+    expect(validateDraftSchedule(cron)).toBeNull();
+    expect(validateDraftSchedule({ ...cron, cron: "" })).toBe("Enter a cron line.");
+    expect(validateDraftSchedule({ ...cron, cron: "* * * * *" })).toBe(
+      "A cron job can run at most every 5 minutes.",
+    );
+    expect(describeDraftSchedule({ ...cron, cron: "0 25 * * *" })).toBe("");
+  });
+});

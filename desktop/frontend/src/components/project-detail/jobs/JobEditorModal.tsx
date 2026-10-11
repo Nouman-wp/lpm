@@ -472,6 +472,7 @@ export function JobEditorModal({
                 patch={patch}
                 summary={scheduleSummary}
                 problem={scheduleProblem}
+                ai={{ project: contextProject, cwd: aiCwd ?? "" }}
               />
             </div>
           )}

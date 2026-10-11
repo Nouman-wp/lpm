@@ -183,7 +183,7 @@ export function parseCron(expr: string): CronParse {
   return { ok: true, spec };
 }
 
-function dayMatches(spec: CronSpec, day: Date): boolean {
+export function cronDayMatches(spec: CronSpec, day: Date): boolean {
   if (!spec.sets.month.has(day.getMonth() + 1)) return false;
   const dom = spec.sets.dom.has(day.getDate());
   const dow = spec.sets.dow.has(day.getDay());
@@ -214,7 +214,7 @@ export function cronRunsBetween(spec: CronSpec, from: number, to: number, limit:
   const out: number[] = [];
   const start = new Date(from * 1000);
   for (let day = new Date(start.getFullYear(), start.getMonth(), start.getDate()); day.getTime() / 1000 <= to; day = addDays(day, 1)) {
-    if (!dayMatches(spec, day)) continue;
+    if (!cronDayMatches(spec, day)) continue;
     for (const at of dayRuns(spec, day)) {
       if (at < from || at > to) continue;
       out.push(at);
@@ -230,7 +230,7 @@ export function nextCronRuns(spec: CronSpec, after: number, count: number): numb
   const start = new Date(after * 1000);
   let day = new Date(start.getFullYear(), start.getMonth(), start.getDate());
   for (let i = 0; i < SEARCH_DAYS && out.length < count; i++, day = addDays(day, 1)) {
-    if (!dayMatches(spec, day)) continue;
+    if (!cronDayMatches(spec, day)) continue;
     for (const at of dayRuns(spec, day)) {
       if (at > after) out.push(at);
       if (out.length >= count) break;
@@ -259,4 +259,12 @@ export function cronFieldAt(expr: string, caret: number): CronField | null {
   const before = expr.slice(0, caret);
   const index = before.trimStart().split(/\s+/).length - 1;
   return CRON_FIELDS[Math.min(index, 4)] ?? null;
+}
+
+// Where a field's text sits in the line as typed, to select it; null for a
+// shorthand or a line that doesn't reach that field yet.
+export function cronTokenRange(expr: string, field: CronField): [number, number] | null {
+  if (normalizeCron(expr).startsWith("@")) return null;
+  const match = [...expr.matchAll(/\S+/g)][CRON_FIELDS.indexOf(field)];
+  return match?.index === undefined ? null : [match.index, match.index + match[0].length];
 }
