@@ -29,7 +29,6 @@ function Harness({ initial = defaultJobDraft() }: { initial?: JobDraft }) {
     <JobFrequencyCard
       draft={draft}
       patch={(values) => setDraft((d) => ({ ...d, ...values }))}
-      summary={describeDraftSchedule(draft)}
       problem={validateDraftSchedule(draft)}
       ai={{ project: "app", cwd: "/work/app" }}
     />
@@ -76,37 +75,38 @@ describe("JobFrequencyCard", () => {
     expect(latest.dayRule).toBe("dates");
     expect(latest.monthDates).toEqual([15]);
     expect(latest.lastDay).toBe(true);
-    expect(host.textContent).toContain("On the 15th and last day of every month at 09:00");
+    expect(describeDraftSchedule(latest)).toBe("On the 15th and last day of every month at 09:00");
     expect(host.textContent).not.toContain("As cron");
   });
 
   it("adds a second time of day", () => {
     click("Add time");
     expect(latest.moreTimes).toEqual(["13:00"]);
-    expect(host.textContent).toContain("Every day at 09:00 and 13:00");
+    expect(describeDraftSchedule(latest)).toBe("Every day at 09:00 and 13:00");
   });
 
   it("switches to a position in the month, a one-off date and an interval", () => {
     click("Monthly");
     click("Day of week");
-    expect(host.textContent).toContain("On the first Monday of every month at 09:00");
+    expect(describeDraftSchedule(latest)).toBe("On the first Monday of every month at 09:00");
     click("Once");
     expect(latest.dayRule).toBe("once");
     expect(latest.onceDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(host.textContent).toContain("Once, on");
+    expect(describeDraftSchedule(latest)).toMatch(/^Once, on/);
     click("Interval");
     expect(host.textContent).toContain("Hours");
     click("Manual");
-    expect(host.textContent).toContain("Runs only when you start it");
+    expect(latest.scheduleMode).toBe("manual");
+    expect(host.textContent).not.toContain("Next runs");
   });
 
-  it("shows the rows with a recap, and the problem in its place", () => {
+  it("shows the rows without a recap, and a problem under them", () => {
     expect(host.textContent).toContain("Repeat");
-    expect(host.textContent).toContain("Every day at 09:00.");
+    expect(host.textContent).not.toContain("Every day at 09:00");
+    expect(host.textContent).not.toContain("within a few minutes");
     const past: JobDraft = { ...defaultJobDraft(), dayRule: "once", onceDate: "2000-01-01" };
     act(() => root.render(<Harness key="past" initial={past} />));
     expect(host.textContent).toContain("That date has already passed.");
-    expect(host.textContent).not.toContain("Once, on");
   });
 });
 
@@ -136,7 +136,6 @@ describe("JobFrequencyCard as cron", () => {
     expect(latest.scheduleKind).toBe("form");
     expect(latest.days).toEqual(["fri"]);
     expect(latest.time).toBe("18:00");
-    expect(host.textContent).toContain("Fridays at 18:00.");
     click("Cron");
     expect(latest.cron).toBe("0 18 * * fri");
     click("Simple");
@@ -149,7 +148,7 @@ describe("JobFrequencyCard as cron", () => {
     click("Cron");
     type(cronInput(), "*/15 9-17 * * 1-5");
     click("Simple");
-    expect(host.textContent).toContain("Every day at 09:00.");
+    expect(describeDraftSchedule(latest)).toBe("Every day at 09:00");
     click("Cron");
     expect(latest.cron).toBe("*/15 9-17 * * 1-5");
   });

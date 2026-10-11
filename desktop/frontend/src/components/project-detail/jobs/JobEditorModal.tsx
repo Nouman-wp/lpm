@@ -30,7 +30,6 @@ import {
 import { saveJobDraft, scopeProject } from "../../../jobsSave";
 import {
   defaultJobDraft,
-  describeDraftSchedule,
   jobScopePhrase,
   payloadToDraft,
   validateJobDraft,
@@ -215,7 +214,6 @@ export function JobEditorModal({
   };
 
   const isStandalone = !draft.everyProject && draft.targets.length === 0;
-  const scheduleSummary = useMemo(() => describeDraftSchedule(draft), [draft]);
   const scheduleProblem = useMemo(() => validateDraftSchedule(draft), [draft]);
   const validationError = validateJobDraft(draft, isStandalone);
   // Saving mid-save would write a prompt whose image isn't on disk yet.
@@ -470,7 +468,6 @@ export function JobEditorModal({
               <JobFrequencyCard
                 draft={draft}
                 patch={patch}
-                summary={scheduleSummary}
                 problem={scheduleProblem}
                 ai={{ project: contextProject, cwd: aiCwd ?? "" }}
               />

@@ -37,13 +37,11 @@ function pickOptions(pool: number): { value: string; label: string }[] {
 export function JobFrequencyCard({
   draft,
   patch,
-  summary,
   problem,
   ai,
 }: {
   draft: JobDraft;
   patch: (values: Partial<JobDraft>) => void;
-  summary: string;
   problem: string | null;
   ai: CronAIContext;
 }) {
@@ -56,30 +54,6 @@ export function JobFrequencyCard({
   // The days a random pick draws from: the ones selected, or all seven.
   const dayPool = draft.days.length === 0 ? 7 : draft.days.length;
   const picked = draft.randomDays ? Math.min(draft.pickDays, dayPool) : 0;
-
-  const notes = [
-    atTime &&
-      !draft.randomWindow &&
-      "It starts within a few minutes of the set time, so automations set to the same hour don't all begin at once.",
-    atTime &&
-      draft.randomWindow &&
-      "The time inside the window is picked for you and changes each day.",
-    repeat === "monthly" &&
-      draft.dayRule === "dates" &&
-      draft.monthDates.some((d) => d > 28) &&
-      (draft.shortMonths === "last"
-        ? "Months without that date run on their last day instead."
-        : "Months without that date are skipped."),
-    repeat === "once" && "After that it stays in the list until you remove it.",
-    repeat === "interval" &&
-      draft.varyInterval &&
-      "The gap is picked fresh after every run.",
-    repeat === "interval" &&
-      (draft.intervalWindow || draft.intervalDays.length > 0) &&
-      "Outside those hours it waits, and starts again when they open.",
-  ]
-    .filter(Boolean)
-    .join(" ");
 
   // Each switch carries the schedule across when the other side can say it.
   const setKind = (next: ScheduleKind) => {
@@ -173,16 +147,10 @@ export function JobFrequencyCard({
         {repeat === "interval" && <IntervalRows draft={draft} patch={patch} />}
         {atTime && <TimeOfDayRows draft={draft} patch={patch} />}
       </Card>
-      {problem ? (
+      {problem && (
         <p className="mt-2 px-1 text-[12px] leading-snug text-[var(--accent-amber-text)]">
           {problem}
         </p>
-      ) : (
-        summary && (
-          <p className="mt-2 px-1 text-[12px] leading-snug text-[var(--text-muted)]">
-            {summary}.{notes && ` ${notes}`}
-          </p>
-        )
       )}
       {repeat !== "manual" && <NextRunsPreview draft={draft} />}
     </div>
