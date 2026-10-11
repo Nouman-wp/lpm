@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { PairPhoneButton } from "./PairPhoneButton";
 import { PhoneRow } from "./PhoneRow";
 import { NoPhoneCard } from "./NoPhoneCard";
-import { SetupVideoLink } from "./SetupVideoLink";
+import { VideoLink } from "../ui/VideoLink";
 import { LINK_BUTTON } from "./styles";
 import { BrowserOpenURL } from "../../../bridge/runtime";
-import { APP_STORE_URL, SETUP_VIDEO_URL } from "../../mobile/links";
+import { APP_STORE_URL, SETUP_VIDEO_LENGTH, SETUP_VIDEO_URL } from "../../mobile/links";
 import { sortPhones, type PhoneDevice } from "../../mobile/phoneStatus";
 import type { PeerClient } from "../../peer/usePeerState";
 
@@ -47,7 +47,9 @@ export function PhonesSection({
       <div className="mb-2 flex items-center justify-between gap-3">
         <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Your devices</h2>
         <div className="flex items-center gap-3">
-          {devices.length === 0 && <SetupVideoLink />}
+          {devices.length === 0 && (
+            <VideoLink url={SETUP_VIDEO_URL} label="Setup video" length={SETUP_VIDEO_LENGTH} />
+          )}
           {(devices.length > 0 || peers.length > 0) && (
             <PairPhoneButton peers={peers} busy={pairing} onPairHere={onPairHere} onPairPeer={onPairPeer} />
           )}

@@ -9,6 +9,7 @@ import {
 import { toast } from "sonner";
 import { Modal } from "../../ui/Modal";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
+import { VideoLink } from "../../ui/VideoLink";
 import { ActionPicker } from "../../ActionPicker";
 import { InputComposer } from "../../InputComposer";
 import { EmojiSlotButton } from "../../EmojiPickerButton";
@@ -48,6 +49,7 @@ import { useDiscardGuard } from "../../../hooks/useDiscardGuard";
 import { useAppStore } from "../../../store/app";
 import { useSettingsStore } from "../../../store/settings";
 import { matchesChord } from "../../../keys";
+import { JOBS_VIDEO_LENGTH, JOBS_VIDEO_URL } from "../../../jobsVideo";
 
 interface JobEditorModalProps {
   open: boolean;
@@ -351,14 +353,19 @@ export function JobEditorModal({
                 {isEditing ? "Edit job" : "New job"}
               </h2>
             </div>
-            <button
-              type="button"
-              onClick={requestClose}
-              aria-label="Close"
-              className="shrink-0 rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <XIcon />
-            </button>
+            <div className="flex items-center gap-3">
+              {!isEditing && (
+                <VideoLink url={JOBS_VIDEO_URL} label="Video guide" length={JOBS_VIDEO_LENGTH} />
+              )}
+              <button
+                type="button"
+                onClick={requestClose}
+                aria-label="Close"
+                className="shrink-0 rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              >
+                <XIcon />
+              </button>
+            </div>
           </header>
           {loading ? (
             <div className="flex min-h-[320px] items-center justify-center text-[12px] text-[var(--text-muted)]">

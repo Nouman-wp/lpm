@@ -18,7 +18,7 @@ export function JobOffBanner({ onTurnOn }: JobOffBannerProps) {
       <button
         type="button"
         onClick={onTurnOn}
-        className="shrink-0 rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-[12.5px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-active)]"
+        className="shrink-0 rounded-lg bg-[var(--bg-active)] px-3 py-1.5 text-[12.5px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[color-mix(in_srgb,var(--text-primary)_10%,var(--bg-active))]"
       >
         Turn on
       </button>

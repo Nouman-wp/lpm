@@ -10,7 +10,7 @@ export function Switch({ checked }: { checked: boolean }) {
       }`}
     >
       <span
-        className={`absolute left-[3px] top-[3px] h-3 w-3 rounded-full bg-white transition-transform ${
+        className={`absolute left-[3px] top-[3px] h-3 w-3 rounded-full bg-white shadow-[0_1px_2px_rgb(0_0_0/0.3)] transition-transform ${
           checked ? "translate-x-3.5" : ""
         }`}
       />

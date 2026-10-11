@@ -80,12 +80,10 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
           <span aria-hidden className="h-[9px] w-[9px] rounded-full bg-[var(--accent-blue)]" />
         )}
       </span>
-      <span
-        className={`grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[var(--bg-hover)] text-[23px] text-[var(--text-muted)] transition-[opacity,filter] ${
-          off ? "opacity-45 grayscale" : ""
-        }`}
-      >
-        {job.emoji || <ClockIcon size={20} />}
+      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[var(--bg-hover)] text-[23px] text-[var(--text-muted)]">
+        <span className={`grid place-items-center transition-[opacity,filter] ${off ? "opacity-40 grayscale" : ""}`}>
+          {job.emoji || <ClockIcon size={20} />}
+        </span>
       </span>
 
       <button
@@ -111,8 +109,8 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
           )}
         </span>
         <span
-          className={`mt-1 line-clamp-2 break-words text-[13.5px] leading-[1.45] transition-opacity [overflow-wrap:anywhere] ${TONE_CLASS[preview.tone]} ${
-            off ? "opacity-55" : ""
+          className={`mt-1 line-clamp-2 break-words text-[13.5px] leading-[1.45] [overflow-wrap:anywhere] ${
+            TONE_CLASS[off ? "muted" : preview.tone]
           }`}
         >
           {preview.prefix && (
