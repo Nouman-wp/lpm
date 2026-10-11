@@ -253,6 +253,9 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "job_history" => cmd_job_history(args),
         "job_live_output" => cmd_job_live_output(args),
         "send_job_followup" => cmd_send_job_followup(args, app),
+        "job_body" => crate::jobsocket::cmd_job_body(args),
+        "save_job" => crate::jobsocket::cmd_save_job(args, app),
+        "delete_job" => crate::jobsocket::cmd_delete_job(args, app),
         "peer_pair" => cmd_peer_pair(args, app),
         "peer_state" => cmd_peer_state(app),
         "remote_pair" => cmd_remote_pair(args, app),
@@ -1185,7 +1188,7 @@ fn shell_split(s: &str) -> Vec<String> {
 /// Handles --key=value and --key value forms; everything else is positional
 /// (order preserved). Mirrors socket.go parseOptions, then resolves the
 /// `--<name>-hex` transport (see [`decode_hex_options`]) so every verb gets it.
-fn parse_options(args: &[String]) -> (Vec<String>, HashMap<String, String>) {
+pub(crate) fn parse_options(args: &[String]) -> (Vec<String>, HashMap<String, String>) {
     let mut positional = Vec::new();
     let mut options = HashMap::new();
     let mut i = 0;
@@ -1319,6 +1322,9 @@ mod tests {
             "job_history",
             "job_live_output",
             "send_job_followup",
+            "job_body",
+            "save_job",
+            "delete_job",
             // Pairing from the socket a remote host reaches would let that host
             // hand itself, or a phone it owns, a way in.
             "peer_pair",

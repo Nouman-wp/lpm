@@ -1,6 +1,6 @@
 # lpm-cli
 
-Agent skill for the [lpm](https://lpm.cx) command-line tool. Lets your AI coding agent control running lpm projects from the terminal, resolve config targets, validate YAML, start/stop projects and services, read logs, check agent status, wait for a port, and duplicate projects for parallel work.
+Agent skill for the [lpm](https://lpm.cx) command-line tool. Lets your AI coding agent control running lpm projects from the terminal, resolve config targets, validate YAML, start/stop projects and services, read logs, check agent status, wait for a port, create, edit, run, pause, and read scheduled automations, and duplicate projects for parallel work.
 
 ## Install
 

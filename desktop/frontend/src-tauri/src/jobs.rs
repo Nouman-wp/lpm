@@ -1083,6 +1083,13 @@ struct JobState {
     seen_at: Option<u64>,
 }
 
+impl JobState {
+    /// The user's on/off switch wins over the config's `enabled:`.
+    fn is_on(&self, configured: bool) -> bool {
+        self.enabled_override.unwrap_or(configured)
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Default)]
 struct HistoryEntry {
     at: u64,
@@ -3313,7 +3320,7 @@ fn overdue_by(project: &str, id: &str, job: &JobResolved, now: u64) -> Option<u6
         }
     };
 
-    if !st.enabled_override.unwrap_or(job.enabled) {
+    if !st.is_on(job.enabled) {
         return None;
     }
     let seed = job_seed(project, id);
@@ -3534,8 +3541,8 @@ fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Valu
             }
         }
         let job_enabled = match &resolved {
-            Ok(job) => st.enabled_override.unwrap_or(job.enabled),
-            Err(_) => st.enabled_override.unwrap_or(false),
+            Ok(job) => st.is_on(job.enabled),
+            Err(_) => st.is_on(false),
         };
         enabled = enabled || job_enabled;
         if let Some(since) = running_since(&key) {
@@ -3663,7 +3670,7 @@ pub fn list_jobs(project: String) -> Result<Vec<Value>, String> {
             let st = load_job_state(&key);
             match res {
                 Ok(job) => {
-                    let enabled = st.enabled_override.unwrap_or(job.enabled);
+                    let enabled = st.is_on(job.enabled);
                     // A job the scheduler hasn't anchored yet (created moments
                     // ago) predicts from now — the anchor the next tick writes.
                     let next = next_fire_at(
@@ -3710,7 +3717,7 @@ pub fn list_jobs(project: String) -> Result<Vec<Value>, String> {
                     "valid": false,
                     "source": source,
                     "error": e,
-                    "enabled": st.enabled_override.unwrap_or(false),
+                    "enabled": st.is_on(false),
                 }),
             }
         })
@@ -3752,6 +3759,9 @@ pub fn run_job_now(app: AppHandle, project: String, job_id: String) -> Result<()
             .ok_or_else(|| "That job doesn't exist.".to_string())?
             .2?
     };
+    if !load_job_state(&state_key(&project, &job_id)).is_on(job.enabled) {
+        return Err("This automation is off. Turn it on to run it.".into());
+    }
     spawn_pipeline(&app, &project, job, Trigger::Manual);
     Ok(())
 }
@@ -4153,6 +4163,17 @@ pub fn read_job_body(project: String, source: String, job_id: String) -> Result<
     }
 }
 
+/// `read_job_body` as YAML text, keeping the order the keys were written in —
+/// what `lpm automations show` prints and `edit` starts from.
+pub fn read_job_yaml(project: String, source: String, job_id: String) -> Result<String, String> {
+    let path = job_config_path(&source, &project)?;
+    let doc = read_yaml_doc(&path);
+    match doc.get("jobs").and_then(|j| j.get(job_id.as_str())) {
+        Some(v) => serde_norway::to_string(v).map_err(|e| e.to_string()),
+        None => Err("That automation doesn't exist.".into()),
+    }
+}
+
 /// Create or overwrite a job's `jobs.<id>` mapping in its layer file. `job` is
 /// the full body the phone built (the same shape buildJobPayload writes). The
 /// scheduler validates it on the next read, so an unrunnable job simply shows as
@@ -4163,11 +4184,22 @@ pub fn save_job_body(
     id: String,
     job: Value,
 ) -> Result<(), String> {
+    let body: serde_norway::Value = serde_norway::to_value(&job).map_err(|e| e.to_string())?;
+    save_job_value(source, project, id, body)
+}
+
+/// `save_job_body` for a body already parsed from YAML, so its key order
+/// survives (a JSON object would sort it).
+pub fn save_job_value(
+    source: String,
+    project: String,
+    id: String,
+    body: serde_norway::Value,
+) -> Result<(), String> {
     let id = id.trim().to_string();
     if id.is_empty() {
         return Err("The job needs a name.".into());
     }
-    let body: serde_norway::Value = serde_norway::to_value(&job).map_err(|e| e.to_string())?;
     if !body.is_mapping() {
         return Err("The job config is malformed.".into());
     }
@@ -4209,10 +4241,10 @@ pub fn delete_job_body(
         .get_mut("jobs")
         .and_then(serde_norway::Value::as_mapping_mut)
     {
-        jobs.remove(id.as_str());
+        jobs.shift_remove(id.as_str());
         if jobs.is_empty() {
             if let Some(map) = doc.as_mapping_mut() {
-                map.remove("jobs");
+                map.shift_remove("jobs");
             }
         }
     }
@@ -5081,6 +5113,17 @@ mod tests {
         assert_eq!(got.enabled_override, Some(false));
         assert_eq!(got.history.len(), 1);
         assert_eq!(got.history[0].copy.as_deref(), Some("proj-abc123"));
+    }
+
+    #[test]
+    fn switch_wins_over_config() {
+        let mut st = JobState::default();
+        assert!(st.is_on(true));
+        assert!(!st.is_on(false));
+        st.enabled_override = Some(false);
+        assert!(!st.is_on(true));
+        st.enabled_override = Some(true);
+        assert!(st.is_on(false));
     }
 
     #[test]

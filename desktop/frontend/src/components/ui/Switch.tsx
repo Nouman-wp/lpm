@@ -5,7 +5,7 @@ export function Switch({ checked }: { checked: boolean }) {
   return (
     <span
       aria-hidden
-      className={`relative h-[18px] w-8 shrink-0 rounded-full transition-colors ${
+      className={`relative inline-block h-[18px] w-8 shrink-0 rounded-full transition-colors ${
         checked ? "bg-[var(--accent-cyan)]" : "bg-[var(--bg-active)]"
       }`}
     >

@@ -64,7 +64,7 @@ function statePhrase(occurrence: JobOccurrence, now: number): string {
     case "past":
       return "Was due — no run recorded";
     case "paused":
-      return "Paused — would have run here";
+      return "Off — would have run here";
   }
 }
 
@@ -121,7 +121,7 @@ export function ScheduleBlock({ occurrence, scopeLabel, now, onOpen }: ScheduleB
     : state === "running"
       ? "running"
       : inert
-        ? "paused"
+        ? "off"
         : state === "ran" && tone === "warning"
           ? "held"
           : "";

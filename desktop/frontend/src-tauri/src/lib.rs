@@ -86,6 +86,7 @@ mod ipc;
 mod jobcal;
 mod jobcron;
 mod jobs;
+mod jobsocket;
 #[cfg(any(target_os = "linux", test))]
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 mod kokoro_venv;

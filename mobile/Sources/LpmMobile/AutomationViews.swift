@@ -99,7 +99,7 @@ struct AutomationsView: View {
                 } label: {
                     Label("Stop", systemImage: "stop.fill")
                 }
-            } else {
+            } else if job.enabled {
                 Button {
                     model.runAutomation(job)
                 } label: {
@@ -120,8 +120,8 @@ struct AutomationsView: View {
                 Button {
                     model.setAutomationEnabled(job, enabled: !job.enabled)
                 } label: {
-                    Label(job.enabled ? "Pause" : "Resume",
-                          systemImage: job.enabled ? "pause.fill" : "clock.arrow.circlepath")
+                    Label(job.enabled ? "Turn off" : "Turn on",
+                          systemImage: job.enabled ? "pause.fill" : "power")
                 }
                 .tint(job.enabled ? .orange : .green)
             }

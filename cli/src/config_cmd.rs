@@ -12,8 +12,11 @@ use std::fmt::Write as _;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+mod jobs;
 mod project_fields;
 mod zones;
+
+pub(crate) use jobs::validate_entry as validate_job_entry;
 
 #[derive(Clone, Copy, ValueEnum)]
 pub enum ConfigLayer {
@@ -701,6 +704,7 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
             "terminals",
             "profiles",
             "zones",
+            "jobs",
         ][..],
         ConfigKind::Repo => &[
             "extends",
@@ -709,8 +713,9 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
             "terminals",
             "profiles",
             "zones",
+            "jobs",
         ][..],
-        ConfigKind::Global => &["extends", "actions", "terminals", "zones"][..],
+        ConfigKind::Global => &["extends", "actions", "terminals", "zones", "jobs"][..],
         ConfigKind::Template => &["actions", "terminals"][..],
     };
     validate_keys(root, allowed, "config", &mut report);
@@ -768,6 +773,9 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
     }
     validate_profiles(root, &mut report);
     zones::validate_zones(root, &mut report);
+    if kind != ConfigKind::Template {
+        jobs::validate_jobs(root, kind, is_remote, &mut report);
+    }
     report
 }
 

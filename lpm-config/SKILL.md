@@ -1,6 +1,6 @@
 ---
 name: lpm-config
-version: 1.3.0
+version: 1.4.0
 description: Create and edit lpm YAML configs for projects, duplicates, worktree metadata, services, actions, header and footer button zones and zone layers, terminals, profiles, SSH projects, and shared config layers. Use when the user explicitly asks to configure lpm, add an lpm service/action/button/zone/terminal, edit `.lpm.yml`, or manage lpm templates or global config. For creating or removing linked Git worktrees and operating running projects, use `lpm-cli`.
 ---
 
@@ -62,6 +62,7 @@ When `lpm config resolve` is unavailable, inspect the YAML project files read-on
 | Team-shared config | `<root>/.lpm.yml` |
 | Reusable action set | template plus `extends` |
 | Remote execution | project `ssh` block |
+| Scheduled task (automation) | not a config edit: `lpm automations add` from `lpm-cli`; keep any `jobs` section as it is |
 
 Ask only when the requested shape is genuinely ambiguous. For “button with options,” distinguish a split button, dropdown, and input prompt. For a terminal action, distinguish one reused pane from a fresh pane each run.
 

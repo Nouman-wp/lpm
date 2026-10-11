@@ -12,6 +12,8 @@ mod duplicate;
 mod error;
 mod hook;
 mod job;
+mod job_edit;
+mod job_fields;
 mod list;
 mod logs;
 mod mobile;
@@ -82,7 +84,7 @@ enum Commands {
         name = "automations",
         visible_aliases = ["automation", "jobs"],
         aliases = ["job"],
-        about = "List, run, pause, inspect, and reply to automations"
+        about = "Create, edit, run, pause, and inspect automations"
     )]
     Automations {
         #[command(subcommand)]

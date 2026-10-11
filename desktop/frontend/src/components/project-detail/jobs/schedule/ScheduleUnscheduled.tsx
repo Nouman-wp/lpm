@@ -87,16 +87,20 @@ export function ScheduleUnscheduled({
                 </span>
               </span>
             </button>
-            <button
-              type="button"
-              onClick={() => onRunNow(job)}
-              title="Run now"
-              aria-label={`Run ${jobName(job)} now`}
-              className="flex shrink-0 items-center gap-1 rounded-md border border-[var(--border)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <PlayIcon />
-              Run now
-            </button>
+            {job.enabled ? (
+              <button
+                type="button"
+                onClick={() => onRunNow(job)}
+                title="Run now"
+                aria-label={`Run ${jobName(job)} now`}
+                className="flex shrink-0 items-center gap-1 rounded-md border border-[var(--border)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              >
+                <PlayIcon />
+                Run now
+              </button>
+            ) : (
+              <span className="shrink-0 px-2 text-[11px] font-medium text-[var(--text-muted)]">Off</span>
+            )}
           </div>
         ) : (
           <button

@@ -47,7 +47,7 @@ const STATE_KEYS: { label: string; style: CSSProperties }[] = [
   { label: "upcoming", style: keyStyle({ fill: 8, border: "dashed", edge: "solid" }) },
   { label: "~ expected", style: keyStyle({ fill: 8, border: "dashed", edge: "dashed" }) },
   { label: "missed", style: keyStyle({ border: "dotted", edge: "solid", faded: true }) },
-  { label: "paused", style: keyStyle({ border: "dashed", edge: "dashed", hatch: true }) },
+  { label: "off", style: keyStyle({ border: "dashed", edge: "dashed", hatch: true }) },
 ];
 
 const KEY_ITEM = "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap";

@@ -1,5 +1,6 @@
 use crate::config::Ctx;
 use crate::control;
+use crate::job_edit;
 use crate::error::{resolve_or_infer, RunError};
 use crate::statussock::quote_arg;
 use crate::style::Style;
@@ -61,6 +62,8 @@ pub enum Command {
         job_id: String,
         #[arg(long, short = 'p')]
         project: Option<String>,
+        #[arg(long, short = 'n', help = "Show only the newest N runs")]
+        limit: Option<usize>,
         #[arg(long)]
         json: bool,
     },
@@ -72,6 +75,18 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
+    #[command(about = "Print an automation's definition")]
+    Show(job_edit::ShowArgs),
+    #[command(about = "Create an automation", alias = "create")]
+    Add(Box<job_edit::AddArgs>),
+    #[command(about = "Change an automation's definition")]
+    Edit(Box<job_edit::EditArgs>),
+    #[command(
+        about = "Delete an automation and its run history",
+        visible_alias = "rm",
+        alias = "delete"
+    )]
+    Remove(job_edit::RemoveArgs),
     #[command(about = "Continue an AI automation conversation")]
     Reply {
         job_id: String,
@@ -120,13 +135,18 @@ pub fn run(ctx: &Ctx, command: Command) -> Result<(), RunError> {
         Command::History {
             job_id,
             project,
+            limit,
             json,
-        } => history(ctx, &job_id, project.as_deref(), json),
+        } => history(ctx, &job_id, project.as_deref(), limit, json),
         Command::Output {
             job_id,
             project,
             json,
         } => output(ctx, &job_id, project.as_deref(), json),
+        Command::Show(args) => job_edit::show(ctx, args),
+        Command::Add(args) => job_edit::add(ctx, *args),
+        Command::Edit(args) => job_edit::edit(ctx, *args),
+        Command::Remove(args) => job_edit::remove(ctx, args),
         Command::Reply {
             job_id,
             message,
@@ -150,7 +170,7 @@ pub fn run(ctx: &Ctx, command: Command) -> Result<(), RunError> {
     }
 }
 
-fn request_value(ctx: &Ctx, line: &str) -> Result<Value, RunError> {
+pub(crate) fn request_value(ctx: &Ctx, line: &str) -> Result<Value, RunError> {
     let reply = control::send_command(ctx, line)?;
     serde_json::from_str(&reply)
         .map_err(|e| RunError::Internal(format!("unexpected reply from app: {e}: {reply}")))
@@ -254,10 +274,19 @@ fn mutate(
     Ok(())
 }
 
-fn history(ctx: &Ctx, job_id: &str, project: Option<&str>, as_json: bool) -> Result<(), RunError> {
+fn history(
+    ctx: &Ctx,
+    job_id: &str,
+    project: Option<&str>,
+    limit: Option<usize>,
+    as_json: bool,
+) -> Result<(), RunError> {
     control::require_app(ctx)?;
     let project = project_name(ctx, project)?;
-    let entries = load_history(ctx, &project, job_id)?;
+    let mut entries = load_history(ctx, &project, job_id)?;
+    if let Some(limit) = limit {
+        entries.drain(..entries.len().saturating_sub(limit));
+    }
     if as_json {
         print_json(&json!({ "project": project, "automation": job_id, "history": entries }));
     } else if entries.is_empty() {
@@ -353,14 +382,14 @@ fn load_history(ctx: &Ctx, project: &str, job_id: &str) -> Result<Vec<Value>, Ru
     )?)
 }
 
-fn value_array(value: Value) -> Result<Vec<Value>, RunError> {
+pub(crate) fn value_array(value: Value) -> Result<Vec<Value>, RunError> {
     value
         .as_array()
         .cloned()
         .ok_or_else(|| RunError::Internal("unexpected non-array reply from app".into()))
 }
 
-fn ensure_ok(value: Value) -> Result<(), RunError> {
+pub(crate) fn ensure_ok(value: Value) -> Result<(), RunError> {
     if value.get("ok").and_then(Value::as_bool).unwrap_or(false) {
         return Ok(());
     }
@@ -387,7 +416,7 @@ fn hex_encode(text: &str) -> String {
         .collect()
 }
 
-fn value_text<'a>(value: &'a Value, key: &str) -> &'a str {
+pub(crate) fn value_text<'a>(value: &'a Value, key: &str) -> &'a str {
     value.get(key).and_then(Value::as_str).unwrap_or("")
 }
 
@@ -585,11 +614,12 @@ fn humanize_schedule(schedule: &Value) -> String {
             Some(line) => format!("cron {line}"),
             None => "—".into(),
         },
+        Some("manual") => "manual".into(),
         _ => "—".into(),
     }
 }
 
-fn humanize_until(seconds: i64) -> String {
+pub(crate) fn humanize_until(seconds: i64) -> String {
     if seconds <= 0 {
         return "due".into();
     }
@@ -623,6 +653,7 @@ mod tests {
             humanize_schedule(&json!({ "mode": "cron", "cron": "0 18 * * 5" })),
             "cron 0 18 * * 5"
         );
+        assert_eq!(humanize_schedule(&json!({ "mode": "manual" })), "manual");
     }
 
     #[test]

@@ -47,4 +47,4 @@ When the app is not running or the installed CLI does not provide `config get` a
 12. Profiles and `dependsOn` reference defined services; dependency graphs are acyclic. A service sets `dependsOn` or `depends_on`, not both.
 13. `parent_name` references an existing project.
 14. `worktree`, when present, is a boolean; `true` requires `parent_name`.
-15. `.lpm.yml` holds only `extends`, `services`, `actions`, `terminals`, `profiles`, and `zones`; `global.yml` only `extends`, `actions`, `terminals`, and `zones`; a template only `actions` and `terminals`.
+15. `.lpm.yml` holds only `extends`, `services`, `actions`, `terminals`, `profiles`, `zones`, and `jobs`; `global.yml` only `extends`, `actions`, `terminals`, `zones`, and `jobs`; a template only `actions` and `terminals`. `jobs` holds automations, which `lpm automations` manages; leave the section as it is.

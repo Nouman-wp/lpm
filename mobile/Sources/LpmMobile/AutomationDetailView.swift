@@ -124,7 +124,7 @@ struct AutomationDetailView: View {
 
     private func schedule(_ job: AutomationJob) -> some View {
         DisclosureGroup(isExpanded: $scheduleOpen) {
-            Toggle("Run on schedule", isOn: Binding(
+            Toggle("Automation on", isOn: Binding(
                 get: { job.enabled },
                 set: { enabled in
                     Haptics.tap()
@@ -253,7 +253,7 @@ struct AutomationDetailView: View {
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
         .tint(job.running ? .red : .accentColor)
-        .disabled(!job.valid || pending)
+        .disabled(!job.valid || pending || (!job.running && !job.enabled))
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 6)
@@ -264,6 +264,7 @@ struct AutomationDetailView: View {
         if job.running {
             return job.runningCount > 1 ? "Stop \(job.runningCount) runs" : "Stop run"
         }
+        if !job.enabled { return "Turned off" }
         return job.runsIn.count > 1 ? "Run in \(job.runsIn.count) projects" : "Run now"
     }
 

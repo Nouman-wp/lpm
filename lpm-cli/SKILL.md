@@ -1,7 +1,7 @@
 ---
 name: lpm-cli
-version: 1.3.0
-description: "Operate lpm-managed projects through the `lpm` CLI: start or stop projects and services, inspect logs and agent status, wait for readiness, run actions, and duplicate projects into standalone copies or create linked Git worktrees. Use when the user asks to operate or inspect lpm runtime state. `LPM_PROJECT_NAME` selects the default project after the skill triggers; it is not a trigger by itself. For editing YAML configuration, use `lpm-config`."
+version: 1.4.0
+description: "Operate lpm-managed projects through the `lpm` CLI: start or stop projects and services, inspect logs and agent status, wait for readiness, run actions, create, edit, run, pause, and read scheduled automations, and duplicate projects into standalone copies or create linked Git worktrees. Use when the user asks to operate or inspect lpm runtime state or manage lpm automations. `LPM_PROJECT_NAME` selects the default project after the skill triggers; it is not a trigger by itself. For editing YAML configuration, use `lpm-config`."
 ---
 
 `lpm` is a command-line companion to the lpm desktop app. Verify it is available with `lpm --version`; if it is missing, install it from the lpm app's Settings.
@@ -33,11 +33,30 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 - `lpm run [action | --command CMD] [--prompt TEXT] [-p proj]` — queue in a new app terminal, fire-and-forget.
 - `lpm set-status <key> <value>` / `lpm clear-status <key>` — report status to the app UI.
 
+### Automations
+
+Automations are tasks the app runs on a schedule: a shell command, a project action, or a headless AI prompt, optionally after a cheap check and in a fresh copy. These commands need the app running. Read [references/automations.md](references/automations.md) before `add` or `edit`.
+
+- `lpm automations list [-p proj | --all] [--json]` — id, name, state (`running`, `enabled`, `paused`, `invalid`), schedule, last result, next run. With `--json`, `valid: false` rows carry an `error`.
+- `lpm automations show <id> [-p proj | --global] [--json]` — the current definition.
+- `lpm automations add <id> [-p proj | --projects a,b | --every-project | --no-project] <schedule> <run> [options]` — create one. Flags cover every field; see the reference.
+- `lpm automations edit <id> [-p proj | --global] [flags]` — change only the fields given.
+- `lpm automations remove <id> [-p proj | --global]` — delete it and its run history; only when the user asks.
+- `lpm automations run <id> [-p proj]` — start a run now, fire-and-forget. It can edit code, make copies, and cost money; run one only when the user asks.
+- `lpm automations stop <id> [-p proj]` — stop the current run.
+- `lpm automations disable <id>` / `enable <id>` (aliases `pause` / `resume`) — pause or resume the schedule. Resuming never fires the runs missed while paused.
+- `lpm automations history <id> [-n N] [--json]` — past runs with their outputs, newest first; each run's `at` timestamp identifies it.
+- `lpm automations output <id>` — live output of the run in progress.
+- `lpm automations reply <id> "message" [--at TIMESTAMP] [--agent X] [--model X] [--effort X]` — continue an AI automation's conversation (the newest by default), fire-and-forget; then read `output` or `history`.
+
+An automation in `global.yml` that runs in several projects runs once per project; target one with `-p <project>`. One with no project can only be shown, edited, or removed (with `--global`); start it from the app.
+
 ### Token rules
 
 - After `lpm start`, use `lpm wait` — never a sleep or poll loop.
 - After queueing agent work, use `lpm wait --agent -p <copy> --timeout N` instead of polling `lpm status` in a loop.
 - Read logs with a small `-n` first (e.g. `-n 30`); increase only if needed.
+- Read automation results with `lpm automations history <id> -n 1` first; AI runs can be long.
 - Errors already name the fix — unknown project/service errors list the valid names. Read the error before retrying.
 
 ### Duplicate modes

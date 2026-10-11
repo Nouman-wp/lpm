@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { DeleteJobHistory, JobHistory } from "../../../../bridge/commands";
-import { Switch } from "../../ui/Switch";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { ZoomControl } from "../../ui/ZoomControl";
 import type { ContentZoom } from "../../../hooks/useContentZoom";
@@ -18,6 +17,8 @@ import { useAppStore } from "../../../store/app";
 import { displayNameForProjectName } from "../../ProjectNameDisplay";
 import { JobRunRow } from "./JobRunRow";
 import { JobLiveOutput } from "./JobLiveOutput";
+import { JobOffBanner } from "./JobOffBanner";
+import { JobOnOffToggle } from "./JobOnOffToggle";
 import {
   formatNextRun,
   formatRunningFor,
@@ -123,7 +124,7 @@ export function JobMessages({
 
   const storeProjects = useAppStore((s) => s.projects);
   const scheduleText = job.schedule ? formatSchedule(job.schedule) : "";
-  const nextRunText = job.enabled ? formatNextRun(job.nextFireAt) : "Paused";
+  const nextRunText = job.enabled ? formatNextRun(job.nextFireAt) : "Off";
   const projectLabel = project ? displayNameForProjectName(project, storeProjects) : "";
   const meta = [projectLabel, scheduleText, nextRunText].filter(Boolean).join(" · ");
 
@@ -168,7 +169,9 @@ export function JobMessages({
           <button
             type="button"
             onClick={onRunNow}
-            className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            disabled={!job.enabled}
+            title={job.enabled ? undefined : "Turn it on to run it"}
+            className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors enabled:hover:bg-[var(--bg-hover)] enabled:hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <PlayIcon />
             Run now
@@ -193,29 +196,18 @@ export function JobMessages({
             <TrashIcon size={13} />
           </button>
         )}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={job.enabled}
-          aria-label={job.enabled ? "Pause job" : "Resume job"}
-          title={
-            job.source === "global"
-              ? job.enabled
-                ? "Pause in this project only"
-                : "Resume in this project only"
-              : undefined
-          }
-          onClick={() => onToggleEnabled(!job.enabled)}
-          className="shrink-0"
-        >
-          <Switch checked={job.enabled} />
-        </button>
+        <JobOnOffToggle
+          label={job.label || job.id}
+          enabled={job.enabled}
+          onToggle={onToggleEnabled}
+        />
       </div>
 
       <div
         ref={zoom.surfaceRef}
         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6 pt-4"
       >
+        {job.valid && !job.enabled && <JobOffBanner onTurnOn={() => onToggleEnabled(true)} />}
         {!job.valid ? (
           <p className="py-10 text-center text-[12px] text-[var(--accent-red)]">
             {job.error || "This job can't run — edit it to fix its settings."}
@@ -226,7 +218,7 @@ export function JobMessages({
           </p>
         ) : threads.length === 0 && !job.running ? (
           <p className="py-10 text-center text-[12px] text-[var(--text-muted)]">
-            No runs yet — use Run now to try it.
+            {job.enabled ? "No runs yet — use Run now to try it." : "No runs yet."}
           </p>
         ) : (
           <div className="-mx-1 flex flex-col" style={{ zoom: zoom.zoom }}>

@@ -229,7 +229,7 @@ private func automationTimePhrase(_ job: AutomationJob) -> String {
 func automationStatusText(_ job: AutomationJob) -> String {
     if !job.valid { return job.error.isEmpty ? "Invalid automation" : job.error }
     if job.running { return "Running" }
-    if !job.enabled { return "Paused · \(automationScheduleText(job))" }
+    if !job.enabled { return "Off · \(automationScheduleText(job))" }
     if let next = job.nextFireAt { return "\(automationScheduleText(job)) · \(automationDateText(next))" }
     return automationScheduleText(job)
 }

@@ -1,6 +1,6 @@
-import { CirclePlay, Pause } from "lucide-react";
 import { ChevronRightIcon, ClockIcon, PencilIcon, StopIcon, TrashIcon } from "../../icons";
 import { PlayIcon } from "../icons";
+import { Switch } from "../../ui/Switch";
 import { HoverActionButton } from "./HoverActionButton";
 import { jobRowPreview, type JobPreviewTone } from "./jobRowPreview";
 import { relativeTime } from "../../../relativeTime";
@@ -35,11 +35,12 @@ const TONE_CLASS: Record<JobPreviewTone, string> = {
 
 // One automation as a conversation in a messenger list: who it is, where and
 // when it runs, and the last thing it said. Its buttons take the place of the
-// time while the row is hovered.
+// time while the row is hovered; the on/off switch under the time stays put.
 export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onOpen, onEdit, onRemove }: JobRowProps) {
   const now = useNow(job.running === true);
   const unread = job.unread ?? 0;
   const enabled = job.enabled;
+  const off = job.valid && !enabled;
   // A repo-declared job lives in the repo's own config file, which stays the
   // user's to edit — no delete from here.
   const removable = job.source !== "repo";
@@ -67,16 +68,10 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
   const when = !job.valid
     ? ""
     : !enabled
-      ? "Paused"
+      ? "Off"
       : job.lastRunAt
         ? relativeTime(job.lastRunAt)
         : "";
-  const toggleTitle =
-    job.source === "global"
-      ? `${enabled ? "Pause" : "Resume"} in this project only`
-      : enabled
-        ? "Pause"
-        : "Resume";
 
   return (
     <div className="group flex items-start gap-3 rounded-[14px] py-3 pl-1 pr-3 transition-colors focus-within:bg-[var(--bg-secondary)] hover:bg-[var(--bg-secondary)]">
@@ -85,7 +80,11 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
           <span aria-hidden className="h-[9px] w-[9px] rounded-full bg-[var(--accent-blue)]" />
         )}
       </span>
-      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[var(--bg-hover)] text-[23px] text-[var(--text-muted)]">
+      <span
+        className={`grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[var(--bg-hover)] text-[23px] text-[var(--text-muted)] transition-[opacity,filter] ${
+          off ? "opacity-45 grayscale" : ""
+        }`}
+      >
         {job.emoji || <ClockIcon size={20} />}
       </span>
 
@@ -112,7 +111,9 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
           )}
         </span>
         <span
-          className={`mt-1 line-clamp-2 break-words text-[13.5px] leading-[1.45] [overflow-wrap:anywhere] ${TONE_CLASS[preview.tone]}`}
+          className={`mt-1 line-clamp-2 break-words text-[13.5px] leading-[1.45] transition-opacity [overflow-wrap:anywhere] ${TONE_CLASS[preview.tone]} ${
+            off ? "opacity-55" : ""
+          }`}
         >
           {preview.prefix && (
             <span className="font-medium text-[var(--text-primary)]">{preview.prefix}</span>
@@ -121,39 +122,55 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
         </span>
       </button>
 
-      <span className="flex shrink-0 items-center gap-1 pt-1 group-focus-within:hidden group-hover:hidden">
-        {when && <span className="text-[12px] tabular-nums text-[var(--text-muted)]">{when}</span>}
-        <span className="scale-90 text-[var(--text-muted)] opacity-70">
-          <ChevronRightIcon />
+      <span className="-mt-0.5 flex shrink-0 flex-col items-end gap-2.5">
+        <span className="flex h-[30px] items-center">
+          <span className="flex items-center gap-1 group-focus-within:hidden group-hover:hidden">
+            {when && (
+              <span
+                className={`text-[12px] tabular-nums text-[var(--text-muted)] ${off ? "font-medium" : ""}`}
+              >
+                {when}
+              </span>
+            )}
+            <span className="scale-90 text-[var(--text-muted)] opacity-70">
+              <ChevronRightIcon />
+            </span>
+          </span>
+          <span className="hidden items-center gap-1 group-focus-within:flex group-hover:flex">
+            {job.valid &&
+              (job.running ? (
+                <HoverActionButton label="Stop run" title="Stop" danger onClick={() => onStop(job.id)}>
+                  <StopIcon />
+                </HoverActionButton>
+              ) : (
+                enabled && (
+                  <HoverActionButton label="Run now" onClick={() => onRunNow(job.id)}>
+                    <PlayIcon />
+                  </HoverActionButton>
+                )
+              ))}
+            <HoverActionButton label="Edit job" title="Edit" onClick={() => onEdit(job)}>
+              <PencilIcon size={13} />
+            </HoverActionButton>
+            {removable && (
+              <HoverActionButton label="Remove job" title="Remove" danger onClick={() => onRemove(job)}>
+                <TrashIcon size={13} />
+              </HoverActionButton>
+            )}
+          </span>
         </span>
-      </span>
-      <span className="hidden shrink-0 items-center gap-1 group-focus-within:flex group-hover:flex">
-        {job.valid &&
-          (job.running ? (
-            <HoverActionButton label="Stop run" title="Stop" danger onClick={() => onStop(job.id)}>
-              <StopIcon />
-            </HoverActionButton>
-          ) : (
-            <HoverActionButton label="Run now" onClick={() => onRunNow(job.id)}>
-              <PlayIcon />
-            </HoverActionButton>
-          ))}
         {job.valid && (
-          <HoverActionButton
-            label={enabled ? "Pause job" : "Resume job"}
-            title={toggleTitle}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            aria-label={job.label || job.id}
+            title={enabled ? "Turn off" : "Turn on"}
             onClick={() => onToggleEnabled(job.id, !enabled)}
+            className="-m-1 flex rounded-full p-1"
           >
-            {enabled ? <Pause size={14} /> : <CirclePlay size={15} />}
-          </HoverActionButton>
-        )}
-        <HoverActionButton label="Edit job" title="Edit" onClick={() => onEdit(job)}>
-          <PencilIcon size={13} />
-        </HoverActionButton>
-        {removable && (
-          <HoverActionButton label="Remove job" title="Remove" danger onClick={() => onRemove(job)}>
-            <TrashIcon size={13} />
-          </HoverActionButton>
+            <Switch checked={enabled} />
+          </button>
         )}
       </span>
     </div>

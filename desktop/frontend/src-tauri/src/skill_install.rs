@@ -8,11 +8,13 @@ use std::path::PathBuf;
 const LPM_CONFIG_SKILL: &str = include_str!("../../../../lpm-config/SKILL.md");
 const LPM_CONFIG_CORE: &str = include_str!("../../../../lpm-config/references/core.md");
 const LPM_CONFIG_ACTIONS: &str = include_str!("../../../../lpm-config/references/actions.md");
+const LPM_CONFIG_ZONES: &str = include_str!("../../../../lpm-config/references/zones.md");
 const LPM_CONFIG_SHARING: &str = include_str!("../../../../lpm-config/references/sharing.md");
 const LPM_CONFIG_SSH: &str = include_str!("../../../../lpm-config/references/ssh.md");
 const LPM_CONFIG_VALIDATION: &str = include_str!("../../../../lpm-config/references/validation.md");
 const LPM_CONFIG_OPENAI: &str = include_str!("../../../../lpm-config/agents/openai.yaml");
 const LPM_CLI_SKILL: &str = include_str!("../../../../lpm-cli/SKILL.md");
+const LPM_CLI_AUTOMATIONS: &str = include_str!("../../../../lpm-cli/references/automations.md");
 const LPM_CLI_OPENAI: &str = include_str!("../../../../lpm-cli/agents/openai.yaml");
 const LPM_MEMORY_SKILL: &str = include_str!("../../../../lpm-memory/SKILL.md");
 const LPM_MEMORY_OPENAI: &str = include_str!("../../../../lpm-memory/agents/openai.yaml");
@@ -38,6 +40,10 @@ pub const SKILL_FILES: &[SkillFile] = &[
         content: LPM_CONFIG_ACTIONS,
     },
     SkillFile {
+        rel_path: "lpm-config/references/zones.md",
+        content: LPM_CONFIG_ZONES,
+    },
+    SkillFile {
         rel_path: "lpm-config/references/sharing.md",
         content: LPM_CONFIG_SHARING,
     },
@@ -56,6 +62,10 @@ pub const SKILL_FILES: &[SkillFile] = &[
     SkillFile {
         rel_path: "lpm-cli/SKILL.md",
         content: LPM_CLI_SKILL,
+    },
+    SkillFile {
+        rel_path: "lpm-cli/references/automations.md",
+        content: LPM_CLI_AUTOMATIONS,
     },
     SkillFile {
         rel_path: "lpm-cli/agents/openai.yaml",
