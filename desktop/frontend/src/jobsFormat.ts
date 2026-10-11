@@ -366,7 +366,7 @@ function joinDayPhrase(days: Weekday[]): string {
 
 // Which days a calendar schedule runs on: "every day", "Mondays and Thursdays",
 // "2 random weekdays". Lower case — the caller capitalizes when it leads.
-function dayPhrase(days: Weekday[], pickDays?: number): string {
+export function dayPhrase(days: Weekday[], pickDays?: number): string {
   const all = days.length === 0 || days.length === 7;
   if (!pickDays) return all ? "every day" : joinDayPhrase(days);
   return `${pickDays} random ${dayPoolNoun(days, pickDays)} a week`;
@@ -386,7 +386,7 @@ function dayPoolNoun(days: Weekday[], count: number): string {
 
 // When in the day it runs: "at 09:00", "at 09:00 and 17:30", or "between 09:00
 // and 17:00" when the time is drawn from a window.
-function timePhrase(atMinutes: number, untilMinutes?: number, alsoAt: number[] = []): string {
+export function timePhrase(atMinutes: number, untilMinutes?: number, alsoAt: number[] = []): string {
   const at = formatMinutes(atMinutes);
   if (untilMinutes === undefined) {
     const all = [at, ...alsoAt.map(formatMinutes)];

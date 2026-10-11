@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { toast } from "sonner";
 import { Modal } from "../../ui/Modal";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
@@ -6,18 +13,17 @@ import { ActionPicker } from "../../ActionPicker";
 import { InputComposer } from "../../InputComposer";
 import { EmojiSlotButton } from "../../EmojiPickerButton";
 import { displayNameForProjectName } from "../../ProjectNameDisplay";
-import { ChevronDownIcon, ClockIcon, XIcon } from "../../icons";
+import { ClockIcon, XIcon } from "../../icons";
 import { RowSelect } from "./RowSelect";
 import { RowMultiSelect } from "./RowMultiSelect";
 import { RowModelSelect } from "./RowModelSelect";
 import { RunKindPicker } from "./RunKindPicker";
 import { JobFrequencyCard } from "./JobFrequencyCard";
+import { JobCheckField } from "./JobCheckField";
+import { CheckAIModal } from "./CheckAIModal";
+import { JobEditorFooter } from "./JobEditorFooter";
 import { Card, GroupLabel, Row } from "./JobFormRows";
-import {
-  ClearJobState,
-  ClearJobStateGlobal,
-  TestJobCheck,
-} from "../../../../bridge/commands";
+import { ClearJobState, ClearJobStateGlobal } from "../../../../bridge/commands";
 import {
   deleteJob,
   deleteJobGlobal,
@@ -35,11 +41,13 @@ import {
   type DuplicateMode,
 } from "../../../jobsFormat";
 import { EMPTY_COMPOSER, type ComposerValue } from "../../../composerValue";
+import { checkTask } from "../../../jobsCheckAI";
 import { findActionByPath } from "../../../actionTree";
 import { detectAICLI } from "../../../slashCommands";
 import { isDuplicate, type ActionInfo } from "../../../types";
 import { useDiscardGuard } from "../../../hooks/useDiscardGuard";
 import { useAppStore } from "../../../store/app";
+import { matchesChord } from "../../../keys";
 
 interface JobEditorModalProps {
   open: boolean;
@@ -55,13 +63,6 @@ interface JobEditorModalProps {
   onClose: () => void;
   onSaved: () => void;
 }
-
-type TestState =
-  | { kind: "idle" }
-  | { kind: "running" }
-  | { kind: "work"; output?: string }
-  | { kind: "nowork"; output?: string }
-  | { kind: "error"; message: string };
 
 // Same prompt content — `pending` (an image still saving) aside.
 function samePrompt(a: ComposerValue, b: ComposerValue): boolean {
@@ -87,10 +88,9 @@ export function JobEditorModal({
   const [draft, setDraft] = useState<JobDraft>(defaultJobDraft);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [test, setTest] = useState<TestState>({ kind: "idle" });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteCopies, setDeleteCopies] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [checkAIOpen, setCheckAIOpen] = useState(false);
   // Whether the user has edited anything yet — the "what's missing" hint
   // stays quiet on a freshly opened editor.
   const [touched, setTouched] = useState(false);
@@ -135,10 +135,9 @@ export function JobEditorModal({
 
   useEffect(() => {
     if (!open) return;
-    setTest({ kind: "idle" });
     setConfirmDelete(false);
+    setCheckAIOpen(false);
     setSaving(false);
-    setAdvancedOpen(false);
     setTouched(false);
     setComposerSession((n) => n + 1);
     if (!editing) {
@@ -163,9 +162,6 @@ export function JobEditorModal({
         }
         setDraft(next);
         setComposerSession((n) => n + 1);
-        // A job that already gates on a check must not hide it behind the
-        // collapsed disclosure.
-        setAdvancedOpen(Boolean(next.check.trim()));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -187,7 +183,6 @@ export function JobEditorModal({
   // An action needs a single project, so a wider scope falls back to a prompt.
   const setScope = (next: string[]) => {
     setTouched(true);
-    setTest({ kind: "idle" });
     setDraft((prev) => ({
       ...prev,
       targets: next,
@@ -221,29 +216,6 @@ export function JobEditorModal({
   const imagesPending = draft.prompt.pending;
   const canSave =
     validationError === null && !loading && !saving && !imagesPending;
-  const canTest = actionsAvailable && !!runProject;
-
-  const runCheckTest = async () => {
-    if (!draft.check.trim() || !canTest || !runProject) return;
-    setTest({ kind: "running" });
-    try {
-      const result = (await TestJobCheck(runProject, draft.check)) as {
-        work?: boolean;
-        output?: string | null;
-      };
-      setTest({
-        kind: result.work ? "work" : "nowork",
-        output: result.output ?? undefined,
-      });
-    } catch (err) {
-      setTest({
-        kind: "error",
-        // Tauri rejects with a plain string, so `err instanceof Error` is false
-        // and would swallow the message the backend wrote.
-        message: String(err) || "The check couldn't run.",
-      });
-    }
-  };
 
   const save = async () => {
     if (!canSave) return;
@@ -294,6 +266,15 @@ export function JobEditorModal({
     }
   };
 
+  // A nested editor (an AI rewrite's variant) that claims ⌘↵ marks it handled.
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.defaultPrevented || e.nativeEvent.isComposing) return;
+    if (matchesChord(e, { key: "Enter", meta: true })) {
+      e.preventDefault();
+      void save();
+    }
+  };
+
   const { requestClose, guardOpen, dialog } = useDiscardGuard({
     open,
     entity: "job",
@@ -341,12 +322,15 @@ export function JobEditorModal({
       <Modal
         open={open}
         onClose={requestClose}
-        closeOnEscape={!confirmDelete && !guardOpen}
-        closeOnBackdrop={!confirmDelete && !guardOpen}
+        closeOnEscape={!confirmDelete && !guardOpen && !checkAIOpen}
+        closeOnBackdrop={!confirmDelete && !guardOpen && !checkAIOpen}
         backdropClassName="bg-black/50 backdrop-blur-sm"
         contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
       >
-        <div className="flex max-h-[min(820px,92vh)] w-[min(640px,calc(100vw-32px))] flex-col">
+        <div
+          onKeyDown={onKeyDown}
+          className="flex max-h-[min(820px,92vh)] w-[min(640px,calc(100vw-32px))] flex-col"
+        >
           <header className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-6 py-4">
             <div className="flex items-center gap-2.5">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-[var(--accent-cyan)]/12 text-[var(--accent-cyan)]">
@@ -453,6 +437,13 @@ export function JobEditorModal({
                     aiCwd={aiCwd}
                   />
                 )}
+                <JobCheckField
+                  key={`check-${composerSession}`}
+                  value={draft.check}
+                  project={runProject}
+                  onChange={(check) => set("check", check)}
+                  onGenerate={aiCwd ? () => setCheckAIOpen(true) : undefined}
+                />
               </div>
 
               <div>
@@ -523,155 +514,26 @@ export function JobEditorModal({
                 patch={patch}
                 summary={scheduleSummary}
               />
-
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setAdvancedOpen((v) => !v)}
-                  aria-expanded={advancedOpen}
-                  className="flex items-center gap-1 text-[12px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
-                >
-                  <span
-                    className={`scale-75 transition-transform ${advancedOpen ? "" : "-rotate-90"}`}
-                  >
-                    <ChevronDownIcon />
-                  </span>
-                  Advanced
-                </button>
-                {advancedOpen && (
-                  <div className="mt-3 field-reveal">
-                    <GroupLabel>Only when there's work (optional)</GroupLabel>
-                    <Card>
-                  <div className="space-y-2 px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <input
-                        value={draft.check}
-                        onChange={(e) => {
-                          set("check", e.target.value);
-                          setTest({ kind: "idle" });
-                        }}
-                        placeholder="git fetch && git log HEAD..@{u} --oneline | grep ."
-                        spellCheck={false}
-                        autoCapitalize="off"
-                        autoCorrect="off"
-                        className="min-w-0 flex-1 border-none bg-transparent font-mono text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void runCheckTest()}
-                        disabled={
-                          !draft.check.trim() || !canTest || test.kind === "running"
-                        }
-                        title={
-                          canTest ? undefined : "Pick a project to test the check."
-                        }
-                        className="shrink-0 rounded-md border border-[var(--border)] px-2.5 py-1 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
-                      >
-                        {test.kind === "running" ? "Testing…" : "Test"}
-                      </button>
-                    </div>
-                    {test.kind === "work" && (
-                      <p className="text-[12px] text-[var(--accent-cyan)]">
-                        Would run — there's work to do.
-                      </p>
-                    )}
-                    {test.kind === "nowork" && (
-                      <p className="text-[12px] text-[var(--text-muted)]">
-                        Nothing to do right now.
-                      </p>
-                    )}
-                    {(test.kind === "work" || test.kind === "nowork") &&
-                      test.output && (
-                        <pre className="max-h-24 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-snug text-[var(--text-muted)]">
-                          {test.output}
-                        </pre>
-                      )}
-                    {test.kind === "error" && (
-                      <p className="text-[12px] text-[var(--accent-red)]">
-                        {test.message}
-                      </p>
-                    )}
-                  </div>
-                    </Card>
-                    <p className="mt-2 text-[12px] leading-snug text-[var(--text-muted)]">
-                      A command that decides whether the job has anything to do —
-                      it runs only when this succeeds. Leave blank to run every
-                      time.
-                    </p>
-                    {draft.runMode !== "action" && (
-                      <div className="mt-4">
-                        <GroupLabel>Check the work afterwards (optional)</GroupLabel>
-                        <Card>
-                          <div className="px-4 py-3">
-                            <input
-                              value={draft.verify}
-                              onChange={(e) => set("verify", e.target.value)}
-                              placeholder="npm test"
-                              spellCheck={false}
-                              className="w-full border-none bg-transparent font-mono text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-                            />
-                          </div>
-                        </Card>
-                        <p className="mt-2 text-[12px] leading-snug text-[var(--text-muted)]">
-                          Runs where the job ran, once the run finishes. If it
-                          fails, the run is reported as needing a look instead of
-                          done. Leave blank and the run isn't checked.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
-          <footer className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-6 py-4">
-            <div className="flex min-w-0 items-center gap-3">
-              {isEditing && source !== "repo" && (
-                <button
-                  type="button"
-                  onClick={() => {
+          <JobEditorFooter
+            draft={draft}
+            isEditing={isEditing}
+            hint={touched && !loading ? validationError : null}
+            saving={saving}
+            imagesPending={imagesPending}
+            canSave={canSave}
+            onSave={() => void save()}
+            onDelete={
+              isEditing && source !== "repo"
+                ? () => {
                     setDeleteCopies(false);
                     setConfirmDelete(true);
-                  }}
-                  disabled={saving}
-                  className="shrink-0 rounded-lg px-4 py-2 text-[13px] font-medium text-[var(--accent-red)] transition-colors hover:bg-[var(--accent-red)]/10 disabled:opacity-40"
-                >
-                  Delete
-                </button>
-              )}
-              {touched && !loading && validationError && (
-                <p className="min-w-0 truncate text-[12px] text-[var(--text-muted)]">
-                  {validationError}
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={requestClose}
-                className="rounded-lg px-4 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void save()}
-                disabled={!canSave}
-                className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
-              >
-                {imagesPending
-                  ? "Attaching images…"
-                  : saving
-                    ? isEditing
-                      ? "Saving…"
-                      : "Creating…"
-                    : isEditing
-                      ? "Save changes"
-                      : "Create job"}
-              </button>
-            </div>
-          </footer>
+                  }
+                : undefined
+            }
+          />
         </div>
       </Modal>
       <ConfirmDialog
@@ -702,6 +564,17 @@ export function JobEditorModal({
         onCancel={() => setConfirmDelete(false)}
         onConfirm={() => void remove()}
       />
+      {aiCwd && (
+        <CheckAIModal
+          open={checkAIOpen}
+          project={runProject}
+          task={checkTask(draft, selectedAction)}
+          aiProject={contextProject}
+          aiCwd={aiCwd}
+          onClose={() => setCheckAIOpen(false)}
+          onUse={(check) => set("check", check)}
+        />
+      )}
       {dialog}
     </>
   );
