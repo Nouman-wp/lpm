@@ -69,7 +69,7 @@ export function JobFrequencyCard({
 
   return (
     <div>
-      <GroupLabel>Schedule</GroupLabel>
+      <GroupLabel>When</GroupLabel>
       <Card>
         <Row label="Repeat">
           <SegmentedControl
