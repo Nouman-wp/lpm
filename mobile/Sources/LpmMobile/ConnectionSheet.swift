@@ -35,6 +35,7 @@ struct ConnectionSheet: View {
                     addresses(record)
                     thisPhone
                     machine(record)
+                    MacUpdateSection()
                     details(record)
                 }
             }

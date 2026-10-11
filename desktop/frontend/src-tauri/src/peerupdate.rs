@@ -35,7 +35,7 @@ pub(crate) fn handle_start(app: &AppHandle, out: &SyncSender<String>, v: &Value)
                     let _ = steps.try_send(frame);
                 }
             });
-            let frame = match crate::updates::install_for_peer(&app, observer) {
+            let frame = match crate::updates::install_for_peer(&app, Some(observer)) {
                 Ok(cancelled) => result_frame(&req_id, true, json!({ "cancelled": cancelled })),
                 Err(e) => result_frame(&req_id, false, Value::String(e)),
             };

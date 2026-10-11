@@ -313,6 +313,9 @@ final class AppModel {
     // The agent plan-usage meters (`model.usage`), same split.
     var usage = UsageStore()
 
+    // lpm on the live Mac and updating it (`model.macUpdate`), same split.
+    var macUpdate = MacUpdateStore()
+
     // Adds the live Mac's own servers and Macs to this phone.
     let machineImporter = MachineImporter()
 
@@ -371,6 +374,7 @@ final class AppModel {
         memory.model = self
         notes.model = self
         usage.model = self
+        macUpdate.model = self
         pushRegistrar.onIdentity = { [weak self] localId, serverId, serverName, platform in
             self?.learnIdentity(of: localId, serverId: serverId, serverName: serverName,
                                 platform: platform)
@@ -1217,6 +1221,8 @@ final class AppModel {
         // carrying the old map over would show one Mac's numbers under another.
         usage = UsageStore()
         usage.model = self
+        macUpdate = MacUpdateStore()
+        macUpdate.model = self
         fileFetches.cancelAll()
         pendingAgentPrompt = [:]
     }
@@ -2131,6 +2137,7 @@ final class AppModel {
         memory.handleConnectionReset()
         notes.handleConnectionReset()
         usage.handleConnectionReset()
+        macUpdate.handleConnectionReset()
         fileFetches.handleConnectionReset()
         historyPending = []
         historyLoadingMore = false
@@ -2325,6 +2332,7 @@ final class AppModel {
         wireHistory(c)
         wireConfig(c)
         wireMachines(c)
+        wireMacUpdate(c)
     }
 
     private func wireConnection(_ c: LpmClient) {

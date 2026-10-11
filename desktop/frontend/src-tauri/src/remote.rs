@@ -1244,14 +1244,14 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
                     let _ = ws.send(Message::text(
                         with_hosts(
                             hub,
-                            json!({
+                            crate::remote_update::with_build(json!({
                                 "t": "paired",
                                 "deviceId": id,
                                 "token": token,
                                 "serverId": hub.server_id(),
                                 "serverName": server_name(),
                                 "platform": crate::peer::platform_id(),
-                            }),
+                            })),
                         )
                         .to_string(),
                     ));
@@ -1283,12 +1283,12 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
                 let _ = ws.send(Message::text(
                     with_hosts(
                         hub,
-                        json!({
+                        crate::remote_update::with_build(json!({
                             "t": "ready",
                             "serverId": hub.server_id(),
                             "serverName": server_name(),
                             "platform": crate::peer::platform_id(),
-                        }),
+                        })),
                     )
                     .to_string(),
                 ));
@@ -1420,14 +1420,14 @@ fn handle_pair_request(
             let _ = ws.send(Message::text(
                 with_hosts(
                     hub,
-                    json!({
+                    crate::remote_update::with_build(json!({
                         "t": "paired",
                         "deviceId": id,
                         "token": token,
                         "serverId": hub.server_id(),
                         "serverName": server_name(),
                         "platform": crate::peer::platform_id(),
-                    }),
+                    })),
                 )
                 .to_string(),
             ));
@@ -4109,6 +4109,9 @@ fn handle_msg(
         "notesChats" | "notesCreateChat" | "notesRenameChat" | "notesDeleteChat"
         | "notesMessages" | "notesAddMessage" | "notesEditMessage" | "notesDeleteMessage"
         | "notesSearch" | "notesAttachment" => crate::remote_notes::handle(app, out, t, &v),
+        "updateCheck" | "updateInstall" | "updateCancel" => {
+            crate::remote_update::handle(app, out, t)
+        }
         _ => {}
     }
     Ok(())

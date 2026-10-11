@@ -114,6 +114,12 @@ host should not offer what only a Mac has: pair-by-approval, or anything that
 assumes someone is sitting in front of the machine. **Absent** from a desktop that
 predates the field; treat a missing `platform` as `"macos"`.
 
+`version` is the lpm release the machine runs (`"dev"` for a development build),
+and `selfUpdate` is true when the phone may install a newer release there (see
+[Updating lpm](#updating-lpm)) — only a release build on macOS replaces itself.
+Both ride `paired` **and** `ready`. **Absent** from a desktop that predates them;
+treat a missing `selfUpdate` as false.
+
 `hosts` (**optional**) is the Mac's current candidate address list, most-preferred
 first — the same LAN-then-Tailscale list the pairing QR's repeated `h=` params
 carry (the Tailscale entry only while that toggle is on and a tailnet interface
@@ -190,7 +196,8 @@ disconnects while pending, the Mac cancels the request and dismisses its dialog.
 { "t": "auth", "deviceId": "<uuid>", "token": "<base64 bearer token>" }
 ```
 → `{ "t": "ready", "serverId": "<uuid>", "serverName": "My MacBook Pro",
-"platform": "macos", "hosts": ["192.168.1.23", "100.101.102.103"] }`
+"platform": "macos", "version": "0.6.10", "selfUpdate": true,
+"hosts": ["192.168.1.23", "100.101.102.103"] }`
 on success, or `{ "t": "error", "error": "unauthorized" }`. `serverId` and
 `serverName` are the same stable identity + computer name returned by `paired`,
 re-sent on every resume so a phone paired with multiple Macs keeps them labeled
@@ -496,6 +503,28 @@ its own, with this Mac asleep.
 | `{ "t": "machines" }` | `{ "t": "machines", "machines": [{ "slug": "<id>", "name": "…", "platform": "linux"\|"macos"\|"", "serverId": "<uuid>"\|"", "state": "ready"\|"offline"\|"update", "projects": [ProjectInfo…] }…] }` — every enabled connection. `name` is what this Mac's sidebar calls it. `serverId` is the one the machine sends phones on `paired`/`ready`, so a phone can skip a machine it already has; empty until this Mac has talked to a build of it that reports one. `state`: `ready` = this Mac is connected and can get a code; `offline` = not connected; `update` = its lpm predates arming a pairing on request. `projects` (only on a connected machine that answered, and only from a Mac that has it) is the machine's own list in the `projects` reply's shape, its names as the machine itself uses them, in the row order this Mac's sidebar shows. The sidebar order holds each machine's slot as a `peer:<slug>` token. The Mac also pushes this frame unasked, debounced, whenever a machine connects, drops, or changes its projects or agent statuses. Async: waits up to 8s on each machine. A Mac that predates this request never replies |
 | `{ "t": "machinePair", "slug": "<id>" }` | `{ "t": "machinePair", "slug": "<id>", "ok": true, "code": "…", "hosts": ["…"], "port": N, "fingerprint": "<hex sha256>", "serverId": "<uuid>", "name": "…", "platform": "…" }` / `{ "t": "machinePair", "slug": "<id>", "ok": false, "error": "…" }` — has the machine arm a single-use pairing code (the same one its QR would carry, 10-minute expiry) and turns its phone server on. `hosts` leads with the address this Mac reaches it at (for a server reached over SSH, the SSH hostname), then the machine's own addresses; loopback is never included. `fingerprint` is the machine's certificate, to verify on the pairing connection like a QR's `f=`. Async: waits on the machine for up to 20s |
 
+### Updating lpm
+
+Installs a newer lpm on the Mac, the same install as its own Update button. Only
+sent to a Mac whose `paired`/`ready` carried `selfUpdate: true`; anywhere else
+each request answers `{ "t": "<request>", "ok": false, "error": "…" }`. All three
+run on a worker, so the reply arrives on the out-queue.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "updateCheck" }` | `{ "t": "updateCheck", "ok": true, "currentVersion": "0.6.10", "latestVersion": "0.6.12", "updateAvail": true, "phase": "idle", "progress": -1 }` / `{ "t": "updateCheck", "ok": false, "error": "…", "phase": …, "progress": … }` — the newest release and whether this Mac is behind it. The release check is cached on the Mac for an hour, so asking on every connect is fine. `phase`/`progress` are the install running now, as in `updateProgress` below, and ride a failed check too — a phone that reconnects mid-install sends this to catch up |
+| `{ "t": "updateInstall" }` | Steps arrive as `updateProgress` (below). A finished install restarts lpm, so there is **no** reply: the connection drops, and the next `ready` carries the new `version`. A reply means it stopped short: `{ "t": "updateInstall", "ok": true, "cancelled": true }`, or `{ "t": "updateInstall", "ok": false, "error": "…" }` (already up to date, another install already running, the app can't replace itself where it sits, a failed download…) |
+| `{ "t": "updateCancel" }` | `{ "t": "updateCancel", "ok": true, "stopping": bool }` — stops the install while it is still checking or downloading. `stopping` is false once it has started replacing the app (it then runs on to the restart) or when none is running |
+
+**`updateProgress`** (pushed to **every** phone, for every install on the Mac —
+started by a phone, by someone at the Mac, or by another Mac):
+`{ "t": "updateProgress", "phase": "checking"|"downloading"|"installing"|"idle", "progress": N }`.
+Always the whole state, never a delta. `progress` is the download's whole percent,
+`-1` until known and in every other phase. `idle` means an install stopped short
+(cancelled or failed); an install that finished never sends it — lpm restarts
+instead. Once `installing` arrives the Mac can't stop it, and the connection
+dropping after it is that restart.
+
 ### Session memory
 
 Per-project work-session logs (`~/.lpm/memory/<owner>/<session>.md`), co-written
@@ -649,6 +678,7 @@ installs stop generating traffic.
 | `{ "t": "memory-changed", "project": "<owner name>" }` | A session-memory file changed on disk — usually an agent CLI writing through the lpm-memory skill while the Memory screen is open (FSEvents, ~500ms settle). `project` is the **owner** folder name, which for a duplicate is its original: refresh when it matches either the project you are showing or the owner you learned from that project's `dir`. Notes have no equivalent push. |
 | `{ "t": "limits-changed", "limits": AgentLimits, "claudeEnabled": bool, "now": unix MILLIS }` | A tool reported new plan usage. Carries the full snapshot — apply it directly, **do not re-request** `limits`. Sent only on a meaningful change (a re-report of identical numbers is suppressed on the Mac). `now` is the Mac's clock at send time, as on the `limits` reply: re-measure the offset from every push, since the phone may have been asleep — or the Mac's clock corrected — since the last one. |
 | `{ "t": "composerDraft", "id": "<termId>", "text": "…", "rev": N, "origin": "mac"\|"<deviceId>" }` | The terminal composer's active-input text changed on another surface. Apply it to that terminal's composer input (see composer draft sync below). `origin` is `"mac"` for a desktop-typed draft, else the deviceId of the phone that sent it — drop the frame when `origin` is your own deviceId (your echo). `rev` is monotonic; drop a frame whose `rev` is ≤ the last one applied for this terminal. |
+| `{ "t": "updateProgress", "phase": "checking"\|"downloading"\|"installing"\|"idle", "progress": N }` | A step of an lpm install on the Mac, whoever started it. See [Updating lpm](#updating-lpm). |
 | `{ "t": "bye", "reason": "sleep"\|"quit"\|"off", "at": unix MILLIS }` | The desktop is about to close this connection on purpose: the machine is going to sleep (macOS and Windows), lpm is quitting, or remote control was turned off. Sent just before the socket closes — for `sleep`, just before the machine sleeps, so the socket may stay open until the phone notices it went quiet. Remember it per machine until the next `ready`, and say so ("asleep since 11:42 PM", "lpm was closed") instead of reporting the drop as a network problem; keep reconnecting as usual. Older desktops never send it. |
 
 ## Data shapes

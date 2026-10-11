@@ -106,6 +106,13 @@ final class LpmClient: NSObject {
     // the frame's serverId — never the active record, which a pairing connection
     // hasn't been assigned to yet when `ready` lands.
     var onAdvertisedHosts: ((_ serverId: String?, _ hosts: [String]) -> Void)?
+    // The lpm release the Mac runs, on every `paired` and `ready`. Nil from a
+    // build too old to report it.
+    var onBuild: ((_ build: MacBuild?) -> Void)?
+    var onUpdateCheck: ((_ check: MacUpdateCheck) -> Void)?
+    var onUpdateProgress: ((_ step: MacUpdateStep) -> Void)?
+    var onUpdateInstall: ((_ cancelled: Bool, _ error: String?) -> Void)?
+    var onUpdateCancel: ((_ stopping: Bool) -> Void)?
     // The desktop acknowledged (or rejected) an apnsToken registration.
     var onApnsToken: ((_ ok: Bool) -> Void)?
     // Composer parity replies.
@@ -988,6 +995,10 @@ final class LpmClient: NSObject {
         send(Wire.gitAuto(project: project, kind: kind, nonce: nonce))
     }
     func gitAutoState(project: String) { send(Wire.gitAutoState(project: project)) }
+
+    func updateCheck() { send(Wire.updateCheck()) }
+    func updateInstall() { send(Wire.updateInstall()) }
+    func updateCancel() { send(Wire.updateCancel()) }
     func gitAutoCancel(project: String) { send(Wire.gitAutoCancel(project: project)) }
     func gitAutoSwitchBase(project: String, base: String) {
         send(Wire.gitAutoSwitchBase(project: project, base: base))
@@ -1168,7 +1179,7 @@ final class LpmClient: NSObject {
     /// Dispatch one parsed inbound frame. Always called on the main queue.
     private func dispatch(_ frame: Wire.Inbound) {
         switch frame {
-            case .paired(let deviceId, let token, let serverId, let serverName, let hosts, let platform):
+            case .paired(let deviceId, let token, let serverId, let serverName, let hosts, let platform, let build):
                 self.credential = Credential(deviceId: deviceId, token: token)
                 self.pairingCode = nil
                 self.pairRequestName = nil
@@ -1179,12 +1190,13 @@ final class LpmClient: NSObject {
                 self.flushPending()
                 // The model owns the Keychain (per-Mac) and the saved-Mac record.
                 self.onPaired?(deviceId, token, serverId, serverName, hosts, platform)
+                self.onBuild?(build)
                 self.onProjectsChanged?()
             case .pairPending(let matchCode):
                 self.onPairPending?(matchCode)
             case .pairDenied(let reason, let message):
                 self.failPair(reason, message: message)
-            case .ready(let serverId, let serverName, let hosts, let platform):
+            case .ready(let serverId, let serverName, let hosts, let platform, let build):
                 self.set(.ready)
                 self.onConnected()
                 // Re-subscribe to any terminals we were watching before a drop,
@@ -1197,6 +1209,7 @@ final class LpmClient: NSObject {
                 self.flushPending()
                 self.onIdentity?(serverId, serverName, platform)
                 if !hosts.isEmpty { self.onAdvertisedHosts?(serverId, hosts) }
+                self.onBuild?(build)
             case .bye(let reason, let at):
                 let when = at.map { Date(timeIntervalSince1970: Double($0) / 1000) } ?? Date()
                 self.farewellPending = true
@@ -1290,6 +1303,10 @@ final class LpmClient: NSObject {
             case .gitDiscardAll(let proj, let error): self.onGitDiscardAll?(proj, error)
             case .gitChanged(let proj): self.onGitChanged?(proj)
             case .gitAuto(let proj, let run, let error): self.onGitAuto?(proj, run, error)
+            case .updateCheck(let check): self.onUpdateCheck?(check)
+            case .updateProgress(let step): self.onUpdateProgress?(step)
+            case .updateInstall(let cancelled, let error): self.onUpdateInstall?(cancelled, error)
+            case .updateCancel(let stopping): self.onUpdateCancel?(stopping)
             case .gitAutoSwitchBase(let proj, let base, let error, let pullError):
                 self.onGitAutoSwitchBase?(proj, base, error, pullError)
             case .apnsToken(let ok): self.onApnsToken?(ok)

@@ -450,6 +450,10 @@ struct ProjectsView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .safeAreaInset(edge: .bottom) {
+            MacUpdateBar()
+        }
+        .animation(.default, value: model.macUpdate.showsBar)
         .safeAreaInset(edge: .top) {
             if model.demoMode {
                 DemoBanner { model.exitDemo() }

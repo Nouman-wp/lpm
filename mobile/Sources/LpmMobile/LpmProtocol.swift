@@ -269,6 +269,12 @@ enum Wire {
         json(["t": "gitAutoSwitchBase", "project": project, "base": base])
     }
     static func gitWatch(project: String) -> String { json(["t": "gitWatch", "project": project]) }
+
+    // MARK: updating lpm on the Mac
+
+    static func updateCheck() -> String { json(["t": "updateCheck"]) }
+    static func updateInstall() -> String { json(["t": "updateInstall"]) }
+    static func updateCancel() -> String { json(["t": "updateCancel"]) }
     static func gitUnwatch(project: String) -> String { json(["t": "gitUnwatch", "project": project]) }
 
     // MARK: composer parity (AI actions, transform, service logs, rich history)
@@ -430,8 +436,9 @@ enum Wire {
         // `hosts` is the Mac's current candidate address list (empty from an
         // older Mac that doesn't advertise one). `platform` is what the server
         // runs on ("macos"/"linux"; nil from an older build — treat as a Mac).
+        // `build` is the lpm it runs, nil from a build too old to say.
         case paired(deviceId: String, token: String, serverId: String?, serverName: String?,
-                    hosts: [String], platform: String?)
+                    hosts: [String], platform: String?, build: MacBuild?)
         // Approve-on-Mac pairing: the Mac accepted the request and put up its Allow
         // dialog, showing the same match code both screens display.
         case pairPending(matchCode: String)
@@ -439,7 +446,8 @@ enum Wire {
         // "declined" (user tapped Deny — or, with a `message`, a headless host
         // that can't show the dialog at all), or "timeout" (no answer).
         case pairDenied(reason: String, message: String?)
-        case ready(serverId: String?, serverName: String?, hosts: [String], platform: String?)
+        case ready(serverId: String?, serverName: String?, hosts: [String], platform: String?,
+                   build: MacBuild?)
         // The Mac is about to close this connection on purpose: "sleep", "quit" or
         // "off" (remote control turned off), with when it said so (ms).
         case bye(reason: String, at: Int?)
@@ -612,6 +620,12 @@ enum Wire {
         case notesSearch(project: String, query: String, hits: [NoteSearchHit], error: String?)
         // `data` is the attachment's bytes as base64 (nil on failure).
         case notesAttachment(project: String, hash: String, data: String?, error: String?)
+        // Updating lpm on the Mac. `updateInstall` only answers an install that
+        // stopped short; one that finished restarts lpm instead.
+        case updateCheck(MacUpdateCheck)
+        case updateProgress(MacUpdateStep)
+        case updateInstall(cancelled: Bool, error: String?)
+        case updateCancel(stopping: Bool)
         case pong
         case unknown
 
@@ -628,7 +642,8 @@ enum Wire {
                                serverId: obj["serverId"] as? String,
                                serverName: obj["serverName"] as? String,
                                hosts: obj["hosts"] as? [String] ?? [],
-                               platform: obj["platform"] as? String)
+                               platform: obj["platform"] as? String,
+                               build: MacBuild(obj))
             case "pairPending":
                 return .pairPending(matchCode: obj["matchCode"] as? String ?? "")
             case "pairDenied":
@@ -638,7 +653,8 @@ enum Wire {
                 return .ready(serverId: obj["serverId"] as? String,
                               serverName: obj["serverName"] as? String,
                               hosts: obj["hosts"] as? [String] ?? [],
-                              platform: obj["platform"] as? String)
+                              platform: obj["platform"] as? String,
+                              build: MacBuild(obj))
             case "bye":
                 return .bye(reason: obj["reason"] as? String ?? "", at: obj["at"] as? Int)
             case "error": return .error(obj["error"] as? String ?? "error")
@@ -1094,6 +1110,13 @@ enum Wire {
                                         hash: obj["hash"] as? String ?? "",
                                         data: ok ? (obj["data"] as? String ?? "") : nil,
                                         error: ok ? nil : (obj["error"] as? String ?? "Couldn't open the attachment."))
+            case "updateCheck": return .updateCheck(MacUpdateCheck(obj))
+            case "updateProgress": return .updateProgress(MacUpdateStep(obj))
+            case "updateInstall":
+                let ok = obj["ok"] as? Bool ?? false
+                return .updateInstall(cancelled: obj["cancelled"] as? Bool ?? false,
+                                      error: ok ? nil : (obj["error"] as? String ?? "The update didn't start."))
+            case "updateCancel": return .updateCancel(stopping: obj["stopping"] as? Bool ?? false)
             case "pong": return .pong
             default: return .unknown
             }

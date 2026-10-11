@@ -317,26 +317,32 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
         return Err("Updates aren't available in development builds.".into());
     }
     let mut job = state.job.begin()?;
-    match install(&app, &state, &mut job, &reporter(&app, None)) {
+    let result = install(&app, &state, &mut job, &reporter(&app, None));
+    crate::remote_update::relay(&app, "update-status", &Value::from("idle"));
+    match result {
         Err(_) if job.cancelled() => Ok(()),
         result => result,
     }
 }
 
-/// The same install, asked for by a paired Mac. Its steps go to `observer` as
-/// well as this app's windows, so whoever sits here sees it happen too. Ok(true)
-/// when it was cancelled; a finished install restarts the app instead of
-/// returning. Either way of stopping short tells this app's windows it is over,
-/// since no install of theirs is waiting to say so.
+/// The same install, asked for by a paired Mac or phone. Its steps go to
+/// `observer` as well as this app's windows, so whoever sits here sees it happen
+/// too. Ok(true) when it was cancelled; a finished install restarts the app
+/// instead of returning. Either way of stopping short tells this app's windows it
+/// is over, since no install of theirs is waiting to say so.
 #[cfg(target_os = "macos")]
-pub(crate) fn install_for_peer(app: &AppHandle, observer: Observer) -> Result<bool, String> {
+pub(crate) fn install_for_peer(
+    app: &AppHandle,
+    observer: Option<Observer>,
+) -> Result<bool, String> {
     if current_version() == "dev" {
         return Err("Updates aren't available in development builds.".into());
     }
     let state = app.state::<UpdateState>();
     let mut job = state.job.begin()?;
-    let result = install(app, &state, &mut job, &reporter(app, Some(observer)));
+    let result = install(app, &state, &mut job, &reporter(app, observer));
     let _ = app.emit("update-status", "idle");
+    crate::remote_update::relay(app, "update-status", &Value::from("idle"));
     match result {
         Err(_) if job.cancelled() => Ok(true),
         Err(e) => Err(e),
@@ -349,6 +355,7 @@ fn reporter(app: &AppHandle, observer: Option<Observer>) -> Observer {
     let app = app.clone();
     Arc::new(move |event, payload| {
         let _ = app.emit(event, payload.clone());
+        crate::remote_update::relay(&app, event, &payload);
         if let Some(observer) = &observer {
             observer(event, payload);
         }

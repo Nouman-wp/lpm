@@ -4,6 +4,7 @@
 
 use crate::secrets;
 use crate::sendto::{Destination, Report};
+use crate::telegramfmt;
 use crate::telegramlink::{Chat, Link};
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -52,41 +53,29 @@ fn off_worker<T: Send + 'static>(f: impl FnOnce() -> Result<T, String> + Send + 
         .map_err(|_| "background thread panicked".to_string())?
 }
 
-/// The text split into messages Telegram accepts, at line breaks where it can.
-fn messages(text: &str, max: usize) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut current = String::new();
-    for line in text.split_inclusive('\n') {
-        if current.chars().count() + line.chars().count() > max && !current.is_empty() {
-            out.push(std::mem::take(&mut current));
-        }
-        if line.chars().count() > max {
-            let chars: Vec<char> = line.chars().collect();
-            for piece in chars.chunks(max) {
-                out.push(piece.iter().collect());
-            }
-        } else {
-            current.push_str(line);
-        }
-    }
-    if !current.trim().is_empty() {
-        out.push(current);
-    }
-    out.into_iter()
-        .map(|m| m.trim_end().to_string())
-        .filter(|m| !m.is_empty())
-        .collect()
-}
-
-fn message_text(report: &Report) -> String {
-    let head = if report.mark.is_empty() {
+fn head(report: &Report) -> String {
+    if report.mark.is_empty() {
         report.title.clone()
     } else {
         format!("{} {}", report.mark, report.title)
+    }
+}
+
+/// Sends one message formatted, or as plain text when Telegram can't read the
+/// markup — an odd report is still worth delivering unformatted.
+fn send_message(token: &str, chat_id: i64, message: &telegramfmt::Message) -> Result<(), String> {
+    let body = |text: &str, html: bool| {
+        let mut body = json!({ "chat_id": chat_id, "text": text, "link_preview_options": { "is_disabled": true } });
+        if html {
+            body["parse_mode"] = json!("HTML");
+        }
+        body
     };
-    match report.body.as_deref().map(str::trim).filter(|b| !b.is_empty()) {
-        Some(body) => format!("{head}\n\n{body}"),
-        None => head,
+    match call(token, "sendMessage", body(&message.html, true)) {
+        Err(e) if e.contains("can't parse entities") => {
+            call(token, "sendMessage", body(&message.plain, false)).map(drop)
+        }
+        sent => sent.map(drop),
     }
 }
 
@@ -118,12 +107,8 @@ impl Destination for Telegram {
                 )
             }
         };
-        for text in messages(&message_text(report), MAX_MESSAGE_CHARS) {
-            call(
-                &token,
-                "sendMessage",
-                json!({ "chat_id": chat_id, "text": text, "link_preview_options": { "is_disabled": true } }),
-            )?;
+        for message in telegramfmt::messages(&head(report), report.body.as_deref(), MAX_MESSAGE_CHARS) {
+            send_message(&token, chat_id, &message)?;
         }
         Ok(())
     }
@@ -259,22 +244,13 @@ mod tests {
     }
 
     #[test]
-    fn splits_long_reports_at_line_breaks() {
-        assert_eq!(messages("one\ntwo\n", 100), vec!["one\ntwo"]);
-        assert_eq!(messages("aaaa\nbbbb\ncc", 10), vec!["aaaa\nbbbb", "cc"]);
-        assert_eq!(messages("abcdefghij", 4), vec!["abcd", "efgh", "ij"]);
-        assert!(messages("  \n", 10).is_empty());
-    }
-
-    #[test]
-    fn puts_the_title_over_the_report() {
-        let report = |body: Option<&str>| Report {
-            mark: "✅",
+    fn leads_with_the_mark() {
+        let report = |mark| Report {
+            mark,
             title: "\"Watch\" is done.".into(),
-            body: body.map(String::from),
+            body: None,
         };
-        assert_eq!(message_text(&report(Some("Two new models.\n"))), "✅ \"Watch\" is done.\n\nTwo new models.");
-        assert_eq!(message_text(&report(Some("  "))), "✅ \"Watch\" is done.");
-        assert_eq!(message_text(&report(None)), "✅ \"Watch\" is done.");
+        assert_eq!(head(&report("✅")), "✅ \"Watch\" is done.");
+        assert_eq!(head(&report("")), "\"Watch\" is done.");
     }
 }
