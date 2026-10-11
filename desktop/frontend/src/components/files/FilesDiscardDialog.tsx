@@ -6,9 +6,16 @@ interface FilesDiscardDialogProps {
   busy: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  zIndexClassName?: string;
 }
 
-export function FilesDiscardDialog({ target, busy, onCancel, onConfirm }: FilesDiscardDialogProps) {
+export function FilesDiscardDialog({
+  target,
+  busy,
+  onCancel,
+  onConfirm,
+  zIndexClassName,
+}: FilesDiscardDialogProps) {
   const count = target?.paths.length ?? 0;
   return (
     <ConfirmDialog
@@ -17,6 +24,7 @@ export function FilesDiscardDialog({ target, busy, onCancel, onConfirm }: FilesD
       variant="destructive"
       confirmLabel="Discard"
       disabled={busy}
+      zIndexClassName={zIndexClassName}
       body={
         <span>
           {target?.isDir ? (

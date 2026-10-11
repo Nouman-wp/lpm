@@ -116,4 +116,29 @@ describe("useContentZoom", () => {
     expect(latest.zoom).toBe(1.2);
     surface.remove();
   });
+
+  it("leaves a scroll's momentum scrolling when ⌘ goes down mid-coast", async () => {
+    mount();
+    const surface = document.createElement("div");
+    document.body.appendChild(surface);
+    act(() => latest.surfaceRef(surface));
+
+    const coast = (metaKey: boolean) => {
+      const wheel = new WheelEvent("wheel", { deltaY: 30, bubbles: true, cancelable: true });
+      Object.defineProperty(wheel, "metaKey", { value: metaKey });
+      surface.dispatchEvent(wheel);
+      return wheel;
+    };
+
+    let held: WheelEvent | null = null;
+    await act(async () => {
+      coast(false);
+      coast(false);
+      held = coast(true);
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    });
+    expect(latest.zoom).toBe(1);
+    expect(held!.defaultPrevented).toBe(false);
+    surface.remove();
+  });
 });

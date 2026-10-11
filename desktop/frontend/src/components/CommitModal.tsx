@@ -78,6 +78,7 @@ export function CommitModal({
   const [taskDescription, setTaskDescription] = useState("");
   const msgRef = useRef<HTMLTextAreaElement>(null);
   const contextRef = useRef<HTMLTextAreaElement>(null);
+  const filesListRef = useRef<HTMLDivElement>(null);
   const commitMenuRef = useOutsideClick<HTMLDivElement>(
     () => setCommitMenuOpen(false),
     commitMenuOpen,
@@ -540,7 +541,10 @@ export function CommitModal({
               )}
             </div>
 
-            <div className="max-h-[300px] min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+            <div
+              ref={filesListRef}
+              className="max-h-[300px] min-h-0 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]"
+            >
               {loading && (
                 <div className="py-5 text-center text-xs text-[var(--text-muted)]">
                   Loading...
@@ -553,6 +557,7 @@ export function CommitModal({
               )}
               {!loading && files.length > 0 && (
                 <ChangedFilesTree
+                  scrollRef={filesListRef}
                   files={files}
                   selected={selected}
                   collapsed={collapsed}
@@ -682,11 +687,13 @@ export function CommitModal({
       {createPortal(
         <SideBySideDiffModal
           open={reviewOpen}
-          onClose={() => setReviewOpen(false)}
+          onClose={() => {
+            setReviewOpen(false);
+            void reloadFiles();
+          }}
+          projectName={projectName}
           projectPath={projectPath}
-          files={files}
           selected={selected}
-          onToggleFile={toggleFile}
           onSetSelection={setSelection}
         />,
         document.body,

@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { useStore } from "zustand";
+import { CheckboxBox, type CheckState } from "../ChangedFilesTree";
 import { UndoIcon } from "../icons";
 import { BASE_LEFT_PX, DirtyDot, INDENT_PX, TreeChevron } from "../treeRow";
 import { FileTypeIcon } from "./FileTypeIcon";
@@ -33,6 +34,9 @@ interface FilesRowProps {
   onContextMenu: (target: RowTarget) => void;
   // Given only for rows that hold uncommitted changes.
   onDiscard?: (item: Item) => void;
+  // Whether the row goes into a commit, where the rail picks what to commit.
+  check?: CheckState;
+  onCheck?: (item: Item, select: boolean) => void;
 }
 
 export const FilesRow = memo(function FilesRow({
@@ -49,6 +53,8 @@ export const FilesRow = memo(function FilesRow({
   onActivate,
   onContextMenu,
   onDiscard,
+  check,
+  onCheck,
 }: FilesRowProps) {
   const selected = useStore(cursorStore, (s) => s.selectedPath === item.path);
   // The keyboard cursor sits here and the list has focus.
@@ -78,8 +84,28 @@ export const FilesRow = memo(function FilesRow({
       style={{ height: FILES_ROW_PX, paddingLeft: `${depth * INDENT_PX + BASE_LEFT_PX}px` }}
       className={`group flex cursor-pointer select-none items-center gap-1.5 pr-2.5 transition-colors ${
         selected ? "bg-[var(--bg-active)]" : "hover:bg-[var(--bg-hover)]"
-      } ${cursor ? "ring-1 ring-inset ring-[var(--accent-cyan)]/50" : ""}`}
+      } ${cursor ? "ring-1 ring-inset ring-[var(--accent-cyan)]/50" : ""} ${
+        check === "none" ? "opacity-50" : ""
+      }`}
     >
+      {check && onCheck && (
+        <label
+          className="flex shrink-0 cursor-pointer items-center"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <CheckboxBox state={check} />
+          <input
+            type="checkbox"
+            checked={check === "all"}
+            ref={(el) => {
+              if (el) el.indeterminate = check === "some";
+            }}
+            onChange={() => onCheck(item, check !== "all")}
+            aria-label={`Include ${name} in the commit`}
+            className="sr-only"
+          />
+        </label>
+      )}
       {!item.isDir ? (
         <FileTypeIcon name={name} />
       ) : (

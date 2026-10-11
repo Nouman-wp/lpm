@@ -15,12 +15,17 @@ interface FilesAllChangesProps {
   // The file at the top of the viewport as the stack is scrolled, so the rail
   // can follow along.
   onActiveFileChange: (path: string) => void;
+  // Namespaces the stack's Monaco models, so two stacks mounted at once (the
+  // changes tab and the commit review) never share or dispose each other's.
+  authority?: string;
+  // What the commit review picked: the files left out dim.
+  selected?: Set<string>;
+  onDirtyPathsChange?: (paths: Set<string>) => void;
 }
 
-// Every uncommitted file as one scrolling stack of diffs. Its own Monaco
-// authority keeps its models apart from the commit modal's pool, which holds
-// the same paths under the same mode. Memoized so the pane re-rendering for
-// its rail (the scroll spy moves the selection) leaves the stack alone.
+// Every uncommitted file as one scrolling stack of diffs. Memoized so the pane
+// re-rendering for its rail (the scroll spy moves the selection) leaves the
+// stack alone.
 export const FilesAllChanges = memo(function FilesAllChanges({
   projectRoot,
   files,
@@ -28,6 +33,9 @@ export const FilesAllChanges = memo(function FilesAllChanges({
   sideBySide,
   active,
   onActiveFileChange,
+  authority = "files",
+  selected,
+  onDirtyPathsChange,
 }: FilesAllChangesProps) {
   const baseFontSize = useSettingsStore((s) => s.editorFontSize) || DEFAULT_MONACO_FONT_SIZE;
   // Tree order — folders first, alphabetical — so the stack reads in the order
@@ -49,8 +57,10 @@ export const FilesAllChanges = memo(function FilesAllChanges({
       fontSize={baseFontSize * zoom}
       sideBySide={sideBySide}
       active={active}
-      authority="files"
+      authority={authority}
+      selected={selected}
       onActiveFileChange={onActiveFileChange}
+      onDirtyPathsChange={onDirtyPathsChange}
     />
   );
 });

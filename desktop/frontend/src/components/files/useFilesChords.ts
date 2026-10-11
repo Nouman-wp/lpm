@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import { useEventListener } from "../../hooks/useEventListener";
 import { isAltGraphChar } from "../../keyEvents";
 import { matchesChord, type Chord } from "../../keys";
@@ -69,12 +70,19 @@ export function filesChord(e: KeyboardEvent, mac: boolean = isMac): FilesChord |
 // Chords for the Files tab in the focused pane, matched in the capture phase so
 // Monaco's own bindings on the same keys (find-widget toggles, add cursor) never
 // see them. Monaco keeps ⌘S (Ctrl+S off macOS) while it has focus: it saves
-// through its own command, and letting both fire would write twice.
-export function useFilesChords(enabled: boolean, handlers: Record<FilesChord, () => void>) {
+// through its own command, and letting both fire would write twice. A dialog
+// on top takes the keys, unless the pane is that dialog's own content.
+export function useFilesChords(
+  enabled: boolean,
+  handlers: Record<FilesChord, () => void>,
+  rootRef: RefObject<HTMLElement | null>,
+) {
   useEventListener(
     "keydown",
     (e) => {
-      if (document.querySelector("[data-modal-overlay]")) return;
+      const overlays = document.querySelectorAll("[data-modal-overlay]");
+      const top = overlays[overlays.length - 1];
+      if (top && !top.contains(rootRef.current)) return;
       const chord = filesChord(e);
       if (!chord) return;
       if (chord === "save" && !e.shiftKey && insideMonaco(e.target)) return;

@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -32,6 +33,7 @@ import {
 } from "./reviewSource";
 import { DiffPoolRow, type ConflictResolution } from "./DiffPoolRow";
 import { createDiffRowsStore, DEFAULT_SLOT_HEIGHT, type DiffRowState } from "./diffPoolRows";
+import { syncModelText } from "./modelText";
 import { StackLayout } from "./stackLayout";
 
 type Monaco = typeof monacoNs;
@@ -50,6 +52,9 @@ type Entry = {
   original: string;
   cleanVersionId: number;
   viewState: monacoNs.editor.IDiffEditorViewState | null;
+  // The file may have changed on disk while no editor showed it: checked
+  // against disk again when an editor next attaches.
+  stale: boolean;
 };
 
 // A reusable editor instance. We keep a small fixed pool of these and move each
@@ -152,6 +157,9 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     // DOM, so no scroll frame forces a layout.
     const layoutRef = useRef(new StackLayout(DEFAULT_SLOT_HEIGHT + ROW_CHROME_PX));
     const layoutFilesRef = useRef<ChangedFile[] | null>(null);
+    // The row the viewport top sat in when the file list last changed, and how
+    // far into it, so rows arriving or leaving above don't shove the reading.
+    const rowsAnchorRef = useRef<{ paths: string[]; index: number; offset: number } | null>(null);
     const layoutDirtyRef = useRef(true);
     const scrollTopRef = useRef(0);
     const frameRafRef = useRef<number | null>(null);
@@ -196,6 +204,11 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     const resolveRef = useRef<(path: string, kind: ConflictResolution) => void>(
       () => {},
     );
+    const reconcileRef = useRef<(changedFiles?: string[] | null) => void>(() => {});
+    const pendingReconcileRef = useRef<Set<string>>(new Set());
+    // Set while the stack sits in a display:none tab, where every size and the
+    // scroll position read 0.
+    const hiddenRef = useRef(false);
     activeRef.current = active;
     fontSizeRef.current = fontSize;
     sideBySideRef.current = sideBySide;
@@ -206,6 +219,16 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     );
     statusRef.current = statusMap;
     if (layoutFilesRef.current !== files) {
+      const prev = layoutFilesRef.current;
+      const index = prev?.length ? layoutRef.current.indexAt(scrollTopRef.current) : -1;
+      rowsAnchorRef.current =
+        prev && index >= 0
+          ? {
+              paths: prev.map((f) => f.path),
+              index,
+              offset: scrollTopRef.current - layoutRef.current.top(index),
+            }
+          : null;
       layoutFilesRef.current = files;
       layoutRef.current.setRows(files.map((f) => f.path));
       layoutDirtyRef.current = true;
@@ -264,9 +287,10 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
           original,
           cleanVersionId: models ? models.modified.getAlternativeVersionId() : 0,
           viewState: null,
+          stale: false,
         };
         entriesRef.current.set(path, entry);
-        if (noEditor) patchRow(path, { binary, tooLarge });
+        patchRow(path, { binary, tooLarge });
         return entry;
       },
       [mode, authority, isEditable, patchRow],
@@ -421,6 +445,19 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       slot.token++;
     }, [markRevealed]);
 
+    // Stale files attached in one pass are checked against disk in one fetch.
+    const queueReconcile = useCallback((path: string) => {
+      const pending = pendingReconcileRef.current;
+      if (pending.size === 0) {
+        window.setTimeout(() => {
+          const paths = [...pending];
+          pending.clear();
+          reconcileRef.current(paths);
+        }, 0);
+      }
+      pending.add(path);
+    }, []);
+
     // Bind a pool editor to a file: swap in its models, move the host into the
     // file's body, wire dirty/height/save, and restore its view state.
     const attachSlot = useCallback(
@@ -547,8 +584,12 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
             setDirty(path, e.models.modified.getAlternativeVersionId() !== e.cleanVersionId);
           }),
         );
+        if (entry.stale) {
+          entry.stale = false;
+          queueReconcile(path);
+        }
       },
-      [parkSlot, ensureEntry, scheduleLayout, patchRow, setDirty],
+      [parkSlot, ensureEntry, scheduleLayout, patchRow, setDirty, queueReconcile],
     );
 
     // Build one pool editor on demand and register it, up to POOL_SIZE. Editors
@@ -729,7 +770,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         }
         if (kind === "theirs") {
           suppressRef.current = true;
-          entry.models.modified.setValue(theirs);
+          syncModelText(entry.models.modified, theirs);
           suppressRef.current = false;
           entry.diskBaseline = theirs;
           entry.cleanVersionId = entry.models.modified.getAlternativeVersionId();
@@ -751,23 +792,39 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       [],
     );
 
-    // Follow disk for clean buffers and raise a conflict for dirty ones, but only
-    // for the files currently backed by an editor (the visible window).
+    // Follow disk for clean buffers and raise a conflict for dirty ones. Only the
+    // files backed by an editor (the visible window) are fetched now; the rest
+    // are settled when an editor next attaches to them.
     const reconcile = useCallback(async (changedFiles?: string[] | null) => {
       if (!activeRef.current) return;
       const changedSet = Array.isArray(changedFiles)
         ? new Set(changedFiles.map((p) => p.toLowerCase()))
         : null;
-      const paths = slotsRef.current
-        .map((s) => s.path)
-        .filter((p): p is string => !!p)
+      const touched = (p: string) => !changedSet || changedSet.has(p.toLowerCase());
+      const attached = new Set(
+        slotsRef.current.map((s) => s.path).filter((p): p is string => !!p),
+      );
+      // Off screen, a file is flagged so its next attach checks it against disk
+      // after showing what it has, which leaves an unchanged file without a
+      // flash; one without an editor (binary, too large) is simply refetched.
+      for (const [path, entry] of [...entriesRef.current]) {
+        if (attached.has(path) || savingRef.current.has(path) || !touched(path)) continue;
+        if (entry.models) {
+          entry.stale = true;
+          continue;
+        }
+        entriesRef.current.delete(path);
+      }
+      const paths = [...attached]
         .filter((p) => !savingRef.current.has(p))
-        .filter((p) => !changedSet || changedSet.has(p.toLowerCase()))
+        .filter(touched)
         .filter((p) => {
           const e = entriesRef.current.get(p);
           return !!e?.models && !e.binary;
         });
       if (paths.length === 0) return;
+      // An entry rebuilt while the fetch was out holds newer text than it.
+      const fetchedFor = new Map(paths.map((p) => [p, entriesRef.current.get(p)]));
       let map: Record<string, FileDiffResult>;
       try {
         map = await REVIEW_SOURCES[mode].fetchDiffs(
@@ -783,7 +840,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         if (!diff) continue;
         if (savingRef.current.has(path)) continue;
         const entry = entriesRef.current.get(path);
-        if (!entry?.models || entry.binary) continue;
+        if (!entry?.models || entry.binary || entry !== fetchedFor.get(path)) continue;
         if (diff.binary || diff.tooLarge) continue;
         const disk = diff.modified ?? "";
         const original = diff.original ?? "";
@@ -797,7 +854,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         if (original !== entry.original) {
           entry.original = original;
           suppressRef.current = true;
-          entry.models.original.setValue(original);
+          syncModelText(entry.models.original, original);
           suppressRef.current = false;
         }
         if (disk === entry.diskBaseline) continue;
@@ -808,12 +865,13 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
           continue;
         }
         suppressRef.current = true;
-        entry.models.modified.setValue(disk);
+        syncModelText(entry.models.modified, disk);
         suppressRef.current = false;
         entry.diskBaseline = disk;
         entry.cleanVersionId = entry.models.modified.getAlternativeVersionId();
       }
     }, [projectRoot, mode, baseBranch, isEditable, patchRow]);
+    reconcileRef.current = reconcile;
 
     useGitChanged(projectRoot, reconcile);
     useEffect(() => {
@@ -891,9 +949,14 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     useEffect(() => {
       if (!onDirtyPathsChange) return;
       onDirtyPathsChange(rowStore.getState().dirtyPaths);
-      return rowStore.subscribe((s, prev) => {
+      const unsubscribe = rowStore.subscribe((s, prev) => {
         if (s.dirtyPaths !== prev.dirtyPaths) onDirtyPathsChange(s.dirtyPaths);
       });
+      // Unmounted, the stack takes its edits with it.
+      return () => {
+        unsubscribe();
+        onDirtyPathsChange(new Set());
+      };
     }, [rowStore, onDirtyPathsChange]);
 
     // Runs once per animation frame at most: reads the scroll position (the one
@@ -902,7 +965,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     const runFrame = useCallback(() => {
       frameRafRef.current = null;
       const c = scrollRef.current;
-      if (!c) return;
+      if (!c || c.clientHeight === 0) return;
       const y = c.scrollTop;
       if (sampleVelocityRef.current) {
         sampleVelocityRef.current = false;
@@ -940,6 +1003,9 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       const observer = new ResizeObserver((entries) => {
         const layout = layoutRef.current;
         const c = scrollRef.current;
+        // A display:none tab measures every row 0 tall; taken as real, showing
+        // the tab again would grow them all back and shove the viewport.
+        if (!c || c.clientHeight === 0) return;
         const anchor = layout.indexAt(scrollTopRef.current);
         let shift = 0;
         let changed = false;
@@ -956,7 +1022,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         }
         if (!changed) return;
         layoutDirtyRef.current = true;
-        if (shift && c && !suppressAnchorRef.current) {
+        if (shift && !suppressAnchorRef.current) {
           compensatingRef.current = true;
           c.scrollTop += shift;
           scrollTopRef.current += shift;
@@ -1000,6 +1066,32 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       scheduleFrame();
     }, [files, parkSlot, rowStore, scheduleFrame]);
 
+    // Before paint, put the viewport back on the row it was reading, or on the
+    // next one still listed when that row left with the change.
+    useLayoutEffect(() => {
+      const anchor = rowsAnchorRef.current;
+      rowsAnchorRef.current = null;
+      const c = scrollRef.current;
+      if (!anchor || !c) return;
+      const layout = layoutRef.current;
+      for (let i = anchor.index; i < anchor.paths.length; i++) {
+        const at = layout.indexOf(anchor.paths[i]);
+        if (at < 0) continue;
+        const target = layout.top(at) + (i === anchor.index ? anchor.offset : 0);
+        if (Math.abs(target - scrollTopRef.current) < 1) return;
+        scrollTopRef.current = target;
+        scrollSampleRef.current.y = target;
+        if (c.clientHeight > 0) {
+          const before = c.scrollTop;
+          compensatingRef.current = true;
+          c.scrollTop = target;
+          // A clamped move fires no scroll event to clear the flag.
+          if (c.scrollTop === before) compensatingRef.current = false;
+        }
+        return;
+      }
+    }, [files]);
+
     // Relayout attached editors when the container width changes (split drag etc.).
     useEffect(() => {
       const root = scrollRef.current;
@@ -1008,10 +1100,28 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       scheduleFrame();
       const ro = new ResizeObserver((entries) => {
         const rect = entries[0]?.contentRect;
-        if (rect) viewportRef.current = { width: rect.width, height: rect.height };
-        slotsRef.current.forEach((s) => {
-          if (s.path) scheduleLayout(s);
-        });
+        if (!rect) return;
+        // Hidden in a background tab: keep the last real size and leave the
+        // editors be, so showing the tab again costs nothing.
+        if (rect.height === 0) {
+          hiddenRef.current = true;
+          return;
+        }
+        const widthChanged = rect.width !== viewportRef.current.width;
+        viewportRef.current = { width: rect.width, height: rect.height };
+        if (hiddenRef.current) {
+          hiddenRef.current = false;
+          // Not every engine keeps a display:none box's scroll position.
+          if (Math.abs(root.scrollTop - scrollTopRef.current) > 1) {
+            compensatingRef.current = true;
+            root.scrollTop = scrollTopRef.current;
+          }
+        }
+        if (widthChanged) {
+          slotsRef.current.forEach((s) => {
+            if (s.path) scheduleLayout(s);
+          });
+        }
         scheduleFrame();
       });
       ro.observe(root);

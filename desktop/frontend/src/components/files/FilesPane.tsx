@@ -29,6 +29,7 @@ import {
   type Item,
 } from "./treeModel";
 import { useChangesView } from "./useChangesView";
+import { useCommitReview, type CommitReview } from "./useCommitReview";
 import { useDirListings } from "./useDirListings";
 import { useFileBuffer } from "./useFileBuffer";
 import { useFileIndex } from "./useFileIndex";
@@ -51,6 +52,8 @@ interface FilesPaneProps {
   active: boolean;
   // The pane owns keyboard focus: the tab's chords fire only then.
   focused: boolean;
+  // Set when the pane is the commit dialog's review instead of a tab.
+  review?: CommitReview;
 }
 
 // The Files tab (`kind: "files"`, like the review and toolkit tabs): the
@@ -63,6 +66,7 @@ export function FilesPane({
   projectName,
   active,
   focused,
+  review,
 }: FilesPaneProps) {
   const treeSide = useSettingsStore((s) => s.filesTreeSide ?? "right");
   const updateSettings = useSettingsStore((s) => s.update);
@@ -77,9 +81,10 @@ export function FilesPane({
   // instead of the project index.
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const selectedPath = buffer.file?.path ?? null;
-  const git = useChangesView(projectRoot, selectedPath, active);
+  const git = useChangesView(projectRoot, selectedPath, active, !!review);
   const { changesOnly, decorations, showAllChanges } = git;
   const fileView = useFileView(selectedPath, git.diff, active && focused);
+  const commit = useCommitReview(git.files, buffer.dirtyPaths, review);
   const { treeOpen, showTree, filterFocusRequest } = useFilesPaneRequests(tabId, paneId, git);
   const { setWanted: setDiffWanted } = git.diff;
   // The stack of diffs zooms on its own; the shortcuts are taken only while it
@@ -272,7 +277,7 @@ export function FilesPane({
       const path = chordPath();
       if (path) void copyText(path);
     },
-  });
+  }, rootRef);
 
   const rail = treeOpen && (
     <div
@@ -288,11 +293,11 @@ export function FilesPane({
         decorations={decorations}
         ignoredPaths={ignoredPaths}
         changesOnly={changesOnly}
-        onChangesOnlyChange={git.showChangesOnly}
+        onChangesOnlyChange={review ? undefined : git.showChangesOnly}
         allChanges={git.allChanges}
         onAllChangesChange={showAllChanges}
         selectedPath={git.allChanges ? stackPath : selectedPath}
-        dirtyPaths={buffer.dirtyPaths}
+        dirtyPaths={commit.dirtyPaths}
         query={query}
         onQueryChange={setQuery}
         results={results}
@@ -302,6 +307,8 @@ export function FilesPane({
         onToggleDir={toggleDir}
         onRowMenu={setMenu}
         onDiscard={git.discard.request}
+        checks={commit.checks}
+        onCheck={commit.onCheck}
         onCursorChange={onCursorChange}
       />
       <div
@@ -341,6 +348,7 @@ export function FilesPane({
         onRevealDir={revealDir}
         onToggleTree={() => showTree(!treeOpen)}
         onTreeSide={(side) => void updateSettings({ filesTreeSide: side })}
+        onClose={review?.onClose}
       />
       {buffer.conflict && (
         <DiffConflictBanner
@@ -353,16 +361,22 @@ export function FilesPane({
       <div className="flex min-h-0 flex-1">
         {treeSide === "left" && rail}
         <div ref={zoom.surfaceRef} className="relative min-w-0 flex-1">
-          {git.allChanges ? (
-            <FilesAllChanges
-              projectRoot={projectRoot}
-              files={git.files}
-              zoom={zoom.zoom}
-              sideBySide={git.sideBySide}
-              active={active}
-              onActiveFileChange={setStackPath}
-            />
-          ) : (
+          {git.stackMounted && (
+            <div className={git.allChanges ? "h-full" : "hidden"}>
+              <FilesAllChanges
+                projectRoot={projectRoot}
+                files={git.files}
+                zoom={zoom.zoom}
+                sideBySide={git.sideBySide}
+                active={active && git.allChanges}
+                onActiveFileChange={setStackPath}
+                authority={review ? "commit" : "files"}
+                selected={review?.selected}
+                onDirtyPathsChange={commit.onStackDirty}
+              />
+            </div>
+          )}
+          {!git.allChanges && (
             <FilesEditor
               file={buffer.file}
               value={buffer.value}
@@ -394,6 +408,7 @@ export function FilesPane({
         busy={git.discard.busy}
         onCancel={git.discard.cancel}
         onConfirm={() => void git.discard.confirm()}
+        zIndexClassName={review?.dialogZIndexClassName}
       />
     </div>
   );

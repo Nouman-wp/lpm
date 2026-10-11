@@ -45,7 +45,11 @@ export function useVirtualList(
       typeof ResizeObserver === "undefined"
         ? null
         : new ResizeObserver((entries) => {
-            stateRef.current.height = entries[0]?.contentRect.height ?? 0;
+            const height = entries[0]?.contentRect.height ?? 0;
+            // A list in a display:none tab reads 0 tall; taken as unmeasured,
+            // every row would mount behind the tab and unmount on its return.
+            if (height === 0 && stateRef.current.height > 0) return;
+            stateRef.current.height = height;
             schedule();
           });
     observer?.observe(el);

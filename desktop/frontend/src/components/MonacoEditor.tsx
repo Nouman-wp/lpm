@@ -12,6 +12,7 @@ import {
 } from "../monaco-theme";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { altKeyLabel, shiftKeyLabel } from "../keys";
+import { createWheelZoomGate } from "../wheelZoom";
 
 type Monaco = typeof monacoNs;
 
@@ -178,8 +179,9 @@ export function MonacoEditor({
     );
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Digit0, zoomReset);
 
+    const isZoomWheel = createWheelZoomGate();
     const wheelHandler = (e: WheelEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
+      if (!isZoomWheel(e)) return;
       e.preventDefault();
       if (e.deltaY < 0) zoomIn();
       else if (e.deltaY > 0) zoomOut();

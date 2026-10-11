@@ -9,6 +9,7 @@ import {
   observeMonacoTheme,
 } from "../../monaco-theme";
 import { useSettingsStore } from "../../store/settings";
+import { syncModelText } from "../review/modelText";
 import { makeDiffModels, type DiffModels } from "../review/reviewSource";
 
 interface FilesDiffEditorProps {
@@ -127,16 +128,15 @@ export function FilesDiffEditor({
     const model = modelsRef.current?.modified;
     if (!model) return;
     lastEmittedRef.current = value;
-    if (model.getValue() === value) return;
     suppressRef.current = true;
-    model.setValue(value);
+    syncModelText(model, value);
     suppressRef.current = false;
   }, [value, ready]);
 
   useEffect(() => {
     if (!ready) return;
     const model = modelsRef.current?.original;
-    if (model && model.getValue() !== original) model.setValue(original);
+    if (model) syncModelText(model, original);
   }, [original, ready]);
 
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createWheelZoomGate } from "../wheelZoom";
 import { useEventListener } from "./useEventListener";
 
 export const ZOOM_MIN = 0.6;
@@ -42,6 +43,7 @@ export function useContentZoom(enabled: boolean, storageKey?: string): ContentZo
   const [zoom, setZoom] = useState(() => loadZoom(storageKey));
   const [surface, setSurface] = useState<HTMLElement | null>(null);
   const wheel = useRef({ delta: 0, scheduled: false });
+  const [isZoomWheel] = useState(createWheelZoomGate);
 
   const apply = useCallback((next: (z: number) => number) => {
     setZoom((z) => clamp(next(z)));
@@ -87,7 +89,7 @@ export function useContentZoom(enabled: boolean, storageKey?: string): ContentZo
   useEffect(() => {
     if (!enabled || !surface) return;
     const onWheel = (e: WheelEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
+      if (!isZoomWheel(e)) return;
       e.preventDefault();
       wheel.current.delta += e.deltaY;
       if (wheel.current.scheduled) return;
@@ -100,7 +102,7 @@ export function useContentZoom(enabled: boolean, storageKey?: string): ContentZo
     };
     surface.addEventListener("wheel", onWheel, { passive: false });
     return () => surface.removeEventListener("wheel", onWheel);
-  }, [enabled, surface, apply]);
+  }, [enabled, surface, apply, isZoomWheel]);
 
   return {
     zoom,

@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef, type ReactNode, type RefObject } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { main } from "../../bridge/models";
 import { UndoIcon } from "./icons";
 import { BASE_LEFT_PX, INDENT_PX, TreeChevron } from "./treeRow";
 import { DiffViewer } from "./DiffViewer";
+import { selectedCounts, visibleRows, type TreeRowEntry } from "./changedTreeRows";
 
 type ChangedFile = main.ChangedFile;
 
@@ -74,7 +76,14 @@ export function buildTree(files: ChangedFile[]): TreeNode[] {
     });
   }
 
-  return root.children.map(collapseAndSort);
+  return sortNodes(root.children.map(collapseAndSort));
+}
+
+function sortNodes(nodes: TreeNode[]): TreeNode[] {
+  return [...nodes].sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === "folder" ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 // Files in the exact order an already-built tree renders them (folders first,
@@ -113,10 +122,7 @@ function collapseAndSort(node: TreeNode): TreeNode {
     };
   }
 
-  const sorted = [...processed].sort((a, b) => {
-    if (a.kind !== b.kind) return a.kind === "folder" ? -1 : 1;
-    return a.name.localeCompare(b.name);
-  });
+  const sorted = sortNodes(processed);
 
   const fileCount = sorted.reduce(
     (acc, c) => acc + (c.kind === "file" ? 1 : c.fileCount),
@@ -142,16 +148,6 @@ export type CheckState = "none" | "some" | "all";
 export function checkState(selectedCount: number, total: number): CheckState {
   if (selectedCount === 0) return "none";
   return selectedCount === total ? "all" : "some";
-}
-
-export function folderState(
-  node: FolderNode,
-  selected: Set<string>,
-): CheckState {
-  const paths = fileDescendants(node);
-  let count = 0;
-  for (const p of paths) if (selected.has(p)) count++;
-  return checkState(count, paths.length);
 }
 
 export function CheckboxBox({
@@ -230,7 +226,13 @@ export function TriStateCheckbox({
   );
 }
 
+// Collapsed rows are about this tall; the virtualizer measures the real ones,
+// an open inline diff included.
+const ROW_ESTIMATE_PX = 26;
+
 interface ChangedFilesTreeProps {
+  // The scrolling box the tree sits in; only the rows in its view mount.
+  scrollRef: RefObject<HTMLDivElement | null>;
   files: ChangedFile[];
   selected: Set<string>;
   collapsed: Set<string>;
@@ -246,78 +248,120 @@ interface ChangedFilesTreeProps {
   onDiscardFolder: (info: { name: string; paths: string[] }) => void;
 }
 
-export function ChangedFilesTree(props: ChangedFilesTreeProps) {
-  const tree = useMemo(() => buildTree(props.files), [props.files]);
+interface RowHandlers {
+  toggleFile: (path: string) => void;
+  setSelection: (paths: string[], select: boolean) => void;
+  toggleCollapse: (path: string) => void;
+  clickFile: (path: string) => void;
+  discardFile: (path: string) => void;
+  discardFolder: (info: { name: string; paths: string[] }) => void;
+}
 
-  const renderNode = (node: TreeNode, depth: number) => {
+export function ChangedFilesTree(props: ChangedFilesTreeProps) {
+  const { files, selected, collapsed, expandedFile, diffContent, diffLoading, busy } = props;
+  const tree = useMemo(() => buildTree(files), [files]);
+  const counts = useMemo(() => selectedCounts(tree, selected), [tree, selected]);
+  // The rows are memoized and reach the caller's latest handlers through this
+  // ref, so a parent render with fresh closures (a keystroke in the message)
+  // leaves them alone.
+  const latest = useRef(props);
+  latest.current = props;
+  const handlers = useMemo<RowHandlers>(
+    () => ({
+      toggleFile: (path) => latest.current.onToggleFile(path),
+      setSelection: (paths, select) => latest.current.onSetSelection(paths, select),
+      toggleCollapse: (path) => latest.current.onToggleCollapse(path),
+      clickFile: (path) => latest.current.onClickFile(path),
+      discardFile: (path) => latest.current.onDiscardFile(path),
+      discardFolder: (info) => latest.current.onDiscardFolder(info),
+    }),
+    [],
+  );
+
+  const rows = useMemo(() => visibleRows(tree, collapsed), [tree, collapsed]);
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => props.scrollRef.current,
+    estimateSize: () => ROW_ESTIMATE_PX,
+    getItemKey: (index) => rows[index].node.path,
+    overscan: 10,
+  });
+
+  const renderRow = ({ node, depth }: TreeRowEntry): ReactNode => {
     if (node.kind === "file") {
+      const expanded = expandedFile === node.path;
       return (
         <FileRow
-          key={node.path}
           node={node}
           depth={depth}
-          selected={props.selected}
-          expandedFile={props.expandedFile}
-          diffContent={props.diffContent}
-          diffLoading={props.diffLoading}
-          busy={props.busy}
-          onToggleFile={props.onToggleFile}
-          onClickFile={props.onClickFile}
-          onDiscardFile={props.onDiscardFile}
+          checked={selected.has(node.path)}
+          expanded={expanded}
+          diffContent={expanded ? diffContent : ""}
+          diffLoading={expanded && diffLoading}
+          busy={busy}
+          handlers={handlers}
         />
       );
     }
-    const isOpen = !props.collapsed.has(node.path);
     return (
-      <div key={node.path}>
-        <FolderRow
-          node={node}
-          depth={depth}
-          isOpen={isOpen}
-          selected={props.selected}
-          busy={props.busy}
-          onSetSelection={props.onSetSelection}
-          onToggleCollapse={props.onToggleCollapse}
-          onDiscardFolder={props.onDiscardFolder}
-        />
-        {isOpen && node.children.map((c) => renderNode(c, depth + 1))}
-      </div>
+      <FolderRow
+        node={node}
+        depth={depth}
+        isOpen={!collapsed.has(node.path)}
+        state={checkState(counts.get(node.path) ?? 0, node.fileCount)}
+        busy={busy}
+        handlers={handlers}
+      />
     );
   };
 
-  return <>{tree.map((n) => renderNode(n, 0))}</>;
+  return (
+    <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+      {virtualizer.getVirtualItems().map((item) => (
+        <div
+          key={item.key}
+          data-index={item.index}
+          ref={virtualizer.measureElement}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            transform: `translateY(${item.start}px)`,
+          }}
+        >
+          {renderRow(rows[item.index])}
+        </div>
+      ))}
+    </div>
+  );
 }
 
-function FolderRow({
+const FolderRow = memo(function FolderRow({
   node,
   depth,
   isOpen,
-  selected,
+  state,
   busy,
-  onSetSelection,
-  onToggleCollapse,
-  onDiscardFolder,
+  handlers,
 }: {
   node: FolderNode;
   depth: number;
   isOpen: boolean;
-  selected: Set<string>;
+  state: CheckState;
   busy: boolean;
-  onSetSelection: (paths: string[], select: boolean) => void;
-  onToggleCollapse: (path: string) => void;
-  onDiscardFolder: (info: { name: string; paths: string[] }) => void;
+  handlers: RowHandlers;
 }) {
-  const state = folderState(node, selected);
   return (
     <div
-      onClick={() => onToggleCollapse(node.path)}
+      onClick={() => handlers.toggleCollapse(node.path)}
       style={{ paddingLeft: `${depth * INDENT_PX + BASE_LEFT_PX}px` }}
       className="group flex cursor-pointer items-center gap-2 py-[5px] pr-2.5 transition-colors hover:bg-[var(--bg-hover)]"
     >
       <TreeChevron open={isOpen} />
       <TriStateCheckbox
         state={state}
-        onToggle={() => onSetSelection(fileDescendants(node), state !== "all")}
+        onToggle={() => handlers.setSelection(fileDescendants(node), state !== "all")}
         disabled={busy}
         stopPropagation
       />
@@ -327,7 +371,7 @@ function FolderRow({
       <button
         onClick={(e) => {
           e.stopPropagation();
-          onDiscardFolder({ name: node.name, paths: fileDescendants(node) });
+          handlers.discardFolder({ name: node.name, paths: fileDescendants(node) });
         }}
         disabled={busy}
         title="Discard all changes in this folder"
@@ -340,35 +384,29 @@ function FolderRow({
       </span>
     </div>
   );
-}
+});
 
-function FileRow({
+const FileRow = memo(function FileRow({
   node,
   depth,
-  selected,
-  expandedFile,
+  checked,
+  expanded,
   diffContent,
   diffLoading,
   busy,
-  onToggleFile,
-  onClickFile,
-  onDiscardFile,
+  handlers,
 }: {
   node: FileNode;
   depth: number;
-  selected: Set<string>;
-  expandedFile: string | null;
+  checked: boolean;
+  expanded: boolean;
   diffContent: string;
   diffLoading: boolean;
   busy: boolean;
-  onToggleFile: (path: string) => void;
-  onClickFile: (path: string) => void;
-  onDiscardFile: (path: string) => void;
+  handlers: RowHandlers;
 }) {
-  const checked = selected.has(node.path);
   const { label: statusLabel, color: statusClr } =
     STATUS_DISPLAY[node.file.status] ?? DEFAULT_STATUS;
-  const isExpanded = expandedFile === node.path;
   return (
     <div>
       <div
@@ -380,7 +418,7 @@ function FileRow({
         <span className="w-3 shrink-0" />
         <TriStateCheckbox
           state={checked ? "all" : "none"}
-          onToggle={() => onToggleFile(node.path)}
+          onToggle={() => handlers.toggleFile(node.path)}
           disabled={busy}
         />
         <span
@@ -390,13 +428,13 @@ function FileRow({
           {statusLabel}
         </span>
         <span
-          onClick={() => onClickFile(node.path)}
+          onClick={() => handlers.clickFile(node.path)}
           className="min-w-0 flex-1 cursor-pointer truncate text-xs text-[var(--text-primary)]"
         >
           {node.name}
         </span>
         <button
-          onClick={() => onDiscardFile(node.path)}
+          onClick={() => handlers.discardFile(node.path)}
           disabled={busy}
           title="Discard changes to this file"
           className="shrink-0 rounded p-0.5 text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--accent-red-text)] group-hover:opacity-100 focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-0"
@@ -405,13 +443,13 @@ function FileRow({
         </button>
         <span
           className={`shrink-0 text-[11px] text-[var(--text-muted)] transition-transform duration-150 ${
-            isExpanded ? "rotate-90" : ""
+            expanded ? "rotate-90" : ""
           }`}
         >
           &#9654;
         </span>
       </div>
-      {isExpanded && (
+      {expanded && (
         <DiffViewer
           diff={diffContent}
           loading={diffLoading}
@@ -420,4 +458,4 @@ function FileRow({
       )}
     </div>
   );
-}
+});

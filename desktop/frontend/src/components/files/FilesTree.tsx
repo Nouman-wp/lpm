@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import type { CheckState } from "../ChangedFilesTree";
 import { SearchIcon, XIcon } from "../icons";
 import { FilesAllChangesRow } from "./FilesAllChangesRow";
 import { FILES_ROW_PX, type RowTarget } from "./FilesRow";
@@ -33,7 +34,8 @@ interface FilesTreeProps {
   // Every listed path git ignores; its rows grey out.
   ignoredPaths: ReadonlySet<string>;
   changesOnly: boolean;
-  onChangesOnlyChange: (on: boolean) => void;
+  // Without it the rail stays on the changes and has no view switch.
+  onChangesOnlyChange?: (on: boolean) => void;
   // The whole working tree as one diff stack, in place of a single file.
   allChanges: boolean;
   onAllChangesChange: (on: boolean) => void;
@@ -50,6 +52,9 @@ interface FilesTreeProps {
   onToggleDir: (path: string) => void;
   onRowMenu: (target: RowTarget) => void;
   onDiscard: (item: Item) => void;
+  // Commit checkboxes on the rows, keyed by path, for picking what to commit.
+  checks?: ReadonlyMap<string, CheckState>;
+  onCheck?: (item: Item, select: boolean) => void;
   // The row the keyboard cursor sits on while the list has focus, else null:
   // the target of the path chords when they fire from the tree.
   onCursorChange?: (item: Item | null) => void;
@@ -81,6 +86,8 @@ export function FilesTree({
   onToggleDir,
   onRowMenu,
   onDiscard,
+  checks,
+  onCheck,
   onCursorChange,
 }: FilesTreeProps) {
   const filtering = query.trim() !== "";
@@ -248,6 +255,8 @@ export function FilesTree({
       onActivate={activate}
       onContextMenu={onRowMenu}
       onDiscard={onDiscard}
+      checks={checks}
+      onCheck={onCheck}
     />
   );
 
@@ -277,11 +286,13 @@ export function FilesTree({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <FilesViewSwitch
-        changesOnly={changesOnly}
-        count={changes.status === "ready" ? changes.files.length : null}
-        onChange={onChangesOnlyChange}
-      />
+      {onChangesOnlyChange && (
+        <FilesViewSwitch
+          changesOnly={changesOnly}
+          count={changes.status === "ready" ? changes.files.length : null}
+          onChange={onChangesOnlyChange}
+        />
+      )}
       <div className="shrink-0 px-2 pb-1 pt-2">
         <div className="relative">
           <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] [&>svg]:h-3 [&>svg]:w-3">

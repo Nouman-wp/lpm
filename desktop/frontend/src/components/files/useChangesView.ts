@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { indexEntry, type IndexEntry } from "./filesFilter";
 import { decorate } from "./gitDecorations";
 import { useChangedFiles, type ChangedFile } from "./useChangedFiles";
@@ -12,8 +12,14 @@ const NO_FILES: ChangedFile[] = [];
 
 // The git side of the Files tab: what changed, how the tree marks it, and
 // which git view the editor shows — the open file against HEAD, or every
-// change as one stack of diffs.
-export function useChangesView(root: string, selectedPath: string | null, active: boolean) {
+// change as one stack of diffs. `review` holds the rail on the changes and
+// opens on the stack, for the commit dialog's review.
+export function useChangesView(
+  root: string,
+  selectedPath: string | null,
+  active: boolean,
+  review = false,
+) {
   const changes = useChangedFiles(root, active);
   const files = changes.status === "ready" ? changes.files : NO_FILES;
   const decorations = useMemo(
@@ -21,9 +27,9 @@ export function useChangesView(root: string, selectedPath: string | null, active
     [changes],
   );
   const [changesOnly, setChangesOnly] = useState(
-    () => localStorage.getItem(CHANGES_ONLY_KEY) === "1",
+    () => review || localStorage.getItem(CHANGES_ONLY_KEY) === "1",
   );
-  const [allWanted, setAllWanted] = useState(false);
+  const [allWanted, setAllWanted] = useState(review);
   const [sideBySide, setSideBySide] = useState(
     () => localStorage.getItem(SIDE_BY_SIDE_KEY) !== "0",
   );
@@ -37,10 +43,21 @@ export function useChangesView(root: string, selectedPath: string | null, active
     [changesOnly, files],
   );
 
+  const allChanges = allWanted && changesOnly && files.length > 0;
+  // Once shown, the stack stays mounted behind an opened file, so its unsaved
+  // edits and scroll position are there on the way back.
+  const [stackShown, setStackShown] = useState(false);
+  useEffect(() => {
+    if (allChanges) setStackShown(true);
+  }, [allChanges]);
+
   const showChangesOnly = useCallback((on: boolean) => {
     localStorage.setItem(CHANGES_ONLY_KEY, on ? "1" : "0");
     setChangesOnly(on);
-    if (!on) setAllWanted(false);
+    if (!on) {
+      setAllWanted(false);
+      setStackShown(false);
+    }
   }, []);
 
   const showSideBySide = useCallback((on: boolean) => {
@@ -60,7 +77,8 @@ export function useChangesView(root: string, selectedPath: string | null, active
     showChangesOnly,
     // The stack exists only where there is something to stack; the last change
     // committed away hands the editor back to the open file.
-    allChanges: allWanted && changesOnly && files.length > 0,
+    allChanges,
+    stackMounted: allChanges || (stackShown && changesOnly && files.length > 0),
     showAllChanges: setAllWanted,
     sideBySide,
     showSideBySide,

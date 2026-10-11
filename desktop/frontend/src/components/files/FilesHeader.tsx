@@ -3,7 +3,7 @@ import { PanelLeft, PanelLeftClose, PanelRight, PanelRightClose } from "lucide-r
 import type { ContentZoom } from "../../hooks/useContentZoom";
 import { basename } from "../../path";
 import type { FilesTreeSide } from "../../store/settings";
-import { CheckIcon, ChevronRightIcon, MoreHorizontalIcon } from "../icons";
+import { CheckIcon, ChevronRightIcon, MoreHorizontalIcon, XIcon } from "../icons";
 import { OpenFileWithDropdown } from "../OpenFileWithDropdown";
 import { DirtyDot } from "../treeRow";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
@@ -41,6 +41,8 @@ interface FilesHeaderProps {
   onRevealDir: (dir: string) => void;
   onToggleTree: () => void;
   onTreeSide: (side: FilesTreeSide) => void;
+  // Shown when the pane sits in a dialog rather than a tab.
+  onClose?: () => void;
 }
 
 const LAYOUT_OPTIONS = [
@@ -74,6 +76,7 @@ export function FilesHeader({
   onRevealDir,
   onToggleTree,
   onTreeSide,
+  onClose,
 }: FilesHeaderProps) {
   const folders = path && !allChanges ? ancestorsOf(path) : [];
   const decoration = status ? decorationOf(status) : null;
@@ -264,6 +267,16 @@ export function FilesHeader({
           </ContextMenuShell>
         )}
       </span>
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        >
+          <XIcon />
+        </button>
+      )}
     </div>
   );
 }
