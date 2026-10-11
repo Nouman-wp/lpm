@@ -17,7 +17,6 @@ import (
 	"unsafe"
 
 	"lpm.cx/tailnet/node"
-	"tailscale.com/net/netmon"
 )
 
 const (
@@ -77,7 +76,7 @@ func LpmTailnetLogout() *C.char {
 //
 //export LpmTailnetNetworkChanged
 func LpmTailnetNetworkChanged(iface *C.char) {
-	netmon.UpdateLastKnownDefaultRouteInterface(C.GoString(iface))
+	setDefaultRouteInterface(C.GoString(iface))
 	nd.NetworkChanged()
 }
 
