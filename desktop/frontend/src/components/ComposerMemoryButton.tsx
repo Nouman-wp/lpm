@@ -32,8 +32,9 @@ export interface ComposerMemoryButtonProps {
   // Writes the chosen invocation into the composer; an empty `insert` means
   // "remember this conversation" (the bare command, no session argument).
   onPick: (item: MentionItem) => void;
-  // Opens the session in the Memory tab, to read or edit it there.
-  onView: (item: MentionItem) => void;
+  // Opens the session in the Memory tab, to read or edit it there. Absent where
+  // there is no Memory tab to go to.
+  onView?: (item: MentionItem) => void;
   // Gives the session a new id, the one agents continue it by.
   onRename: (item: MentionItem, name: string) => void;
   // Removes the session file, after the user confirms here.
@@ -44,7 +45,7 @@ export interface ComposerMemoryButtonProps {
   attached?: TerminalMemoryRef;
   // Stops showing this terminal as recording. lpm's own marker only — the agent
   // keeps whatever it was told, so this is for a mark that has gone stale.
-  onDetach: () => void;
+  onDetach?: () => void;
 }
 
 // Footer control beside Drafts: the same memory pool the "@" menu drills into,
@@ -136,7 +137,7 @@ export function ComposerMemoryButton({
 
   const view = (item: MentionItem) => {
     setOpen(false);
-    onView(item);
+    onView?.(item);
   };
 
   // The search field owns the keyboard while it's focused: arrows walk the
@@ -227,7 +228,7 @@ export function ComposerMemoryButton({
             style={style}
             className="z-[80] flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl"
           >
-            {attached && (
+            {attached && onDetach && (
               <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--accent-purple)_8%,transparent)] px-3 py-2">
                 <span className="shrink-0 text-[var(--accent-purple)]">
                   <BrainIcon size={13} />
@@ -310,7 +311,7 @@ export function ComposerMemoryButton({
                         highlighted={searchable && i === active}
                         onHover={() => setActive(i)}
                         onPick={() => pick(session)}
-                        onView={() => view(session)}
+                        onView={onView && (() => view(session))}
                         onRename={() => setPendingRename(session)}
                         onDelete={() => setPendingDelete(session)}
                       />

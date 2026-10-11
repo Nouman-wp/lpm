@@ -30,6 +30,7 @@ import { DICTATION_AVAILABLE } from "../hooks/useVoiceDictation";
 import { ComposerActionsModal } from "./ComposerActionsModal";
 import { ComposerVariantsModal } from "./ComposerVariantsModal";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
+import { InputComposerMemory, type InputComposerMemorySource } from "./InputComposerMemory";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
 import { loadImageDataUrl } from "./imageDataUrl";
 import {
@@ -87,6 +88,8 @@ interface InputComposerProps {
   // Working directory AI-edit transforms run in (the project root). When set, an
   // AI-actions button transforms the prompt in place.
   aiCwd?: string;
+  // When set, a memory button writes an lpm-memory invocation into the prompt.
+  memory?: InputComposerMemorySource;
   // Host controls placed on the composer's own footer row, after the built-in
   // buttons, so the box keeps a single row instead of stacking a second one.
   footer?: ReactNode;
@@ -121,6 +124,7 @@ export function InputComposer({
   autoFocus,
   history,
   aiCwd,
+  memory,
   footer,
   disabled,
 }: InputComposerProps) {
@@ -723,6 +727,9 @@ export function InputComposer({
               terminalLabel={history.terminalLabel}
               onPick={loadFromHistory}
             />
+          )}
+          {memory && !disabled && (
+            <InputComposerMemory {...memory} editorRef={editorRef} onInserted={syncState} />
           )}
           {footer}
         </div>

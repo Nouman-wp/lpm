@@ -17,7 +17,7 @@ interface ComposerMemoryRowProps {
   highlighted: boolean;
   onHover: () => void;
   onPick: () => void;
-  onView: () => void;
+  onView?: () => void;
   onRename: () => void;
   onDelete: () => void;
 }
@@ -25,6 +25,8 @@ interface ComposerMemoryRowProps {
 // The width the row keeps clear for the actions while they're showing, so a
 // long id or title ellipsizes in front of them instead of running underneath.
 const ACTIONS_CLEARANCE = "group-hover/row:pr-22 group-focus-within/row:pr-22";
+// The same without the Open action.
+const ACTIONS_CLEARANCE_NO_VIEW = "group-hover/row:pr-16 group-focus-within/row:pr-16";
 // Held in the layout at zero opacity rather than unmounted: keyboard focus can
 // reach them, and they fade rather than pop. Nothing is clickable until the row
 // is actually under the pointer, so the hidden set can't swallow a row click.
@@ -64,7 +66,9 @@ export function ComposerMemoryRow({
         type="button"
         onMouseDown={keepEditorFocus}
         onClick={onPick}
-        className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left ${ACTIONS_CLEARANCE}`}
+        className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left ${
+          onView ? ACTIONS_CLEARANCE : ACTIONS_CLEARANCE_NO_VIEW
+        }`}
       >
         <span
           className={`shrink-0 transition-colors ${
@@ -94,17 +98,19 @@ export function ComposerMemoryRow({
       <span
         className={`absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5 ${ACTIONS_REVEAL}`}
       >
-        <Tooltip content="Open in Memory" delay={COMPOSER_TOOLTIP_DELAY_MS}>
-          <button
-            type="button"
-            onMouseDown={keepEditorFocus}
-            onClick={onView}
-            aria-label={`Open ${session.label} in Memory`}
-            className={`${ACTION_BUTTON} hover:text-[var(--accent-purple)]`}
-          >
-            <Eye size={12} />
-          </button>
-        </Tooltip>
+        {onView && (
+          <Tooltip content="Open in Memory" delay={COMPOSER_TOOLTIP_DELAY_MS}>
+            <button
+              type="button"
+              onMouseDown={keepEditorFocus}
+              onClick={onView}
+              aria-label={`Open ${session.label} in Memory`}
+              className={`${ACTION_BUTTON} hover:text-[var(--accent-purple)]`}
+            >
+              <Eye size={12} />
+            </button>
+          </Tooltip>
+        )}
         <Tooltip content="Rename" delay={COMPOSER_TOOLTIP_DELAY_MS}>
           <button
             type="button"

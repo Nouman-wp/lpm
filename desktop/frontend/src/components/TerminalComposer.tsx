@@ -128,7 +128,7 @@ import { captureInteractivePaneLog } from "./InteractivePane";
 import { useMentions } from "../hooks/useMentions";
 import { useMemorySessions } from "../hooks/useMemorySessions";
 import { MENTION_TRIGGER, rankMentions, type MentionItem } from "../mentions";
-import type { TerminalMemoryRef } from "../terminalMemory";
+import { memoryInvocation, type TerminalMemoryRef } from "../terminalMemory";
 import { useComposerSendLater, type ComposerPrompt, type SendLaterPicker } from "../hooks/useComposerSendLater";
 import { limitAgentFor, type LimitAgent } from "../sendLater/limitReset";
 import { SendLaterPopover } from "./SendLaterPopover";
@@ -1731,7 +1731,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       return;
     }
     if (item.kind === "memory" || item.kind === "memory-save") {
-      if (replaceMentionFragmentWith(editor, memoryInvocation(item.insert))) {
+      if (replaceMentionFragmentWith(editor, memoryInvocation(slashCli, item.insert))) {
         afterMemoryInsert(editor);
       }
       return;
@@ -1759,16 +1759,6 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     syncState();
   };
 
-  // A memory session becomes the terminal CLI's own invocation: "/lpm-memory
-  // <id>" runs the skill in Claude Code; every other agent gets the skill-mention
-  // form "$lpm-memory <id>" (Codex's syntax; inert but self-describing text
-  // elsewhere). The bare command — no session — means "remember this
-  // conversation", so it keeps no trailing argument space.
-  const memoryInvocation = (sessionId: string) => {
-    const cmd = slashCli === "claude" ? "/lpm-memory" : "$lpm-memory";
-    return sessionId ? `${cmd} ${sessionId} ` : cmd;
-  };
-
   // Shared tail after a memory invocation lands in the field. The insertion's own
   // input event has already re-opened the slash menu and hint on the bare command
   // by the time we get here; the pick is already decided, so close them and park
@@ -1794,7 +1784,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     if (!caretInside(editor)) placeCaretAtEnd(editor);
     const line = lineBeforeCaret(editor);
     const pad = line && !/\s$/.test(line) ? " " : "";
-    if (insertTextAtCaret(editor, `${pad}${memoryInvocation(item.insert)}`)) {
+    if (insertTextAtCaret(editor, `${pad}${memoryInvocation(slashCli, item.insert)}`)) {
       afterMemoryInsert(editor);
     }
   };

@@ -47,6 +47,7 @@ import { detectAICLI } from "../../../slashCommands";
 import { isDuplicate, type ActionInfo } from "../../../types";
 import { useDiscardGuard } from "../../../hooks/useDiscardGuard";
 import { useAppStore } from "../../../store/app";
+import { useSettingsStore } from "../../../store/settings";
 import { matchesChord } from "../../../keys";
 
 interface JobEditorModalProps {
@@ -113,8 +114,10 @@ export function JobEditorModal({
   const actions = actionsAvailable && runProject ? actionsFor(runProject) : [];
   // A terminal action that starts an agent CLI can be handed a prompt to work on.
   const selectedAction = findActionByPath(actions, draft.action);
-  const actionLaunchesAgent =
-    selectedAction?.type === "terminal" && detectAICLI(selectedAction.cmd) !== null;
+  const actionAgent =
+    selectedAction?.type === "terminal" ? detectAICLI(selectedAction.cmd) : null;
+  const actionLaunchesAgent = actionAgent !== null;
+  const defaultAgent = useSettingsStore((s) => s.aiCli) || "claude";
   // AI-edit runs in the project the job runs in; a standalone or multi-project
   // job has no single root, so it gets a plain prompt field.
   const storeProjects = useAppStore((s) => s.projects);
@@ -132,6 +135,10 @@ export function JobEditorModal({
         terminalLabel: displayNameForProjectName(contextProject, storeProjects),
       }
     : undefined;
+  // Memory sessions belong to one project, so the button needs exactly one in
+  // scope — a standalone run has no project for the agent to save under.
+  const memoryFor = (agent: string | null) =>
+    runProject ? { project: runProject, agent } : undefined;
 
   useEffect(() => {
     if (!open) return;
@@ -386,6 +393,7 @@ export function JobEditorModal({
                     placeholder="Check for dependency updates. If there are none, stop. Otherwise duplicate this project with the lpm CLI, upgrade them in the copy, and run the tests."
                     history={composerHistory}
                     aiCwd={aiCwd}
+                    memory={memoryFor(draft.agent || defaultAgent)}
                     footer={
                       <>
                         <span className="min-w-0 flex-1" />
@@ -435,6 +443,7 @@ export function JobEditorModal({
                     placeholder={`What should ${selectedAction?.label || "the agent"} work on? Leave empty to just open it.`}
                     history={composerHistory}
                     aiCwd={aiCwd}
+                    memory={memoryFor(actionAgent)}
                   />
                 )}
                 <JobCheckField

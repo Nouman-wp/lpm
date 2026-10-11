@@ -23,6 +23,16 @@ export interface TerminalMemoryRef {
 // one — rare, visible, and one click of Detach to undo.
 const INVOCATION_RE = /(?:^|\s)[/$]lpm-memory(?:[ \t]+([a-z0-9][a-z0-9-]{0,63}))?(?=[ \t]|$)/im;
 
+// The invocation a composer writes for `cli`: "/lpm-memory <id>" runs the skill
+// in Claude Code; every other agent gets the skill-mention form "$lpm-memory
+// <id>" (Codex's syntax; inert but self-describing text elsewhere). The bare
+// command — no session — means "remember this conversation", so it keeps no
+// trailing argument space.
+export function memoryInvocation(cli: string | null, sessionId: string): string {
+  const cmd = cli === "claude" ? "/lpm-memory" : "$lpm-memory";
+  return sessionId ? `${cmd} ${sessionId} ` : cmd;
+}
+
 export interface MemoryInvocation {
   // The session named in the invocation, or null for the bare form.
   session: string | null;

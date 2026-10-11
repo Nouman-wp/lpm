@@ -1481,6 +1481,11 @@ fn run_env(
     // The name terminals already set, so a skill written for one works in both.
     if !project.is_empty() {
         env.push(("LPM_PROJECT_NAME".to_string(), project.to_string()));
+        // Where the lpm-memory skill saves and recalls sessions — a run in a
+        // copy still belongs to the original's memory, like its terminals do.
+        if let Ok(dir) = crate::session_memory_scope::memory_dir(project) {
+            env.push(("LPM_MEMORY_DIR".to_string(), dir.to_string_lossy().into_owned()));
+        }
     }
     if let Some(v) = scheduled_for {
         env.push(("LPM_SCHEDULED_FOR".to_string(), v.to_string()));
