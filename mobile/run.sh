@@ -13,8 +13,14 @@ cd "$(dirname "$0")"
 # Kept out of project.yml so the committed spec stays team-agnostic.
 TEAM="${DEVELOPMENT_TEAM:-$(cat .team 2>/dev/null || true)}"
 if [ -z "$TEAM" ]; then
-  TEAM=$(security find-identity -v -p codesigning \
-    | sed -nE 's/.*"Apple Development: .*\(([A-Z0-9]{10})\)"/\1/p' | head -1)
+  # The ID in the identity's name is the person's, not the team's; the team is
+  # the certificate's OU.
+  IDENTITY=$(security find-identity -v -p codesigning \
+    | sed -nE 's/.*"(Apple Development: [^"]+)".*/\1/p' | head -1)
+  if [ -n "$IDENTITY" ]; then
+    TEAM=$(security find-certificate -c "$IDENTITY" -p | openssl x509 -noout -subject \
+      | sed -nE 's/.*OU ?= ?([A-Z0-9]{10}).*/\1/p' || true)
+  fi
 fi
 if [ -z "$TEAM" ]; then
   echo "No signing team found. Set one with DEVELOPMENT_TEAM=XXXXXXXXXX ./run.sh" >&2

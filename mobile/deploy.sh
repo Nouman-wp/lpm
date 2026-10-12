@@ -11,8 +11,14 @@ cd "$(dirname "$0")"
 # so prefer "Apple Distribution" when falling back to the keychain.
 TEAM="${DEVELOPMENT_TEAM:-$(cat .team 2>/dev/null || true)}"
 if [ -z "$TEAM" ]; then
-  TEAM=$(security find-identity -v -p codesigning \
-    | sed -nE 's/.*"Apple (Distribution|Development): .*\(([A-Z0-9]{10})\)"/\2/p' | head -1)
+  # The ID in the identity's name is the person's, not the team's; the team is
+  # the certificate's OU.
+  IDENTITY=$(security find-identity -v -p codesigning \
+    | sed -nE 's/.*"(Apple (Distribution|Development): [^"]+)".*/\1/p' | head -1)
+  if [ -n "$IDENTITY" ]; then
+    TEAM=$(security find-certificate -c "$IDENTITY" -p | openssl x509 -noout -subject \
+      | sed -nE 's/.*OU ?= ?([A-Z0-9]{10}).*/\1/p' || true)
+  fi
 fi
 if [ -z "$TEAM" ]; then
   echo "No signing team found. Set one with DEVELOPMENT_TEAM=XXXXXXXXXX ./deploy.sh" >&2
@@ -46,6 +52,13 @@ fi
 if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
   sed -i '' -E "s/(MARKETING_VERSION:[[:space:]]*)\"[0-9.]+\"/\1\"$NEW_VERSION\"/" project.yml
   echo "▸ Version $CURRENT_VERSION → $NEW_VERSION"
+  # A deploy that doesn't finish uploads nothing, so it shouldn't use up a version.
+  restore_version() {
+    [ $? -eq 0 ] && return
+    sed -i '' -E "s/(MARKETING_VERSION:[[:space:]]*)\"[0-9.]+\"/\1\"$CURRENT_VERSION\"/" project.yml
+    echo "▸ Deploy failed; version back to $CURRENT_VERSION" >&2
+  }
+  trap restore_version EXIT
 else
   echo "▸ Version $NEW_VERSION (unchanged)"
 fi
