@@ -1,4 +1,5 @@
 import type { OriginStatus } from "./originStatus";
+import { isPeerRoot } from "./peer/markers";
 import type { ProjectInfo } from "./types";
 
 // Settings › General › Auto pull: nothing, only projects set to On, or every
@@ -44,6 +45,13 @@ export function followLabel(
   const follow = autoPullState({ ...project, autoPull: undefined }, projects, mode);
   const state = follow.on ? "On" : "Off";
   return project.parentName && parentLabel ? `Same as ${parentLabel} (${state})` : `Default (${state})`;
+}
+
+// The project auto pull would act on at `root`: one of this Mac's own, not a
+// paired Mac's or an SSH host's, and one whose config loads.
+export function autoPullTarget(projects: ProjectInfo[], root: string): ProjectInfo | undefined {
+  if (isPeerRoot(root)) return undefined;
+  return projects.find((p) => p.root === root && !p.isRemote && !p.configError);
 }
 
 // Only a plain fast-forward is ever automatic: a branch that tracks origin, is

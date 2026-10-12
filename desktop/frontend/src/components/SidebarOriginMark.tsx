@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
+import { autoPullTarget } from "../autoPull";
+import { useHoverPopup } from "../hooks/useHoverPopup";
 import {
   heldByChanges,
   originActionLabel,
@@ -7,9 +9,11 @@ import {
   originMarkTitle,
   type OriginMark,
 } from "../originStatus";
+import { useAppStore } from "../store/app";
 import { useOriginStatus } from "../store/originStatus";
 import { useSettingsStore } from "../store/settings";
 import { SpinnerIcon } from "./project-detail/icons";
+import { SidebarAutoPullCard } from "./SidebarAutoPullCard";
 
 const INCOMING = "text-[var(--accent-sky-text)]";
 const QUIET = "text-[var(--text-muted)]";
@@ -42,10 +46,14 @@ function markText(mark: OriginMark, incoming = INCOMING): ReactNode {
 // The end of a project row when its branch on origin has moved on: "↓3" at rest.
 // On hover it steps aside for SidebarOriginAction, keeping an invisible copy of
 // that button's label so the name truncates to make room for it. Grayed, with no
-// button, while uncommitted changes stand in the pull's way.
+// button, while uncommitted changes stand in the pull's way; resting on it then
+// opens the auto pull card, as resting on Pull does.
 export function SidebarOriginMark({ root }: { root: string }) {
   const entry = useOriginStatus((s) => s.entries[root]);
   const autostash = useSettingsStore((s) => !!s.gitPull?.autostash);
+  const project = useAppStore((s) => autoPullTarget(s.projects, root));
+  const heldRef = useRef<HTMLSpanElement>(null);
+  const popup = useHoverPopup(heldRef);
   if (!entry) return null;
   if (entry.running) {
     return (
@@ -64,13 +72,28 @@ export function SidebarOriginMark({ root }: { root: string }) {
   const mark = originMark(entry.status);
   if (!mark) return null;
   if (heldByChanges(entry.status, mark, autostash)) {
+    const card = mark.kind === "behind" ? project : undefined;
     return (
-      <span
-        className="ml-auto flex shrink-0 items-center text-[11px] font-medium tabular-nums opacity-60"
-        title={originHeldTitle(mark, entry.status)}
-      >
-        {markText(mark, QUIET)}
-      </span>
+      <>
+        <span
+          ref={heldRef}
+          {...(card ? popup.trigger : {})}
+          className="ml-auto flex shrink-0 items-center text-[11px] font-medium tabular-nums opacity-60"
+          title={card ? undefined : originHeldTitle(mark, entry.status)}
+        >
+          {markText(mark, QUIET)}
+        </span>
+        {card && popup.open && (
+          <SidebarAutoPullCard
+            anchorRef={heldRef}
+            project={card}
+            mark={mark}
+            onPointerEnter={popup.panel.onPointerEnter}
+            onPointerLeave={popup.panel.onPointerLeave}
+            onClose={popup.hide}
+          />
+        )}
+      </>
     );
   }
   return (

@@ -1,9 +1,8 @@
 import { toast } from "sonner";
 import { GitAutoPull, GitAutoPullUndo, SetAutoPull } from "../bridge/commands";
-import { autoPullState, commitsText, normalizeAutoPullMode, wantsAutoPull } from "./autoPull";
+import { autoPullState, autoPullTarget, commitsText, normalizeAutoPullMode, wantsAutoPull } from "./autoPull";
 import { displayNameForProjectName } from "./components/ProjectNameDisplay";
 import { recheckOrigin, showOriginDone } from "./originActions";
-import { isPeerRoot } from "./peer/markers";
 import { projectAgentRows } from "./sidebarAgents";
 import { useAppStore } from "./store/app";
 import { useOriginStatus } from "./store/originStatus";
@@ -33,7 +32,7 @@ const SETTLE_MS = 1_500;
 
 // Roots not to try again until origin or the branch moves: a pull git refused,
 // or one the user just undid.
-const heldAt = new Map<string, string>();
+const heldAt = new Map<string, { key: string; reason: "failed" | "undone" }>();
 let announced: Announced[] = [];
 let announcedTimer: ReturnType<typeof setTimeout> | undefined;
 let sweeping = false;
@@ -55,11 +54,10 @@ function agentBusy(project: ProjectInfo): boolean {
 }
 
 function autoPullProject(root: string): ProjectInfo | undefined {
-  if (isPeerRoot(root)) return undefined;
   const mode = normalizeAutoPullMode(getSettings().autoPull);
   if (mode === "off") return undefined;
   const projects = useAppStore.getState().projects;
-  const project = projects.find((p) => p.root === root && !p.isRemote && !p.configError);
+  const project = autoPullTarget(projects, root);
   if (!project || !autoPullState(project, projects, mode).on || agentBusy(project)) return undefined;
   return project;
 }
@@ -70,7 +68,7 @@ export async function maybeAutoPull(root: string): Promise<void> {
   const entry = useOriginStatus.getState().entries[root];
   if (!entry || entry.running || !wantsAutoPull(entry.status)) return;
   const attempt = attemptKey(root);
-  if (heldAt.get(root) === attempt) return;
+  if (heldAt.get(root)?.key === attempt) return;
   const project = autoPullProject(root);
   if (!project) return;
 
@@ -80,7 +78,7 @@ export async function maybeAutoPull(root: string): Promise<void> {
     outcome = (await GitAutoPull(root)) as AutoPullOutcome;
     heldAt.delete(root);
   } catch (err) {
-    heldAt.set(root, attempt);
+    heldAt.set(root, { key: attempt, reason: "failed" });
     toast.error(`Auto pull stopped in ${nameOf(project)}: ${String(err)}`);
   }
   await recheckOrigin(root);
@@ -88,6 +86,17 @@ export async function maybeAutoPull(root: string): Promise<void> {
   if (outcome?.kind !== "pulled") return;
   showOriginDone(root, `Pulled ${outcome.count}`);
   announce({ root, project: project.name, name: nameOf(project), pulled: outcome });
+}
+
+// Why a project that auto pull is on for still has commits to pull.
+export type AutoPullWait = "changes" | "agent" | "failed" | "undone" | "next";
+
+export function autoPullWait(project: ProjectInfo): AutoPullWait {
+  const held = heldAt.get(project.root);
+  if (held?.key === attemptKey(project.root)) return held.reason;
+  if ((useOriginStatus.getState().entries[project.root]?.status.changes ?? 0) > 0) return "changes";
+  if (agentBusy(project)) return "agent";
+  return "next";
 }
 
 // Every checked project in turn, for when a setting has just turned auto pull on.
@@ -134,7 +143,7 @@ async function undoOne(root: string): Promise<AutoPulled> {
   } finally {
     announced = announced.filter((a) => a.root !== root);
     await recheckOrigin(root);
-    heldAt.set(root, attemptKey(root));
+    heldAt.set(root, { key: attemptKey(root), reason: "undone" });
   }
 }
 

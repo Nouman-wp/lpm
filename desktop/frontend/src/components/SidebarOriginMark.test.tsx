@@ -1,7 +1,13 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../../bridge/runtime", () => ({ EventsOn: vi.fn(() => () => {}) }));
+vi.mock("../store/app", () => ({
+  useAppStore: (select: (state: unknown) => unknown) => select({ projects: [] }),
+}));
+
 import { SidebarOriginMark } from "./SidebarOriginMark";
 import { useOriginStatus } from "../store/originStatus";
 import type { OriginStatus } from "../originStatus";
