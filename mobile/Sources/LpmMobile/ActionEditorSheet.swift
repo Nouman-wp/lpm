@@ -91,9 +91,18 @@ private struct InputDraft: Identifiable {
 
 private struct ChildDraft: Identifiable {
     let id = UUID()
+    /// The item's YAML key on disk, kept so `primary` and saved choices still
+    /// point at it after its label changes. Empty for a new item.
+    var key = ""
     var label = ""
     var cmd = ""
     var runIn: ActionRunIn = .terminal
+}
+
+/// What tapping a menu action's button does: open the menu, or run one item
+/// (the last one used, or a chosen one) with the rest behind a chevron.
+private enum PrimaryChoice: Hashable {
+    case menu, lastUsed, child(UUID)
 }
 
 private struct ActionDraft {
@@ -114,6 +123,8 @@ private struct ActionDraft {
     var explicitHeader = false
     var inputs: [InputDraft] = []
     var children: [ChildDraft] = []
+    var color = ""
+    var primary: PrimaryChoice = .menu
 }
 
 /// Create or edit a project action. Presented as a sheet from ProjectConfigView.
@@ -229,8 +240,12 @@ struct ActionEditorSheet: View {
                 inputsSection
             } else {
                 childrenSection
+                primarySection
             }
             placementSection
+            Section("Color") {
+                ActionColorPicker(color: $draft.color)
+            }
             if context.isEditing { deleteSection }
         }
     }
@@ -377,6 +392,21 @@ struct ActionEditorSheet: View {
         }
     }
 
+    private var primarySection: some View {
+        Section {
+            Picker("Button runs", selection: $draft.primary) {
+                Text("Nothing, opens the menu").tag(PrimaryChoice.menu)
+                Text("Last used item").tag(PrimaryChoice.lastUsed)
+                ForEach(draft.children.filter { !$0.cmd.trimmed.isEmpty }) { child in
+                    Text(child.label.trimmed.isEmpty ? "Menu item" : child.label.trimmed)
+                        .tag(PrimaryChoice.child(child.id))
+                }
+            }
+        } footer: {
+            Text("A split button runs that item with one tap; its arrow opens the rest.")
+        }
+    }
+
     private var placementSection: some View {
         Section {
             Picker("Placement", selection: $draft.placement) {
@@ -479,6 +509,13 @@ struct ActionEditorSheet: View {
             d.kind = .menu
             d.children = childDrafts(from: children)
         }
+        d.color = body["color"] as? String ?? ""
+        let primary = body["primary"] as? String ?? ""
+        if primary == Action.lastUsed {
+            d.primary = .lastUsed
+        } else if let child = d.children.first(where: { $0.key == primary }) {
+            d.primary = .child(child.id)
+        }
         draft = d
     }
 
@@ -505,6 +542,7 @@ struct ActionEditorSheet: View {
         map.compactMap { name, value -> ChildDraft? in
             guard let v = value as? [String: Any] else { return nil }
             var child = ChildDraft()
+            child.key = name
             child.label = v["label"] as? String ?? name
             child.cmd = v["cmd"] as? String ?? ""
             child.runIn = ActionRunIn.from(v["type"] as? String)
@@ -523,10 +561,12 @@ struct ActionEditorSheet: View {
         setOrRemove(&p, "label", draft.label.trimmed.nilIfEmpty)
         setOrRemove(&p, "emoji", draft.emoji.trimmed.nilIfEmpty)
         setOrRemove(&p, "display", displayValue)
+        setOrRemove(&p, "color", draft.color.nilIfEmpty)
         if case .zone = draft.placement {} else { p.removeValue(forKey: "layer") }
 
         switch draft.kind {
         case .command:
+            p.removeValue(forKey: "primary")
             p["cmd"] = draft.cmd.trimmed
             setOrRemove(&p, "cwd", draft.cwd.trimmed.nilIfEmpty)
             setOrRemove(&p, "type", draft.runIn.typeValue)
@@ -536,7 +576,13 @@ struct ActionEditorSheet: View {
             let inputs = buildInputs()
             setOrRemove(&p, "inputs", inputs.isEmpty ? nil : inputs)
         case .menu:
-            p["actions"] = buildChildMap()
+            let (children, keys) = buildChildMap()
+            p["actions"] = children
+            switch draft.primary {
+            case .menu: p.removeValue(forKey: "primary")
+            case .lastUsed: p["primary"] = Action.lastUsed
+            case .child(let id): setOrRemove(&p, "primary", keys[id])
+            }
             for key in ["cmd", "cwd", "type", "reuse", "confirm", "port", "portConflict", "inputs"] {
                 p.removeValue(forKey: key)
             }
@@ -576,16 +622,20 @@ struct ActionEditorSheet: View {
         }
     }
 
-    private func buildChildMap() -> [String: Any] {
+    /// The menu's items keyed for YAML, and the key each draft item got. An item
+    /// from disk keeps its key; a new one takes a slug of its label.
+    private func buildChildMap() -> ([String: Any], [UUID: String]) {
         var map: [String: Any] = [:]
+        var keys: [UUID: String] = [:]
         var used: Set<String> = []
         for (index, child) in draft.children.enumerated() {
             let cmd = child.cmd.trimmed
             if cmd.isEmpty { continue }
-            var key = slugify(child.label)
+            var key = child.key.isEmpty ? slugify(child.label) : child.key
             if key.isEmpty { key = "option-\(index + 1)" }
             key = uniqueKey(key, taken: used)
             used.insert(key)
+            keys[child.id] = key
             var payload: [String: Any] = [
                 "label": child.label.trimmed.isEmpty ? key : child.label.trimmed,
                 "cmd": cmd,
@@ -593,7 +643,7 @@ struct ActionEditorSheet: View {
             if let type = child.runIn.typeValue { payload["type"] = type }
             map[key] = payload
         }
-        return map
+        return (map, keys)
     }
 
     private func submit() {

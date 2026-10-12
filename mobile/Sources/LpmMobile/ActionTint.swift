@@ -3,28 +3,41 @@ import UIKit
 
 /// An action's `color:` as the desktop paints it: a named accent, optionally
 /// `-deep` (mixed toward black), that follows light and dark mode, or a raw
-/// `#rrggbb`. Buttons wash their fill with `accent` and draw the label in `text`.
+/// `#rrggbb`. Buttons wash their fill with `accent` and draw the label in `text`;
+/// Liquid Glass takes `glass`, a fainter wash on light backgrounds than on dark.
 struct ActionTint {
     let accent: Color
+    let glass: Color
     let text: Color
 
     init?(_ color: String) {
         let deep = color.hasSuffix("-deep")
         let base = deep ? String(color.dropLast("-deep".count)) : color
+        let light: RGB, dark: RGB, lightText: RGB
         if let swatch = Self.palette[base] {
             let shade = deep ? 0.74 : 1
-            accent = Self.adaptive(light: swatch.light.darkened(shade), dark: swatch.dark.darkened(shade))
-            text = Self.adaptive(light: swatch.lightText, dark: swatch.dark)
+            (light, dark, lightText) = (swatch.light.darkened(shade), swatch.dark.darkened(shade), swatch.lightText)
         } else if let rgb = RGB(hex: color) {
-            accent = Color(rgb.uiColor)
-            text = accent
+            (light, dark, lightText) = (rgb, rgb, rgb)
         } else {
             return nil
         }
+        accent = Self.adaptive(light: light, dark: dark)
+        glass = Self.adaptive(light: light, dark: dark, lightAlpha: 0.10, darkAlpha: 0.22)
+        text = Self.adaptive(light: lightText, dark: Self.palette[base]?.dark ?? dark)
     }
 
-    private static func adaptive(light: RGB, dark: RGB) -> Color {
-        Color(UIColor { $0.userInterfaceStyle == .dark ? dark.uiColor : light.uiColor })
+    /// The named colors in the desktop picker's order: a hue wheel, then neutrals.
+    static let names = [
+        "red", "orange", "claude", "amber", "yellow", "lime", "green", "emerald", "teal",
+        "cyan", "sky", "blue", "indigo", "violet", "purple", "fuchsia", "pink", "rose",
+        "slate", "gray", "stone",
+    ]
+
+    private static func adaptive(light: RGB, dark: RGB, lightAlpha: Double = 1, darkAlpha: Double = 1) -> Color {
+        Color(UIColor {
+            $0.userInterfaceStyle == .dark ? dark.uiColor(alpha: darkAlpha) : light.uiColor(alpha: lightAlpha)
+        })
     }
 
     /// The desktop theme's light `--accent-<name>`, light `--accent-<name>-text`
@@ -77,5 +90,5 @@ private struct RGB {
 
     func darkened(_ amount: Double) -> RGB { RGB(r: r * amount, g: g * amount, b: b * amount) }
 
-    var uiColor: UIColor { UIColor(red: r, green: g, blue: b, alpha: 1) }
+    func uiColor(alpha: Double) -> UIColor { UIColor(red: r, green: g, blue: b, alpha: alpha) }
 }

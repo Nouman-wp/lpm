@@ -2,11 +2,13 @@ import SwiftUI
 
 /// Every project action as the desktop shows them: the header row, the footer
 /// row and the menu-only list, each as desktop buttons. Picking one hands it back
-/// to the host, which runs it once the sheet is gone.
+/// to the host, which runs it once the sheet is gone; + adds an action and a
+/// long-press edits one.
 struct ProjectActionsSheet: View {
     let project: Project
     let onPick: (Action) -> Void
-    @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
+    @State private var editor: ActionEditorContext?
 
     private var header: [Action] { project.actions.filter { $0.display != "footer" && $0.display != "menu" } }
     private var footer: [Action] { project.actions.filter { $0.display == "footer" } }
@@ -27,12 +29,20 @@ struct ProjectActionsSheet: View {
             .navigationTitle("Actions")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        editor = .create
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("New Action")
                 }
             }
         }
         .presentationDetents([.medium, .large])
+        .sheet(item: $editor) { context in
+            ActionEditorSheet(project: project, context: context).environment(model)
+        }
     }
 
     @ViewBuilder
@@ -45,8 +55,8 @@ struct ProjectActionsSheet: View {
                     .foregroundStyle(.secondary)
                 FlowLayout(spacing: 8) {
                     ForEach(actions) { action in
-                        DesktopActionButton(action: action, project: project.name,
-                                            compact: compact, onRun: onPick)
+                        DesktopActionButton(action: action, project: project.name, compact: compact,
+                                            onEdit: { editor = .edit(key: $0.name) }, onRun: onPick)
                     }
                 }
             }

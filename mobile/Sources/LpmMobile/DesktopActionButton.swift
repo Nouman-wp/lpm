@@ -8,11 +8,26 @@ struct DesktopActionButton: View {
     let action: Action
     let project: String
     var compact = false
+    /// Long-press offers Edit Action… when set.
+    var onEdit: ((Action) -> Void)? = nil
     let onRun: (Action) -> Void
 
     private var memory: ActionPrimaryMemory { .shared }
 
     var body: some View {
+        if let onEdit {
+            button.contextMenu {
+                Button { onEdit(action) } label: {
+                    Label("Edit Action…", systemImage: "pencil")
+                }
+            }
+        } else {
+            button
+        }
+    }
+
+    @ViewBuilder
+    private var button: some View {
         if action.isRunnable {
             Button { onRun(action) } label: {
                 Text(action.displayLabel)
@@ -151,7 +166,7 @@ extension View {
             .frame(height: 44)
         if #available(iOS 26.0, *) {
             label
-                .glassEffect(.regular.tint(tint?.accent.opacity(0.25)).interactive(), in: Capsule())
+                .glassEffect(.regular.tint(tint?.glass).interactive(), in: Capsule())
                 .contentShape(Capsule())
         } else {
             let shape = RoundedRectangle(cornerRadius: compact ? 10 : 12, style: .continuous)

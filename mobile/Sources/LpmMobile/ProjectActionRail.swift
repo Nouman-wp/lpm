@@ -16,10 +16,12 @@ extension EnvironmentValues {
 /// including the menu-only ones the row leaves out — in a sheet.
 struct ProjectActionRail: View {
     let project: Project
+    @Environment(AppModel.self) private var model
     @Environment(\.runProjectAction) private var runAction
     @State private var showingAll = false
     // Run after the sheet closes: the run flow may present a sheet of its own.
     @State private var picked: Action?
+    @State private var editing: ActionEditorContext?
 
     private var buttons: [Action] { project.actions.filter { $0.display != "menu" } }
 
@@ -29,7 +31,8 @@ struct ProjectActionRail: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(buttons) { action in
-                            DesktopActionButton(action: action, project: project.name) { run($0) }
+                            DesktopActionButton(action: action, project: project.name,
+                                                onEdit: { editing = .edit(key: $0.name) }) { run($0) }
                         }
                     }
                     .glassGroup()
@@ -59,6 +62,10 @@ struct ProjectActionRail: View {
                     picked = action
                     showingAll = false
                 }
+                .environment(model)
+            }
+            .sheet(item: $editing) { context in
+                ActionEditorSheet(project: project, context: context).environment(model)
             }
         }
     }
