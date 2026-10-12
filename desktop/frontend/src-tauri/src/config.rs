@@ -1212,6 +1212,10 @@ struct ProjectYaml {
     /// that isn't a list drops only the account list, never the project.
     #[serde(rename = "claudeAccounts", default)]
     claude_accounts: Option<serde_norway::Value>,
+    /// Untyped like `claudeAccounts`: a hand-edited non-boolean drops only the
+    /// choice, never the project.
+    #[serde(rename = "autoPull", default)]
+    auto_pull: Option<serde_norway::Value>,
     #[serde(default)]
     services: BTreeMap<String, ServiceDef>,
     #[serde(default)]
@@ -2470,6 +2474,9 @@ fn to_project_info(
     }
     if let Some(list) = yaml.claude_accounts.take() {
         info["claudeAccounts"] = json!(crate::claude_choice::account_list(&list));
+    }
+    if let Some(auto_pull) = yaml.auto_pull.as_ref().and_then(serde_norway::Value::as_bool) {
+        info["autoPull"] = json!(auto_pull);
     }
     info
 }

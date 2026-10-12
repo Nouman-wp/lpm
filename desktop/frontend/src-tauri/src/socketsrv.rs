@@ -241,6 +241,7 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "restart_service" => cmd_restart_service(args, app),
         "config_get" => cmd_config_get(args),
         "config_apply" => cmd_config_apply(args, app),
+        "set_auto_pull" => cmd_set_auto_pull(args, app),
         "remove_project" => cmd_remove_project(args, app),
         "run_task" => cmd_run_task(args, app),
         "set_resume" => cmd_set_resume(args, store, app),
@@ -348,6 +349,22 @@ fn cmd_config_apply(args: &[String], app: &AppHandle) -> String {
         Ok(snapshot) => serde_json::json!({ "ok": true, "snapshot": snapshot }).to_string(),
         Err(error) => config_error(error),
     }
+}
+
+/// `lpm auto-pull --set`: a project's own auto pull choice, written by the app
+/// like the Git menu writes it.
+fn cmd_set_auto_pull(args: &[String], app: &AppHandle) -> String {
+    let (positional, _) = parse_options(args);
+    let [project, value] = positional.as_slice() else {
+        return "ERROR: usage: set_auto_pull <project> on|off|default".into();
+    };
+    let value = match value.as_str() {
+        "on" => Some(true),
+        "off" => Some(false),
+        "default" => None,
+        other => return format!("ERROR: unknown auto pull value {other:?}: use on, off or default"),
+    };
+    reply(crate::gitautopull::set_auto_pull(app.clone(), project.clone(), value))
 }
 
 fn cmd_start_project(args: &[String], app: &AppHandle) -> String {
@@ -1312,6 +1329,7 @@ mod tests {
             "restart_service",
             "config_get",
             "config_apply",
+            "set_auto_pull",
             "remove_project",
             "run_task",
             "duplicate_project",

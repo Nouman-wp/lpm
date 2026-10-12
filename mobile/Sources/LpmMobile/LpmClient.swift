@@ -32,6 +32,8 @@ final class LpmClient: NSObject {
     // The Mac's work-status palette, delivered with every projects reply: the
     // user's own statuses plus the order they put the Status menu in.
     var onWorkStatusPalette: ((_ statuses: [CustomWorkStatus], _ order: [String]) -> Void)?
+    // The Mac's auto pull setting, also delivered with every projects reply.
+    var onAutoPullMode: ((AutoPullMode) -> Void)?
     var onSidebar: ((_ order: [String], _ groups: [ProjectFolder]) -> Void)?
     var onStats: ((_ stats: AgentStats?, _ error: String?) -> Void)?
     var onLimits: ((_ snapshot: LimitsSnapshot?, _ error: String?) -> Void)?
@@ -78,6 +80,7 @@ final class LpmClient: NSObject {
     var onGitCreatePr: ((_ project: String, _ url: String?, _ error: String?) -> Void)?
     var onGitPull: ((_ project: String, _ error: String?) -> Void)?
     var onGitFetch: ((_ project: String, _ error: String?) -> Void)?
+    var onGitAutoPullUndo: ((_ project: String, _ error: String?) -> Void)?
     var onGitBranches: ((_ project: String, _ current: String, _ branches: [GitBranch], _ error: String?) -> Void)?
     var onGitCheckout: ((_ project: String, _ error: String?) -> Void)?
     var onGitDiscardAll: ((_ project: String, _ error: String?) -> Void)?
@@ -139,6 +142,8 @@ final class LpmClient: NSObject {
     var onRenameProject: ((_ project: String, _ error: String?) -> Void)?
     // A work-status write settled (error nil on success).
     var onSetWorkStatus: ((_ project: String, _ error: String?) -> Void)?
+    // An auto pull choice write settled (error nil on success).
+    var onSetAutoPull: ((_ project: String, _ error: String?) -> Void)?
     var onGitCreateBranch: ((_ project: String, _ error: String?) -> Void)?
     var onGitAuto: ((_ project: String, _ run: GitAutoRun?, _ error: String?) -> Void)?
     var onGitAutoSwitchBase: ((_ project: String, _ base: String, _ error: String?, _ pullError: String?) -> Void)?
@@ -861,6 +866,10 @@ final class LpmClient: NSObject {
     func setWorkStatus(project: String, status: WorkStatusInput?) {
         send(Wire.setWorkStatus(project: project, status: status))
     }
+    /// Set a project's own auto pull choice; a nil `value` follows the default.
+    func setAutoPull(project: String, value: Bool?) {
+        send(Wire.setAutoPull(project: project, value: value))
+    }
     func sidebarCreateFolder(name: String) { send(Wire.sidebarCreateFolder(name: name)) }
     func sidebarRenameFolder(name: String, newName: String) {
         send(Wire.sidebarRenameFolder(name: name, newName: newName))
@@ -983,6 +992,7 @@ final class LpmClient: NSObject {
     }
     func gitPull(project: String) { send(Wire.gitPull(project: project)) }
     func gitFetch(project: String) { send(Wire.gitFetch(project: project)) }
+    func gitAutoPullUndo(project: String) { send(Wire.gitAutoPullUndo(project: project)) }
     func requestGitBranches(project: String) { send(Wire.gitBranches(project: project)) }
     func gitCheckout(project: String, branch: String, remote: String) {
         send(Wire.gitCheckout(project: project, branch: branch, remote: remote))
@@ -1219,9 +1229,10 @@ final class LpmClient: NSObject {
                 // credential is pointless, so stop and report it as the sentinel
                 // the model turns into a "pair again" prompt.
                 self.fatal(e == "unauthorized" ? Self.unauthorizedError : e)
-            case .projects(let p, let statuses, let order):
+            case .projects(let p, let statuses, let order, let autoPullMode):
                 self.onProjects?(p)
                 self.onWorkStatusPalette?(statuses, order)
+                self.onAutoPullMode?(autoPullMode)
             case .sidebar(let order, let groups): self.onSidebar?(order, groups)
             case .stats(let stats, let error): self.onStats?(stats, error)
             case .limits(let snapshot, let error): self.onLimits?(snapshot, error)
@@ -1275,6 +1286,7 @@ final class LpmClient: NSObject {
                 if let error { self.onActionError?(error) } else { self.onProjectsChanged?() }
             case .renameProject(let proj, let error): self.onRenameProject?(proj, error)
             case .setWorkStatus(let proj, let error): self.onSetWorkStatus?(proj, error)
+            case .setAutoPull(let proj, let error): self.onSetAutoPull?(proj, error)
             case .sidebarMutation(let order, let groups, let error):
                 self.onSidebarMutation?(order, groups, error)
             case .fileChunk(let chunk): self.onFileChunk?(chunk)
@@ -1296,6 +1308,7 @@ final class LpmClient: NSObject {
             case .gitCreatePr(let proj, let url, let error): self.onGitCreatePr?(proj, url, error)
             case .gitPull(let proj, let error): self.onGitPull?(proj, error)
             case .gitFetch(let proj, let error): self.onGitFetch?(proj, error)
+            case .gitAutoPullUndo(let proj, let error): self.onGitAutoPullUndo?(proj, error)
             case .gitBranches(let proj, let current, let branches, let error):
                 self.onGitBranches?(proj, current, branches, error)
             case .gitCheckout(let proj, let error): self.onGitCheckout?(proj, error)

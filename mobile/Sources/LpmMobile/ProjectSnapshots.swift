@@ -10,6 +10,7 @@ final class ProjectSnapshots {
         var projects: [Project] = []
         var workStatuses: [CustomWorkStatus] = defaultWorkStatusPalette
         var workStatusOrder: [String] = []
+        var autoPullMode: AutoPullMode = .off
         var sidebarOrder: [String] = []
         var groups: [ProjectFolder] = []
         var at: Date
@@ -44,10 +45,11 @@ final class ProjectSnapshots {
 
     func load(_ mac: UUID) -> Snapshot? {
         guard let entry = self.entry(mac), let projectsText = entry.projects,
-              case .projects(let projects, let statuses, let order) = Wire.Inbound.parse(projectsText) else {
+              case .projects(let projects, let statuses, let order, let autoPullMode) = Wire.Inbound.parse(projectsText) else {
             return nil
         }
-        var snapshot = Snapshot(projects: projects, workStatuses: statuses, workStatusOrder: order, at: entry.at)
+        var snapshot = Snapshot(projects: projects, workStatuses: statuses, workStatusOrder: order,
+                                autoPullMode: autoPullMode, at: entry.at)
         if let sidebar = entry.sidebar, case .sidebar(let order, let groups) = Wire.Inbound.parse(sidebar) {
             snapshot.sidebarOrder = order
             snapshot.groups = groups

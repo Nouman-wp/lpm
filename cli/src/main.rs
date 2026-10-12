@@ -5,6 +5,7 @@
 //! delegates to the running app over the status socket. It never writes to
 //! `~/.lpm` or the repo configs directly — all mutation flows through the app.
 
+mod auto_pull;
 mod config;
 mod config_cmd;
 mod control;
@@ -59,6 +60,8 @@ app over that socket (so the app stays the single owner of run-state).\n\n\
 Inspection commands: `list`, `project`, `logs`, `status`, `config resolve`, `config validate`. \
 Config transactions (need the app running): `config get`, `config apply`. Control commands: \
 `start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `worktree`, `remove`, `run`, `automations`. \
+`auto-pull` shows whether the app pulls a project by itself; `auto-pull --set` changes it \
+through the running app. \
 Connection commands (for a machine with no UI in front of it): `pair`, `connections`, \
 and `mobile` for the iOS companion app. \
 `wait` polls client-side, except its `--agent` mode which queries the app. Inside an lpm \
@@ -327,6 +330,22 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Show or set whether the app fast-forwards a project from origin by itself.
+    AutoPull {
+        /// Project stem, `name:` field, or unambiguous prefix. Omit to infer it.
+        name: Option<String>,
+        /// Set this project's own auto pull via the running app; `default` removes
+        /// it so the project follows its parent (for a duplicate or worktree) or the
+        /// Settings mode.
+        #[arg(long, value_enum, value_name = "STATE")]
+        set: Option<auto_pull::Setting>,
+        /// List every project instead of one.
+        #[arg(long, conflicts_with_all = ["name", "set"])]
+        all: bool,
+        /// Emit a single machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
     /// Queue an action/command in a new terminal in the app (fire-and-forget).
     Run {
         /// Action name (exact or unambiguous prefix). Omit when using --command.
@@ -502,6 +521,12 @@ fn main() -> ExitCode {
             json,
         ),
         Commands::Remove { name, force, json } => remove::run(&ctx, &name, force, json),
+        Commands::AutoPull {
+            name,
+            set,
+            all,
+            json,
+        } => auto_pull::run(&ctx, name.as_deref(), set, all, json),
         Commands::Run {
             action,
             command,

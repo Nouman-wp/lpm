@@ -134,6 +134,7 @@ struct ProjectRunControl: View {
                 .disabled(pushing)
             Button { model.git.fetch(name) } label: { Label("Fetch", systemImage: "arrow.triangle.2.circlepath") }
                 .disabled(fetching)
+            AutoPullMenuItems(project: project)
 
             Divider()
 
@@ -222,6 +223,7 @@ struct ProjectMenuHost: ViewModifier {
     @State private var confirmingDiscard = false
     @State private var showTerminalSettings = false
     @State private var showingConfig = false
+    @State private var showActions = false
     // Action run flow: collect inputs (if any) → confirm (if flagged) → dispatch.
     @State private var runInputsFor: Action?
     @State private var runConfirmFor: Action?
@@ -303,6 +305,7 @@ struct ProjectMenuHost: ViewModifier {
             .sheet(isPresented: $showingConfig) {
                 ProjectConfigView(project: project).environment(model)
             }
+            .projectActionsSheet(project: project, isPresented: $showActions, onRun: beginRun)
             .alert("Rename project", isPresented: $renaming) {
                 TextField("Project name", text: $renameText)
                 Button("Cancel", role: .cancel) {}
@@ -314,10 +317,9 @@ struct ProjectMenuHost: ViewModifier {
             .toolbar {
                 if !project.actions.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
-                        ProjectActionsButton(project: project, onRun: beginRun) {
+                        Button { showActions = true } label: {
                             Label("Actions", systemImage: "bolt")
                         }
-                        .environment(model)
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {

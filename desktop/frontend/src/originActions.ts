@@ -61,17 +61,20 @@ export async function runOriginAction(root: string, mark: OriginMark, name?: str
     toast.error(`${verb} failed${name ? ` in ${name}` : ""}: ${String(err)}`);
   }
   await recheckOrigin(root);
-  const after = useOriginStatus.getState();
-  after.setRunning(root, false);
+  useOriginStatus.getState().setRunning(root, false);
   if (!ok) return false;
-  const text = originDoneText(mark);
-  after.setDone(root, text);
+  showOriginDone(root, originDoneText(mark));
+  return true;
+}
+
+// The row's short confirmation once a catch-up lands, cleared after a moment.
+export function showOriginDone(root: string, text: string): void {
+  useOriginStatus.getState().setDone(root, text);
   setTimeout(() => {
     if (useOriginStatus.getState().entries[root]?.done === text) {
       useOriginStatus.getState().setDone(root, undefined);
     }
   }, DONE_MS);
-  return true;
 }
 
 export function plainPullMark(root: string): OriginMark | null {

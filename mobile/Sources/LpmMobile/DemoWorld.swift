@@ -37,6 +37,7 @@ struct DemoWorld {
         var worktree: Bool = false
         // The person-set work status, as the raw wire dict the Mac would send.
         var workStatus: [String: Any]? = nil
+        var autoPull: Bool? = nil
         var services: [Svc] = []
         var profiles: [Profile] = []
         var activeProfile: String = ""
@@ -158,6 +159,8 @@ struct DemoWorld {
         var watched: Bool = false
         // Per-branch ahead counts so a checkout restores the branch it left.
         var aheadByBranch: [String: Int] = [:]
+        // The last auto pull, as the raw wire dict, while it can be undone.
+        var autoPulled: [String: Any]? = nil
     }
 
     var git: [String: GitRepo] = [:] // project -> repo
@@ -352,6 +355,7 @@ struct DemoWorld {
             ),
             Project(
                 name: "design-system", label: "design-system", running: false,
+                autoPull: false,
                 services: [Svc(name: "storybook", cmd: "npm run storybook", port: 6006, running: false)]
             ),
         ]
@@ -398,6 +402,8 @@ struct DemoWorld {
                                 branches: [GitBranch(name: "main", committerDate: date(7)),
                                            GitBranch(name: "main", committerDate: date(7), remote: "origin")])
         }
+        git["api-gateway"]?.autoPulled = ["count": 3, "branch": "main", "from": "4f1c2ab", "to": "9e7d031",
+                                          "at": (nowS - 25 * 60) * 1000]
     }
 
     private mutating func seedJobs(nowS: Int) {
@@ -541,6 +547,7 @@ extension DemoWorld {
             "actions": p.actions,
         ]
         if let ws = p.workStatus { d["workStatus"] = ws }
+        if let autoPull = p.autoPull { d["autoPull"] = autoPull }
         return d
     }
 
@@ -552,6 +559,7 @@ extension DemoWorld {
             "projects": projects.map(projectDict),
             "workStatuses": palette.map { ["label": $0.label, "emoji": $0.emoji, "withNote": $0.withNote] },
             "workStatusOrder": [String](),
+            "autoPullMode": "all",
         ]
     }
 
@@ -591,13 +599,15 @@ extension DemoWorld {
         guard let r = git[project] else {
             return ["t": "git", "project": project, "ok": true, "isRepo": false]
         }
-        return [
+        var d: [String: Any] = [
             "t": "git", "project": project, "ok": true,
             "isRepo": r.isRepo, "branch": r.branch, "detached": r.detached,
             "hasUpstream": r.hasUpstream, "ahead": r.ahead, "behind": r.behind,
             "defaultBranch": r.defaultBranch, "ghCli": r.ghCli,
             "files": r.files.map(gitFileDict),
         ]
+        if let autoPulled = r.autoPulled { d["autoPulled"] = autoPulled }
+        return d
     }
 
     func jobDict(_ j: Job) -> [String: Any] {

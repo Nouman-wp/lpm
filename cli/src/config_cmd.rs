@@ -695,6 +695,7 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
             "label",
             "parent_name",
             "worktree",
+            "autoPull",
             "ssh",
             "claudeAccount",
             "claudeAccounts",
@@ -728,6 +729,7 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
             report.error("config.worktree", "expected a boolean");
         }
     }
+    validate_bool_field(root, "autoPull", "config", &mut report);
     validate_extends(root, &mut report);
     project_fields::validate_claude_account(root, &mut report);
     project_fields::validate_claude_accounts(root, &mut report);
@@ -2047,6 +2049,18 @@ mod tests {
             let report = project_report(&ctx, source);
             assert!(report.errors.is_empty(), "{source}: {:?}", report.errors);
         }
+    }
+
+    #[test]
+    fn validator_accepts_auto_pull_only_as_a_boolean() {
+        let (_dir, ctx) = context();
+        let report = project_report(&ctx, "root: /tmp\nautoPull: false\n");
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+        let report = project_report(&ctx, "root: /tmp\nautoPull: sometimes\n");
+        assert!(report
+            .errors
+            .iter()
+            .any(|error| error.starts_with("config.autoPull: expected true or false")));
     }
 
     #[test]

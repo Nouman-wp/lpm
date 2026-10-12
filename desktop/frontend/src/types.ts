@@ -221,6 +221,8 @@ export interface ProjectInfo {
   // The project's own ordered account list ("default" is the main login);
   // empty on a copy that uses the main accounts instead of its parent's.
   claudeAccounts?: string[];
+  // The project's own auto pull choice; absent follows its parent, then Settings.
+  autoPull?: boolean;
 }
 
 // What a project's new Claude sessions use, as written by the project menu.

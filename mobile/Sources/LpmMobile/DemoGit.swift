@@ -218,6 +218,7 @@ extension DemoServer {
     func demoCloneGitState(from: String, to: String) {
         guard var repo = world.git[from] else { return }
         repo.watched = false
+        repo.autoPulled = nil
         world.git[to] = repo
     }
 

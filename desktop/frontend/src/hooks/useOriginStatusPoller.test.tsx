@@ -4,10 +4,15 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectInfo } from "../types";
 
-const mocks = vi.hoisted(() => ({ status: vi.fn(), eventsOn: vi.fn(() => () => {}) }));
+const mocks = vi.hoisted(() => ({
+  status: vi.fn(),
+  eventsOn: vi.fn(() => () => {}),
+  autoPull: vi.fn(async () => {}),
+}));
 
 vi.mock("../../bridge/commands", () => ({ GitOriginStatus: mocks.status }));
 vi.mock("../../bridge/runtime", () => ({ EventsOn: mocks.eventsOn }));
+vi.mock("../autoPullRun", () => ({ maybeAutoPull: mocks.autoPull }));
 
 import { FETCH_EVERY_MS, originRoots, useOriginStatusPoller } from "./useOriginStatusPoller";
 import { useOriginStatus } from "../store/originStatus";
@@ -77,6 +82,12 @@ describe("useOriginStatusPoller", () => {
     expect(mocks.status.mock.calls).toEqual([["/p/lpm", true], ["/p/reader", true]]);
   });
 
+  it("offers each project an auto pull right after its check", async () => {
+    act(() => root.render(<Harness enabled />));
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+    expect(mocks.autoPull.mock.calls).toEqual([["/p/lpm"], ["/p/reader"]]);
+  });
+
   it("recounts on working-tree edits only while the project shows a mark", async () => {
     act(() => root.render(<Harness enabled />));
     const calls = mocks.eventsOn.mock.calls as unknown as [string, (payload: unknown) => void][];
@@ -94,6 +105,7 @@ describe("useOriginStatusPoller", () => {
     act(() => useOriginStatus.getState().setStatus("/p/reader", behind));
     await edit();
     expect(mocks.status).toHaveBeenCalledWith("/p/reader", false);
+    expect(mocks.autoPull).toHaveBeenCalledWith("/p/reader");
   });
 
   it("clears every mark when switched off", async () => {

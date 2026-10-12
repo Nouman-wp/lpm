@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { AutoPullSubmenu } from "./AutoPullSubmenu";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
 import { Tooltip } from "./ui/Tooltip";
+import { UndoAutoPullItem } from "./UndoAutoPullItem";
 import {
   BranchIcon,
   CopyIcon,
@@ -34,6 +36,10 @@ import {
 
 interface ProjectGitSubmenuProps {
   projectPath: string | null;
+  projectName: string;
+  // Auto pull runs on this Mac's own projects only: not a paired Mac's or an
+  // SSH host's.
+  autoPull: boolean;
   onCommit: () => void;
   onCreatePR: () => void;
   onSwitchBranch: () => void;
@@ -92,6 +98,8 @@ export function ProjectGitSubmenu(props: ProjectGitSubmenuProps) {
 
 function GitSubmenuItems({
   projectPath,
+  projectName,
+  autoPull,
   onCommit,
   onCreatePR,
   onSwitchBranch,
@@ -170,6 +178,12 @@ function GitSubmenuItems({
           })
         }
       />
+      {autoPull && (
+        <>
+          <AutoPullSubmenu projectName={projectName} onClose={onClose} />
+          <UndoAutoPullItem projectPath={projectPath} projectName={projectName} onClose={onClose} />
+        </>
+      )}
       <ContextMenuSeparator />
       <ContextMenuItem label="Switch branch…" icon={<BranchIcon size={14} />} onClick={close(onSwitchBranch)} />
       <ContextMenuItem

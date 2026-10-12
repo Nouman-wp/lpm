@@ -1,14 +1,15 @@
 import SwiftUI
 
-/// The state colours the Activity list speaks, shared by the rows and the header
-/// counts so a dot means the same thing everywhere.
+/// The state colours the app speaks, shared by the rows and the header counts so
+/// a dot means the same thing everywhere. Done is blue, as on the desktop; working
+/// is told apart from it by `agentTone`'s sweep wherever the two sit together.
 extension AgentState {
     var tint: SwiftUI.Color {
         switch self {
         case .needsYou: return .orange
         case .error: return .red
         case .working: return .blue
-        case .done: return .green
+        case .done: return .blue
         case .idle: return .secondary
         }
     }
@@ -68,9 +69,13 @@ struct ActivityRowCard: View {
                     }
 
                     HStack(spacing: 5) {
-                        Circle().fill(row.state.tint).frame(width: 6, height: 6)
+                        Circle()
+                            .frame(width: 6, height: 6)
+                            .agentTone(row.state)
+                            .foregroundStyle(row.state.tint)
                         Text(row.state.label)
                             .font(.caption.weight(.medium))
+                            .agentTone(row.state)
                             .foregroundStyle(row.state.tint)
                         if !meta.isEmpty {
                             Text("· \(meta)")

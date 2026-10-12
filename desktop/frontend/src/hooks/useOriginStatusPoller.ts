@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { EventsOn } from "../../bridge/runtime";
+import { maybeAutoPull } from "../autoPullRun";
 import { recheckOrigin } from "../originActions";
 import { originMark } from "../originStatus";
 import { isPeerRoot } from "../peer/markers";
@@ -30,7 +31,8 @@ export function originRoots(projects: ProjectInfo[]): string[] {
 // Keeps the origin store current for every project here and on connected Macs:
 // a quiet fetch per project every FETCH_EVERY_MS, a recount on window focus, and
 // a recount when the watched project's .git changes. One project at a time, so a
-// slow remote never stacks up git processes.
+// slow remote never stacks up git processes. Each check is followed by an auto
+// pull try, which does nothing unless the project is set to pull itself.
 export function useOriginStatusPoller(projects: ProjectInfo[], enabled: boolean): void {
   const roots = useMemo(() => originRoots(projects), [projects]);
   const rootsKey = roots.join("\n");
@@ -53,6 +55,7 @@ export function useOriginStatusPoller(projects: ProjectInfo[], enabled: boolean)
         const due = Date.now() - (lastFetch.current.get(root) ?? 0) >= FETCH_DUE_MS;
         if (due) lastFetch.current.set(root, Date.now());
         await recheckOrigin(root, due);
+        await maybeAutoPull(root);
       }
     } finally {
       sweeping.current = false;
@@ -94,7 +97,8 @@ export function useOriginStatusPoller(projects: ProjectInfo[], enabled: boolean)
       clearTimeout(pending.get(root));
       pending.set(root, setTimeout(() => {
         pending.delete(root);
-        if (!useOriginStatus.getState().entries[root]?.running) void recheckOrigin(root);
+        if (useOriginStatus.getState().entries[root]?.running) return;
+        void recheckOrigin(root).then(() => maybeAutoPull(root));
       }, GIT_CHANGE_DELAY_MS));
     });
     return () => {

@@ -18,9 +18,15 @@ struct ProjectAgentRow: Identifiable, Equatable {
     /// Millis: set once the turn ended, freezing the reading at how long the work
     /// took instead of counting on past it.
     var until: Int?
+    /// How many further agents report on this row's tab, folded into it.
+    var shared = 0
 
     /// A reading still counting up; one that has stopped needs no clock.
     var isTicking: Bool { since != nil && until == nil }
+
+    func elapsed(now: Int) -> String? {
+        since.map { shortDuration(millis: (until ?? now) - $0) }
+    }
 }
 
 // A paired Mac stamps its statuses with its own clock, which can run ahead of
@@ -36,9 +42,30 @@ private func precedes(_ a: StatusEntry, _ b: StatusEntry) -> Bool {
     return rankA == rankB ? a.timestamp > b.timestamp : rankA < rankB
 }
 
-/// Every agent a project has going, in the order the list shows them.
-/// `tabTitles` is that project's terminal id -> the name that tab is showing.
+/// Every agent a project has going, in the order the list shows them: one row per
+/// tab, as the desktop sidebar has it. The most urgent agent on a tab speaks for
+/// it and the others are counted on it; an agent reporting against no tab keeps
+/// its own row. `tabTitles` is that project's terminal id -> the name that tab is
+/// showing.
 func projectAgentRows(_ project: Project, now: Int, tabTitles: [String: String]) -> [ProjectAgentRow] {
+    var rows: [ProjectAgentRow] = []
+    var rowForTerminal: [String: Int] = [:]
+    for row in agentRows(project, now: now, tabTitles: tabTitles) {
+        guard let terminal = row.terminalId else {
+            rows.append(row)
+            continue
+        }
+        if let index = rowForTerminal[terminal] {
+            rows[index].shared += 1
+        } else {
+            rowForTerminal[terminal] = rows.count
+            rows.append(row)
+        }
+    }
+    return rows
+}
+
+private func agentRows(_ project: Project, now: Int, tabTitles: [String: String]) -> [ProjectAgentRow] {
     project.statusEntries.sorted(by: precedes).map { entry in
         let provider = agentProviderLabel(forStatusKey: entry.key)
         let state = AgentState.of(entry.value)
@@ -75,16 +102,10 @@ func projectAgentRows(_ project: Project, now: Int, tabTitles: [String: String])
     }
 }
 
-/// The agent each terminal reads as. Several can report on one terminal — a
-/// split, or an agent that shelled out to another — and the rows arrive most
-/// urgent first, so the first to claim a terminal is the one that speaks for it.
+/// The agent each terminal reads as; `projectAgentRows` already holds one per tab.
 func agentRowsByTerminal(_ rows: [ProjectAgentRow]) -> [String: ProjectAgentRow] {
-    var byTerminal: [String: ProjectAgentRow] = [:]
-    for row in rows {
-        guard let id = row.terminalId, byTerminal[id] == nil else { continue }
-        byTerminal[id] = row
-    }
-    return byTerminal
+    Dictionary(rows.compactMap { row in row.terminalId.map { ($0, row) } },
+               uniquingKeysWith: { first, _ in first })
 }
 
 /// "45s", "4m", "2h 5m" — `formatActivityDuration` with the remainder dropped, for

@@ -236,6 +236,8 @@ final class AppModel {
     // user's own statuses, and the order they put the Status menu in.
     var workStatuses: [CustomWorkStatus] = defaultWorkStatusPalette
     var workStatusOrder: [String] = []
+    // The Mac's Settings › General › Auto pull, refreshed with every projects list.
+    var autoPullMode: AutoPullMode = .off
     // terminal id -> current owner. Absent = nobody/unknown (this phone may show
     // it). A terminal is rendered live in exactly one surface; when the desktop
     // (or another phone) owns it, this phone shows a "take control" placeholder.
@@ -1194,6 +1196,7 @@ final class AppModel {
         groups = []
         workStatuses = defaultWorkStatusPalette
         workStatusOrder = []
+        autoPullMode = .off
         controlOwner = [:]
         actionError = nil
         pendingRun = [:]
@@ -2333,6 +2336,7 @@ final class AppModel {
         wireConfig(c)
         wireMachines(c)
         wireMacUpdate(c)
+        wireAutoPull(c)
     }
 
     private func wireConnection(_ c: LpmClient) {

@@ -18,6 +18,7 @@ import { normalizePaneToolbar, type PaneActionId } from "../paneActions";
 import { normalizeComposerToolbar, type ComposerToolId } from "../composerTools";
 import type { PeerRowOrder } from "../components/peerRowOrder";
 import type { SideBySideLayout } from "../sideBySide";
+import { normalizeAutoPullMode, type AutoPullMode } from "../autoPull";
 
 export interface DetachedWindowState {
   detached: boolean;
@@ -82,6 +83,8 @@ export interface Settings {
   // Fetch in the background and mark projects whose branch on origin moved on.
   // Unset means on.
   checkOrigin?: boolean;
+  // Which projects fast-forward on their own after that check. Unset means off.
+  autoPull?: AutoPullMode;
   // Put Linux hosts on this app's release once nothing is running on them.
   // Unset means on.
   autoUpdateHosts?: boolean;
@@ -188,6 +191,7 @@ function normalize(s: main.Settings): Settings {
     gitPush: normalizeGitPush(s.gitPush),
     gitFetch: normalizeGitFetch(s.gitFetch),
     checkOrigin: s.checkOrigin,
+    autoPull: s.autoPull === undefined ? undefined : normalizeAutoPullMode(s.autoPull),
     autoUpdateHosts: s.autoUpdateHosts,
     experimentalTTS: s.experimentalTTS,
     ttsEnabled: s.ttsEnabled,

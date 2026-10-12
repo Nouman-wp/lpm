@@ -1,6 +1,6 @@
 ---
 name: lpm-cli
-version: 1.4.2
+version: 1.5.0
 description: "Operate lpm-managed projects through the `lpm` CLI: start or stop projects and services, inspect logs and agent status, wait for readiness, run actions, create, edit, run, pause, and read scheduled automations, and duplicate projects into standalone copies or create linked Git worktrees. Use when the user asks to operate or inspect lpm runtime state or manage lpm automations. `LPM_PROJECT_NAME` selects the default project after the skill triggers; it is not a trigger by itself. For editing YAML configuration, use `lpm-config`."
 ---
 
@@ -32,6 +32,7 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 - `lpm remove <copy-name>` — remove a duplicate. For a linked worktree, this also removes its Git worktree registration and lpm-created branch. Originals and SSH projects (SSH duplicates too) need `--force`, and their folder is kept; don't use `--force` unless the user explicitly asks.
 - `lpm run [action | --command CMD] [--prompt TEXT] [-p proj]` — queue in a new app terminal, fire-and-forget.
 - `lpm set-status <key> <value>` / `lpm clear-status <key>` — report status to the app UI.
+- `lpm auto-pull [project] [--set on|off|default]` / `lpm auto-pull --all` — whether the app fast-forwards a project from origin by itself, and why. `--set` changes the project's own `autoPull` key through the running app, like `start`/`stop`; `default` removes it, so a duplicate or worktree follows its parent, else the Settings mode (Off / Chosen / All, changed only in the app). Change it only when the user asks.
 
 ### Automations
 

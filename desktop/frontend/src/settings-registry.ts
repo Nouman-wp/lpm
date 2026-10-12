@@ -144,6 +144,14 @@ export const ROWS = {
     description: "Show in the sidebar when a project’s branch on origin is ahead",
     keywords: ["git", "fetch", "pull", "behind", "origin", "remote", "sync"],
   },
+  "general.autoPull": {
+    kind: "row",
+    tab: "general",
+    id: "general.autoPull",
+    label: "Auto pull",
+    description: "Fast-forward when the branch is clean and has nothing to push",
+    keywords: ["git", "pull", "automatic", "fast-forward", "origin", "update", "sync", "duplicates"],
+  },
   "general.defaultDir": {
     kind: "row",
     tab: "general",

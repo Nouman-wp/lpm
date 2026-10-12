@@ -1,0 +1,191 @@
+import { toast } from "sonner";
+import { GitAutoPull, GitAutoPullUndo, SetAutoPull } from "../bridge/commands";
+import { autoPullState, commitsText, normalizeAutoPullMode, wantsAutoPull } from "./autoPull";
+import { displayNameForProjectName } from "./components/ProjectNameDisplay";
+import { recheckOrigin, showOriginDone } from "./originActions";
+import { isPeerRoot } from "./peer/markers";
+import { projectAgentRows } from "./sidebarAgents";
+import { useAppStore } from "./store/app";
+import { useOriginStatus } from "./store/originStatus";
+import { getSettings } from "./store/settings";
+import type { ProjectInfo } from "./types";
+
+export interface AutoPulled {
+  branch: string;
+  count: number;
+  from: string;
+  to: string;
+  at: number;
+}
+
+type AutoPullOutcome = ({ kind: "pulled" } & AutoPulled) | { kind: "skipped"; reason: string };
+
+interface Announced {
+  root: string;
+  project: string;
+  name: string;
+  pulled: AutoPulled;
+}
+
+const TOAST_ID = "auto-pull";
+const TOAST_MS = 10_000;
+const SETTLE_MS = 1_500;
+
+// Roots not to try again until origin or the branch moves: a pull git refused,
+// or one the user just undid.
+const heldAt = new Map<string, string>();
+let announced: Announced[] = [];
+let announcedTimer: ReturnType<typeof setTimeout> | undefined;
+let sweeping = false;
+
+const attemptKey = (root: string) => {
+  const status = useOriginStatus.getState().entries[root]?.status;
+  return status ? `${status.branch}:${status.behind}` : "";
+};
+
+function nameOf(project: ProjectInfo): string {
+  return displayNameForProjectName(project.name, useAppStore.getState().projects);
+}
+
+// An agent mid-task, or stopped on a question, is working from the files it read.
+function agentBusy(project: ProjectInfo): boolean {
+  return projectAgentRows(project, Date.now()).some(
+    (row) => row.state === "working" || row.state === "needs-you",
+  );
+}
+
+function autoPullProject(root: string): ProjectInfo | undefined {
+  if (isPeerRoot(root)) return undefined;
+  const mode = normalizeAutoPullMode(getSettings().autoPull);
+  if (mode === "off") return undefined;
+  const projects = useAppStore.getState().projects;
+  const project = projects.find((p) => p.root === root && !p.isRemote && !p.configError);
+  if (!project || !autoPullState(project, projects, mode).on || agentBusy(project)) return undefined;
+  return project;
+}
+
+// Fast-forward the project at `root` if its last origin check says it's a clean
+// pull and its setting allows it. Called right after each check.
+export async function maybeAutoPull(root: string): Promise<void> {
+  const entry = useOriginStatus.getState().entries[root];
+  if (!entry || entry.running || !wantsAutoPull(entry.status)) return;
+  const attempt = attemptKey(root);
+  if (heldAt.get(root) === attempt) return;
+  const project = autoPullProject(root);
+  if (!project) return;
+
+  useOriginStatus.getState().setRunning(root, true);
+  let outcome: AutoPullOutcome | undefined;
+  try {
+    outcome = (await GitAutoPull(root)) as AutoPullOutcome;
+    heldAt.delete(root);
+  } catch (err) {
+    heldAt.set(root, attempt);
+    toast.error(`Auto pull stopped in ${nameOf(project)}: ${String(err)}`);
+  }
+  await recheckOrigin(root);
+  useOriginStatus.getState().setRunning(root, false);
+  if (outcome?.kind !== "pulled") return;
+  showOriginDone(root, `Pulled ${outcome.count}`);
+  announce({ root, project: project.name, name: nameOf(project), pulled: outcome });
+}
+
+// Every checked project in turn, for when a setting has just turned auto pull on.
+export function autoPullSoon(): void {
+  setTimeout(async () => {
+    if (sweeping) return;
+    sweeping = true;
+    try {
+      for (const root of Object.keys(useOriginStatus.getState().entries)) await maybeAutoPull(root);
+    } finally {
+      sweeping = false;
+    }
+  }, SETTLE_MS);
+}
+
+function announce(item: Announced): void {
+  announced = [...announced.filter((a) => a.root !== item.root), item];
+  clearTimeout(announcedTimer);
+  announcedTimer = setTimeout(() => {
+    announced = [];
+  }, TOAST_MS);
+  const items = announced;
+  if (items.length === 1) {
+    const { pulled } = item;
+    toast.success(`Pulled ${commitsText(pulled.count)} into ${item.name}`, {
+      id: TOAST_ID,
+      description: `${pulled.branch} · ${pulled.from} → ${pulled.to}`,
+      duration: TOAST_MS,
+      action: { label: "Undo", onClick: () => void undoAutoPull(item.root, item.project, item.name) },
+    });
+    return;
+  }
+  toast.success(`Auto-pulled ${items.length} projects`, {
+    id: TOAST_ID,
+    description: items.map((i) => i.name).join(", "),
+    duration: TOAST_MS,
+    action: { label: "Undo all", onClick: () => void undoAll(items) },
+  });
+}
+
+async function undoOne(root: string): Promise<AutoPulled> {
+  try {
+    return (await GitAutoPullUndo(root)) as AutoPulled;
+  } finally {
+    announced = announced.filter((a) => a.root !== root);
+    await recheckOrigin(root);
+    heldAt.set(root, attemptKey(root));
+  }
+}
+
+export async function undoAutoPull(root: string, project: string, name: string): Promise<void> {
+  try {
+    const undone = await undoOne(root);
+    toast.success(`Undid the pull in ${name}`, {
+      id: TOAST_ID,
+      description: `Back on ${undone.from}. Auto pull waits for newer commits on origin.`,
+      duration: TOAST_MS,
+      action: { label: "Turn off auto pull", onClick: () => void turnOff(project, name) },
+    });
+  } catch (err) {
+    toast.error(`Couldn’t undo the pull in ${name}: ${String(err)}`, { id: TOAST_ID });
+  }
+}
+
+async function undoAll(items: Announced[]): Promise<void> {
+  const failed: string[] = [];
+  for (const item of items) {
+    try {
+      await undoOne(item.root);
+    } catch {
+      failed.push(item.name);
+    }
+  }
+  if (failed.length > 0) {
+    toast.error(`Couldn’t undo the pull in ${failed.join(", ")}: the branch has moved since`, { id: TOAST_ID });
+    return;
+  }
+  toast.success(`Undid ${items.length} pulls`, {
+    id: TOAST_ID,
+    description: "Auto pull waits for newer commits on origin.",
+    duration: TOAST_MS,
+  });
+}
+
+// A project's own choice: on, off, or null to follow its parent and Settings.
+export async function setProjectAutoPull(project: string, value: boolean | null): Promise<boolean> {
+  try {
+    await SetAutoPull(project, value);
+  } catch (err) {
+    toast.error(`Couldn’t change auto pull: ${String(err)}`);
+    return false;
+  }
+  if (value !== false) autoPullSoon();
+  return true;
+}
+
+async function turnOff(project: string, name: string): Promise<void> {
+  if (await setProjectAutoPull(project, false)) {
+    toast.success(`Auto pull is off for ${name}`, { id: TOAST_ID, duration: TOAST_MS });
+  }
+}

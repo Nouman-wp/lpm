@@ -322,6 +322,15 @@ export function GitMerge(cwd, branch) {
 export function GitMergeConflicts(cwd) {
   return invoke("git_merge_conflicts", { cwd });
 }
+export function GitAutoPull(cwd) {
+  return invoke("git_auto_pull", { cwd });
+}
+export function GitAutoPullLast(cwd) {
+  return invoke("git_auto_pull_last", { cwd });
+}
+export function GitAutoPullUndo(cwd) {
+  return invoke("git_auto_pull_undo", { cwd });
+}
 export function GitOriginStatus(cwd, fetch) {
   return invoke("git_origin_status", { cwd, fetch });
 }
@@ -840,6 +849,9 @@ export function SetWorkStatus(name, status) {
 }
 export function SetClaudeAccount(name, account) {
   return invoke("set_claude_account", { name, account });
+}
+export function SetAutoPull(name, value) {
+  return invoke("set_auto_pull", { name, value });
 }
 export function SetClaudeAccountChoice(name, choice) {
   return invoke("set_claude_account_choice", { name, choice });

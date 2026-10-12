@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// One terminal tab in the project's list: its name (with the tab's emoji) and,
-/// when an agent reports, its state and how long it has been so on the trailing
-/// edge. Tapping opens the terminal; the desktop's tab actions live on swipe
-/// gestures (Pin from the leading edge; Rename / Close from the trailing edge).
+/// One terminal tab in the project's list, read the way the desktop sidebar reads
+/// it: the name (with the tab's emoji) carries the agent's state, and the trailing
+/// edge holds the state's mark and how long it has been so. Tapping opens the
+/// terminal; the desktop's tab actions live on swipe gestures (Pin from the
+/// leading edge; Rename / Close from the trailing edge) and the long-press menu.
 struct TabRow: View {
     let term: TerminalInfo
     /// What the agent in this tab reports, nil for a plain shell.
@@ -12,19 +13,18 @@ struct TabRow: View {
     let now: Int
     let onOpen: () -> Void
 
-    private var title: String {
-        term.emoji.isEmpty ? term.label : "\(term.emoji) \(term.label)"
-    }
-
-    private var elapsed: String? {
-        guard let agent, let since = agent.since else { return nil }
-        return shortDuration(millis: (agent.until ?? now) - since)
-    }
-
     var body: some View {
         Button(action: onOpen) {
             HStack(spacing: 8) {
-                titleText
+                Text(term.title)
+                    .lineLimit(1)
+                    .agentTone(agent?.state)
+                if let agent, agent.shared > 0 {
+                    Text("+\(agent.shared)")
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
                 if term.pinned {
                     Image(systemName: "pin.fill")
                         .font(.caption2)
@@ -40,7 +40,8 @@ struct TabRow: View {
                         .background(Color(.tertiarySystemFill), in: Capsule())
                 }
                 if let agent {
-                    status(agent)
+                    AgentStatusTrail(agent: agent, now: now)
+                        .font(.subheadline)
                 }
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
@@ -51,36 +52,18 @@ struct TabRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(agent.map { "\(term.label), \($0.state.label)" } ?? term.label)
+        .accessibilityLabel(accessibilityText)
     }
 
-    /// The name sweeps while the work runs, as it does in the projects list.
-    @ViewBuilder
-    private var titleText: some View {
-        let text = Text(title)
-            .foregroundStyle(agent?.state == .working ? AnyShapeStyle(Color.blue) : AnyShapeStyle(.primary))
-            .lineLimit(1)
-        if agent?.state == .working {
-            text.shimmer()
-        } else {
-            text
-        }
+    private var accessibilityText: String {
+        guard let agent else { return term.label }
+        return [term.label, agent.state.label, agent.elapsed(now: now)]
+            .compactMap { $0 }
+            .joined(separator: ", ")
     }
+}
 
-    private func status(_ agent: ProjectAgentRow) -> some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(agent.state.tint)
-                .frame(width: 7, height: 7)
-            Text(agent.state.label)
-                .foregroundStyle(agent.state.tint)
-            if let elapsed {
-                Text(elapsed)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .font(.subheadline)
-        .lineLimit(1)
-    }
+extension TerminalInfo {
+    /// The tab's name as its row shows it, led by the tab's emoji.
+    var title: String { emoji.isEmpty ? label : "\(emoji) \(label)" }
 }

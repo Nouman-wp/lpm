@@ -102,4 +102,19 @@ export const projectFields: Field[] = [
       </>
     ),
   },
+  {
+    name: "autoPull",
+    type: "bool",
+    required: false,
+    description: (
+      <>
+        Whether lpm fast-forwards this project by itself when origin has new
+        commits. It only pulls when the branch has no uncommitted changes and
+        no commits of yours to push, and waits while an agent is working. The
+        desktop app writes this field from the project&rsquo;s Git menu &rarr;
+        Auto pull. Leave it out to follow the parent project (for a duplicate
+        or worktree), then Settings &rarr; General &rarr; Auto pull.
+      </>
+    ),
+  },
 ];

@@ -187,6 +187,10 @@ enum Wire {
     static func setWorkStatus(project: String, status: WorkStatusInput?) -> String {
         json(["t": "setWorkStatus", "project": project, "status": status?.wire ?? NSNull()])
     }
+    /// Set a project's own auto pull choice; a nil `value` follows the default.
+    static func setAutoPull(project: String, value: Bool?) -> String {
+        json(["t": "setAutoPull", "project": project, "value": value ?? NSNull()])
+    }
     static func sidebarCreateFolder(name: String) -> String {
         json(["t": "sidebarCreateFolder", "name": name])
     }
@@ -252,6 +256,7 @@ enum Wire {
     }
     static func gitPull(project: String) -> String { json(["t": "gitPull", "project": project]) }
     static func gitFetch(project: String) -> String { json(["t": "gitFetch", "project": project]) }
+    static func gitAutoPullUndo(project: String) -> String { json(["t": "gitAutoPullUndo", "project": project]) }
     static func gitBranches(project: String) -> String { json(["t": "gitBranches", "project": project]) }
     static func gitCheckout(project: String, branch: String, remote: String) -> String {
         json(["t": "gitCheckout", "project": project, "branch": branch, "remote": remote])
@@ -454,8 +459,10 @@ enum Wire {
         case error(String)
         // The projects reply also brings the Mac's work-status palette (the
         // user's own statuses and the order they put the menu in), since the
-        // menu is only ever opened against a project from this same list.
-        case projects([Project], workStatuses: [CustomWorkStatus], workStatusOrder: [String])
+        // menu is only ever opened against a project from this same list. So
+        // does the Mac's auto pull setting, which every project's choice follows.
+        case projects([Project], workStatuses: [CustomWorkStatus], workStatusOrder: [String],
+                      autoPullMode: AutoPullMode)
         case sidebar(order: [String], groups: [ProjectFolder])
         // Local agent token-usage stats (the desktop Stats page). `stats` is nil on
         // a hard failure; the scan runs on the Mac and replies asynchronously.
@@ -509,6 +516,8 @@ enum Wire {
         // A setWorkStatus reply. `error` nil on success; the row itself refreshes
         // off the projects-changed push, over the optimistic status.
         case setWorkStatus(project: String, error: String?)
+        // A setAutoPull reply, settled the same way as setWorkStatus.
+        case setAutoPull(project: String, error: String?)
         // A sidebar folder mutation reply (create/rename/delete/move). On success it
         // carries the updated sidebar so the phone re-renders in place; `error` is
         // the failure to surface.
@@ -533,6 +542,7 @@ enum Wire {
         case gitCreatePr(project: String, url: String?, error: String?)
         case gitPull(project: String, error: String?)
         case gitFetch(project: String, error: String?)
+        case gitAutoPullUndo(project: String, error: String?)
         case gitBranches(project: String, current: String, branches: [GitBranch], error: String?)
         case gitCheckout(project: String, error: String?)
         case gitCreateBranch(project: String, error: String?)
@@ -664,7 +674,8 @@ enum Wire {
                     (obj["projects"] as? [[String: Any]] ?? []).map(Project.init),
                     workStatuses: (obj["workStatuses"] as? [[String: Any]])
                         .map { $0.compactMap(CustomWorkStatus.init) } ?? defaultWorkStatusPalette,
-                    workStatusOrder: obj["workStatusOrder"] as? [String] ?? []
+                    workStatusOrder: obj["workStatusOrder"] as? [String] ?? [],
+                    autoPullMode: AutoPullMode(wire: obj["autoPullMode"])
                 )
             case "sidebar":
                 return .sidebar(
@@ -791,6 +802,10 @@ enum Wire {
                 let ok = obj["ok"] as? Bool ?? false
                 return .setWorkStatus(project: obj["project"] as? String ?? "",
                                       error: ok ? nil : (obj["error"] as? String ?? "Couldn't set the status."))
+            case "setAutoPull":
+                let ok = obj["ok"] as? Bool ?? false
+                return .setAutoPull(project: obj["project"] as? String ?? "",
+                                    error: ok ? nil : (obj["error"] as? String ?? "Couldn't change auto pull."))
             case "sidebarCreateFolder", "sidebarRenameFolder", "sidebarDeleteFolder", "sidebarMoveProject":
                 let ok = obj["ok"] as? Bool ?? false
                 return .sidebarMutation(
@@ -856,6 +871,10 @@ enum Wire {
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitFetch(project: obj["project"] as? String ?? "",
                                  error: ok ? nil : (obj["error"] as? String ?? "Couldn't fetch."))
+            case "gitAutoPullUndo":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitAutoPullUndo(project: obj["project"] as? String ?? "",
+                                        error: ok ? nil : (obj["error"] as? String ?? "Couldn't undo the auto pull."))
             case "gitBranches":
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitBranches(project: obj["project"] as? String ?? "",
@@ -1327,6 +1346,9 @@ struct Project: Identifiable {
     // The status a person set on this project, distinct from statusEntries
     // (what the agent is doing). Absent when none is set.
     let workStatus: WorkStatus?
+    // The project's own auto pull choice; nil follows its parent or the Mac's
+    // setting (see autoPullEnabled).
+    let autoPull: Bool?
     let statusEntries: [StatusEntry]
     let services: [Service]      // currently running
     let allServices: [Service]   // every configured service
@@ -1347,6 +1369,7 @@ struct Project: Identifiable {
         parentName = o["parentName"] as? String ?? ""
         worktree = o["worktree"] as? Bool ?? false
         workStatus = (o["workStatus"] as? [String: Any]).flatMap(WorkStatus.init)
+        autoPull = o["autoPull"] as? Bool
         statusEntries = (o["statusEntries"] as? [[String: Any]] ?? []).map(StatusEntry.init)
         services = (o["services"] as? [[String: Any]] ?? []).map(Service.init)
         allServices = (o["allServices"] as? [[String: Any]] ?? []).map(Service.init)
@@ -1356,11 +1379,12 @@ struct Project: Identifiable {
     }
 
     private init(name: String, label: String, running: Bool, isRemote: Bool, parentName: String,
-                 worktree: Bool, workStatus: WorkStatus?, statusEntries: [StatusEntry],
+                 worktree: Bool, workStatus: WorkStatus?, autoPull: Bool?, statusEntries: [StatusEntry],
                  services: [Service], allServices: [Service], profiles: [Profile],
                  activeProfile: String, actions: [Action]) {
         self.name = name; self.label = label; self.running = running; self.isRemote = isRemote
         self.parentName = parentName; self.worktree = worktree; self.workStatus = workStatus
+        self.autoPull = autoPull
         self.statusEntries = statusEntries; self.services = services; self.allServices = allServices
         self.profiles = profiles; self.activeProfile = activeProfile; self.actions = actions
     }
@@ -1369,9 +1393,9 @@ struct Project: Identifiable {
     /// erase the project's services/actions (a partial dict rebuild would).
     func withStatus(_ entries: [StatusEntry]) -> Project {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
-                worktree: worktree, workStatus: workStatus, statusEntries: entries, services: services,
-                allServices: allServices, profiles: profiles, activeProfile: activeProfile,
-                actions: actions)
+                worktree: worktree, workStatus: workStatus, autoPull: autoPull, statusEntries: entries,
+                services: services, allServices: allServices, profiles: profiles,
+                activeProfile: activeProfile, actions: actions)
     }
 
     /// A copy wearing a status the phone has asked for but the Mac hasn't
@@ -1379,9 +1403,18 @@ struct Project: Identifiable {
     /// round trip. The projects push replaces it with what was written.
     func withWorkStatus(_ status: WorkStatus?) -> Project {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
-                worktree: worktree, workStatus: status, statusEntries: statusEntries, services: services,
-                allServices: allServices, profiles: profiles, activeProfile: activeProfile,
-                actions: actions)
+                worktree: worktree, workStatus: status, autoPull: autoPull, statusEntries: statusEntries,
+                services: services, allServices: allServices, profiles: profiles,
+                activeProfile: activeProfile, actions: actions)
+    }
+
+    /// A copy wearing the auto pull choice the phone just made, until the
+    /// projects push brings back what the Mac wrote.
+    func withAutoPull(_ value: Bool?) -> Project {
+        Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
+                worktree: worktree, workStatus: workStatus, autoPull: value, statusEntries: statusEntries,
+                services: services, allServices: allServices, profiles: profiles,
+                activeProfile: activeProfile, actions: actions)
     }
 }
 
@@ -1735,6 +1768,7 @@ struct GitSnapshot {
     let defaultBranch: String
     let ghCli: Bool
     let files: [GitFile]
+    let autoPulled: AutoPulled?
 
     init(_ o: [String: Any]) {
         isRepo = o["isRepo"] as? Bool ?? false
@@ -1746,6 +1780,7 @@ struct GitSnapshot {
         defaultBranch = o["defaultBranch"] as? String ?? ""
         ghCli = o["ghCli"] as? Bool ?? false
         files = (o["files"] as? [[String: Any]] ?? []).map(GitFile.init)
+        autoPulled = AutoPulled(o["autoPulled"])
     }
 }
 

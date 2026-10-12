@@ -46,5 +46,5 @@ When the app is not running or the installed CLI does not provide `config get` a
 11. Input fields are only `label`, `type` (`text`, `password`, `radio`), `required`, `placeholder`, `default`, `persist`, `options`, and `position`. Radio inputs have options and a matching default; option mappings have both `label` and `value`.
 12. Profiles and `dependsOn` reference defined services; dependency graphs are acyclic. A service sets `dependsOn` or `depends_on`, not both.
 13. `parent_name` references an existing project.
-14. `worktree`, when present, is a boolean; `true` requires `parent_name`.
+14. `worktree`, when present, is a boolean; `true` requires `parent_name`. `autoPull`, when present, is a boolean.
 15. `.lpm.yml` holds only `extends`, `services`, `actions`, `terminals`, `profiles`, `zones`, and `jobs`; `global.yml` only `extends`, `actions`, `terminals`, `zones`, and `jobs`; a template only `actions` and `terminals`. `jobs` holds automations, which `lpm automations` manages; leave the section as it is.

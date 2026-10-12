@@ -1,6 +1,6 @@
 ---
 name: lpm-config
-version: 1.4.1
+version: 1.5.0
 description: Create and edit lpm YAML configs for projects, duplicates, worktree metadata, services, actions, header and footer button zones and zone layers, terminals, profiles, SSH projects, and shared config layers. Use when the user explicitly asks to configure lpm, add an lpm service/action/button/zone/terminal, edit `.lpm.yml`, or manage lpm templates or global config. For creating or removing linked Git worktrees and operating running projects, use `lpm-cli`.
 ---
 
@@ -10,7 +10,7 @@ Create and modify lpm config on macOS exclusively through `lpm config get` and `
 
 ## Load only the relevant reference
 
-- Read [references/core.md](references/core.md) for project identity, services, dependencies, profiles, duplicates, linked Git worktrees, and project creation.
+- Read [references/core.md](references/core.md) for project identity, services, dependencies, profiles, duplicates, linked Git worktrees, auto pull, and project creation.
 - Read [references/actions.md](references/actions.md) when adding or changing actions, buttons, terminals, inputs, ports, shortcuts, colors, agent prompts, or nested menus.
 - Read [references/zones.md](references/zones.md) when creating, filling, rearranging, or removing button zones or zone layers.
 - Read [references/sharing.md](references/sharing.md) for `.lpm.yml`, global config, templates, `extends`, layering, and sparse overrides.
@@ -64,6 +64,7 @@ When `lpm config resolve` is unavailable, inspect the YAML project files read-on
 | Reusable action set | template plus `extends` |
 | Remote execution | project `ssh` block |
 | Scheduled task (automation) | not a config edit: `lpm automations add` from `lpm-cli`; keep any `jobs` section as it is |
+| Let the app pull one project from origin by itself, or never | `autoPull`, set with `lpm auto-pull <project> --set on\|off\|default`; see `core.md` |
 
 Ask only when the requested shape is genuinely ambiguous. For “button with options,” distinguish a split button, dropdown, and input prompt. For a terminal action, distinguish one reused pane from a fresh pane each run.
 

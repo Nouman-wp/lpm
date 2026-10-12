@@ -2022,6 +2022,7 @@ fn handle_msg(
                     "projects": list_projects_json(app),
                     "workStatuses": array("custom"),
                     "workStatusOrder": array("order"),
+                    "autoPullMode": crate::gitautopull::auto_pull_mode(),
                 }),
             )?
         }
@@ -2837,6 +2838,15 @@ fn handle_msg(
             });
             send(ws, git_result_reply("setWorkStatus", &project, r))?;
         }
+        // A project's own auto pull choice: true, false, or null to follow its
+        // parent and then Settings. Writes the project's YAML like the desktop's
+        // Git › Auto pull menu and emits `projects-changed`.
+        "setAutoPull" => {
+            let project = str_field("project").unwrap_or_default();
+            let value = v.get("value").and_then(Value::as_bool);
+            let r = crate::gitautopull::set_auto_pull(app.clone(), project.clone(), value);
+            send(ws, git_result_reply("setAutoPull", &project, r))?;
+        }
         // Run an action / open a new terminal. A terminal is a frontend pane-tree +
         // command-injection concept, not a raw pty op — spawning one from Rust would
         // orphan it (no tab, label, or command typed in). So relay to the owner
@@ -3066,11 +3076,15 @@ fn handle_msg(
                                     o
                                 })
                                 .collect();
-                            json!({ "t": "git", "project": project, "ok": true, "isRepo": true,
+                            let mut reply = json!({ "t": "git", "project": project, "ok": true, "isRepo": true,
                             "branch": st.branch, "detached": st.detached, "hasUpstream": st.has_upstream,
                             "ahead": st.ahead, "behind": st.behind,
                             "defaultBranch": crate::git::git_default_branch(cwd.clone()),
-                            "ghCli": crate::git::check_ghcli(), "files": files })
+                            "ghCli": crate::git::check_ghcli(), "files": files });
+                            if let Some(pulled) = crate::gitautopull::last_auto_pull(&cwd) {
+                                reply["autoPulled"] = json!(pulled);
+                            }
+                            reply
                         };
                         let _ = out.try_send(reply.to_string());
                     });
@@ -3223,6 +3237,22 @@ fn handle_msg(
                 Err(e) => send(
                     ws,
                     json!({ "t": "gitPull", "project": project, "ok": false, "error": e }),
+                )?,
+            }
+        }
+        "gitAutoPullUndo" => {
+            let project = str_field("project").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let out = out.clone();
+                    std::thread::spawn(move || {
+                        let r = crate::gitautopull::git_auto_pull_undo(cwd).map(|_| ());
+                        let _ = out.try_send(git_result_reply("gitAutoPullUndo", &project, r).to_string());
+                    });
+                }
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "gitAutoPullUndo", "project": project, "ok": false, "error": e }),
                 )?,
             }
         }

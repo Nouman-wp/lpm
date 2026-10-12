@@ -14,6 +14,7 @@ extension AppModel {
         projects = snapshot.projects.map { $0.withStatus([]) }
         workStatuses = snapshot.workStatuses
         workStatusOrder = snapshot.workStatusOrder
+        autoPullMode = snapshot.autoPullMode
         sidebarOrder = snapshot.sidebarOrder
         groups = snapshot.groups
         link.listAsOf = snapshot.at

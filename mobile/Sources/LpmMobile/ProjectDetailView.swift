@@ -4,7 +4,7 @@ import UIKit
 /// A project's screen: the project's open terminals, services, and background
 /// runs as a native list, with a "more" menu in the nav bar for Start/Stop and
 /// actions. Terminal tab actions (Pin / Rename / Close) live
-/// on native swipe gestures.
+/// on native swipe gestures and the long-press menu.
 struct ProjectDetail: View {
     @Environment(AppModel.self) private var model
     let project: Project
@@ -60,6 +60,26 @@ struct ProjectDetail: View {
                     ForEach(terminals) { t in
                         TabRow(term: t, agent: agentByTerminal[t.id], now: now,
                                onOpen: { openTerminal = t })
+                        .tabMenu(term: t, agent: agentByTerminal[t.id]) {
+                            Button {
+                                model.pinTerminal(project.name, id: t.id)
+                            } label: {
+                                Label(t.pinned ? "Unpin" : "Pin",
+                                      systemImage: t.pinned ? "pin.slash" : "pin")
+                            }
+                            Button {
+                                renameText = t.label
+                                renaming = t
+                            } label: {
+                                Label("Rename", systemImage: "pencil")
+                            }
+                            Button(role: .destructive) {
+                                Haptics.warning()
+                                model.closeTerminal(project.name, id: t.id)
+                            } label: {
+                                Label("Close", systemImage: "xmark")
+                            }
+                        }
                         .compactRow()
                         .swipeActions(edge: .leading, allowsFullSwipe: true) {
                             Button {

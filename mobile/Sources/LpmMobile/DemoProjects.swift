@@ -692,6 +692,7 @@ extension DemoServer {
             for i in p.services.indices { p.services[i].running = false }
             p.status = []
             p.workStatus = nil
+            p.autoPull = nil
             world.projects.append(p)
             demoCreateTerminals(project: name, copyOf: copyOf)
             demoCloneGitState(from: copyOf, to: name)

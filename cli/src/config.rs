@@ -62,6 +62,9 @@ impl Ctx {
     pub fn terminals_path(&self) -> PathBuf {
         self.lpm_dir.join("terminals.json")
     }
+    pub fn settings_path(&self) -> PathBuf {
+        self.lpm_dir.join("settings.json")
+    }
     pub fn socket_path(&self) -> PathBuf {
         self.socket_override
             .clone()

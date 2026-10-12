@@ -81,6 +81,7 @@ import { useAccountsStore } from "../store/accounts";
 import { ClaudeAccountsSection } from "./ClaudeAccountsSection";
 import { SettingsSection } from "./SettingsSection";
 import { SettingsRow } from "./SettingsRow";
+import { AutoPullSettingsRow } from "./AutoPullSettingsRow";
 import { Toggle } from "./ui/Toggle";
 import { InlineNameEditor } from "./InlineNameEditor";
 import { modalInputClass, modalInputDefaults } from "../forms/styles";
@@ -624,6 +625,7 @@ export function Settings({
               <SettingsRow {...rowProps("general.checkOrigin")}>
                 <Toggle enabled={checkOrigin} onChange={(v) => updateSettings({ checkOrigin: v })} />
               </SettingsRow>
+              <AutoPullSettingsRow />
               <SettingsRow {...rowProps("general.defaultDir")}>
                 <div className="flex items-center gap-2">
                   <span

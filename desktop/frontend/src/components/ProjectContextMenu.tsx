@@ -200,6 +200,8 @@ export function ProjectContextMenu({
       )}
       <ProjectGitSubmenu
         projectPath={projectPath}
+        projectName={projectName}
+        autoPull={!remote && !sshRemote}
         onCommit={onGitCommit}
         onCreatePR={onGitCreatePR}
         onSwitchBranch={onGitSwitchBranch}

@@ -28,6 +28,7 @@ final class DemoServer {
         registerTerminalsHandlers()
         registerGitHandlers()
         registerGitAutoHandlers()
+        registerAutoPullHandlers()
         registerStatsHandlers()
         registerJobsHandlers()
         registerConfigHandlers()

@@ -51,11 +51,13 @@ final class GitReviewStore {
     // Files the user marked "viewed" on the review screen, keyed by project. Session
     // scoped: kept across snapshot refreshes, cleared on logout.
     var viewed: [String: Set<String>] = [:]
-    // Git menu ops (Pull/Fetch/Discard) in flight; their failures also surface via
-    // opError, presented on the project screen when the review screen is closed.
+    // Git menu ops (Pull/Fetch/Discard/Undo Auto Pull) in flight; their failures
+    // also surface via opError, presented on the project screen when the review
+    // screen is closed.
     var pulling: Set<String> = []
     var fetching: Set<String> = []
     var discarding: Set<String> = []
+    var undoingAutoPull: Set<String> = []
     // Switch-branch sheet state: the loaded branch list + current branch, load/
     // checkout errors (kept separate so they show inside the sheet), the branch
     // being checked out, and a tick the sheet observes to dismiss on success.
@@ -374,6 +376,17 @@ final class GitReviewStore {
         }
     }
 
+    func undoAutoPull(_ project: String) {
+        guard !undoingAutoPull.contains(project) else { return }
+        undoingAutoPull.insert(project)
+        opError[project] = nil
+        client?.gitAutoPullUndo(project: project)
+        armTimeout("autoPullUndo", project, seconds: 60) { [weak self] in
+            guard let self, self.undoingAutoPull.remove(project) != nil else { return }
+            self.opError[project] = "Undoing the auto pull timed out. Check your Mac and try again."
+        }
+    }
+
     func discardAll(_ project: String) {
         guard !discarding.contains(project) else { return }
         discarding.insert(project)
@@ -505,6 +518,12 @@ final class GitReviewStore {
     func finishFetch(_ project: String, error: String?) {
         clearTimeout("fetch", project)
         fetching.remove(project)
+        if let error { opError[project] = error } else { load(project) }
+    }
+
+    func finishAutoPullUndo(_ project: String, error: String?) {
+        clearTimeout("autoPullUndo", project)
+        undoingAutoPull.remove(project)
         if let error { opError[project] = error } else { load(project) }
     }
 
