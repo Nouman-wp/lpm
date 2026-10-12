@@ -37,25 +37,26 @@ struct ProjectDetail: View {
         return mark.isEmpty ? project.label : "\(mark) \(project.label)"
     }
 
+    /// Nothing to list at all: the screen shows the "No Terminals" prompt instead.
+    private var isEmpty: Bool {
+        terminalsLoaded && terminals.isEmpty && !creating && live.allServices.isEmpty && bgRuns.isEmpty
+    }
+
     var body: some View {
-        // A plain List (not insetGrouped) so each terminal renders as its own
-        // spaced card while keeping native drag-to-reorder via `.onMove`.
+        // One inset-grouped list, so tabs, services and runs read alike and keep
+        // native drag-to-reorder via `.onMove`.
         List {
             if !terminalsLoaded {
-                Section {
+                Section("Tabs") {
                     ForEach(0..<3, id: \.self) { _ in
                         TerminalRowSkeleton()
-                            .terminalRowChrome()
                     }
-                } header: {
-                    TabsSectionHeader(count: 0)
                 }
-            } else if !terminals.isEmpty || creating {
-                Section {
+            } else if !isEmpty {
+                Section("Tabs") {
                     ForEach(terminals) { t in
-                        TabCard(term: t, agent: agentByTerminal[t.id], now: now,
-                                onOpen: { openTerminal = t })
-                        .terminalRowChrome()
+                        TabRow(term: t, agent: agentByTerminal[t.id], now: now,
+                               onOpen: { openTerminal = t })
                         .swipeActions(edge: .leading, allowsFullSwipe: true) {
                             Button {
                                 model.pinTerminal(project.name, id: t.id)
@@ -84,10 +85,13 @@ struct ProjectDetail: View {
                     .onMove(perform: moveTerminals)
                     if creating {
                         TerminalRowSkeleton()
-                            .terminalRowChrome()
                     }
-                } header: {
-                    TabsSectionHeader(count: terminals.count)
+                    Button {
+                        model.newTerminal(project.name)
+                    } label: {
+                        Label("New Tab", systemImage: "plus")
+                    }
+                    .disabled(creating)
                 }
             }
 
@@ -98,38 +102,35 @@ struct ProjectDetail: View {
                                    running: runningServices.contains(s.name),
                                    pending: model.pendingServiceToggle[project.name]?[s.name] != nil,
                                    onToggle: { model.toggleService(live.name, service: s.name) })
-                            .terminalRowChrome()
                             .contentShape(Rectangle())
                             .onTapGesture { logsForService = s }
                     }
                 } header: {
-                    Text("Services")
+                    ServicesHeader(running: runningServices.count, total: live.allServices.count,
+                                   stopping: model.pendingRun[project.name] != nil,
+                                   onStopAll: live.running ? { model.stopProject(live) } : nil)
+                } footer: {
+                    Text("Tap a service for its logs.")
                 }
             }
 
             if !bgRuns.isEmpty {
-                Section {
+                Section("Background runs") {
                     ForEach(bgRuns) { run in
                         BackgroundRunRow(run: run, snapshot: model.backgroundRuns[run.runId],
                                          startError: model.backgroundRunErrors[run.runId])
-                            .terminalRowChrome()
                             .contentShape(Rectangle())
                             .onTapGesture { activeBgRun = run }
                     }
-                } header: {
-                    Text("Background runs")
                 }
             }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .listStyle(.insetGrouped)
         // Full-space overlay (not a list row): ContentUnavailableView is greedy
         // and inside a row it stretches the row — and its action button — to
         // fill the expanse.
         .overlay {
-            if terminalsLoaded && terminals.isEmpty && !creating
-                && live.allServices.isEmpty && bgRuns.isEmpty {
+            if isEmpty {
                 EmptyTerminalsView(onNew: { model.newTerminal(project.name) })
             }
         }
@@ -232,20 +233,32 @@ private extension View {
             self
         }
     }
+}
 
-    /// Strips a List row's default chrome so the card rows keep their look:
-    /// transparent background, no separators, spacing between cards.
-    func terminalRowChrome() -> some View {
-        self
-            .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
+/// "Services · 2 of 3 running", with Stop all while the project runs.
+private struct ServicesHeader: View {
+    let running: Int
+    let total: Int
+    let stopping: Bool
+    let onStopAll: (() -> Void)?
+
+    var body: some View {
+        HStack {
+            Text("Services · \(running) of \(total) running")
+            Spacer()
+            if let onStopAll {
+                Button("Stop all", action: onStopAll)
+                    .font(.subheadline)
+                    .textCase(nil)
+                    .disabled(stopping)
+            }
+        }
     }
 }
 
-/// One configured service: name, port, and a live status dot, tappable to open
-/// its logs sheet, with a trailing start/stop control (spinning while a toggle
-/// is in flight).
+/// One configured service: its name and port, with a switch that starts or
+/// stops it (a spinner while a toggle is in flight). Tapping the row opens its
+/// logs.
 private struct ServiceRow: View {
     let service: Service
     let running: Bool
@@ -253,40 +266,22 @@ private struct ServiceRow: View {
     let onToggle: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "server.rack")
-                .font(.system(size: 15))
-                .foregroundStyle(running ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary))
-                .frame(width: 24)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(service.name).font(.body.weight(.medium)).lineLimit(1)
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(running ? Color.green : Color(.systemGray3))
-                        .frame(width: 6, height: 6)
-                    Text(running ? "Running" : "Stopped")
-                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    if service.port > 0 {
-                        Text(":\(String(service.port))")
-                            .font(.caption.monospacedDigit()).foregroundStyle(.tertiary)
-                    }
-                }
+        HStack(spacing: 8) {
+            Text(service.name).lineLimit(1)
+            if service.port > 0 {
+                Text(":\(String(service.port))")
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
             }
-            Spacer(minLength: 4)
+            Spacer(minLength: 8)
             if pending {
                 ProgressView().controlSize(.small)
             } else {
-                Button(action: onToggle) {
-                    Image(systemName: running ? "stop.fill" : "play.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(running ? Color.red : Color.green)
-                        .frame(width: 32, height: 32)
-                        .background(Color(.tertiarySystemFill), in: Circle())
-                }
-                .buttonStyle(.borderless)
+                Toggle(service.name, isOn: Binding(get: { running }, set: { _ in onToggle() }))
+                    .labelsHidden()
             }
         }
-        .padding(.vertical, 3)
+        .frame(minHeight: 44)
     }
 }
 
@@ -335,26 +330,6 @@ private struct BackgroundRunRow: View {
         if s.running { return "Running" }
         if s.error == "cancelled" { return "Stopped" }
         return s.success ? "Done" : "Failed"
-    }
-}
-
-private struct TabsSectionHeader: View {
-    let count: Int
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Text("Tabs")
-                .textCase(.uppercase)
-            if count > 0 {
-                Text("\(count)")
-                    .foregroundStyle(.tertiary)
-                    .monospacedDigit()
-            }
-            Spacer()
-        }
-        .font(.footnote.weight(.semibold))
-        .foregroundStyle(.secondary)
-        .listRowInsets(EdgeInsets(top: 4, leading: 24, bottom: 2, trailing: 24))
     }
 }
 
