@@ -146,7 +146,12 @@ struct ProjectDetail: View {
         }
         .connectionTitle(title, otherwise: live.running ? "Running" : "Stopped")
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .top) { ConnectionStatusBar() }
+        .safeAreaInset(edge: .top) {
+            VStack(spacing: 0) {
+                ConnectionStatusBar()
+                ProjectActionRail(project: live)
+            }
+        }
         .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0, project: live) }
         .alert("Rename terminal", isPresented: Binding(
             get: { renaming != nil },

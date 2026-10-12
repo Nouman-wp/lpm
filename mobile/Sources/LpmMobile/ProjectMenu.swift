@@ -229,6 +229,7 @@ struct ProjectMenuHost: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .environment(\.runProjectAction, RunProjectAction { beginRun($0) })
             .navigationDestination(isPresented: $showChanges) { GitReviewView(project: project) }
             .navigationDestination(isPresented: $showMemory) { MemoryScreen(project: project) }
             .navigationDestination(isPresented: $showNotes) { NotesScreen(project: project.name) }
