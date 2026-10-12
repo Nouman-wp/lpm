@@ -39,6 +39,13 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
 - Keep files focused: don't grow a file past ~400 lines — put new features in their own module
 - Bump `version` in `cli/Cargo.toml` on any `cli/` change — patch for fixes, minor for new commands/flags — so stale installed binaries stay detectable via `lpm --version`
 - When a lpm desktop app change touches CLI-supported functionality, update the lpm CLI and the `lpm-cli` skill in the same change.
+- Keep lpm Link (`mobile/`) in step with the desktop app: when a desktop change
+  touches something the phone also offers (actions, services, terminals,
+  automations, Git, notes, memory, project config), update the mobile app in the
+  same change so it looks and behaves the same — same fields, defaults, placement
+  and colors. Data the phone needs goes through `remote.rs`, `mobile/PROTOCOL.md`
+  and Demo Mode's seed (`mobile/Sources/LpmMobile/Demo*.swift`), and a phone edit
+  writes the config exactly as a desktop edit would
 - Never commit or push any changes
 
 ## Analytics
