@@ -16,6 +16,7 @@ struct ProjectRunControl: View {
     let onReviewChanges: () -> Void
     let onMemory: () -> Void
     let onNotes: () -> Void
+    let onAutomations: () -> Void
     let onSwitchBranch: () -> Void
     let onCreatePr: () -> Void
     let onAuto: (_ kind: GitAutoKind) -> Void
@@ -35,6 +36,9 @@ struct ProjectRunControl: View {
     private var branch: String { model.git.snapshots[name]?.branch ?? "" }
     private var ghCli: Bool { model.git.snapshots[name]?.ghCli ?? false }
     private var autoRun: GitAutoRun? { model.gitAuto.runs[name] }
+    private var unreadAutomations: Int {
+        model.automations.filter { $0.unread > 0 && $0.runTargets.contains(name) }.count
+    }
 
     var body: some View {
         Menu {
@@ -64,6 +68,16 @@ struct ProjectRunControl: View {
             }
             Button(action: onNotes) {
                 Label("Notes", systemImage: "note.text")
+            }
+            // Jobs run on the Mac in the project's own folder, so, as on the
+            // desktop, an SSH project has none.
+            if !project.isRemote {
+                Button(action: onAutomations) {
+                    Label("Automations", systemImage: "clock.arrow.circlepath")
+                    if unreadAutomations > 0 {
+                        Text("\(unreadAutomations) with new runs")
+                    }
+                }
             }
             if project.canHaveWorkStatus {
                 WorkStatusMenu(project: project, noteFor: $noteFor)
@@ -201,6 +215,7 @@ struct ProjectMenuHost: ViewModifier {
     @State private var showChanges = false
     @State private var showMemory = false
     @State private var showNotes = false
+    @State private var showAutomations = false
     @State private var showBranchSheet = false
     @State private var showPrSheet = false
     @State private var showAutoSheet = false
@@ -233,6 +248,7 @@ struct ProjectMenuHost: ViewModifier {
             .navigationDestination(isPresented: $showChanges) { GitReviewView(project: project) }
             .navigationDestination(isPresented: $showMemory) { MemoryScreen(project: project) }
             .navigationDestination(isPresented: $showNotes) { NotesScreen(project: project.name) }
+            .navigationDestination(isPresented: $showAutomations) { AutomationsView(project: project.name) }
             .sheet(isPresented: $showBranchSheet) {
                 GitBranchSheet(project: project).environment(model)
             }
@@ -308,6 +324,7 @@ struct ProjectMenuHost: ViewModifier {
                                       onReviewChanges: { showChanges = true },
                                       onMemory: { showMemory = true },
                                       onNotes: { showNotes = true },
+                                      onAutomations: { showAutomations = true },
                                       onSwitchBranch: { showBranchSheet = true },
                                       onCreatePr: { showPrSheet = true },
                                       onAuto: { kind in

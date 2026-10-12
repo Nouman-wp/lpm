@@ -1394,6 +1394,10 @@ struct Action: Identifiable {
     let emoji: String
     let type: String   // terminal | command | background | ""
     let display: String
+    // The desktop's button color: a named accent ("cyan", "claude-deep") or a hex.
+    let color: String
+    // A group's split-button child: a child key, or "last-used".
+    let primary: String
     // Show a confirmation before running (destructive/irreversible commands).
     let confirm: Bool
     // User-supplied values substituted into the command as {{key}} before running.
@@ -1410,6 +1414,8 @@ struct Action: Identifiable {
         emoji = o["emoji"] as? String ?? ""
         type = o["type"] as? String ?? ""
         display = o["display"] as? String ?? ""
+        color = o["color"] as? String ?? ""
+        primary = o["primary"] as? String ?? ""
         confirm = o["confirm"] as? Bool ?? false
         inputs = (o["inputs"] as? [[String: Any]] ?? []).map(ActionInput.init)
         children = (o["children"] as? [[String: Any]] ?? []).map(Action.init)

@@ -146,7 +146,7 @@ struct ProjectDetail: View {
         }
         .connectionTitle(title, otherwise: live.running ? "Running" : "Stopped")
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .top) {
+        .topBar {
             VStack(spacing: 0) {
                 ConnectionStatusBar()
                 ProjectActionRail(project: live)
@@ -213,6 +213,17 @@ struct ProjectDetail: View {
 }
 
 private extension View {
+    /// A bar over the top of the list. On iOS 26 the list scrolls under it with
+    /// the system's scroll edge effect, the way it does under the nav bar.
+    @ViewBuilder
+    func topBar<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        if #available(iOS 26.0, *) {
+            safeAreaBar(edge: .top, content: content)
+        } else {
+            safeAreaInset(edge: .top, content: content)
+        }
+    }
+
     @ViewBuilder
     func navigationSubtitleCompat(_ subtitle: String) -> some View {
         if #available(iOS 26.0, *) {

@@ -2,13 +2,21 @@ import SwiftUI
 
 struct AutomationsView: View {
     @Environment(AppModel.self) private var model
+    /// A project's Automations page, as on the desktop: only the jobs that run in
+    /// it, and a new job starts in it. nil = every job.
+    var project: String? = nil
     @State private var editor: AutomationEditorContext?
+
+    private var shown: [AutomationJob] {
+        guard let project else { return model.automations }
+        return model.automations.filter { $0.runTargets.contains(project) }
+    }
 
     /// One flat feed rather than a directory: everything unread first, newest
     /// activity first inside each half. Which projects an automation runs in
     /// rides on its own row, so the list never has to be cut into sections by
     /// project.
-    private var sorted: [AutomationJob] { automationsSortedForList(model.automations) }
+    private var sorted: [AutomationJob] { automationsSortedForList(shown) }
     private var unread: [AutomationJob] { sorted.filter { $0.unread > 0 } }
     private var read: [AutomationJob] { sorted.filter { $0.unread == 0 } }
 
@@ -30,7 +38,7 @@ struct AutomationsView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    editor = .create
+                    editor = .create(project: project)
                 } label: {
                     Image(systemName: "plus")
                 }
@@ -40,7 +48,7 @@ struct AutomationsView: View {
                 if !unread.isEmpty {
                     Button("Mark all read") {
                         Haptics.tap()
-                        model.markAllAutomationsSeen()
+                        markAllRead()
                     }
                     .font(.subheadline)
                 }
@@ -54,13 +62,15 @@ struct AutomationsView: View {
         .overlay {
             if !model.automationsLoaded {
                 ProgressView("Loading automations…")
-            } else if model.automations.isEmpty {
+            } else if shown.isEmpty {
                 ContentUnavailableView {
                     Label("No automations", systemImage: "clock.arrow.circlepath")
                 } description: {
-                    Text("Scheduled tasks that check, duplicate, and run agents on their own.")
+                    Text(project == nil
+                         ? "Scheduled tasks that check, duplicate, and run agents on their own."
+                         : "Scheduled tasks that run in this project on their own.")
                 } actions: {
-                    Button("New automation") { editor = .create }
+                    Button("New automation") { editor = .create(project: project) }
                 }
             }
         }
@@ -72,11 +82,14 @@ struct AutomationsView: View {
         }
     }
 
+    /// In a project's page the project is the context: a job that runs only here
+    /// needs no scope tag, and a shared one opens on this project's runs.
     private func row(_ job: AutomationJob) -> some View {
         NavigationLink {
-            AutomationDetailView(project: job.runProject, jobId: job.id)
+            AutomationDetailView(project: project ?? job.runProject, jobId: job.id)
         } label: {
-            AutomationRow(job: job, scope: automationScopeLabel(job, projectCount: model.projects.count))
+            AutomationRow(job: job, scope: project != nil && job.runsIn.count <= 1
+                          ? "" : automationScopeLabel(job, projectCount: model.projects.count))
         }
         .contextMenu {
             Button {
@@ -128,6 +141,14 @@ struct AutomationsView: View {
         }
     }
 
+    private func markAllRead() {
+        if project == nil {
+            model.markAllAutomationsSeen()
+        } else {
+            unread.forEach { model.markAutomationSeen($0) }
+        }
+    }
+
     private var automationErrorPresented: Binding<Bool> {
         Binding(
             get: { model.automationError != nil },
@@ -159,14 +180,16 @@ private struct AutomationRow: View {
                     Text(job.displayName)
                         .font(.body.weight(unread ? .semibold : .medium))
                         .lineLimit(1)
-                    Text(scope)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.14), in: Capsule())
+                    if !scope.isEmpty {
+                        Text(scope)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.secondary.opacity(0.14), in: Capsule())
+                    }
                     if job.source == "repo" {
                         Text("in repo")
                             .font(.caption2)

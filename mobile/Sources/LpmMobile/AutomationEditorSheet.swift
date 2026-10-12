@@ -1,10 +1,11 @@
 import SwiftUI
 
 /// Whether the editor is creating a new job or editing an existing one. Create
-/// always targets the global layer (like the desktop's "New job"); edit carries
-/// the job so the sheet knows its layer, project, and id.
+/// always targets the global layer (like the desktop's "New job"), starting in
+/// `project` when opened from one; edit carries the job so the sheet knows its
+/// layer, project, and id.
 enum AutomationEditorContext: Identifiable {
-    case create
+    case create(project: String? = nil)
     case edit(AutomationJob)
 
     var id: String {
@@ -704,7 +705,8 @@ struct AutomationEditorSheet: View {
     private func seedIfReady() {
         guard !seeded else { return }
         switch context {
-        case .create:
+        case .create(let project):
+            if let project { draft.targets = [project] }
             model.jobConfigBody = nil
             seeded = true
         case .edit(let job):
