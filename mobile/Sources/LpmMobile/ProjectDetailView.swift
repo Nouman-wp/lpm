@@ -198,7 +198,11 @@ struct ProjectDetail: View {
         .sheet(item: $logsForService) { s in
             ServiceLogsSheet(project: live.name, service: s).environment(model)
         }
-        .projectMenuToolbar(project: live)
+        .projectMenuToolbar(project: live, onSpawnedTerminal: { t in
+            // Claim the desktop-owned terminal before pushing so it renders live.
+            model.claimControl(t.id)
+            openTerminal = t
+        })
         .onAppear {
             model.loadTerminals(project.name)
             model.loadBackgroundRuns(project.name)

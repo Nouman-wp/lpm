@@ -213,8 +213,7 @@ struct ProjectRunControl: View {
 struct ProjectMenuHost: ViewModifier {
     @Environment(AppModel.self) private var model
     let project: Project
-    // Set only by TerminalScreen: run a terminal action and switch to the terminal
-    // it spawns. nil on other screens (ProjectDetail keeps its skeleton-row flow).
+    // Run a terminal action and switch to the terminal it spawns.
     let onSpawnedTerminal: ((TerminalInfo) -> Void)?
 
     @State private var showChanges = false
