@@ -10,13 +10,19 @@ import {
   WORKTREE_ALTERNATIVE_PATH,
   vsPath,
 } from "@/lib/links";
-import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
+import {
+  breadcrumbJsonLd,
+  jsonLdString,
+  webPageJsonLd,
+  youtubeLessonJsonLd,
+} from "@/lib/structured-data";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
 import Cta from "./_components/cta";
 import Faq from "./_components/faq";
 import Features from "./_components/features";
 import Hero from "./_components/hero";
+import Lesson from "./_components/lesson";
 import Problem from "./_components/problem";
 import ReviewCommit from "./_components/review-commit";
 import Workflows from "./_components/workflows";
@@ -70,6 +76,7 @@ const structuredData = [
     { name: "Home", path: "/" },
     { name: "Git Terminal for Mac", path: GIT_TERMINAL_MAC_PATH },
   ]),
+  youtubeLessonJsonLd("auto-pull-complete-guide"),
 ];
 
 export default function GitTerminalForMacPage() {
@@ -83,6 +90,7 @@ export default function GitTerminalForMacPage() {
       <DemoSection {...GIT_DEMO} />
       <Problem />
       <Features />
+      <Lesson />
       <ReviewCommit />
       <Benefits />
       <Workflows />

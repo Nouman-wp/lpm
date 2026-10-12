@@ -165,6 +165,10 @@ const LESSON_CAPTION: Record<
     heading: "Group your buttons into zones, with layers to flip between",
     blurb: "A short video: start a zone from a button, add layers, and tidy the header.",
   },
+  "auto-pull-complete-guide": {
+    heading: "Your projects pull your teammates' commits by themselves",
+    blurb: "A walkthrough: turn on auto pull, undo a pull, and see when it waits for your work.",
+  },
 };
 
 function DesktopOnlyPrompt({

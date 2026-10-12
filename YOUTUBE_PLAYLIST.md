@@ -31,3 +31,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - Use Multiple Claude Code Accounts and Switch Automatically — https://youtu.be/-vvdAsp4JJU
 - Create an Automation — https://youtu.be/WWG_380qtXs
 - Run Any AI Coding Agent in lpm: Claude Code, Codex, Cursor, omp — https://youtu.be/mnmC5xABT_s
+- Auto Git Pull in lpm: The Complete Guide — https://youtu.be/eUaxQqogl0I

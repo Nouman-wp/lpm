@@ -107,6 +107,13 @@ const LESSONS = {
       "Claude Code and Codex come built into lpm, and any other AI coding agent can be added as a header button in seconds: here Cursor CLI and omp (https://omp.sh) are added with + Action and run side by side in one project. Gemini CLI or any other terminal agent works the same way.",
     uploadDate: "2026-10-12T09:00:00+00:00",
   },
+  "auto-pull-complete-guide": {
+    id: "eUaxQqogl0I",
+    name: "Auto Git Pull in lpm: The Complete Guide",
+    description:
+      "Everything auto pull in lpm can do, step by step: turn it on from the Pull button for one project or all of them, watch a teammate's commit pull in by itself, undo any pull from its note or the Git menu, see when it waits (uncommitted changes, unpushed commits, an agent at work), turn it off for one copy, and set Off, Chosen or All in Settings.",
+    uploadDate: "2026-10-12T09:00:00+00:00",
+  },
   "sixty-seconds": {
     id: "H46vW5DPbZk",
     name: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",
