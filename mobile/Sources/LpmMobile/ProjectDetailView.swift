@@ -2,8 +2,8 @@ import SwiftUI
 import UIKit
 
 /// A project's screen: the project's open terminals, services, and background
-/// runs as a native list, with a nav-bar "+" for new terminals and a "more" menu
-/// for Start/Stop and actions. Terminal tab actions (Pin / Rename / Close) live
+/// runs as a native list, with a "more" menu in the nav bar for Start/Stop and
+/// actions. Terminal tab actions (Pin / Rename / Close) live
 /// on native swipe gestures.
 struct ProjectDetail: View {
     @Environment(AppModel.self) private var model
@@ -163,12 +163,7 @@ struct ProjectDetail: View {
         }
         .connectionTitle(title, otherwise: live.running ? "Running" : "Stopped")
         .navigationBarTitleDisplayMode(.inline)
-        .topBar {
-            VStack(spacing: 0) {
-                ConnectionStatusBar()
-                ProjectActionRail(project: live)
-            }
-        }
+        .topBar { ConnectionStatusBar() }
         .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0, project: live) }
         .alert("Rename terminal", isPresented: Binding(
             get: { renaming != nil },
@@ -191,16 +186,6 @@ struct ProjectDetail: View {
             ServiceLogsSheet(project: live.name, service: s).environment(model)
         }
         .projectMenuToolbar(project: live)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    model.newTerminal(project.name)
-                } label: {
-                    Label("New Terminal", systemImage: "plus")
-                }
-                .disabled(creating)
-            }
-        }
         .onAppear {
             model.loadTerminals(project.name)
             model.loadBackgroundRuns(project.name)
