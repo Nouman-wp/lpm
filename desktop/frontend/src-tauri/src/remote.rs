@@ -5725,8 +5725,27 @@ pub fn list_project_terminals(
     app: AppHandle,
     hub: State<'_, RemoteHub>,
     project_name: String,
-) -> Vec<Value> {
-    project_terminals(&app, &hub, &project_name)
+    with_tabs: Option<bool>,
+) -> Value {
+    project_listing(&app, &hub, &project_name, with_tabs.unwrap_or(false))
+}
+
+/// What a paired Mac lists for a project. With `with_tabs`, also the ids of every
+/// tab the desktop has open for it, finished ones included, so the Mac can drop a
+/// tab that was closed here and keep one whose program just ended. `tabs` is null
+/// until the desktop has reported them, and `run` changes with every app start:
+/// terminals don't outlive one, and the Mac keeps their tabs rather than take
+/// them for closed. A Mac that predates this asks for the plain array, and a host
+/// that predates it answers with one.
+pub fn project_listing(app: &AppHandle, hub: &RemoteHub, project: &str, with_tabs: bool) -> Value {
+    static RUN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    let terminals = Value::Array(project_terminals(app, hub, project));
+    if !with_tabs {
+        return terminals;
+    }
+    let tabs = hub.inner.tree_ids.lock().unwrap().get(project).cloned();
+    let run = RUN.get_or_init(|| uuid::Uuid::new_v4().to_string());
+    json!({ "terminals": terminals, "tabs": tabs, "run": run })
 }
 
 /// Tells paired Macs a project's set of tabs changed, so one showing it picks
@@ -5772,7 +5791,7 @@ pub fn remote_set_terminal_labels(
         );
     }
     drop((label_map, cli_map, pin_map, emoji_map));
-    if project.is_empty() || ids.is_empty() {
+    if project.is_empty() {
         return;
     }
     let previous = hub.inner.tree_ids.lock().unwrap().insert(project.clone(), ids.clone());

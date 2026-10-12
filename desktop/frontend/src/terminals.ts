@@ -27,6 +27,8 @@ export interface PersistedTab {
   //     of relaunching it — a peer-marked id.
   // Our own local ids are never persisted: they die with the app.
   id?: string;
+  // A peer terminal the host opened, not this Mac (see TerminalInstance).
+  fromHost?: boolean;
 }
 
 // Mirrors the Go binding (main.PaneNode) so it round-trips through the

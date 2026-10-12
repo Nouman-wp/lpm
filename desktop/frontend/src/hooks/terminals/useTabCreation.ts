@@ -43,6 +43,7 @@ import {
   pickTerminalLabel,
 } from "../../terminalLabels";
 import { IS_MIRROR_WINDOW } from "../../mirror";
+import { noteOpenedByOtherMac } from "../../peer/openedByOtherMac";
 import { nextId, appendTerminal, configLaunchCmds, foldAgentPrompt } from "./util";
 import { type TerminalStartOpts } from "./types";
 import { pinLaunchCommand } from "../../agentLaunchModel";
@@ -130,6 +131,7 @@ export function useTabCreation({
       const current = treeRef.current;
       // Idempotent: a re-fired op must not add a second tab for the same pty.
       if (current && collectTerminals(current).some((t) => t.id === id)) return;
+      noteOpenedByOtherMac(id);
       addTerminal(
         makeTerminal(id, label || pickTerminalLabel(current), {
           ...opts,

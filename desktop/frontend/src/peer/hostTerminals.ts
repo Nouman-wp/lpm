@@ -24,6 +24,12 @@ export function claimPeerTerminal(id: string): void {
   if (isPeerName(id)) claimed.add(id);
 }
 
+// Let a sync open this terminal again: the host closed its tab, and undoing that
+// close there brings the tab back.
+export function releasePeerTerminal(id: string): void {
+  claimed.delete(id);
+}
+
 export function beginPeerStart(slug: string): void {
   startsInFlight.set(slug, (startsInFlight.get(slug) ?? 0) + 1);
 }
@@ -61,4 +67,51 @@ export function unclaimedHostTerminals(
   return listed
     .map(parseHostTerminal)
     .filter((t): t is HostTerminal => t !== null && !claimed.has(t.id));
+}
+
+// What a host answers for a project: its live terminals and, from a host that
+// reports them, the ids of every tab it has open — finished ones included — and
+// the app run they belong to.
+export interface HostListing {
+  terminals: unknown;
+  tabs: string[] | null;
+  run: string | null;
+}
+
+export function parseHostListing(value: unknown): HostListing {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { terminals: value, tabs: null, run: null };
+  }
+  const v = value as { terminals?: unknown; tabs?: unknown; run?: unknown };
+  return {
+    terminals: v.terminals,
+    tabs: Array.isArray(v.tabs) ? v.tabs.filter((id): id is string => typeof id === "string") : null,
+    run: typeof v.run === "string" ? v.run : null,
+  };
+}
+
+// The host tabs this Mac has seen open during one run of the host's app.
+export interface HostTabsSeen {
+  run: string | null;
+  ids: Set<string>;
+}
+
+// The tabs here that the host has closed: ones it listed as open earlier in the
+// same run and no longer does. A tab this Mac just opened there, which the host
+// lists a moment later, was never seen and so is never taken for closed. After
+// the host restarts nothing is: its terminals ended with it, and their tabs here
+// stay, saying so.
+export function hostClosedTabs(
+  seen: HostTabsSeen,
+  listing: HostListing,
+  openIds: Iterable<string>,
+): string[] {
+  if (!listing.tabs) return [];
+  if (listing.run !== seen.run) {
+    seen.run = listing.run;
+    seen.ids.clear();
+  }
+  const open = new Set(listing.tabs);
+  for (const id of listing.tabs) seen.ids.add(id);
+  return [...openIds].filter((id) => seen.ids.has(id) && !open.has(id));
 }

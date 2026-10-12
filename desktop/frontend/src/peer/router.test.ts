@@ -78,6 +78,22 @@ describe("translateResult", () => {
     expect(out).toEqual([{ id: prefixName(A, "app-1"), label: "Claude Code", pinned: false }]);
   });
 
+  it("prefixes the open tab ids a project lists with its terminals", () => {
+    const out = translateResult("list_project_terminals", A, {
+      terminals: [{ id: "app-1", label: "Claude Code", pinned: false }],
+      tabs: ["app-1", "app-2"],
+    });
+    expect(out).toEqual({
+      terminals: [{ id: prefixName(A, "app-1"), label: "Claude Code", pinned: false }],
+      tabs: [prefixName(A, "app-1"), prefixName(A, "app-2")],
+    });
+  });
+
+  it("keeps tabs null when the host has not reported them", () => {
+    const out = translateResult("list_project_terminals", A, { terminals: [], tabs: null });
+    expect(out).toEqual({ terminals: [], tabs: null });
+  });
+
   it("prefixes name, parentName, and root for list_projects", () => {
     const result = translateResult("list_projects", A, [
       proj({ name: "app", root: "/Users/dev/app" }),

@@ -268,11 +268,13 @@ only the fields that belong to the host itself — `defaultProjectDirectory`,
 
 ## Terminal streaming
 
-- client → `{ "t": "sub", "id", "from"? }` — subscribe to a host terminal. The
-  host claims display control for this peer (host windows show the "Take control"
-  placeholder) and replies once with a `seed`. `from` is the stream offset this
+- client → `{ "t": "sub", "id", "from"?, "claim"? }` — subscribe to a host
+  terminal. The host replies once with a `seed`. `from` is the stream offset this
   client has already applied, sent only when it still has that terminal's
-  emulator on screen.
+  emulator on screen. Current clients send `claim: false`, since they subscribe
+  every tab, background ones included, and report what they show through `ctl`
+  (see Control ownership). Without it the host claims display control for the
+  peer, as it did for clients that predate `ctl`.
 - host → `{ "t": "seed", "id", "d", "off", "reset" }` — the answer to `sub`,
   delivered before any live output.
   - `reset: false` — `d` is exactly the bytes emitted since the `from` that was
@@ -312,11 +314,40 @@ ProjectDetail already listens on, so the frontend needs zero changes:
 
 On reconnect the client re-sends `sub` for every terminal the frontend currently
 has attached (tracked via `peer_term_attach` / `peer_term_detach`), carrying the
-offset it holds for each.
+offset it holds for each, then a `ctl` `present` for each one a window still shows.
 
 **Compatibility.** A host that sends no `off` predates this contract: its `d` is
 always a full replay, so the client takes the reset path and forgets the offset.
 A host that gets a `from` it cannot honour answers with `reset: true`.
+
+## Host tabs
+
+A Mac showing a host project opens a tab for each terminal the host lists, and
+closes the tabs the host closed. It asks `list_project_terminals { projectName,
+withTabs: true }` (answered in Rust, so a headless host answers too) when the
+project mounts, when the host emits `terminals-changed`, and when its window gains
+focus. The answer is `{ terminals, tabs, run }`:
+
+- `terminals` — the host's live terminals in its tab order, as without `withTabs`.
+- `tabs` — the ids of every tab the host's window has open for the project,
+  finished ones included. Null until the window has reported them, which it does
+  only once its saved tabs are restored, so an empty list means every tab closed.
+  A headless host has no window and never reports them.
+- `run` — changes every time the host app starts.
+
+The client closes a tab the host listed earlier in the same `run` and no longer
+lists, without stopping its terminal: an Undo on the host brings the tab back, and
+the next sync opens it again. A tab the host hasn't listed yet (one this Mac just
+opened there) stays, and so do tabs from before a host restart.
+
+**Compatibility.** A host that predates `withTabs` ignores it and answers with the
+plain array, and the client closes nothing. A client that predates it never asks.
+
+After the host app restarts, each terminal is relaunched only by the Mac that
+started it. The host relaunches its own tabs and drops the dead ones a paired Mac
+started there. A paired Mac relaunches only the tabs it started; a tab it opened
+because the host had the terminal (`fromHost` in its saved tabs) is dropped on
+restore and comes back through the sync once the host has relaunched it.
 
 ## Global event forwarding
 
@@ -511,10 +542,31 @@ sides compute empty plans and stop.
 
 ## Control ownership
 
-A peer `sub` presents + claims display control on the host under a distinct owner
-kind `"peer"` (never collides with `"window"` / `"mobile"`; identity is
-`(kind, id)`). On disconnect the host drops that surface from every terminal, so
-control transfers back to a host window instead of stranding on a gone client.
+A peer is one control surface on the host, under a distinct owner kind `"peer"`
+(never collides with `"window"` / `"mobile"`; identity is `(kind, id)`). It
+follows the same rules as a host window, reported by the client:
+
+- client → `{ "t": "ctl", "id", "op" }`, `op` one of:
+  - `claim` — a window there shows the terminal and is focused, or its user took
+    control. The peer becomes the owner; host windows show "Take control".
+  - `present` — a window there shows the terminal without focus. The peer joins
+    the presenters and owns it only if no host window does.
+  - `unpresent` — no window there shows it any more; ownership passes to the
+    next presenter.
+
+  `claim` and `present` are ignored for a terminal the host doesn't have. A tab
+  that opened only because the other Mac opened its terminal presents for its
+  first moments instead of claiming, so control stays with the Mac that opened
+  it. A focused client window re-sends `claim` on every focus, since it can't see
+  a host window taking control in between.
+
+`unsub` releases control like `unpresent`. On disconnect the host drops that
+surface from every terminal, so control transfers back to a host window instead
+of stranding on a gone client.
+
+**Compatibility.** A host that predates `ctl` ignores the frame and the `claim`
+field, and claims on every `sub` as before. A client that predates `ctl` sends
+`sub` without `claim`, so a current host still claims for it.
 
 ## Commands (Tauri, frontend-facing)
 
@@ -567,10 +619,9 @@ Frontend-facing events: `peer-state-changed`, `peer-invoke` (host dispatcher),
   the host keeps one active watch, a peer's review can replace the watch the host
   user's own review pane had active (and vice-versa). Diffs stay correct — only
   the live auto-refresh follows the most recent watcher.
-- **Control hand-back is one-directional (v1).** A peer `sub` claims display
-  control so host windows show the "Take control" placeholder. The reverse — a
-  host window reclaiming control while the peer keeps the terminal open — is not
-  pushed to the client, so the client keeps rendering until it detaches.
+- **The client never shows a "Take control" placeholder.** The host doesn't
+  push ownership changes to the client, so a client window keeps rendering a
+  terminal a host window has taken, until it is focused again and re-claims.
 
 ### Threat model — why the channel is pinned
 

@@ -180,6 +180,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   const {
     tree,
+    restoreSettled,
     focusedPaneId,
     createTerminal,
     createTerminalWithCmd,
@@ -383,9 +384,15 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   }, [tree]);
 
   // Mirror the live id -> {label, cli} mapping to the remote server so paired
-  // phones show the same terminal names and offer the same slash commands.
+  // phones show the same terminal names and offer the same slash commands. It is
+  // also the tab list paired Macs follow, so it waits for restore — an empty tree
+  // before that would read there as every tab closed — and the main window alone
+  // reports it.
   useEffect(() => {
-    void RemoteSetTerminalLabels(projectName, allTerminals);
+    if (IS_MIRROR_WINDOW) return;
+    void restoreSettled.current.then(() =>
+      RemoteSetTerminalLabels(projectName, allTerminalsRef.current),
+    );
   }, [projectName, allTerminals]);
 
   // Same names, in-process: Activity lists agents from every open project and

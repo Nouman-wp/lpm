@@ -124,6 +124,49 @@ describe("reifyTreeWithFreshPtys", () => {
     expect(started).toEqual(["pty-fresh"]);
   });
 
+  // The host relaunches the terminals it opened after it restarts, and the next
+  // sync opens them here. Launching one from this side too ran it twice.
+  it("leaves a host-opened terminal the host lost to the host", async () => {
+    h.terminalExists.mockResolvedValue(false);
+    h.startTerminal.mockResolvedValue("pty-fresh");
+    const started: string[] = [];
+    const dropped: PersistedTab[] = [];
+    const discarded: PersistedTab[] = [];
+
+    const pane = asLeaf(
+      await reifyTreeWithFreshPtys(
+        leaf([
+          { label: "Theirs", id: "peer-a1b2c3d4-project-7", fromHost: true },
+          { label: "Mine", id: "peer-a1b2c3d4-project-8" },
+        ]),
+        "peer-a1b2c3d4-demo",
+        started,
+        dropped,
+        discarded,
+      ),
+    );
+
+    expect(pane.tabs.map((t) => [t.label, t.id])).toEqual([["Mine", "pty-fresh"]]);
+    expect(discarded.map((t) => t.label)).toEqual(["Theirs"]);
+    expect(dropped).toEqual([]);
+    expect(h.startTerminal).toHaveBeenCalledTimes(1);
+  });
+
+  it("adopts a host-opened terminal the host still has", async () => {
+    h.terminalExists.mockResolvedValue(true);
+
+    const pane = asLeaf(
+      await reifyTreeWithFreshPtys(
+        leaf([{ label: "Theirs", id: "peer-a1b2c3d4-project-7", fromHost: true }]),
+        "peer-a1b2c3d4-demo",
+        [],
+      ),
+    );
+
+    expect(pane.tabs[0]).toMatchObject({ id: "peer-a1b2c3d4-project-7", fromHost: true });
+    expect(h.startTerminal).not.toHaveBeenCalled();
+  });
+
   // The tab comes back as a different terminal than the one it had, which is
   // worth telling the user; a tab that merely starts, or is adopted, is not.
   it("reports only the ptys that stand in for a peer terminal the host lost", async () => {
@@ -566,5 +609,18 @@ describe("reifyTreeWithFreshPtys", () => {
     expect(persisted.tabs?.[0].id).toBe("peer-a1b2c3d4-project-7");
     expect(persisted.tabs?.[1].id).toBe("project-9");
     expect(persisted.tabs?.[2].id).toBeUndefined();
+  });
+
+  it("remembers which peer terminals the host opened", () => {
+    const persisted = treeToPersisted({
+      kind: "leaf",
+      id: "pane",
+      activeTabIdx: 0,
+      tabs: [
+        { id: "peer-a1b2c3d4-project-7", label: "Theirs", fromHost: true },
+        { id: "peer-a1b2c3d4-project-8", label: "Mine" },
+      ],
+    });
+    expect(persisted.tabs?.map((t) => t.fromHost)).toEqual([true, undefined]);
   });
 });

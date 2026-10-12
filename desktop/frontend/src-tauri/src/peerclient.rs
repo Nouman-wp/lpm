@@ -176,10 +176,15 @@ impl PeerConn {
     /// The `sub` frame for a terminal, carrying `from` only when this Mac still
     /// holds a screen for it. Omitting `from` asks the host for a full reseed,
     /// which is also what an older host does with a `from` it can't honour.
+    ///
+    /// `claim: false` because every tab subscribes, including ones in the
+    /// background: control follows what a window shows, which `ctl` reports.
     fn sub_frame(&self, id: &str) -> String {
         match self.offsets.lock().unwrap().get(id) {
-            Some(&from) => json!({ "t": "sub", "id": id, "from": from }).to_string(),
-            None => json!({ "t": "sub", "id": id }).to_string(),
+            Some(&from) => {
+                json!({ "t": "sub", "id": id, "from": from, "claim": false }).to_string()
+            }
+            None => json!({ "t": "sub", "id": id, "claim": false }).to_string(),
         }
     }
 
@@ -288,7 +293,7 @@ impl PeerConn {
         }
         // Deliberately not `sub_frame`: this must carry no `from` at all, whatever
         // another thread may have anchored in the meantime.
-        let _ = self.send(json!({ "t": "sub", "id": id }).to_string());
+        let _ = self.send(json!({ "t": "sub", "id": id, "claim": false }).to_string());
     }
 
     fn forget_offset(&self, id: &str) {
@@ -2025,11 +2030,26 @@ fn connect_session(
     for id in &resubscribe {
         let _ = ws.write(Message::text(conn.sub_frame(id)));
     }
+    let app = hub.app();
+    // The host let go of this Mac's control when the link dropped. Presenting
+    // again restores its place without taking a terminal from a host window.
+    if let Some(control) = app
+        .as_ref()
+        .and_then(|a| a.try_state::<crate::control::ControlState>())
+    {
+        for id in &resubscribe {
+            if control
+                .owner_of(&format!("peer-{}-{id}", conn.slug))
+                .is_some()
+            {
+                let _ = ws.write(Message::text(control_frame(id, "present")));
+            }
+        }
+    }
     let _ = ws.flush();
     emit_state_changed(hub);
     crate::hostautoupdate::nudge();
 
-    let app = hub.app();
     // A reconnect is a sync trigger: the peer just became reachable and its feature
     // flags are stored, so an auto-enabled peer reconciles now (and its backoff
     // resets). Gating still applies — a non-configSync2 or unpinned peer is skipped.
@@ -2816,6 +2836,27 @@ pub fn peer_term_detach(hub: State<'_, PeerClientHub>, id: String) -> Result<(),
     Ok(())
 }
 
+fn control_frame(raw: &str, op: &str) -> String {
+    json!({ "t": "ctl", "id": raw, "op": op }).to_string()
+}
+
+/// Pass a change in what this Mac's windows show of a host terminal on to the
+/// host — `claim`, `present` or `unpresent` — so control there follows the Mac
+/// in use rather than whichever one last subscribed. A no-op for local ids and
+/// while the link is down; a reconnect re-reports from the local state.
+pub(crate) fn forward_control(app: &AppHandle, id: &str, op: &str) {
+    let Some((slug, raw)) = parse_prefixed(id) else {
+        return;
+    };
+    let Some(hub) = app.try_state::<PeerClientHub>() else {
+        return;
+    };
+    let conn = hub.inner.conns.lock().unwrap().get(&slug).cloned();
+    if let Some(conn) = conn {
+        let _ = conn.send(control_frame(&raw, op));
+    }
+}
+
 /// This Mac's user-facing name, sent to the host at pairing so its device list is
 /// readable. Reuses the host module's resolver.
 fn local_name() -> String {
@@ -2839,6 +2880,10 @@ mod tests {
         conn.anchor_offset("web-3", Some(4096));
         let resumed = parse(conn.sub_frame("web-3"));
         assert_eq!(resumed.get("from").and_then(Value::as_u64), Some(4096));
+        // Background tabs subscribe too, so subscribing never takes control.
+        for frame in [&fresh, &resumed] {
+            assert_eq!(frame.get("claim").and_then(Value::as_bool), Some(false));
+        }
 
         // A host that reports no offset predates the resume contract: forget what we
         // had so the next sub asks for a full reseed rather than a stale resume.

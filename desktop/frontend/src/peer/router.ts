@@ -168,13 +168,28 @@ export function translateResult(cmd: string, slug: string, result: unknown): unk
   if (cmd === "get_project" && result && typeof result === "object") {
     return translateProject(slug, result as ProjectInfo);
   }
-  // The host's live terminals in a project, named by its own pty ids.
-  if (cmd === "list_project_terminals" && Array.isArray(result)) {
-    return result.map((t) =>
-      t && typeof t === "object" && typeof (t as { id?: unknown }).id === "string"
-        ? { ...t, id: prefixName(slug, (t as { id: string }).id) }
-        : t,
-    );
+  // The host's live terminals in a project, named by its own pty ids — and,
+  // when asked `withTabs`, the ids of its open tabs alongside.
+  if (cmd === "list_project_terminals") {
+    const terminals = (list: unknown) =>
+      Array.isArray(list)
+        ? list.map((t) =>
+            t && typeof t === "object" && typeof (t as { id?: unknown }).id === "string"
+              ? { ...t, id: prefixName(slug, (t as { id: string }).id) }
+              : t,
+          )
+        : list;
+    if (Array.isArray(result)) return terminals(result);
+    if (result && typeof result === "object") {
+      const r = result as { terminals?: unknown; tabs?: unknown };
+      return {
+        ...r,
+        terminals: terminals(r.terminals),
+        tabs: Array.isArray(r.tabs)
+          ? r.tabs.map((id) => (typeof id === "string" ? prefixName(slug, id) : id))
+          : r.tabs,
+      };
+    }
   }
   // Duplicate commands return freshly created host project name(s); prefix them
   // so the client selects / marks / spawns against the id it can actually see.

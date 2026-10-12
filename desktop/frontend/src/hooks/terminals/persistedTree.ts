@@ -102,6 +102,11 @@ interface ReifiedTab {
  * someone else owns, a freshly started one otherwise, and null when the tab has
  * nothing left to back it and should go away.
  *
+ * Only the machine that started a terminal relaunches it. A peer terminal the
+ * host opened (`fromHost`) is the host's to bring back after it restarts — it
+ * relaunches its own tabs, and the next sync opens them here — so a second launch
+ * from this side would run the same session twice.
+ *
  * A local pty dies with the app, so its persisted id is always stale. Two kinds
  * of tab persist an id because their pty isn't ours:
  *
@@ -119,6 +124,7 @@ async function reifyTab(t: PersistedTab, projectName: string): Promise<ReifiedTa
   if (t.id) {
     if (isPeerMarked(t.id)) {
       if (await shouldAdoptPeerTerminal(t.id)) return { id: t.id, adopted: true };
+      if (t.fromHost) return null;
       return { id: await startFresh(t, projectName), adopted: false, replacedPeer: true };
     }
     try {
@@ -190,6 +196,7 @@ async function reifyTree(
           emoji: t.emoji,
           color: t.color,
           peerAdopted: adopted && !isPeerMarked(id),
+          fromHost: t.fromHost,
         }),
       );
     });
@@ -267,6 +274,7 @@ export function treeToPersisted(node: PaneNode): PersistedPaneNode {
         .map((t) => ({
           label: t.label,
           ...(isPeerMarked(t.id) || t.peerAdopted ? { id: t.id } : {}),
+          ...(t.fromHost ? { fromHost: true } : {}),
           ...(t.sessionTitle ? { sessionTitle: t.sessionTitle } : {}),
           ...(t.sessionTitleId ? { sessionTitleId: t.sessionTitleId } : {}),
           ...(t.sessionTitleSource ? { sessionTitleSource: t.sessionTitleSource } : {}),

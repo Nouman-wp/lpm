@@ -57,7 +57,7 @@ async function render({ dir, version, build, device = "iPhone", cut, redact = []
   const layout = layoutFor(rec);
   const work = path.join(dir, "render");
   fs.mkdirSync(work, { recursive: true });
-  const info = { version, build, device, date: new Date(rec.startedAt).toISOString().slice(0, 10) };
+  const info = { version, build, device, date: new Date(rec.startedAt).toLocaleDateString("en-CA") };
   cards(work, { rec, layout, marks, info });
   const blurs = redactions({ raw, spans, layout, keepName: rec.name, patterns: redact, work });
   log(`${blurs.length} blurred names`);

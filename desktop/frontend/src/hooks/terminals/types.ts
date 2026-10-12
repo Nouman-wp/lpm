@@ -1,3 +1,4 @@
+import { type RefObject } from "react";
 import { type PaneNode, type PaneLeaf, type SplitDirection } from "../../paneTree";
 import { type PersistedHistoryEntry } from "../../terminals";
 import { type TerminalMemoryRef } from "../../terminalMemory";
@@ -33,6 +34,8 @@ export interface TerminalStartOpts {
 export interface UseTerminalsResult {
   tree: PaneNode | null;
   focusedPaneId: string | null;
+  // Settles once the saved tabs are back; until then `tree` is not the real one.
+  restoreSettled: RefObject<Promise<void>>;
   createTerminal: () => Promise<void>;
   createTerminalWithCmd: (label: string, cmd: string, opts?: TerminalStartOpts) => Promise<void>;
   adoptTerminal: (

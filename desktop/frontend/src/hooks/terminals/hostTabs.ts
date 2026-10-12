@@ -1,11 +1,14 @@
 import { type HostTerminal } from "../../peer/hostTerminals";
 import {
   type PaneNode,
+  clampIdx,
+  collectPanes,
   findPane,
   firstPaneId,
   makePaneLeaf,
   makeTerminal,
   mapPane,
+  removePane,
 } from "../../paneTree";
 import { disambiguateLabel, pickTerminalLabel } from "../../terminalLabels";
 import { nextId } from "./util";
@@ -26,8 +29,31 @@ export function withHostTabs(
   let next: PaneNode = tree ?? makePaneLeaf(paneId, []);
   for (const t of terminals) {
     const label = t.label ? disambiguateLabel(next, t.label) : pickTerminalLabel(next);
-    const tab = makeTerminal(t.id, label, { pinned: t.pinned, emoji: t.emoji });
+    const tab = makeTerminal(t.id, label, { pinned: t.pinned, emoji: t.emoji, fromHost: true });
     next = mapPane(next, paneId, (p) => ({ ...p, tabs: [...p.tabs, tab] }));
   }
   return tree ? { tree: next } : { tree: next, focus: paneId };
+}
+
+// Drops the tabs the host closed. A pane left with nothing collapses, as a close
+// here would collapse it, and focus moves on only when its pane went.
+export function withoutHostTabs(
+  tree: PaneNode,
+  focusedPaneId: string | null,
+  ids: ReadonlySet<string>,
+): { tree: PaneNode | null; focus?: string | null } {
+  let next: PaneNode | null = tree;
+  for (const pane of collectPanes(tree)) {
+    if (!next || !pane.tabs.some((t) => ids.has(t.id))) continue;
+    const tabs = pane.tabs.filter((t) => !ids.has(t.id));
+    if (tabs.length === 0 && !pane.activeServiceName) {
+      next = removePane(next, pane.id);
+      continue;
+    }
+    const kept = tabs.indexOf(pane.tabs[pane.activeTabIdx]);
+    const activeTabIdx = kept >= 0 ? kept : clampIdx(pane.activeTabIdx, tabs.length);
+    next = mapPane(next, pane.id, (p) => ({ ...p, tabs, activeTabIdx }));
+  }
+  if (!focusedPaneId || (next && findPane(next, focusedPaneId))) return { tree: next };
+  return { tree: next, focus: next ? firstPaneId(next) : null };
 }

@@ -45,6 +45,10 @@ export interface TerminalInstance {
   // `id` therefore has to persist: restore re-adopts the running session instead
   // of relaunching it, and a close arriving from the peer can still find the tab.
   peerAdopted?: boolean;
+  // A peer terminal this Mac opened a tab for only because the host had it —
+  // started there, from a phone or from another Mac — rather than started from
+  // here. The host relaunches it after a restart, so this Mac must not.
+  fromHost?: boolean;
   // Absent == terminal; the other kinds render in-pane views without a PTY.
   kind?: "terminal" | "browser" | "memory" | "toolkit" | "files" | "automations";
 }
@@ -98,6 +102,7 @@ export function makeTerminal(
     historyKey?: string;
     memory?: TerminalMemoryRef;
     peerAdopted?: boolean;
+    fromHost?: boolean;
   },
 ): TerminalInstance {
   return {
@@ -116,6 +121,7 @@ export function makeTerminal(
     ...(opts?.emoji ? { emoji: opts.emoji } : {}),
     ...(opts?.color ? { color: opts.color } : {}),
     ...(opts?.peerAdopted ? { peerAdopted: true } : {}),
+    ...(opts?.fromHost ? { fromHost: true } : {}),
   };
 }
 

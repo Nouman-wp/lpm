@@ -250,6 +250,9 @@ fn attach_events(app: &AppHandle, project_name: &str, label: &str, win: &tauri::
                 .drop_surface(&realm)
             {
                 crate::control::broadcast(&app, &id, &owner);
+                if owner.is_none() {
+                    crate::peerclient::forward_control(&app, &id, "unpresent");
+                }
             }
         }
         _ => {}

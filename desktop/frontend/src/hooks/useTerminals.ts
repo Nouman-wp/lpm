@@ -292,6 +292,7 @@ export function useTerminals(
   return {
     tree,
     focusedPaneId,
+    restoreSettled,
     createTerminal,
     createTerminalWithCmd,
     adoptTerminal,

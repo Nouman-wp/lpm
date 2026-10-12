@@ -657,6 +657,28 @@ fn peer_owner(hub: &PeerHub, device_id: &str) -> crate::control::Owner {
     crate::control::Owner::new("peer", device_id, hub.device_name(device_id))
 }
 
+/// Apply a peer's `ctl` frame: the Mac reporting that one of its windows started
+/// or stopped showing a terminal of ours, or took control of it.
+fn apply_peer_control(hub: &PeerHub, app: &AppHandle, device_id: &str, id: &str, op: &str) {
+    let state = app.state::<crate::control::ControlState>();
+    let who = peer_owner(hub, device_id);
+    let (owner, changed) = match op {
+        "claim" if terminal_alive(app, id) => {
+            let (owner, changed) = state.claim(id, who);
+            (Some(owner), changed)
+        }
+        "present" if terminal_alive(app, id) => {
+            let (owner, changed) = state.present(id, who);
+            (Some(owner), changed)
+        }
+        "unpresent" => state.unpresent(id, &who),
+        _ => return,
+    };
+    if changed {
+        crate::control::broadcast(app, id, &owner);
+    }
+}
+
 // --- lifecycle ----------------------------------------------------------------
 
 /// Install event forwarders and start the server if enabled. The shared config is
@@ -1337,15 +1359,19 @@ fn handle_msg(
                 if !terminal_alive(app, &id) {
                     return send(ws, gone_frame(&id));
                 }
-                // Opening a terminal on the peer takes control of it, so host
-                // windows flip to their placeholder. `claim` mirrors mobile, and
-                // runs first: its broadcast is a webview emit, which has no place
-                // inside the subscribe-and-read `ring_attach` holds atomic.
-                let (owner, changed) = app
-                    .state::<crate::control::ControlState>()
-                    .claim(&id, peer_owner(hub, device_id));
-                if changed {
-                    crate::control::broadcast(app, &id, &Some(owner));
+                // A Mac subscribes every tab it holds, shown or not, so one that
+                // reports what it shows through `ctl` sends `claim: false` here.
+                // A Mac from before `ctl` takes control on opening, so host
+                // windows flip to their placeholder. The claim runs first: its
+                // broadcast is a webview emit, which has no place inside the
+                // subscribe-and-read `ring_attach` holds atomic.
+                if v.get("claim").and_then(Value::as_bool) != Some(false) {
+                    let (owner, changed) = app
+                        .state::<crate::control::ControlState>()
+                        .claim(&id, peer_owner(hub, device_id));
+                    if changed {
+                        crate::control::broadcast(app, &id, &Some(owner));
+                    }
                 }
                 // A peer that still has this terminal on screen (its connection
                 // dropped and came back) sends the offset it got to. Handing it
@@ -1379,6 +1405,11 @@ fn handle_msg(
                 if changed {
                     crate::control::broadcast(app, &id, &owner);
                 }
+            }
+        }
+        "ctl" => {
+            if let (Some(id), Some(op)) = (str_field("id"), str_field("op")) {
+                apply_peer_control(hub, app, device_id, &id, &op);
             }
         }
         "invoke" => {
@@ -1746,8 +1777,16 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
         // Also answered here: a headless host has no page to ask.
         "list_project_terminals" => {
             let hub = app.state::<crate::remote::RemoteHub>();
-            let terms = crate::remote::project_terminals(app, &hub, &s("projectName"));
-            Some(Ok(Value::Array(terms)))
+            let with_tabs = args
+                .get("withTabs")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            Some(Ok(crate::remote::project_listing(
+                app,
+                &hub,
+                &s("projectName"),
+                with_tabs,
+            )))
         }
         "stop_terminal" => {
             let id = s("id");

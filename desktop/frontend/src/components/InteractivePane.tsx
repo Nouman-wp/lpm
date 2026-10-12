@@ -54,6 +54,7 @@ import { isPeerName, PEER_UPLOAD_MAX_BYTES } from "../peer/markers";
 import { uploadPeerFiles } from "../peer/uploadFiles";
 import { reclaimPeerSession } from "../peer/retainedSessions";
 import { relaunchNoticePlacer, takeRelaunchNotice } from "../peer/relaunchNotices";
+import { openedByOtherMacJustNow } from "../peer/openedByOtherMac";
 import { SSH_TRANSPORT_EXIT_CODE } from "../reconnect";
 import {
   IS_MIRROR_WINDOW,
@@ -1298,12 +1299,21 @@ function getOrCreateInteractiveSession(
 // the placeholder, so `offsetParent` would be null there and focusing it — the
 // whole point — could never claim. No-op when it's a background tab, the window
 // isn't focused, or this window already owns it (so re-focusing doesn't re-claim).
+//
+// A peer terminal is claimed on every focus: its host may have handed it to one
+// of its own windows since, which this Mac can't see, and a repeat claim is a
+// no-op there. The claim also takes back the size the host may have set.
 function claimIfActive(session: InteractiveSession, terminalId: string): void {
   if (!session.presenting) return;
   if (!document.hasFocus()) return;
-  if (amControlOwner(terminalId)) return;
+  if (openedByOtherMacJustNow(terminalId)) return;
+  const peer = isPeerName(terminalId);
+  if (!peer && amControlOwner(terminalId)) return;
   TerminalClaimControl(terminalId, REALM.kind, REALM.id, REALM.label)
-    .then((owner: ControlOwner) => applyControlOwner(terminalId, owner))
+    .then((owner: ControlOwner) => {
+      applyControlOwner(terminalId, owner);
+      if (peer) session.reassertSize?.();
+    })
     .catch(() => {});
 }
 
@@ -1751,9 +1761,10 @@ export function InteractivePane({
     if (!visible) return;
     const session = sessionRef.current;
     if (session) session.presenting = true;
-    const call = document.hasFocus()
-      ? TerminalClaimControl(terminalId, REALM.kind, REALM.id, REALM.label)
-      : TerminalPresentControl(terminalId, REALM.kind, REALM.id, REALM.label);
+    const call =
+      document.hasFocus() && !openedByOtherMacJustNow(terminalId)
+        ? TerminalClaimControl(terminalId, REALM.kind, REALM.id, REALM.label)
+        : TerminalPresentControl(terminalId, REALM.kind, REALM.id, REALM.label);
     // A deferring present isn't broadcast, so learn the owner from the return.
     call.then((owner: ControlOwner) => applyControlOwner(terminalId, owner)).catch(
       () => {},

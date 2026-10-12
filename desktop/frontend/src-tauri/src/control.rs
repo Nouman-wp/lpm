@@ -182,6 +182,7 @@ pub fn terminal_present_control(
     if changed {
         broadcast(&app, &id, &Some(owner.clone()));
     }
+    crate::peerclient::forward_control(&app, &id, "present");
     owner
 }
 
@@ -197,6 +198,10 @@ pub fn terminal_unpresent_control(
     let (owner, changed) = state.unpresent(&id, &who);
     if changed {
         broadcast(&app, &id, &owner);
+    }
+    // The host sees this Mac as one surface, shown while any window here shows it.
+    if owner.is_none() {
+        crate::peerclient::forward_control(&app, &id, "unpresent");
     }
     owner
 }
@@ -214,6 +219,7 @@ pub fn terminal_claim_control(
     if changed {
         broadcast(&app, &id, &Some(owner.clone()));
     }
+    crate::peerclient::forward_control(&app, &id, "claim");
     owner
 }
 
