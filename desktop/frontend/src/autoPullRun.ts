@@ -27,6 +27,9 @@ interface Announced {
 }
 
 const TOAST_ID = "auto-pull";
+// What an Undo click led to. Sonner closes a toast once its action is clicked,
+// so the result is a note of its own, with a full lifetime.
+const RESULT_ID = "auto-pull-result";
 const TOAST_MS = 10_000;
 const SETTLE_MS = 1_500;
 
@@ -142,6 +145,7 @@ async function undoOne(root: string): Promise<AutoPulled> {
     return (await GitAutoPullUndo(root)) as AutoPulled;
   } finally {
     announced = announced.filter((a) => a.root !== root);
+    if (announced.length === 0) toast.dismiss(TOAST_ID);
     await recheckOrigin(root);
     heldAt.set(root, { key: attemptKey(root), reason: "undone" });
   }
@@ -151,13 +155,13 @@ export async function undoAutoPull(root: string, project: string, name: string):
   try {
     const undone = await undoOne(root);
     toast.success(`Undid the pull in ${name}`, {
-      id: TOAST_ID,
+      id: RESULT_ID,
       description: `Back on ${undone.from}. Auto pull waits for newer commits on origin.`,
       duration: TOAST_MS,
       action: { label: "Turn off auto pull", onClick: () => void turnOff(project, name) },
     });
   } catch (err) {
-    toast.error(`Couldn’t undo the pull in ${name}: ${String(err)}`, { id: TOAST_ID });
+    toast.error(`Couldn’t undo the pull in ${name}: ${String(err)}`, { id: RESULT_ID });
   }
 }
 
@@ -171,11 +175,11 @@ async function undoAll(items: Announced[]): Promise<void> {
     }
   }
   if (failed.length > 0) {
-    toast.error(`Couldn’t undo the pull in ${failed.join(", ")}: the branch has moved since`, { id: TOAST_ID });
+    toast.error(`Couldn’t undo the pull in ${failed.join(", ")}: the branch has moved since`, { id: RESULT_ID });
     return;
   }
   toast.success(`Undid ${items.length} pulls`, {
-    id: TOAST_ID,
+    id: RESULT_ID,
     description: "Auto pull waits for newer commits on origin.",
     duration: TOAST_MS,
   });
@@ -195,6 +199,6 @@ export async function setProjectAutoPull(project: string, value: boolean | null)
 
 async function turnOff(project: string, name: string): Promise<void> {
   if (await setProjectAutoPull(project, false)) {
-    toast.success(`Auto pull is off for ${name}`, { id: TOAST_ID, duration: TOAST_MS });
+    toast.success(`Auto pull is off for ${name}`, { duration: TOAST_MS });
   }
 }

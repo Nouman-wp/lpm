@@ -34,7 +34,7 @@ export function SidebarOriginAction({
   const autostash = useSettingsStore((s) => !!s.gitPull?.autostash);
   const project = useAppStore((s) => autoPullTarget(s.projects, root));
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const popup = useHoverPopup(buttonRef);
+  const popup = useHoverPopup();
   const mark = entry && !entry.running && !entry.done ? originMark(entry.status) : null;
   if (!entry || !mark || heldByChanges(entry.status, mark, autostash)) return null;
   const conflict = mark.kind === "conflict";

@@ -20,7 +20,7 @@ vi.mock("../bridge/commands", () => ({
   GitAutoPullUndo: mocks.undo,
   SetAutoPull: mocks.setAutoPull,
 }));
-vi.mock("sonner", () => ({ toast: { success: mocks.toastSuccess, error: mocks.toastError } }));
+vi.mock("sonner", () => ({ toast: { success: mocks.toastSuccess, error: mocks.toastError, dismiss: vi.fn() } }));
 vi.mock("./originActions", () => ({ recheckOrigin: mocks.recheck, showOriginDone: mocks.done }));
 vi.mock("./store/settings", () => ({ getSettings: () => mocks.settings }));
 vi.mock("./store/app", () => ({ useAppStore: { getState: () => ({ projects: mocks.projects }) } }));
@@ -28,8 +28,14 @@ vi.mock("./sidebarAgents", () => ({
   projectAgentRows: (p: ProjectInfo) => (mocks.busy.has(p.name) ? [{ state: "working" }] : []),
 }));
 
-import { maybeAutoPull, undoAutoPull } from "./autoPullRun";
-import { useOriginStatus } from "./store/originStatus";
+type Run = typeof import("./autoPullRun");
+type Origin = typeof import("./store/originStatus");
+
+// The runner keeps what it has pulled and held per folder; each test gets a
+// fresh copy of it and of the store it reads.
+let maybeAutoPull: Run["maybeAutoPull"];
+let undoAutoPull: Run["undoAutoPull"];
+let useOriginStatus: Origin["useOriginStatus"];
 
 const ROOT = "/p/web";
 
@@ -51,7 +57,10 @@ const project = (over: Partial<ProjectInfo> = {}): ProjectInfo =>
 
 const PULLED = { kind: "pulled", branch: "main", count: 3, from: "a1b2c3d", to: "9f8e7d6", at: 1 };
 
-beforeEach(() => {
+beforeEach(async () => {
+  vi.resetModules();
+  ({ maybeAutoPull, undoAutoPull } = await import("./autoPullRun"));
+  ({ useOriginStatus } = await import("./store/originStatus"));
   vi.clearAllMocks();
   mocks.settings.autoPull = "all";
   mocks.projects = [project()];
@@ -70,6 +79,18 @@ describe("maybeAutoPull", () => {
     const [title, options] = mocks.toastSuccess.mock.calls[0];
     expect(title).toBe("Pulled 3 commits into web");
     expect(options.action.label).toBe("Undo");
+  });
+
+  it("shows what Undo did in a note of its own", async () => {
+    mocks.undo.mockResolvedValue(PULLED);
+    await maybeAutoPull(ROOT);
+    const pulled = mocks.toastSuccess.mock.calls[0][1];
+    pulled.action.onClick({ preventDefault: vi.fn() });
+    await vi.waitFor(() => expect(mocks.toastSuccess).toHaveBeenCalledTimes(2));
+    const [title, options] = mocks.toastSuccess.mock.calls[1];
+    expect(title).toBe("Undid the pull in web");
+    expect(options.id).not.toBe(pulled.id);
+    expect(options.action.label).toBe("Turn off auto pull");
   });
 
   it("leaves branches that are ahead, have changes or conflicts to the user", async () => {

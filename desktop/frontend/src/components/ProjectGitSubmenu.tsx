@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { AutoPullSubmenu } from "./AutoPullSubmenu";
+import { AutoPullMenuItems } from "./AutoPullMenuItems";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
@@ -180,7 +180,8 @@ function GitSubmenuItems({
       />
       {autoPull && (
         <>
-          <AutoPullSubmenu projectName={projectName} onClose={onClose} />
+          <ContextMenuSeparator />
+          <AutoPullMenuItems projectName={projectName} onClose={onClose} />
           <UndoAutoPullItem projectPath={projectPath} projectName={projectName} onClose={onClose} />
         </>
       )}

@@ -53,7 +53,7 @@ export function SidebarOriginMark({ root }: { root: string }) {
   const autostash = useSettingsStore((s) => !!s.gitPull?.autostash);
   const project = useAppStore((s) => autoPullTarget(s.projects, root));
   const heldRef = useRef<HTMLSpanElement>(null);
-  const popup = useHoverPopup(heldRef);
+  const popup = useHoverPopup();
   if (!entry) return null;
   if (entry.running) {
     return (
