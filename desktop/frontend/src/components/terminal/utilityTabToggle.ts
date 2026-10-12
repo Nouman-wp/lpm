@@ -1,6 +1,6 @@
 import { ALL_SERVICES, type PaneLeaf, type TerminalInstance } from "../../paneTree";
 
-// Tabs that ⌘⇧M / ⌘⇧K / ⌘⇧E, or a pane toolbar button, toggle on and off.
+// Tabs that ⌘⇧M / ⌘⇧K / ⌘⇧E / ⌘⇧J, or a pane toolbar button, toggle on and off.
 export type UtilityTabKind = "memory" | "toolkit" | "files" | "automations";
 
 // The header entry the toggle was pressed from — a terminal tab, or the service

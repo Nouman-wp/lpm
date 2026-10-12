@@ -88,6 +88,7 @@ export function TerminalPane({
           onZoomOut={onZoomOut}
           paneStatus={paneStatus}
           visible={visible && active && !showEmptyState}
+          onScreen={visible && active}
           keysActive={keysActive}
           onResumeSession={onResumeSession}
         />

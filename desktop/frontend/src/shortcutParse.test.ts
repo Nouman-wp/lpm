@@ -115,10 +115,10 @@ describe("reserved shortcuts off macOS", () => {
     expect(isReservedShortcut(parseShortcut("cmd+alt+shift+r")!, undefined, false)).toBe(true);
     expect(isReservedShortcut(parseShortcut("cmd+alt+shift+r")!, undefined, true)).toBe(false);
 
-    const extra = new Set(["cmd+alt+shift+j"]);
-    expect(isReservedShortcut(parseShortcut("cmd+shift+j")!, extra, false)).toBe(true);
-    expect(isReservedShortcut(parseShortcut("cmd+shift+j")!, extra, true)).toBe(false);
-    expect(isReservedShortcut(parseShortcut("cmd+j")!, extra, false)).toBe(false);
+    const extra = new Set(["cmd+alt+shift+g"]);
+    expect(isReservedShortcut(parseShortcut("cmd+shift+g")!, extra, false)).toBe(true);
+    expect(isReservedShortcut(parseShortcut("cmd+shift+g")!, extra, true)).toBe(false);
+    expect(isReservedShortcut(parseShortcut("cmd+g")!, extra, false)).toBe(false);
   });
 
   it("keep a reserved \"+\" key, which parseShortcut can't read back", () => {

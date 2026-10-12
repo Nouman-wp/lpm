@@ -103,6 +103,7 @@ const RESERVED_SHARED = [
   "cmd+shift+m",
   "cmd+shift+k",
   "cmd+shift+e",
+  "cmd+shift+j",
   "cmd+p",
   "cmd+=",
   "cmd++",

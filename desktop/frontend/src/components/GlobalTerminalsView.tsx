@@ -156,6 +156,7 @@ export function GlobalTerminalsView({
           onZoomOut={zoomOut}
           paneStatus={paneStatus}
           visible={visible && !showEmptyState}
+          onScreen={visible}
         />
       </div>
 

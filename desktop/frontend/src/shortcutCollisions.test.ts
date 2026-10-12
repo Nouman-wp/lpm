@@ -67,7 +67,7 @@ describe("built-in chords on macOS", () => {
   it("keep the reserved set exactly as before", () => {
     const before = [
       "cmd+b", "cmd+t", "cmd+w", "cmd+d", "cmd+shift+d", "cmd+f", "cmd+i",
-      "cmd+shift+r", "cmd+shift+m", "cmd+shift+k", "cmd+shift+e", "cmd+p",
+      "cmd+shift+r", "cmd+shift+m", "cmd+shift+k", "cmd+shift+e", "cmd+shift+j", "cmd+p",
       "cmd+=", "cmd++", "cmd+-", "cmd+0", "cmd+shift+v", "cmd+alt+r",
       "cmd+alt+c", "cmd+alt+shift+c", "cmd+alt+arrowup", "cmd+alt+arrowdown",
       "cmd+e", "cmd+shift+n", "cmd+s", "cmd+shift+l", "cmd+shift+s",

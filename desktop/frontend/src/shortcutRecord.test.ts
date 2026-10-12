@@ -20,8 +20,8 @@ const mac = (key: string, mods: Mods = {}, reserved?: ReadonlySet<string>) =>
 
 describe("captureShortcut on macOS", () => {
   it("records ⌘ and ⌥ chords as before", () => {
-    expect(mac("J", { meta: true, shift: true })).toEqual({ kind: "capture", canonical: "cmd+shift+j" });
-    expect(mac("j", { ctrl: true })).toEqual({ kind: "capture", canonical: "cmd+j" });
+    expect(mac("G", { meta: true, shift: true })).toEqual({ kind: "capture", canonical: "cmd+shift+g" });
+    expect(mac("g", { ctrl: true })).toEqual({ kind: "capture", canonical: "cmd+g" });
     expect(mac("ArrowRight", { alt: true })).toEqual({ kind: "capture", canonical: "alt+arrowright" });
   });
 
@@ -35,9 +35,9 @@ describe("captureShortcut on macOS", () => {
 
 describe("captureShortcut on Linux and Windows", () => {
   it("stores the ⌘ chord a physical press stands for", () => {
-    expect(pc("J", { ctrl: true, shift: true })).toEqual({ kind: "capture", canonical: "cmd+j" });
-    expect(pc("j", { ctrl: true, alt: true })).toEqual({ kind: "capture", canonical: "cmd+alt+j" });
-    expect(pc("J", { ctrl: true, alt: true, shift: true })).toEqual({ kind: "capture", canonical: "cmd+shift+j" });
+    expect(pc("G", { ctrl: true, shift: true })).toEqual({ kind: "capture", canonical: "cmd+g" });
+    expect(pc("g", { ctrl: true, alt: true })).toEqual({ kind: "capture", canonical: "cmd+alt+g" });
+    expect(pc("G", { ctrl: true, alt: true, shift: true })).toEqual({ kind: "capture", canonical: "cmd+shift+g" });
     expect(pc("F5", { ctrl: true })).toEqual({ kind: "capture", canonical: "cmd+f5" });
     expect(pc("Enter", { alt: true, shift: true })).toEqual({ kind: "capture", canonical: "alt+shift+enter" });
   });

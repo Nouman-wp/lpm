@@ -17,7 +17,7 @@ export const PANE_ACTION_META: Record<PaneActionId, PaneActionMeta> = {
   review: { label: "Review changes", icon: <SourceControlIcon />, shortcut: chordLabel({ key: "r", meta: true, shift: true }) },
   files: { label: "Files", icon: <FolderIcon />, shortcut: chordLabel({ key: "e", meta: true, shift: true }), tab: "files" },
   toolkit: { label: "Skills & tools", icon: <LayersIcon />, shortcut: chordLabel({ key: "k", meta: true, shift: true }), tab: "toolkit" },
-  automations: { label: "Automations", icon: <ClockIcon size={14} />, tab: "automations" },
+  automations: { label: "Automations", icon: <ClockIcon size={14} />, shortcut: chordLabel({ key: "j", meta: true, shift: true }), tab: "automations" },
   browser: { label: "Open browser", icon: <GlobeIcon /> },
   resume: { label: "Resume session", icon: <HistoryIcon /> },
 };
