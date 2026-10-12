@@ -11,10 +11,12 @@ function matches(job: ScheduledJob, request: AutomationOpenRequest): boolean {
     : jobTargets(job).includes(request.project);
 }
 
-// Opens the automation `lpm automations open` asked for once the list has it.
-// One the list doesn't have yet (added a moment ago) gets one refetch first.
+// Opens the automation `lpm automations open` asked this view for — a project's
+// tab (`host` is the project) or the app-wide page (null) — once the list has
+// it. One the list doesn't have yet (added a moment ago) gets one refetch first.
 export function useAutomationOpenRequest(
-  enabled: boolean,
+  host: string | null,
+  visible: boolean,
   rows: ScheduledJob[] | null,
   refetch: () => Promise<void>,
   onOpen: (job: ScheduledJob, project: string | null) => void,
@@ -26,7 +28,7 @@ export function useAutomationOpenRequest(
   } | null>(null);
 
   useEffect(() => {
-    if (!enabled || !request || rows === null) return;
+    if (!visible || request?.host !== host || rows === null) return;
     const job = rows.find((row) => matches(row, request));
     if (!job) {
       if (refetched.current?.request !== request) {
@@ -39,5 +41,5 @@ export function useAutomationOpenRequest(
     useAutomationOpen.getState().clear();
     if (job) onOpen(job, request.project);
     else toast.error(`Couldn't find the automation "${request.id}".`);
-  }, [enabled, request, rows, refetch, onOpen]);
+  }, [host, visible, request, rows, refetch, onOpen]);
 }

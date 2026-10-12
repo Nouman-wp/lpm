@@ -133,6 +133,7 @@ export function useAppEvents(): void {
       triggerRemoteAction,
       triggerRemoteTerminalOp,
       focusProjectTerminal,
+      openProjectDetailView,
     } = useAppStore.getState();
 
     const cancelDock = EventsOn("dock-project-selected", (name: string) => {
@@ -224,12 +225,24 @@ export function useAppEvents(): void {
       }
       setView(view as Parameters<typeof setView>[0]);
     });
+    // `lpm automations open`: a project's automation opens in that project's
+    // Automations tab; one with no project, or an SSH project's (no tab), on
+    // the app-wide page.
     const cancelOpenAutomation = EventsOn(
       "open-automation",
       (payload: { id: string; project?: string | null }) => {
         if (!payload?.id) return;
-        useAutomationOpen.getState().open(payload.id, payload.project ?? null);
-        setView("scheduled");
+        const project = payload.project ?? null;
+        const inTab =
+          project !== null &&
+          useAppStore.getState().projects.some((p) => p.name === project && !p.isRemote);
+        useAutomationOpen.getState().open({
+          id: payload.id,
+          project,
+          host: inTab ? project : null,
+        });
+        if (inTab) openProjectDetailView(project, "automations");
+        else setView("scheduled");
       },
     );
     const cancelNewProject = EventsOn("open-new-project", () => {

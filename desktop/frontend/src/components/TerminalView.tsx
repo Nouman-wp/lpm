@@ -112,6 +112,8 @@ export interface TerminalViewHandle {
   liveAgentSessions(): Map<string, string>;
   // Open (or focus) the session-memory tab, from the sidebar context menu.
   openMemory(): void;
+  // Open (or focus) the Automations tab, for `lpm automations open`.
+  openAutomationsTab(): Promise<void>;
 }
 
 export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, paneStatus, visible = true, onScreen = visible, keysActive = true, onResumeSession, ref }: TerminalViewProps) {
@@ -191,6 +193,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     addToolkitToPane,
     addFilesToPane,
     addAutomationsToPane,
+    openAutomationsTab,
     closeTerminal,
     closeOtherTerminals,
     focusTerminal,
@@ -1062,6 +1065,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       focusTerminalById,
       liveAgentSessions,
       openMemory,
+      openAutomationsTab,
     }),
     [
       createTerminal,
@@ -1077,6 +1081,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       focusTerminalById,
       liveAgentSessions,
       openMemory,
+      openAutomationsTab,
     ],
   );
 

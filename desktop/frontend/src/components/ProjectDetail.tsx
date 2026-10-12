@@ -341,7 +341,10 @@ export function ProjectDetail({
     const view = pendingDetailView.view;
     clearPendingDetailView();
     if (view === "memory") terminalRef.current?.openMemory();
-    else switchDetailView(view);
+    else if (view === "automations") {
+      switchDetailView("terminal");
+      void terminalRef.current?.openAutomationsTab();
+    } else switchDetailView(view);
   }, [pendingDetailView, selectedProject, project.name, switchDetailView, clearPendingDetailView]);
 
   // Mobile relay: close / rename / pin a terminal tab, addressed by id. Same

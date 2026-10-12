@@ -104,7 +104,7 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
     [project],
   );
 
-  useAutomationOpenRequest(project === undefined, rows, refetch, (job, target) => {
+  useAutomationOpenRequest(project ?? null, visible, rows, refetch, (job, target) => {
     setOpenTask(null);
     setOpen({ project: target ?? rowProject(job), id: job.id });
   });

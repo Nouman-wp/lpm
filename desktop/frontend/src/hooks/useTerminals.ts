@@ -17,6 +17,7 @@ import { useMirrorOwner } from "./terminals/useMirrorOwner";
 import { useAgentSessionTitles } from "./terminals/useAgentSessionTitles";
 import { useAgentSessionEvents } from "./terminals/useAgentSessionEvents";
 import { useTerminalMemory } from "./terminals/useTerminalMemory";
+import { useOpenAutomationsTab } from "./terminals/useOpenAutomationsTab";
 
 export { type TerminalStartOpts, type UseTerminalsResult } from "./terminals/types";
 
@@ -172,6 +173,13 @@ export function useTerminals(
     forward,
   });
 
+  const openAutomationsTab = useOpenAutomationsTab(
+    treeRef,
+    restoreSettled,
+    focusTerminal,
+    addAutomationsToPane,
+  );
+
   const {
     closeTerminal,
     closeOtherTerminals,
@@ -296,6 +304,7 @@ export function useTerminals(
     addToolkitToPane,
     addFilesToPane,
     addAutomationsToPane,
+    openAutomationsTab,
     closeTerminal,
     closeOtherTerminals,
     focusTerminal,

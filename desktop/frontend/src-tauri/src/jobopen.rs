@@ -2,8 +2,8 @@
 //
 //   open_job <id> [project]  → {ok}
 //
-// With a project the page shows that project's runs; without one it is the
-// global.yml automation, opened the way its row in the Automations list opens.
+// With a project it opens in that project's Automations tab, on that project's
+// runs; without one it is the global.yml automation, on the app-wide page.
 
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager};

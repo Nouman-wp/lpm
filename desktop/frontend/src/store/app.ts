@@ -105,6 +105,8 @@ import { projectStartProfile } from "../projectStartProfile";
 import { onProjectsRemoved } from "../sendLater/closeout";
 import { deferRefresh, holdRefresh, refreshHeld } from "./refreshHold";
 
+export type ProjectDetailTarget = "config" | "notes" | "ai" | "memory" | "automations";
+
 export type View =
   | "projects"
   | "terminals"
@@ -261,15 +263,16 @@ interface AppState {
     confirmed?: boolean,
   ) => void;
   clearPendingRemoteAction: () => void;
-  // A "switch to config/notes/AI view" request from the sidebar context menu.
+  // A "switch to config/notes/AI view" request from the sidebar context menu,
+  // or an Automations tab for `lpm automations open`.
   // Selects+mounts the project, then parks the target view for the mounted
   // ProjectDetail's consumer effect (nonce lets an already-mounted detail re-fire).
   pendingDetailView: {
     projectName: string;
-    view: "config" | "notes" | "ai" | "memory";
+    view: ProjectDetailTarget;
     nonce: number;
   } | null;
-  openProjectDetailView: (projectName: string, view: "config" | "notes" | "ai" | "memory") => void;
+  openProjectDetailView: (projectName: string, view: ProjectDetailTarget) => void;
   clearPendingDetailView: () => void;
   // A terminal-tab op (close / rename / pin / reorder) relayed from the mobile
   // app. Addressed by terminal id, except reorder which carries the full new id
