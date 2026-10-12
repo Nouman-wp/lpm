@@ -499,7 +499,7 @@ enum Wire {
         // `off` is the byte-stream position after this chunk, so the phone can tell
         // a chunk a seed already covered from one that follows a dropped frame.
         case output(id: String, data: String, off: Int?)
-        case exit(id: String, code: Int)
+        case exit(id: String, code: Int, gone: Bool)
         // A duplicate/remove reply. `error` is nil on success; `name` is the new
         // duplicate's name (duplicate only). The projects list refreshes off the
         // `projects-changed` push, so these carry only the failure to surface.
@@ -777,7 +777,8 @@ enum Wire {
                                data: obj["d"] as? String ?? "",
                                off: obj["off"] as? Int)
             case "exit":
-                return .exit(id: obj["id"] as? String ?? "", code: obj["code"] as? Int ?? 0)
+                return .exit(id: obj["id"] as? String ?? "", code: obj["code"] as? Int ?? 0,
+                             gone: obj["gone"] as? Bool ?? false)
             case "duplicateProgress":
                 return .duplicateProgress(done: obj["done"] as? Int ?? 0,
                                           total: obj["total"] as? Int ?? 0,

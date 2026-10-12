@@ -2572,40 +2572,46 @@ fn handle_msg(
             }
         }
         "sub" => {
-            if let Some(id) = str_field("id") {
-                subs.lock().unwrap().insert(id.clone());
-                // Opening a terminal screen on the phone takes control of it (the
-                // surface the user just opened should be where it's live). The
-                // previous owner is pushed a `control` frame and flips to its
-                // placeholder. `owner` in the seed confirms this phone owns it.
-                let (owner, changed) = app
-                    .state::<crate::control::ControlState>()
-                    .claim(&id, mobile_owner(hub, device_id));
-                if changed {
-                    crate::control::broadcast(app, &id, &Some(owner.clone()));
-                }
-                let (cols, rows) =
-                    pty::remote_dims(&app.state::<pty::PtyState>(), &id).unwrap_or((80, 24));
-                // A phone that already has this terminal on screen (it locked, went
-                // offline, or missed frames) sends the offset it got to. Handing it
-                // just that slice keeps its screen — and its scrollback — intact;
-                // a replay onto a reset emulator can only approximate the screen a
-                // running full-screen program believes it is drawing on, and the
-                // program's next incremental update then lands on stale cells.
-                let from = v.get("from").and_then(Value::as_u64);
-                let (data, off, reset) = match from.and_then(|f| hub.ring_since(&id, f)) {
-                    Some((data, off)) => (data, off, false),
-                    None => {
-                        let (data, off) = hub.ring_seed(&id);
-                        (data, off, true)
-                    }
-                };
-                let mut seed = json!({ "t": "seed", "id": id, "cols": cols, "rows": rows, "data": data, "off": off, "reset": reset, "owner": crate::control::owner_json(&Some(owner)) });
-                if let Some(d) = hub.inner.drafts.lock().unwrap().get(&id) {
-                    seed["draft"] = json!({ "text": d.text, "rev": d.rev });
-                }
-                send(ws, seed)?;
+            let Some(id) = str_field("id") else {
+                return Ok(());
+            };
+            // No session: the terminal exited (its `exit` frame may have been
+            // dropped) or lpm restarted since. Say so instead of seeding an empty
+            // screen the phone would keep typing into.
+            let Some((cols, rows)) = pty::remote_dims(&app.state::<pty::PtyState>(), &id) else {
+                send(ws, json!({ "t": "exit", "id": id, "code": -1, "gone": true }))?;
+                return Ok(());
+            };
+            subs.lock().unwrap().insert(id.clone());
+            // Opening a terminal screen on the phone takes control of it (the
+            // surface the user just opened should be where it's live). The
+            // previous owner is pushed a `control` frame and flips to its
+            // placeholder. `owner` in the seed confirms this phone owns it.
+            let (owner, changed) = app
+                .state::<crate::control::ControlState>()
+                .claim(&id, mobile_owner(hub, device_id));
+            if changed {
+                crate::control::broadcast(app, &id, &Some(owner.clone()));
             }
+            // A phone that already has this terminal on screen (it locked, went
+            // offline, or missed frames) sends the offset it got to. Handing it
+            // just that slice keeps its screen — and its scrollback — intact;
+            // a replay onto a reset emulator can only approximate the screen a
+            // running full-screen program believes it is drawing on, and the
+            // program's next incremental update then lands on stale cells.
+            let from = v.get("from").and_then(Value::as_u64);
+            let (data, off, reset) = match from.and_then(|f| hub.ring_since(&id, f)) {
+                Some((data, off)) => (data, off, false),
+                None => {
+                    let (data, off) = hub.ring_seed(&id);
+                    (data, off, true)
+                }
+            };
+            let mut seed = json!({ "t": "seed", "id": id, "cols": cols, "rows": rows, "data": data, "off": off, "reset": reset, "owner": crate::control::owner_json(&Some(owner)) });
+            if let Some(d) = hub.inner.drafts.lock().unwrap().get(&id) {
+                seed["draft"] = json!({ "text": d.text, "rev": d.rev });
+            }
+            send(ws, seed)?;
         }
         "unsub" => {
             if let Some(id) = str_field("id") {

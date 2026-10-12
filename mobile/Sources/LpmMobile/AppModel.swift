@@ -239,6 +239,9 @@ final class AppModel {
     // it). A terminal is rendered live in exactly one surface; when the desktop
     // (or another phone) owns it, this phone shows a "take control" placeholder.
     var controlOwner: [String: ControlOwner] = [:]
+    // terminal id -> how it ended, for screens still showing it: the last output
+    // stays readable, but the composer goes away.
+    var endedTerminals: [String: TerminalEnding] = [:]
     // A failed duplicate/remove message to show once (e.g. "cannot duplicate an
     // SSH project"). The list itself refreshes off the projects-changed push.
     var actionError: String? {
@@ -253,6 +256,9 @@ final class AppModel {
     // Mac app open). Distinct from actionError, which is a hard failure.
     var notice: String?
     var pendingNotificationTarget: NotificationOpenTarget?
+    // Bumped each time a notification tap rebuilds the navigation stack, so a
+    // terminal pushed from the projects list (outside that stack) goes too.
+    var notificationOpens = 0
     // project -> desired running state while a Start/Stop is in flight, so the UI
     // can spin until the projects push confirms it (or a timeout gives up).
     var pendingRun: [String: Bool] = [:]
@@ -1199,6 +1205,7 @@ final class AppModel {
         workStatusOrder = []
         autoPullMode = .off
         controlOwner = [:]
+        endedTerminals = [:]
         actionError = nil
         pendingRun = [:]
         pendingServiceToggle = [:]
@@ -1383,6 +1390,12 @@ final class AppModel {
     // a second copy of an open terminal gets its own fresh seed.
     func openTerminalScreen(_ id: String, key: AnyObject, hooks: TerminalHooks) {
         terminalScreens.open(id, key: key, hooks: hooks)
+        // Ask again rather than trust an old ending: a terminal lpm had lost while
+        // restarting can be back. The Mac answers with a seed or another `exit`.
+        // Deferred: this runs inside a SwiftUI update.
+        if endedTerminals[id] != nil {
+            DispatchQueue.main.async { [weak self] in self?.endedTerminals[id] = nil }
+        }
         client?.subscribe(id)
     }
     func closeTerminalScreen(_ id: String, key: AnyObject) {
@@ -1437,7 +1450,7 @@ final class AppModel {
     /// link (keystrokes are never replayed later), a link still being checked
     /// after the app came back, or no screen showing the terminal.
     func submit(_ id: String, _ text: String) -> Bool {
-        guard connection == .ready, client?.isVerifying != true,
+        guard connection == .ready, client?.isVerifying != true, endedTerminals[id] == nil,
               let screen = terminalScreens.current(id) else { return false }
         screen.submit(text)
         return true
@@ -2696,6 +2709,9 @@ final class AppModel {
         }
         c.onOutput = { [weak self] id, data in self?.terminalScreens.current(id)?.output(data) }
         c.onControl = { [weak self] id, owner in self?.setControlOwner(id, owner) }
+        c.onExit = { [weak self] id, code, gone in
+            self?.endedTerminals[id] = TerminalEnding(code: code, gone: gone)
+        }
     }
 
     private func wireGit(_ c: LpmClient) {

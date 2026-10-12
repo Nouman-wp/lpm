@@ -22,6 +22,8 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     // Nav path so a notification tap can deep-link straight to its destination.
     @State private var path = NavigationPath()
+    // A notification target whose project the list doesn't have yet.
+    @State private var awaitedProject: NotificationOpenTarget?
 
     var body: some View {
         Group {
@@ -51,6 +53,17 @@ struct ContentView: View {
         .onChange(of: model.pendingNotificationTarget) { _, _ in consumePendingOpen() }
         .onChange(of: model.projectsLoaded) { _, _ in consumePendingOpen() }
         .onChange(of: model.activeMacId) { _, _ in consumePendingOpen() }
+        .onChange(of: model.projects.map(\.name)) { _, _ in consumePendingOpen() }
+        // The list can trail a brand-new project (a duplicate or worktree made while
+        // the phone was away), so give it a moment — then drop the target rather
+        // than jump there at some unrelated later moment.
+        .task(id: awaitedProject) {
+            guard let target = awaitedProject else { return }
+            try? await Task.sleep(nanoseconds: 10_000_000_000)
+            guard !Task.isCancelled else { return }
+            if model.pendingNotificationTarget == target { model.pendingNotificationTarget = nil }
+            awaitedProject = nil
+        }
         .onAppear {
             BuiltInTailscale.shared.foreground()
             model.bootstrap()
@@ -62,21 +75,26 @@ struct ContentView: View {
     private func consumePendingOpen() {
         guard let target = model.pendingNotificationTarget else { return }
         if let serverId = target.serverId, model.activeRecord?.serverId != serverId {
-            guard let mac = model.macs.first(where: { $0.serverId == serverId }) else { return }
+            // A Mac this phone no longer has: nothing to open.
+            guard let mac = model.macs.first(where: { $0.serverId == serverId }) else {
+                model.pendingNotificationTarget = nil
+                return
+            }
             path = NavigationPath()
+            model.notificationOpens += 1
             model.switchTo(mac)
             return
         }
         guard model.projectsLoaded else { return }
 
+        let known = model.projects.contains(where: { $0.name == target.project })
         var next = NavigationPath()
         switch target.kind {
         case .project:
-            guard model.projects.contains(where: { $0.name == target.project }) else { return }
+            guard known else { awaitedProject = target; return }
             next.append(target.project)
         case .terminal:
-            guard let id = target.itemId,
-                  model.projects.contains(where: { $0.name == target.project }) else { return }
+            guard let id = target.itemId, known else { awaitedProject = target; return }
             next.append(target.project)
             next.append(NotificationRoute.terminal(project: target.project, id: id))
         case .automation:
@@ -85,6 +103,7 @@ struct ContentView: View {
             next.append(NotificationRoute.automation(project: target.project, id: id))
         }
         path = next
+        model.notificationOpens += 1
         model.pendingNotificationTarget = nil
     }
 }
@@ -269,6 +288,7 @@ struct ProjectsView: View {
             NotificationTerminalDestination(projectName: target.project,
                                             terminalId: target.terminalId)
         }
+        .onChange(of: model.notificationOpens) { _, _ in openTerminal = nil }
         .navigationTitle("Projects")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -500,7 +520,11 @@ struct NotificationTerminalDestination: View {
                     .navigationBarTitleDisplayMode(.inline)
             }
         }
-        .task { model.loadTerminals(projectName) }
+        // Again after a Mac switch or a reconnect: switching clears the list this
+        // waits on, and a bare `.task` would never ask for it again.
+        .task(id: "\(model.activeMacId?.uuidString ?? "")-\(model.connection == .ready)") {
+            model.loadTerminals(projectName)
+        }
     }
 }
 
@@ -890,6 +914,7 @@ struct TerminalScreen: View {
         // underneath so this phone stays subscribed (a presenter / candidate
         // owner) and takes over instantly on claim.
         let controlled = model.isControlled(term.id)
+        let ended = model.endedTerminals[term.id]
         // The terminal sits WITHIN the safe area (below the nav bar), so its top
         // rows aren't hidden under the title; the composer sits below it and rides
         // above the keyboard when it opens.
@@ -902,10 +927,10 @@ struct TerminalScreen: View {
                     preview = FilePreviewTarget(project: term.project, paths: paths, line: line)
                 })
                     .environment(model)
-                if controlled && !hasContent {
+                if controlled && !hasContent && ended == nil {
                     TerminalLoadingView(background: theme.backgroundColor)
                 }
-                if !controlled {
+                if !controlled && ended == nil {
                     ControlHandoffView(ownerLabel: model.controlOwnerLabel(term.id),
                                        background: theme.backgroundColor) {
                         model.claimControl(term.id)
@@ -919,10 +944,16 @@ struct TerminalScreen: View {
                     .frame(maxHeight: .infinity, alignment: .top)
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
+                } else if let ended {
+                    TerminalEndedBanner(ending: ended)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
             .animation(.easeOut(duration: 0.2), value: model.connection == .ready)
-            if controlled {
+            .animation(.easeOut(duration: 0.2), value: ended)
+            if controlled && ended == nil {
                 TerminalComposer(store: model.composerStore(for: term.id, project: term.project, label: term.label),
                                  terminalBackground: theme.backgroundColor)
                     .environment(model)

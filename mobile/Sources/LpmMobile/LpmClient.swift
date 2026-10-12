@@ -27,7 +27,7 @@ final class LpmClient: NSObject {
     var onOutput: ((_ id: String, _ data: String) -> Void)?
     var onSeed: ((_ id: String, _ cols: Int, _ rows: Int, _ data: String, _ reset: Bool) -> Void)?
     var onControl: ((_ id: String, _ owner: ControlOwner?) -> Void)?
-    var onExit: ((_ id: String, _ code: Int) -> Void)?
+    var onExit: ((_ id: String, _ code: Int, _ gone: Bool) -> Void)?
     var onProjects: (([Project]) -> Void)?
     // The Mac's work-status palette, delivered with every projects reply: the
     // user's own statuses plus the order they put the Status menu in.
@@ -1280,10 +1280,10 @@ final class LpmClient: NSObject {
                 }
             case .control(let id, let owner): self.onControl?(id, owner)
             case .output(let id, let d, let off): self.deliverOutput(id, d, off)
-            case .exit(let id, let code):
+            case .exit(let id, let code, let gone):
                 self.streamOffset[id] = nil
                 self.awaitingSeed.remove(id)
-                self.onExit?(id, code)
+                self.onExit?(id, code, gone)
             // A duplicate/remove reply lands only after the desktop finished the
             // folder clone/delete and rewrote its config, so a re-request is
             // guaranteed to reflect it — don't rely on the projects-changed push
