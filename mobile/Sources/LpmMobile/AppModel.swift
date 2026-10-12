@@ -197,9 +197,6 @@ final class AppModel {
     @ObservationIgnored let speech = SpeechStore()
     // reqId -> terminal id, routing streamed transform replies to the right store.
     @ObservationIgnored private var transformRoutes: [String: String] = [:]
-    // terminal id -> a closure that captures the phone's own xterm scrollback,
-    // registered by WebTerminalView (for the @-mention "terminal output" source).
-    @ObservationIgnored var terminalCapture: [String: (_ lines: Int, _ done: @escaping (String) -> Void) -> Void] = [:]
 
     // Notification preferences. The per-type toggles keep their stored values even
     // when the master is off; the effective values sent to the desktop are
@@ -281,16 +278,14 @@ final class AppModel {
     @ObservationIgnored private var closingTerminals: [String: Set<String>] = [:]
     @ObservationIgnored private let closingTimeout = GenerationTimeout<String>()
 
-    // Terminal streams go straight to whichever TerminalScreen is subscribed; the
-    // emulator (SwiftTerm) holds the buffer, not this model. Seed and live output
-    // are kept separate so the view can reset the emulator before replaying the
-    // seed (raw scrollback) — otherwise a TUI's cursor-positioned redraws overlap.
-    @ObservationIgnored var onTerminalSeed: [String: (_ cols: Int, _ rows: Int, _ data: String, _ reset: Bool) -> Void] = [:]
-    @ObservationIgnored var onTerminalOutput: [String: (String) -> Void] = [:]
-    // Composer "send": routed into the terminal's web view so it can apply the
-    // same bracketed-paste wrapping the desktop does (which needs xterm's live
-    // bracketed-paste mode). Registered by WebTerminalView.
-    @ObservationIgnored var terminalSubmit: [String: (String) -> Void] = [:]
+    // Terminal streams go straight to the newest screen showing that terminal; the
+    // emulator holds the buffer, not this model. Seed and live output are kept
+    // separate so the view can reset the emulator before replaying the seed (raw
+    // scrollback) — otherwise a TUI's cursor-positioned redraws overlap. Composer
+    // sends route into the same web view so it can apply the bracketed-paste
+    // wrapping the desktop does.
+    @ObservationIgnored let terminalScreens = TerminalScreens()
+    @ObservationIgnored private var inForeground = true
     // A prompt queued to submit into a terminal as soon as its web view is mounted
     // and seeded (used by "Ask agent…", which navigates to a terminal that may not
     // be on screen yet). Flushed + cleared by WebTerminalView once ready.
@@ -747,6 +742,13 @@ final class AppModel {
         if client == nil, let cred = activeCredential() { connectBest(credential: cred) }
     }
 
+    /// The app came on screen or went away; the Mac sends agent notifications only
+    /// while it's away. Carried over to every new connection in `wire`.
+    func setInForeground(_ active: Bool) {
+        inForeground = active
+        client?.inForeground = active
+    }
+
     func reconnectIfNeeded() {
         guard !link.identityRejected else { return }
         // Even a `.ready` state can be stale after backgrounding (half-open
@@ -1191,7 +1193,6 @@ final class AppModel {
         wasReady = false
         composerStores = [:]
         transformRoutes = [:]
-        terminalCapture = [:]
         sidebarOrder = []
         groups = []
         workStatuses = defaultWorkStatusPalette
@@ -1378,20 +1379,19 @@ final class AppModel {
         d.set(notifyAutomationError, forKey: Self.notifyAutomationErrorKey)
     }
 
-    // Terminal wiring used by TerminalScreen.
-    func subscribe(
-        _ id: String,
-        onSeed: @escaping (_ cols: Int, _ rows: Int, _ data: String, _ reset: Bool) -> Void,
-        onOutput: @escaping (String) -> Void
-    ) {
-        onTerminalSeed[id] = onSeed
-        onTerminalOutput[id] = onOutput
+    // Terminal wiring used by TerminalScreen. Every screen subscribes on open, so
+    // a second copy of an open terminal gets its own fresh seed.
+    func openTerminalScreen(_ id: String, key: AnyObject, hooks: TerminalHooks) {
+        terminalScreens.open(id, key: key, hooks: hooks)
         client?.subscribe(id)
     }
-    func unsubscribe(_ id: String) {
-        onTerminalSeed[id] = nil
-        onTerminalOutput[id] = nil
-        client?.unsubscribe(id)
+    func closeTerminalScreen(_ id: String, key: AnyObject) {
+        switch terminalScreens.close(id, key: key) {
+        case .covered: break
+        // The copy underneath stopped receiving while the newer one was up.
+        case .revealed: client?.subscribe(id)
+        case .last: client?.unsubscribe(id)
+        }
     }
     /// Ask the server for a fresh seed on an already-subscribed terminal — used
     /// when the terminal web view reloads (WebContent process death) and its
@@ -1432,8 +1432,16 @@ final class AppModel {
         if let owner { controlOwner[id] = owner } else { controlOwner[id] = nil }
     }
     /// Send a composed message: the web view wraps it as a bracketed paste (when
-    /// the running program enabled that) and appends a CR to submit.
-    func submit(_ id: String, _ text: String) { terminalSubmit[id]?(text) }
+    /// the running program enabled that) and appends a CR to submit. Returns
+    /// false — so the composer keeps the text — when it can't go out now: no live
+    /// link (keystrokes are never replayed later), a link still being checked
+    /// after the app came back, or no screen showing the terminal.
+    func submit(_ id: String, _ text: String) -> Bool {
+        guard connection == .ready, client?.isVerifying != true,
+              let screen = terminalScreens.current(id) else { return false }
+        screen.submit(text)
+        return true
+    }
 
     func startProject(_ p: Project, profile: String = "") {
         Haptics.tap()
@@ -2096,8 +2104,8 @@ final class AppModel {
     /// Capture the phone's own xterm scrollback for the "terminal output" mention
     /// (returns empty when the web view isn't registered yet).
     func captureTerminalOutput(_ id: String, lines: Int, _ done: @escaping (String) -> Void) {
-        guard let fn = terminalCapture[id] else { done(""); return }
-        fn(lines, done)
+        guard let screen = terminalScreens.current(id) else { done(""); return }
+        screen.capture(lines, done)
     }
 
     // History screen (paged historyQuery).
@@ -2319,6 +2327,7 @@ final class AppModel {
     }
 
     private func wire(_ c: LpmClient) {
+        c.inForeground = inForeground
         wireConnection(c)
         wireProjects(c)
         wireStats(c)
@@ -2683,9 +2692,9 @@ final class AppModel {
 
     private func wireTerminalStreams(_ c: LpmClient) {
         c.onSeed = { [weak self] id, cols, rows, data, reset in
-            self?.onTerminalSeed[id]?(cols, rows, data, reset)
+            self?.terminalScreens.current(id)?.seed(cols, rows, data, reset)
         }
-        c.onOutput = { [weak self] id, data in self?.onTerminalOutput[id]?(data) }
+        c.onOutput = { [weak self] id, data in self?.terminalScreens.current(id)?.output(data) }
         c.onControl = { [weak self] id, owner in self?.setControlOwner(id, owner) }
     }
 

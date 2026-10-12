@@ -9,8 +9,6 @@ struct TabRow: View {
     let term: TerminalInfo
     /// What the agent in this tab reports, nil for a plain shell.
     let agent: ProjectAgentRow?
-    /// Unix millis, ticked by the list so a running reading stays live.
-    let now: Int
     let onOpen: () -> Void
 
     var body: some View {
@@ -40,7 +38,7 @@ struct TabRow: View {
                         .background(Color(.tertiarySystemFill), in: Capsule())
                 }
                 if let agent {
-                    AgentStatusTrail(agent: agent, now: now)
+                    AgentStatusTrail(agent: agent)
                         .font(.subheadline)
                 }
                 Image(systemName: "chevron.right")
@@ -57,7 +55,7 @@ struct TabRow: View {
 
     private var accessibilityText: String {
         guard let agent else { return term.label }
-        return [term.label, agent.state.label, agent.elapsed(now: now)]
+        return [term.label, agent.state.label, agent.elapsed(now: Int(Date().timeIntervalSince1970 * 1000))]
             .compactMap { $0 }
             .joined(separator: ", ")
     }

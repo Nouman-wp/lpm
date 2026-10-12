@@ -5,8 +5,6 @@ import SwiftUI
 /// part of the project above it rather than as another project beside it.
 struct ProjectTerminalDeck: View {
     let rows: [ProjectAgentRow]
-    /// Unix millis, ticked by the list so a running reading stays live.
-    let now: Int
     let open: (ProjectAgentRow) -> Void
 
     var body: some View {
@@ -16,7 +14,7 @@ struct ProjectTerminalDeck: View {
                     Divider().padding(.leading, 10)
                 }
                 Button { open(row) } label: {
-                    ProjectTerminalRow(row: row, now: now)
+                    ProjectTerminalRow(row: row)
                 }
                 .buttonStyle(.plain)
                 .disabled(row.terminalId == nil)

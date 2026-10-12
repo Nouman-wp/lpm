@@ -37,9 +37,11 @@ struct ContentView: View {
             switch phase {
             case .active:
                 BuiltInTailscale.shared.foreground()
+                model.setInForeground(true)
                 model.reconnectIfNeeded()
             case .background:
                 BuiltInTailscale.shared.background()
+                model.setInForeground(false)
                 model.suspendRecoveryDiscovery()
             default:
                 model.suspendRecoveryDiscovery()
@@ -107,8 +109,6 @@ struct ProjectsView: View {
     @State private var deletingFolder: ProjectFolder?
     @State private var creatingFolder = false
     @State private var folderNameText = ""
-    // Unix millis, ticked while an agent's reading is still counting up.
-    @State private var now = Int(Date().timeIntervalSince1970 * 1000)
     // The terminal a tapped task row opens. A task row is not a disclosure row —
     // it pushes without the chevron a NavigationLink would draw.
     @State private var openTerminal: TerminalTarget?
@@ -116,19 +116,10 @@ struct ProjectsView: View {
 
     private func isExpanded(_ g: ProjectFolder) -> Bool { expandedOverride[g.id] ?? !g.collapsed }
 
-    private func agentRows(_ project: Project) -> [ProjectAgentRow] {
-        projectAgentRows(project, now: now,
-                         tabTitles: model.activityTerminalTitles[project.name] ?? [:])
-    }
-
-    /// Nothing to tick once every reading has frozen, so a quiet Mac costs no
-    /// per-second work at all.
-    private var hasTickingAgent: Bool {
-        model.projects.contains { project in
-            agentRows(project).contains(where: \.isTicking)
-        } || model.machineSections.contains { section in
-            section.rows.contains { projectAgentRows($0.project, now: now, tabTitles: [:]).contains(where: \.isTicking) }
-        }
+    private func agentRows(_ project: Project,
+                           tabTitles: [String: String]? = nil) -> [ProjectAgentRow] {
+        projectAgentRows(project, now: Int(Date().timeIntervalSince1970 * 1000),
+                         tabTitles: tabTitles ?? model.activityTerminalTitles[project.name] ?? [:])
     }
 
     private var listIsEmpty: Bool { model.projects.isEmpty && model.machineSections.isEmpty }
@@ -171,7 +162,7 @@ struct ProjectsView: View {
     /// opening it switches this phone over to it.
     @ViewBuilder
     private func machineProjectLink(_ row: SidebarRow, in section: MachineSection) -> some View {
-        let agents = projectAgentRows(row.project, now: now, tabTitles: [:])
+        let agents = agentRows(row.project, tabTitles: [:])
         let indent: CGFloat = 20
         Button {
             model.openOnMachine(section, project: row.project.name)
@@ -189,7 +180,7 @@ struct ProjectsView: View {
         .listRowSeparator(agents.isEmpty ? .visible : .hidden, edges: .bottom)
 
         if !agents.isEmpty {
-            ProjectTerminalDeck(rows: agents, now: now) { agent in
+            ProjectTerminalDeck(rows: agents) { agent in
                 if let terminal = agent.terminalId {
                     model.openOnMachine(section, project: row.project.name, terminal: terminal)
                 }
@@ -218,7 +209,7 @@ struct ProjectsView: View {
         .listRowSeparator(agents.isEmpty ? .visible : .hidden, edges: .bottom)
 
         if !agents.isEmpty {
-            ProjectTerminalDeck(rows: agents, now: now) { agent in
+            ProjectTerminalDeck(rows: agents) { agent in
                 if let terminal = agent.terminalId {
                     openTerminal = TerminalTarget(project: row.project.name, terminalId: terminal)
                 }
@@ -273,12 +264,6 @@ struct ProjectsView: View {
         // somewhere new — a bare `.task` fires once, against an empty list.
         .task(id: model.projects.filter { !$0.statusEntries.isEmpty }.map(\.name)) {
             model.loadActivityTerminals()
-        }
-        .task(id: hasTickingAgent) {
-            while hasTickingAgent && !Task.isCancelled {
-                now = Int(Date().timeIntervalSince1970 * 1000)
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-            }
         }
         .navigationDestination(item: $openTerminal) { target in
             NotificationTerminalDestination(projectName: target.project,

@@ -114,6 +114,7 @@ enum Wire {
     static func unsub(id: String) -> String { json(["t": "unsub", "id": id]) }
     /// Take control of a terminal shown live elsewhere (the "Take control" button).
     static func claim(id: String) -> String { json(["t": "claim", "id": id]) }
+    static func presence(active: Bool) -> String { json(["t": "presence", "active": active]) }
     static func input(id: String, data: String) -> String { json(["t": "in", "id": id, "d": data]) }
     static func resize(id: String, cols: Int, rows: Int) -> String {
         json(["t": "resize", "id": id, "cols": cols, "rows": rows])

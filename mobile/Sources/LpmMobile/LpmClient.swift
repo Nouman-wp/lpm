@@ -483,6 +483,9 @@ final class LpmClient: NSObject {
     /// The address this client dials.
     var host: String { endpoint.host }
 
+    /// A `verifyNow` probe is still out: the link may already be dead.
+    var isVerifying: Bool { probeDeadline != nil }
+
     /// Foreground probe: a `.ready` state after the app was backgrounded is often
     /// stale — iOS kills the socket within seconds, and a half-open cellular path
     /// even accepts sends — so a plain "already ready" check would leave the UI
@@ -1093,6 +1096,13 @@ final class LpmClient: NSObject {
         onOutput?(id, data)
     }
     func claim(_ id: String) { send(Wire.claim(id: id)) }
+
+    /// Whether the app is on screen. The Mac skips agent notifications for a phone
+    /// with a live link, assuming it already shows the change — but a backgrounded
+    /// or locked phone keeps its socket for minutes, so tell the Mac it's away.
+    var inForeground = true {
+        didSet { if inForeground != oldValue { sendLive(Wire.presence(active: inForeground)) } }
+    }
     func sendInput(_ id: String, _ data: String) { sendLive(Wire.input(id: id, data: data)) }
     func resize(_ id: String, cols: Int, rows: Int) { sendLive(Wire.resize(id: id, cols: cols, rows: rows)) }
 
@@ -1209,6 +1219,8 @@ final class LpmClient: NSObject {
             case .ready(let serverId, let serverName, let hosts, let platform, let build):
                 self.set(.ready)
                 self.onConnected()
+                // A new connection starts out counted as on screen.
+                if !self.inForeground { self.sendLive(Wire.presence(active: false)) }
                 // Re-subscribe to any terminals we were watching before a drop,
                 // each from where its screen got to, so a reconnect resumes the
                 // stream instead of rebuilding the screen from a replay.

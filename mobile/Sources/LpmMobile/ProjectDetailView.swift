@@ -13,8 +13,6 @@ struct ProjectDetail: View {
     @State private var openTerminal: TerminalInfo?
     @State private var activeBgRun: BackgroundRunInfo?
     @State private var logsForService: Service?
-    // Unix millis, ticked while an agent's reading is still counting up.
-    @State private var now = Int(Date().timeIntervalSince1970 * 1000)
 
     // Current project object (fresh status/actions) from the store; falls back to
     // the one we were pushed with.
@@ -28,9 +26,10 @@ struct ProjectDetail: View {
     private var runningServices: Set<String> {
         live.running ? Set(live.services.map(\.name)) : []
     }
-    private var agentRows: [ProjectAgentRow] { projectAgentRows(live, now: now, tabTitles: [:]) }
+    private var agentRows: [ProjectAgentRow] {
+        projectAgentRows(live, now: Int(Date().timeIntervalSince1970 * 1000), tabTitles: [:])
+    }
     private var agentByTerminal: [String: ProjectAgentRow] { agentRowsByTerminal(agentRows) }
-    private var hasTickingAgent: Bool { agentRows.contains(where: \.isTicking) }
     /// The person-set status leads the name, as it does in the projects list.
     private var title: String {
         let mark = live.workStatus?.displayEmoji ?? ""
@@ -58,7 +57,7 @@ struct ProjectDetail: View {
             } else if !isEmpty {
                 Section {
                     ForEach(terminals) { t in
-                        TabRow(term: t, agent: agentByTerminal[t.id], now: now,
+                        TabRow(term: t, agent: agentByTerminal[t.id],
                                onOpen: { openTerminal = t })
                         .tabMenu(term: t, agent: agentByTerminal[t.id]) {
                             Button {
@@ -174,12 +173,6 @@ struct ProjectDetail: View {
         .animation(.default, value: creating)
         .refreshable {
             model.loadTerminals(project.name)
-        }
-        .task(id: hasTickingAgent) {
-            while hasTickingAgent && !Task.isCancelled {
-                now = Int(Date().timeIntervalSince1970 * 1000)
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-            }
         }
         .connectionTitle(title, otherwise: live.running ? "Running" : "Stopped")
         .navigationBarTitleDisplayMode(.inline)

@@ -21,9 +21,6 @@ struct ProjectAgentRow: Identifiable, Equatable {
     /// How many further agents report on this row's tab, folded into it.
     var shared = 0
 
-    /// A reading still counting up; one that has stopped needs no clock.
-    var isTicking: Bool { since != nil && until == nil }
-
     func elapsed(now: Int) -> String? {
         since.map { shortDuration(millis: (until ?? now) - $0) }
     }

@@ -5,8 +5,6 @@ import SwiftUI
 /// the trailing edge holds the state's mark and how long it has been so.
 struct ProjectTerminalRow: View {
     let row: ProjectAgentRow
-    /// Unix millis, ticked by the list so a running reading stays live.
-    let now: Int
 
     var body: some View {
         HStack(spacing: 6) {
@@ -20,7 +18,7 @@ struct ProjectTerminalRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 4)
-            AgentStatusTrail(agent: row, now: now)
+            AgentStatusTrail(agent: row)
                 .font(.footnote)
             Image(systemName: "chevron.right")
                 .font(.caption2.weight(.semibold))
@@ -37,7 +35,7 @@ struct ProjectTerminalRow: View {
 
     /// The agent is named when the tab was renamed away from it.
     private var accessibilityText: String {
-        [row.title, row.state.label, row.elapsed(now: now), row.title == row.provider ? nil : row.provider]
+        [row.title, row.state.label, row.elapsed(now: Int(Date().timeIntervalSince1970 * 1000)), row.title == row.provider ? nil : row.provider]
             .compactMap { $0 }
             .joined(separator: ", ")
     }

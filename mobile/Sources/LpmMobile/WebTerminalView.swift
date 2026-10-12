@@ -89,21 +89,17 @@ struct WebTerminalView: UIViewRepresentable {
         context.coordinator.onFirstContent = onFirstContent
         context.coordinator.onOpenPath = onOpenPath
         // Capture only the coordinator, not `context` — these closures outlive this
-        // call (held by the subscription until unsubscribe), and closing over the
+        // call (held by the model until the screen closes), and closing over the
         // context would keep the whole SwiftUI environment alive with them.
         let coordinator = context.coordinator
-        model.subscribe(
-            term.id,
-            onSeed: { [coordinator] cols, rows, data, reset in
+        model.openTerminalScreen(term.id, key: coordinator, hooks: TerminalHooks(
+            seed: { [coordinator] cols, rows, data, reset in
                 coordinator.seed(data, reset: reset, ptyCols: cols, ptyRows: rows)
             },
-            onOutput: { [coordinator] data in coordinator.feed(data) }
-        )
-        // The composer submits through here so the page can apply bracketed-paste.
-        model.terminalSubmit[term.id] = { [coordinator] text in coordinator.submit(text) }
-        // The composer's "@ terminal output" mention captures this phone's own
-        // xterm scrollback through here.
-        model.terminalCapture[term.id] = { [coordinator] lines, done in coordinator.capture(lines, done) }
+            output: { [coordinator] data in coordinator.feed(data) },
+            submit: { [coordinator] text in coordinator.submit(text) },
+            capture: { [coordinator] lines, done in coordinator.capture(lines, done) }
+        ))
         return web
     }
 
@@ -121,9 +117,7 @@ struct WebTerminalView: UIViewRepresentable {
     static func dismantleUIView(_ web: WKWebView, coordinator: Coordinator) {
         let c = web.configuration.userContentController
         ["input", "resize", "ready", "openPath", "openURL"].forEach { c.removeScriptMessageHandler(forName: $0) }
-        coordinator.model?.terminalSubmit[coordinator.termId] = nil
-        coordinator.model?.terminalCapture[coordinator.termId] = nil
-        coordinator.model?.unsubscribe(coordinator.termId)
+        coordinator.model?.closeTerminalScreen(coordinator.termId, key: coordinator)
     }
 
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {

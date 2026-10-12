@@ -304,29 +304,28 @@
   // glued onto the paste-end marker arrives while Claude Code is still doing its async
   // "[Pasted text]" redraw and gets swallowed, so the first send would only paste and
   // never submit. Wait for output to go quiet (capped by a ceiling) before the CR.
+  // A send made during that wait queues behind it instead of being dropped — the
+  // composer has already cleared it.
   const PASTE_QUIET_MS = 100, PASTE_CEILING_MS = 1500, QUIET_POLL_MS = 20;
-  let delivering = false;
-  window.lpmSubmit = async b64 => {
-    if (delivering) return;
+  const deliver = async b64 => {
     const body = b64ToStr(b64).replace(/\r?\n/g, '\r');
     if (!term.modes.bracketedPasteMode) { post('input', body + '\r'); return; }
-    delivering = true;
-    try {
-      post('input', '\x1b[200~' + body.replace(/\x1b/g, '␛') + '\x1b[201~');
-      const sentAt = performance.now();
-      await new Promise(resolve => {
-        const check = () => {
-          const now = performance.now();
-          const settled = lastOutputAt >= sentAt && now - lastOutputAt >= PASTE_QUIET_MS;
-          if (settled || now - sentAt >= PASTE_CEILING_MS) resolve();
-          else setTimeout(check, QUIET_POLL_MS);
-        };
-        setTimeout(check, QUIET_POLL_MS);
-      });
-      post('input', '\r');
-    } finally {
-      delivering = false;
-    }
+    post('input', '\x1b[200~' + body.replace(/\x1b/g, '␛') + '\x1b[201~');
+    const sentAt = performance.now();
+    await new Promise(resolve => {
+      const check = () => {
+        const now = performance.now();
+        const settled = lastOutputAt >= sentAt && now - lastOutputAt >= PASTE_QUIET_MS;
+        if (settled || now - sentAt >= PASTE_CEILING_MS) resolve();
+        else setTimeout(check, QUIET_POLL_MS);
+      };
+      setTimeout(check, QUIET_POLL_MS);
+    });
+    post('input', '\r');
+  };
+  let delivering = Promise.resolve();
+  window.lpmSubmit = b64 => {
+    delivering = delivering.then(() => deliver(b64), () => deliver(b64));
   };
 
   new ResizeObserver(() => refit()).observe(document.getElementById('term'));

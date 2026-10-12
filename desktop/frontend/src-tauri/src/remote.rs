@@ -229,6 +229,9 @@ struct DraftEntry {
 #[derive(Default)]
 struct HubInner {
     clients: Mutex<HashMap<u64, Client>>,
+    // Devices whose app said it left the screen (`presence`) while its socket
+    // stays up — a locked phone keeps one for minutes. Alerts still go to these.
+    away: Mutex<HashSet<String>>,
     rings: Mutex<HashMap<String, Ring>>,
     // Live terminal id -> display label, pushed from the frontend (which owns the
     // tab tree). terminals.json persists labels but strips the ephemeral pty id,
@@ -1033,6 +1036,8 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
             route,
         },
     );
+    // A fresh connection counts as on screen until the app says otherwise.
+    hub.inner.away.lock().unwrap().remove(&device_id);
     note_presence(&hub, &app, &device_id, route);
     let _ = ws.get_ref().tcp().set_read_timeout(Some(POLL));
     let _ = ws.get_ref().tcp().set_write_timeout(Some(WRITE_TIMEOUT));
@@ -1157,6 +1162,7 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
     if still_here {
         let _ = app.emit("remote-devices-changed", ());
     } else {
+        hub.inner.away.lock().unwrap().remove(&device_id);
         note_presence(&hub, &app, &device_id, route);
     }
     let _ = ws.close(None);
@@ -2002,6 +2008,15 @@ fn handle_msg(
 
     match t {
         "ping" => send(ws, json!({ "t": "pong" }))?,
+        "presence" => {
+            let active = v.get("active").and_then(Value::as_bool).unwrap_or(true);
+            let mut away = hub.inner.away.lock().unwrap();
+            if active {
+                away.remove(device_id);
+            } else {
+                away.insert(device_id.to_string());
+            }
+        }
         // The palette rides along with the list so the phone's Status menu can
         // offer the user's own statuses without a second round trip. The host
         // resolves the defaults, so the phone gets the list it would see on the
@@ -4881,8 +4896,23 @@ fn scoped_devices(cfg: &RemoteConfig) -> Vec<Device> {
         .collect()
 }
 
-/// Devices eligible for alerts: a registered token, not currently connected,
-/// opted in to at least one alert kind, and a valid push key.
+/// Phones whose app is on screen: a live socket, minus those that said they went
+/// away — a locked phone keeps its socket for minutes and still needs the alert.
+fn on_screen_devices(hub: &RemoteHub) -> HashSet<String> {
+    let live: Vec<String> = hub
+        .inner
+        .clients
+        .lock()
+        .unwrap()
+        .values()
+        .map(|c| c.device_id.clone())
+        .collect();
+    let away = hub.inner.away.lock().unwrap();
+    live.into_iter().filter(|id| !away.contains(id)).collect()
+}
+
+/// Devices eligible for alerts: a registered token, not on screen, opted in to
+/// at least one alert kind, and a valid push key.
 fn alert_recipients(devices: &[Device], connected: &HashSet<String>) -> Vec<PushDevice> {
     devices
         .iter()
@@ -5130,17 +5160,11 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
     let want_alert = !deltas.is_empty();
     let want_clear = !vanished_keys.is_empty();
 
-    // Alerts skip devices holding a live socket (the app is foregrounded and
-    // already got the `status-changed` frame); clears don't, since a foregrounded
-    // phone's already-delivered notifications still need pruning.
+    // Alerts skip devices whose app is on screen (it already got the
+    // `status-changed` frame); clears don't, since a foregrounded phone's
+    // already-delivered notifications still need pruning.
     let connected: HashSet<String> = if want_alert {
-        hub.inner
-            .clients
-            .lock()
-            .unwrap()
-            .values()
-            .map(|c| c.device_id.clone())
-            .collect()
+        on_screen_devices(hub)
     } else {
         HashSet::new()
     };
@@ -5291,14 +5315,7 @@ fn push_automation_notification(
     // show the internal id.
     let name = if label.is_empty() { job_id } else { label };
 
-    let connected: HashSet<String> = hub
-        .inner
-        .clients
-        .lock()
-        .unwrap()
-        .values()
-        .map(|c| c.device_id.clone())
-        .collect();
+    let connected = on_screen_devices(hub);
     let cfg = load_config();
     let relay = cfg.effective_relay();
     let server_id = cfg.flavor_server_id();
@@ -5966,6 +5983,15 @@ mod tests {
             },
         );
         rx
+    }
+
+    #[test]
+    fn a_phone_that_went_away_is_not_on_screen() {
+        let hub = RemoteHub::default();
+        let _a = attach_client(&hub, "a");
+        let _b = attach_client(&hub, "b");
+        hub.inner.away.lock().unwrap().insert("b".into());
+        assert_eq!(on_screen_devices(&hub), HashSet::from(["a".to_string()]));
     }
 
     #[test]

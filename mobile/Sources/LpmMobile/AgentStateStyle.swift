@@ -94,15 +94,12 @@ struct AgentStateMark: View {
 /// then how long the agent has been at it, or how long the finished turn took.
 struct AgentStatusTrail: View {
     let agent: ProjectAgentRow
-    /// Unix millis, ticked by the list so a running reading stays live.
-    let now: Int
 
     var body: some View {
         HStack(spacing: 4) {
             AgentStateMark(state: agent.state)
-            if let elapsed = agent.elapsed(now: now) {
-                Text(elapsed)
-                    .monospacedDigit()
+            if let since = agent.since {
+                ElapsedText(since: since, until: agent.until)
                     .foregroundStyle(.secondary)
             }
         }

@@ -575,9 +575,12 @@ struct TerminalComposer: View {
 
     /// Deliver a composed body and reset the active tab (closing it if others exist).
     private func deliver(_ body: String) {
-        Haptics.tap()
         if let onSend { onSend(body) }
-        else { model.submit(termId, body) }
+        else if !model.submit(termId, body) {
+            sendWarning = Self.notSentWarning
+            return
+        }
+        Haptics.tap()
         if !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             model.recordHistory(project: project, id: termId, label: label, text: body)
         }
@@ -589,9 +592,14 @@ struct TerminalComposer: View {
     private func sendRaw(_ text: String) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         if let onSend { onSend(text) }
-        else { model.submit(termId, text) }
+        else if !model.submit(termId, text) {
+            sendWarning = Self.notSentWarning
+            return
+        }
         model.recordHistory(project: project, id: termId, label: label, text: text)
     }
+
+    private static let notSentWarning = "Not sent — lpm isn't connected to your Mac right now. Your message is still here."
 
     private func pick(_ cmd: SlashCommand) {
         let text = store.text
