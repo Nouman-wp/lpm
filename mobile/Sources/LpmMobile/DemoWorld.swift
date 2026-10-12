@@ -38,6 +38,9 @@ struct DemoWorld {
         // The person-set work status, as the raw wire dict the Mac would send.
         var workStatus: [String: Any]? = nil
         var autoPull: Bool? = nil
+        // The project's own Claude account keys, as its YAML would hold them.
+        var claudeAccount: String? = nil
+        var claudeAccounts: [String]? = nil
         var services: [Svc] = []
         var profiles: [Profile] = []
         var activeProfile: String = ""
@@ -48,6 +51,7 @@ struct DemoWorld {
     }
 
     var projects: [Project] = []
+    var claude = ClaudeDemo()
 
     struct BgRunLine {
         var at: Double
@@ -341,6 +345,7 @@ struct DemoWorld {
             ),
             Project(
                 name: "mobile-app", label: "mobile-app", running: false,
+                claudeAccounts: ["work", claudeMainLogin],
                 services: [Svc(name: "metro", cmd: "npm start", port: 8081, running: false)],
                 actions: [["name": "clean", "label": "Clear caches", "type": "background",
                            "cmd": "npm run clean", "confirm": true]]
@@ -356,6 +361,7 @@ struct DemoWorld {
             Project(
                 name: "design-system", label: "design-system", running: false,
                 autoPull: false,
+                claudeAccount: "work",
                 services: [Svc(name: "storybook", cmd: "npm run storybook", port: 6006, running: false)]
             ),
         ]
@@ -548,6 +554,8 @@ extension DemoWorld {
         ]
         if let ws = p.workStatus { d["workStatus"] = ws }
         if let autoPull = p.autoPull { d["autoPull"] = autoPull }
+        if let account = p.claudeAccount { d["claudeAccount"] = account }
+        if let accounts = p.claudeAccounts { d["claudeAccounts"] = accounts }
         return d
     }
 

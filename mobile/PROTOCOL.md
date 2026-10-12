@@ -284,6 +284,8 @@ succeed, so the phone stops reconnecting and offers to pair again (sending
 | `{ "t": "renameProject", "project": "<name>", "name": "<new label>" }` | `{ "t": "renameProject", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — sets the project's display label, reusing the desktop's `set_project_label` (writes the project's own YAML; an empty `name` clears the label so it falls back to the project id). Emits the desktop's `projects-changed`, so the Mac's own window and every paired phone refresh the list |
 | `{ "t": "setWorkStatus", "project": "<name>", "status": { "state": "in_progress"\|"blocked"\|"done"\|"custom", "label": "…", "emoji": "…", "note": "…" }\|null }` | `{ "t": "setWorkStatus", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — sets the person-set work status on a project (originals and duplicates alike), reusing the desktop's `set_work_status` (writes the project's own YAML under `~/.lpm/projects/`). A `null` or absent `status` clears it. `label`/`emoji` describe a `custom` status and are dropped for a built-in one; a `custom` with no `label` is rejected. `since` is stamped by the Mac: entering a different status restarts it, editing only the note or emoji keeps it. Emits the desktop's `projects-changed`, so the Mac's own window and every paired phone refresh the list |
 | `{ "t": "setAutoPull", "project": "<name>", "value": true\|false\|null }` | `{ "t": "setAutoPull", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — sets the project's own auto pull choice (originals, duplicates and worktrees alike), writing `autoPull` in the project's own YAML under `~/.lpm/projects/`. A `null` or absent `value` removes the key, so the project follows its parent or the Mac's `autoPullMode` again. Emits the desktop's `projects-changed`, so the Mac's own window and every paired phone refresh the list |
+| `{ "t": "claudeAccounts" }` | `{ "t": "claudeAccounts", "ok": true, "accounts": [ClaudeAccount…], "switching": ClaudeSwitching }` — what the desktop's project menu › Claude account submenu reads: every Claude login the Mac knows, the main login (`id: "default"`) first and then each account added in Settings › Claude accounts, plus where automatic switching stands (see ClaudeAccount and ClaudeSwitching below). The phone shows its Claude Account menu only once an account beyond the main login exists, and never for an SSH project, whose agents run under the far host's login. Reading it opens every project file and each account's login, so the reply arrives on the out-queue. Usage per account comes from `limits` (keys `claude:<id>`) |
+| `{ "t": "setClaudeAccount", "project": "<name>", "choice": { "kind": "parent" } \| { "kind": "main" } \| { "kind": "pin", "id": "<id>" } \| { "kind": "list", "ids": ["<id>"…] }, "confirm"?: ["<id>"…] }` | `{ "t": "setClaudeAccount", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — sets which login new Claude sessions in the project use, reusing the desktop's `set_claude_account_choice`, which writes `claudeAccount` and `claudeAccounts` in the project's own YAML together: `parent` removes both so a copy follows its parent again; `main` removes both on an original and writes `claudeAccounts: []` on a copy; `pin` writes `claudeAccount` (`""` is the main login only); `list` writes 1 to `maxMembers` ids, in order, to take turns on. Sessions already running keep their login. `confirm` names accounts the person just confirmed are theirs alone, recorded (with consent to the current notice) before the choice is written, as the desktop's confirmation dialog does; the phone asks before a list gains a signed-in account whose `confirmed` is false. Emits the desktop's `projects-changed`. Out-queue |
 | `{ "t": "sidebarCreateFolder", "name": "<folder>" }` | `{ "t": "sidebarCreateFolder", "ok": true, "order": […], "groups": [ProjectFolder…] }` / `{ "ok": false, "error": "…" }` — creates an empty sidebar folder and appends it to the top-level order. The reply carries the **updated** sidebar (same shape as `sidebar`) so the requesting phone re-renders; the desktop learns of the change via the emitted `projects-changed` (as the duplicate flow's group write does). See the sidebar folder ops note below |
 | `{ "t": "sidebarRenameFolder", "name": "<folder>", "newName": "<new>" }` | `{ "t": "sidebarRenameFolder", "ok": true, "order": […], "groups": [ProjectFolder…] }` / `{ "ok": false, "error": "…" }` — renames the folder matched by `name` (exact, then case-insensitive) |
 | `{ "t": "sidebarDeleteFolder", "name": "<folder>" }` | `{ "t": "sidebarDeleteFolder", "ok": true, "order": […], "groups": [ProjectFolder…] }` / `{ "ok": false, "error": "…" }` — deletes the folder; its member projects spill back into the top-level order at the folder's former slot (they are **not** removed) |
@@ -702,12 +704,41 @@ parentName: string        // the project this is a duplicate of; empty for origi
 worktree: bool            // a duplicate made as a linked git worktree rather than a folder copy
 autoPull?: bool           // the project's own auto pull choice; present only when its YAML sets one. Absent follows
                           // the parent (for a duplicate or worktree) or the Mac's `autoPullMode` (see `projects`)
+claudeAccount?: string    // the one Claude account new sessions always use; "" is the main login only. Present only
+                          // when the project's YAML sets it, and it outranks claudeAccounts
+claudeAccounts?: [string] // the project's own ordered list to take turns on. [] on a duplicate means the main
+                          // accounts rather than its parent's choice. Neither key: an original uses the main
+                          // accounts, a duplicate follows its parent's keys
 workStatus?: { state: "in_progress"|"blocked"|"done"|"custom", label?: string, emoji?: string, note?: string, since: unix MILLIS }
                           // a status the person set on the project ("what I want done with it"), unlike
                           // statusEntries, which is what the agent is doing. A custom one carries its own label
                           // and emoji so the row still reads on a Mac whose palette differs; a built-in one has
                           // neither. Absent when the project has no status. `since` is 0 when unknown
 actions: [ActionInfo]     // recursive: { name (composite parent:child), label, emoji, cmd, type, display, children[] … }
+```
+
+**ClaudeAccount** (from `claudeAccounts`):
+```
+id: string          // "default" is the main login; any other id is an account added on the Mac
+label?: string      // the name given on the Mac; absent for the main login, which the phone calls "Main login"
+signedIn: bool
+email: string       // "" when unknown
+plan: string        // "max" | "pro" | "team" | "enterprise" | "" when unknown. Only max and pro take turns
+                    // without being in `switching.allowed`
+planLabel: string   // "Max 20x", "Pro", … for display
+confirmed: bool     // confirmed as the person's own; needed before it takes turns in a list
+```
+
+**ClaudeSwitching** (from `claudeAccounts`):
+```
+enabled: bool        // Settings › Claude accounts › Switch accounts automatically
+active: bool         // switching actually runs: on, confirmed, and possible on this Mac
+paused: "hold"|"readings"|null   // why switching is paused, when it is
+allowed: [string]    // team and work seats allowed to take turns
+maxMembers: N        // the longest list a project or the main accounts can hold (3)
+pools: [ { project: string|null, current: string|null } ]
+                     // each pool's account for new sessions: project null is the main accounts, a name is
+                     // that project's own list (copies that follow it share it)
 ```
 
 **SshHost** (from `listSshHosts`) — a `~/.ssh/config` Host alias:

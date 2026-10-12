@@ -150,6 +150,7 @@ mod ptymodes;
 mod ptyring;
 mod remote;
 mod remotepresence;
+mod remote_claude;
 mod remote_git_auto;
 mod remote_machines;
 mod remote_memory;

@@ -693,6 +693,8 @@ extension DemoServer {
             p.status = []
             p.workStatus = nil
             p.autoPull = nil
+            p.claudeAccount = nil
+            p.claudeAccounts = nil
             world.projects.append(p)
             demoCreateTerminals(project: name, copyOf: copyOf)
             demoCloneGitState(from: copyOf, to: name)

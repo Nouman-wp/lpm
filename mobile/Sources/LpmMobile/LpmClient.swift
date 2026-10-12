@@ -144,6 +144,10 @@ final class LpmClient: NSObject {
     var onSetWorkStatus: ((_ project: String, _ error: String?) -> Void)?
     // An auto pull choice write settled (error nil on success).
     var onSetAutoPull: ((_ project: String, _ error: String?) -> Void)?
+    // The Claude Account menu's accounts arrived (nil when the Mac couldn't read them).
+    var onClaudeAccounts: ((_ accounts: ClaudeAccounts?) -> Void)?
+    // A Claude account choice write settled (error nil on success).
+    var onSetClaudeAccount: ((_ project: String, _ error: String?) -> Void)?
     var onGitCreateBranch: ((_ project: String, _ error: String?) -> Void)?
     var onGitAuto: ((_ project: String, _ run: GitAutoRun?, _ error: String?) -> Void)?
     var onGitAutoSwitchBase: ((_ project: String, _ base: String, _ error: String?, _ pullError: String?) -> Void)?
@@ -873,6 +877,11 @@ final class LpmClient: NSObject {
     func setAutoPull(project: String, value: Bool?) {
         send(Wire.setAutoPull(project: project, value: value))
     }
+    func requestClaudeAccounts() { send(Wire.claudeAccounts()) }
+    /// Set a project's Claude account, first confirming `confirm` as the person's own.
+    func setClaudeAccount(project: String, choice: ClaudeAccountChoice, confirm: [String]) {
+        send(Wire.setClaudeAccount(project: project, choice: choice, confirm: confirm))
+    }
     func sidebarCreateFolder(name: String) { send(Wire.sidebarCreateFolder(name: name)) }
     func sidebarRenameFolder(name: String, newName: String) {
         send(Wire.sidebarRenameFolder(name: name, newName: newName))
@@ -1299,6 +1308,8 @@ final class LpmClient: NSObject {
             case .renameProject(let proj, let error): self.onRenameProject?(proj, error)
             case .setWorkStatus(let proj, let error): self.onSetWorkStatus?(proj, error)
             case .setAutoPull(let proj, let error): self.onSetAutoPull?(proj, error)
+            case .claudeAccounts(let accounts): self.onClaudeAccounts?(accounts)
+            case .setClaudeAccount(let proj, let error): self.onSetClaudeAccount?(proj, error)
             case .sidebarMutation(let order, let groups, let error):
                 self.onSidebarMutation?(order, groups, error)
             case .fileChunk(let chunk): self.onFileChunk?(chunk)

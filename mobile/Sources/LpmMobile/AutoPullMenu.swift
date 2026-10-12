@@ -10,7 +10,7 @@ struct AutoPullMenuItems: View {
     private static let choices: [Bool?] = [nil, true, false]
 
     private var mode: AutoPullMode { model.autoPullMode }
-    private var parent: Project? { model.autoPullParent(of: project) }
+    private var parent: Project? { model.parentProject(of: project) }
     private var autoPulled: AutoPulled? { model.git.snapshots[project.name]?.autoPulled }
     private var undoing: Bool { model.git.undoingAutoPull.contains(project.name) }
 

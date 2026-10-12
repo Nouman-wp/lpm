@@ -27,7 +27,7 @@ extension AppModel {
     }
 
     /// The project a duplicate or worktree follows, while it's in the list.
-    func autoPullParent(of project: Project) -> Project? {
+    func parentProject(of project: Project) -> Project? {
         guard project.isDuplicate else { return nil }
         return projects.first { $0.name == project.parentName }
     }

@@ -4163,6 +4163,7 @@ fn handle_msg(
         "updateCheck" | "updateInstall" | "updateCancel" => {
             crate::remote_update::handle(app, out, t)
         }
+        "claudeAccounts" | "setClaudeAccount" => crate::remote_claude::handle(app, out, t, &v),
         _ => {}
     }
     Ok(())

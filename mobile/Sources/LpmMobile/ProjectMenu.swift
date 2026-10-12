@@ -26,6 +26,8 @@ struct ProjectRunControl: View {
     let onConfigure: () -> Void
     // The status waiting on its line; the host presents the prompt.
     @Binding var noteFor: WorkStatusChoice?
+    // Accounts waiting on "only mine" before joining a list; the host asks.
+    @Binding var claudeConsent: ClaudeConsentRequest?
 
     private var running: Bool { project.running }
 
@@ -78,6 +80,8 @@ struct ProjectRunControl: View {
                         Text("\(unreadAutomations) with new runs")
                     }
                 }
+                // An SSH project's agents run on the other host under its own login.
+                ClaudeAccountMenu(project: project, consentFor: $claudeConsent)
             }
             if project.canHaveWorkStatus {
                 WorkStatusMenu(project: project, noteFor: $noteFor)
@@ -234,6 +238,7 @@ struct ProjectMenuHost: ViewModifier {
     @State private var renaming = false
     @State private var renameText = ""
     @State private var noteFor: WorkStatusChoice?
+    @State private var claudeConsent: ClaudeConsentRequest?
 
     private var actions: [Action] { project.actions.flatMap { $0.runnableLeaves } }
     // Changed-file count for the Review Changes menu item; nil until the snapshot
@@ -314,6 +319,7 @@ struct ProjectMenuHost: ViewModifier {
                 Text("Set a display name for this project. Leave it blank to use the project id.")
             }
             .workStatusNotePrompt(project: project, noteFor: $noteFor)
+            .claudeConsentPrompt($claudeConsent)
             .toolbar {
                 if !project.actions.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -344,13 +350,15 @@ struct ProjectMenuHost: ViewModifier {
                                       onRename: { renameText = project.label; renaming = true },
                                       onTerminalSettings: { showTerminalSettings = true },
                                       onConfigure: { showingConfig = true },
-                                      noteFor: $noteFor)
+                                      noteFor: $noteFor,
+                                      claudeConsent: $claudeConsent)
                         .environment(model)
                 }
             }
             .onAppear {
                 isVisible = true
                 model.git.load(project.name)
+                if !project.isRemote { model.loadClaudeAccounts() }
             }
             .onDisappear { isVisible = false }
     }

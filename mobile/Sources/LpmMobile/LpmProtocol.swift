@@ -192,6 +192,13 @@ enum Wire {
     static func setAutoPull(project: String, value: Bool?) -> String {
         json(["t": "setAutoPull", "project": project, "value": value ?? NSNull()])
     }
+    static func claudeAccounts() -> String { json(["t": "claudeAccounts"]) }
+    /// Set a project's Claude account, first confirming `confirm` as the person's own.
+    static func setClaudeAccount(project: String, choice: ClaudeAccountChoice, confirm: [String]) -> String {
+        var o: [String: Any] = ["t": "setClaudeAccount", "project": project, "choice": choice.wire]
+        if !confirm.isEmpty { o["confirm"] = confirm }
+        return json(o)
+    }
     static func sidebarCreateFolder(name: String) -> String {
         json(["t": "sidebarCreateFolder", "name": name])
     }
@@ -519,6 +526,10 @@ enum Wire {
         case setWorkStatus(project: String, error: String?)
         // A setAutoPull reply, settled the same way as setWorkStatus.
         case setAutoPull(project: String, error: String?)
+        // The Claude Account menu's accounts and switching state; nil on a failure.
+        case claudeAccounts(ClaudeAccounts?)
+        // A setClaudeAccount reply, settled the same way as setWorkStatus.
+        case setClaudeAccount(project: String, error: String?)
         // A sidebar folder mutation reply (create/rename/delete/move). On success it
         // carries the updated sidebar so the phone re-renders in place; `error` is
         // the failure to surface.
@@ -808,6 +819,12 @@ enum Wire {
                 let ok = obj["ok"] as? Bool ?? false
                 return .setAutoPull(project: obj["project"] as? String ?? "",
                                     error: ok ? nil : (obj["error"] as? String ?? "Couldn't change auto pull."))
+            case "claudeAccounts":
+                return .claudeAccounts((obj["ok"] as? Bool ?? false) ? ClaudeAccounts(obj) : nil)
+            case "setClaudeAccount":
+                let ok = obj["ok"] as? Bool ?? false
+                return .setClaudeAccount(project: obj["project"] as? String ?? "",
+                                         error: ok ? nil : (obj["error"] as? String ?? "Couldn't change the Claude account."))
             case "sidebarCreateFolder", "sidebarRenameFolder", "sidebarDeleteFolder", "sidebarMoveProject":
                 let ok = obj["ok"] as? Bool ?? false
                 return .sidebarMutation(
@@ -1351,6 +1368,9 @@ struct Project: Identifiable {
     // The project's own auto pull choice; nil follows its parent or the Mac's
     // setting (see autoPullEnabled).
     let autoPull: Bool?
+    // The project's own Claude account keys; neither set follows its parent or
+    // the main accounts.
+    let claude: ClaudeOwnChoice
     let statusEntries: [StatusEntry]
     let services: [Service]      // currently running
     let allServices: [Service]   // every configured service
@@ -1372,6 +1392,7 @@ struct Project: Identifiable {
         worktree = o["worktree"] as? Bool ?? false
         workStatus = (o["workStatus"] as? [String: Any]).flatMap(WorkStatus.init)
         autoPull = o["autoPull"] as? Bool
+        claude = ClaudeOwnChoice(o)
         statusEntries = (o["statusEntries"] as? [[String: Any]] ?? []).map(StatusEntry.init)
         services = (o["services"] as? [[String: Any]] ?? []).map(Service.init)
         allServices = (o["allServices"] as? [[String: Any]] ?? []).map(Service.init)
@@ -1381,12 +1402,12 @@ struct Project: Identifiable {
     }
 
     private init(name: String, label: String, running: Bool, isRemote: Bool, parentName: String,
-                 worktree: Bool, workStatus: WorkStatus?, autoPull: Bool?, statusEntries: [StatusEntry],
-                 services: [Service], allServices: [Service], profiles: [Profile],
-                 activeProfile: String, actions: [Action]) {
+                 worktree: Bool, workStatus: WorkStatus?, autoPull: Bool?, claude: ClaudeOwnChoice,
+                 statusEntries: [StatusEntry], services: [Service], allServices: [Service],
+                 profiles: [Profile], activeProfile: String, actions: [Action]) {
         self.name = name; self.label = label; self.running = running; self.isRemote = isRemote
         self.parentName = parentName; self.worktree = worktree; self.workStatus = workStatus
-        self.autoPull = autoPull
+        self.autoPull = autoPull; self.claude = claude
         self.statusEntries = statusEntries; self.services = services; self.allServices = allServices
         self.profiles = profiles; self.activeProfile = activeProfile; self.actions = actions
     }
@@ -1395,8 +1416,8 @@ struct Project: Identifiable {
     /// erase the project's services/actions (a partial dict rebuild would).
     func withStatus(_ entries: [StatusEntry]) -> Project {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
-                worktree: worktree, workStatus: workStatus, autoPull: autoPull, statusEntries: entries,
-                services: services, allServices: allServices, profiles: profiles,
+                worktree: worktree, workStatus: workStatus, autoPull: autoPull, claude: claude,
+                statusEntries: entries, services: services, allServices: allServices, profiles: profiles,
                 activeProfile: activeProfile, actions: actions)
     }
 
@@ -1405,8 +1426,8 @@ struct Project: Identifiable {
     /// round trip. The projects push replaces it with what was written.
     func withWorkStatus(_ status: WorkStatus?) -> Project {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
-                worktree: worktree, workStatus: status, autoPull: autoPull, statusEntries: statusEntries,
-                services: services, allServices: allServices, profiles: profiles,
+                worktree: worktree, workStatus: status, autoPull: autoPull, claude: claude,
+                statusEntries: statusEntries, services: services, allServices: allServices, profiles: profiles,
                 activeProfile: activeProfile, actions: actions)
     }
 
@@ -1414,9 +1435,18 @@ struct Project: Identifiable {
     /// projects push brings back what the Mac wrote.
     func withAutoPull(_ value: Bool?) -> Project {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
-                worktree: worktree, workStatus: workStatus, autoPull: value, statusEntries: statusEntries,
-                services: services, allServices: allServices, profiles: profiles,
-                activeProfile: activeProfile, actions: actions)
+                worktree: worktree, workStatus: workStatus, autoPull: value, claude: claude,
+                statusEntries: statusEntries, services: services, allServices: allServices,
+                profiles: profiles, activeProfile: activeProfile, actions: actions)
+    }
+
+    /// A copy wearing the Claude account keys the phone just chose, until the
+    /// projects push brings back what the Mac wrote.
+    func withClaude(_ own: ClaudeOwnChoice) -> Project {
+        Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
+                worktree: worktree, workStatus: workStatus, autoPull: autoPull, claude: own,
+                statusEntries: statusEntries, services: services, allServices: allServices,
+                profiles: profiles, activeProfile: activeProfile, actions: actions)
     }
 }
 
