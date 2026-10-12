@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
 import { DrainPendingJobTasks, RemoteTakeRunActions } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
+import { useAutomationOpen } from "../store/automationOpen";
 import { applyRemoteDraft } from "../store/composerDrafts";
 import { onFocusMainTerminal } from "../mainWindowFocus";
 import { useSettingsStore } from "../store/settings";
@@ -223,6 +224,14 @@ export function useAppEvents(): void {
       }
       setView(view as Parameters<typeof setView>[0]);
     });
+    const cancelOpenAutomation = EventsOn(
+      "open-automation",
+      (payload: { id: string; project?: string | null }) => {
+        if (!payload?.id) return;
+        useAutomationOpen.getState().open(payload.id, payload.project ?? null);
+        setView("scheduled");
+      },
+    );
     const cancelNewProject = EventsOn("open-new-project", () => {
       addProject();
     });
@@ -258,6 +267,7 @@ export function useAppEvents(): void {
       if (typeof cancelRemoteTermOp === "function") cancelRemoteTermOp();
       if (typeof cancelComposerDraft === "function") cancelComposerDraft();
       if (typeof cancelNavView === "function") cancelNavView();
+      if (typeof cancelOpenAutomation === "function") cancelOpenAutomation();
       if (typeof cancelNewProject === "function") cancelNewProject();
       if (typeof cancelSettings === "function") cancelSettings();
       if (typeof cancelCommitInstr === "function") cancelCommitInstr();

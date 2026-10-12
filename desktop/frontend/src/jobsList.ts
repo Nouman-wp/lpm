@@ -5,6 +5,19 @@ import { jobTargets, type JobInfo } from "./jobsFormat";
 
 type ListJob = JobInfo & { project?: string };
 
+// The folders a row's job runs in: a standalone job's is the sentinel "";
+// project/repo and single-target rows carry a one-entry `targets`; a shared
+// job carries all of them.
+export function targetsOfRow(job: JobInfo): string[] {
+  return job.standalone ? [""] : job.targets ?? [];
+}
+
+// A representative project for opening / editing / removing a row: standalone
+// has none, otherwise the first target.
+export function rowProject(job: ListJob): string {
+  return job.standalone ? "" : job.targets?.[0] ?? job.project ?? "";
+}
+
 export function isUnread(job: ListJob): boolean {
   return (job.unread ?? 0) > 0;
 }

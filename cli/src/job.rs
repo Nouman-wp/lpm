@@ -1,6 +1,7 @@
 use crate::config::Ctx;
 use crate::control;
 use crate::job_edit;
+use crate::job_open;
 use crate::error::{resolve_or_infer, RunError};
 use crate::statussock::quote_arg;
 use crate::style::Style;
@@ -77,6 +78,8 @@ pub enum Command {
     },
     #[command(about = "Print an automation's definition")]
     Show(job_edit::ShowArgs),
+    #[command(about = "Open an automation's page in the app")]
+    Open(job_open::OpenArgs),
     #[command(about = "Create an automation", alias = "create")]
     Add(Box<job_edit::AddArgs>),
     #[command(about = "Change an automation's definition")]
@@ -144,6 +147,7 @@ pub fn run(ctx: &Ctx, command: Command) -> Result<(), RunError> {
             json,
         } => output(ctx, &job_id, project.as_deref(), json),
         Command::Show(args) => job_edit::show(ctx, args),
+        Command::Open(args) => job_open::open(ctx, args),
         Command::Add(args) => job_edit::add(ctx, *args),
         Command::Edit(args) => job_edit::edit(ctx, *args),
         Command::Remove(args) => job_edit::remove(ctx, args),

@@ -1,6 +1,6 @@
 ---
 name: lpm-cli
-version: 1.5.0
+version: 1.6.0
 description: "Operate lpm-managed projects through the `lpm` CLI: start or stop projects and services, inspect logs and agent status, wait for readiness, run actions, create, edit, run, pause, and read scheduled automations, and duplicate projects into standalone copies or create linked Git worktrees. Use when the user asks to operate or inspect lpm runtime state or manage lpm automations. `LPM_PROJECT_NAME` selects the default project after the skill triggers; it is not a trigger by itself. For editing YAML configuration, use `lpm-config`."
 ---
 
@@ -40,6 +40,7 @@ Automations are tasks the app runs on a schedule: a shell command, a project act
 
 - `lpm automations list [-p proj | --all] [--json]` — id, name, state (`running`, `enabled`, `paused`, `invalid`), schedule, last result, next run. With `--json`, `valid: false` rows carry an `error`.
 - `lpm automations show <id> [-p proj | --global] [--json]` — the current definition.
+- `lpm automations open <id> [-p proj | --global]` — bring the app forward on that automation's page, showing its runs in that project. Use it when the user asks to see or open an automation in the app.
 - `lpm automations add <id> [-p proj | --projects a,b | --every-project | --no-project] <schedule> <run> [options]` — create one. Flags cover every field; see the reference.
 - `lpm automations edit <id> [-p proj | --global] [flags]` — change only the fields given.
 - `lpm automations remove <id> [-p proj | --global]` — delete it and its run history; only when the user asks.
@@ -50,7 +51,7 @@ Automations are tasks the app runs on a schedule: a shell command, a project act
 - `lpm automations output <id>` — live output of the run in progress.
 - `lpm automations reply <id> "message" [--at TIMESTAMP] [--agent X] [--model X] [--effort X]` — continue an AI automation's conversation (the newest by default), fire-and-forget; then read `output` or `history`.
 
-An automation in `global.yml` that runs in several projects runs once per project; target one with `-p <project>`. One with no project can only be shown, edited, or removed (with `--global`); start it from the app.
+An automation in `global.yml` that runs in several projects runs once per project; target one with `-p <project>`. One with no project can only be shown, opened, edited, or removed (with `--global`); start it from the app.
 
 ### Token rules
 

@@ -18,19 +18,19 @@ const GLOBAL: &str = "global";
 
 #[derive(Args)]
 pub struct Locate {
-    job_id: String,
+    pub(crate) job_id: String,
     #[arg(
         long,
         short = 'p',
         conflicts_with = "global",
         help = "Project the automation runs in"
     )]
-    project: Option<String>,
+    pub(crate) project: Option<String>,
     #[arg(
         long,
         help = "The automation defined in global.yml; required for one with no project"
     )]
-    global: bool,
+    pub(crate) global: bool,
 }
 
 #[derive(Args)]
@@ -105,7 +105,7 @@ pub struct RemoveArgs {
 
 /// Where an automation's entry lives: its layer, the project whose file holds
 /// it (empty for global.yml), and its id.
-struct Definition {
+pub(crate) struct Definition {
     source: String,
     project: String,
     id: String,
@@ -275,7 +275,7 @@ pub fn remove(ctx: &Ctx, args: RemoveArgs) -> Result<(), RunError> {
     Ok(())
 }
 
-fn locate(ctx: &Ctx, at: &Locate) -> Result<Definition, RunError> {
+pub(crate) fn locate(ctx: &Ctx, at: &Locate) -> Result<Definition, RunError> {
     control::require_app(ctx)?;
     if at.global {
         let def = Definition {

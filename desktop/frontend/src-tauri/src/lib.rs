@@ -90,6 +90,7 @@ mod ipc;
 mod jobcal;
 mod jobcron;
 mod jobmemory;
+mod jobopen;
 mod jobs;
 mod jobsocket;
 #[cfg(any(target_os = "linux", test))]

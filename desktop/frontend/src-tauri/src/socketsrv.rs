@@ -257,6 +257,7 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "job_body" => crate::jobsocket::cmd_job_body(args),
         "save_job" => crate::jobsocket::cmd_save_job(args, app),
         "delete_job" => crate::jobsocket::cmd_delete_job(args, app),
+        "open_job" => crate::jobopen::cmd_open_job(args, app),
         "peer_pair" => cmd_peer_pair(args, app),
         "peer_state" => cmd_peer_state(app),
         "remote_pair" => cmd_remote_pair(args, app),
@@ -861,7 +862,7 @@ fn job_result(r: Result<(), String>) -> String {
     }
 }
 
-fn ensure_job_exists(project: &str, job_id: &str) -> Result<(), String> {
+pub(crate) fn ensure_job_exists(project: &str, job_id: &str) -> Result<(), String> {
     if crate::jobs::list_jobs(project.to_string())?
         .iter()
         .any(|job| job.get("id").and_then(serde_json::Value::as_str) == Some(job_id))
@@ -1345,6 +1346,7 @@ mod tests {
             "job_body",
             "save_job",
             "delete_job",
+            "open_job",
             // Pairing from the socket a remote host reaches would let that host
             // hand itself, or a phone it owns, a way in.
             "peer_pair",

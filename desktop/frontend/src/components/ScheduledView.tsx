@@ -12,12 +12,19 @@ import {
 import { useAppStore } from "../store/app";
 import { useContentZoom } from "../hooks/useContentZoom";
 import { useJobCommands } from "../hooks/useJobCommands";
+import { useAutomationOpenRequest } from "../hooks/useAutomationOpenRequest";
 import { ClockIcon, PlusIcon } from "./icons";
 import { EmptyState } from "./ui/EmptyState";
 import { AutomationsHeader, type AutomationsViewMode } from "./AutomationsHeader";
 import { deleteJob, deleteJobGlobal } from "../jobsConfig";
 import type { JobInfo } from "../jobsFormat";
-import { isUnread, jobScopeLabel, sortJobsForList } from "../jobsList";
+import {
+  isUnread,
+  jobScopeLabel,
+  rowProject,
+  sortJobsForList,
+  targetsOfRow,
+} from "../jobsList";
 import type { ScheduledJob } from "../hooks/useJobs";
 import { displayNameForProjectName } from "./ProjectNameDisplay";
 import { JobListSections } from "./project-detail/jobs/JobListSections";
@@ -33,19 +40,6 @@ const VIEW_KEY = "lpm.automations-view";
 
 function storedView(): AutomationsViewMode {
   return localStorage.getItem(VIEW_KEY) === "week" ? "week" : "list";
-}
-
-// The folders a row's job runs in: a standalone job's is the sentinel "";
-// project/repo and single-target rows carry a one-entry `targets`; a shared
-// job carries all of them.
-function targetsOfRow(job: JobInfo): string[] {
-  return job.standalone ? [""] : job.targets ?? [];
-}
-
-// A representative project for opening / editing / removing a row: standalone
-// has none, otherwise the first target.
-function rowProject(job: ScheduledJob): string {
-  return job.standalone ? "" : job.targets?.[0] ?? job.project ?? "";
 }
 
 interface ScheduledViewProps {
@@ -109,6 +103,11 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
     (job: ScheduledJob) => project ?? rowProject(job),
     [project],
   );
+
+  useAutomationOpenRequest(project === undefined, rows, refetch, (job, target) => {
+    setOpenTask(null);
+    setOpen({ project: target ?? rowProject(job), id: job.id });
+  });
 
   // Row buttons act on every folder the job runs in, so a shared job's Stop /
   // pause reach all of its projects at once.
@@ -227,8 +226,13 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
       )
     : false;
 
+  // A shared job opens on any of its projects' runs, not only its first.
   const openJob = open
-    ? shown.find((r) => r.id === open.id && rowProjectOf(r) === open.project)
+    ? shown.find(
+        (r) =>
+          r.id === open.id &&
+          (rowProjectOf(r) === open.project || targetsOfRow(r).includes(open.project)),
+      )
     : undefined;
   useEffect(() => {
     if (open && rows !== null && !openJob) {
