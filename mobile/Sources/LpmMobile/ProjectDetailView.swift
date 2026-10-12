@@ -47,16 +47,20 @@ struct ProjectDetail: View {
         // native drag-to-reorder via `.onMove`.
         List {
             if !terminalsLoaded {
-                Section("Tabs") {
+                Section {
                     ForEach(0..<3, id: \.self) { _ in
                         TerminalRowSkeleton()
+                            .compactRow()
                     }
+                } header: {
+                    SectionTitle(text: "Tabs")
                 }
             } else if !isEmpty {
-                Section("Tabs") {
+                Section {
                     ForEach(terminals) { t in
                         TabRow(term: t, agent: agentByTerminal[t.id], now: now,
                                onOpen: { openTerminal = t })
+                        .compactRow()
                         .swipeActions(edge: .leading, allowsFullSwipe: true) {
                             Button {
                                 model.pinTerminal(project.name, id: t.id)
@@ -85,13 +89,20 @@ struct ProjectDetail: View {
                     .onMove(perform: moveTerminals)
                     if creating {
                         TerminalRowSkeleton()
+                            .compactRow()
                     }
                     Button {
                         model.newTerminal(project.name)
                     } label: {
-                        Label("New Tab", systemImage: "plus")
+                        HStack(spacing: 8) {
+                            Image(systemName: "plus")
+                            Text("New tab")
+                        }
                     }
                     .disabled(creating)
+                    .compactRow()
+                } header: {
+                    SectionTitle(text: "Tabs")
                 }
             }
 
@@ -104,6 +115,7 @@ struct ProjectDetail: View {
                                    onToggle: { model.toggleService(live.name, service: s.name) })
                             .contentShape(Rectangle())
                             .onTapGesture { logsForService = s }
+                            .compactRow()
                     }
                 } header: {
                     ServicesHeader(running: runningServices.count, total: live.allServices.count,
@@ -115,17 +127,21 @@ struct ProjectDetail: View {
             }
 
             if !bgRuns.isEmpty {
-                Section("Background runs") {
+                Section {
                     ForEach(bgRuns) { run in
                         BackgroundRunRow(run: run, snapshot: model.backgroundRuns[run.runId],
                                          startError: model.backgroundRunErrors[run.runId])
                             .contentShape(Rectangle())
                             .onTapGesture { activeBgRun = run }
+                            .compactRow()
                     }
+                } header: {
+                    SectionTitle(text: "Background runs")
                 }
             }
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(.compact)
         // Full-space overlay (not a list row): ContentUnavailableView is greedy
         // and inside a row it stretches the row — and its action button — to
         // fill the expanse.
@@ -214,6 +230,12 @@ struct ProjectDetail: View {
 }
 
 private extension View {
+    /// A row with the list's horizontal insets but less of iOS 26's vertical
+    /// padding, so rows sit as tight as the rest of the system's grouped lists.
+    func compactRow() -> some View {
+        listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+    }
+
     /// A bar over the top of the list. On iOS 26 the list scrolls under it with
     /// the system's scroll edge effect, the way it does under the nav bar.
     @ViewBuilder
@@ -235,6 +257,18 @@ private extension View {
     }
 }
 
+/// A section header in the small all-caps style, whatever the OS's default.
+private struct SectionTitle: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.footnote)
+            .textCase(.uppercase)
+            .foregroundStyle(.secondary)
+    }
+}
+
 /// "Services · 2 of 3 running", with Stop all while the project runs.
 private struct ServicesHeader: View {
     let running: Int
@@ -244,7 +278,7 @@ private struct ServicesHeader: View {
 
     var body: some View {
         HStack {
-            Text("Services · \(running) of \(total) running")
+            SectionTitle(text: "Services · \(running) of \(total) running")
             Spacer()
             if let onStopAll {
                 Button("Stop all", action: onStopAll)
