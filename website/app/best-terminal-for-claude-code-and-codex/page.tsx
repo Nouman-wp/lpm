@@ -10,7 +10,12 @@ import {
   SKILLS_PATH,
   TOKEN_USAGE_PATH,
 } from "@/lib/links";
-import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
+import {
+  breadcrumbJsonLd,
+  jsonLdString,
+  webPageJsonLd,
+  youtubeLessonJsonLd,
+} from "@/lib/structured-data";
 import Alerts from "./_components/alerts";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
@@ -18,6 +23,7 @@ import Cta from "./_components/cta";
 import Faq from "./_components/faq";
 import Features from "./_components/features";
 import Hero from "./_components/hero";
+import Lesson from "./_components/lesson";
 import WhyParallel from "./_components/why-parallel";
 import Workflows from "./_components/workflows";
 import { AGENTS_DEMO } from "./_components/demo-tour";
@@ -73,6 +79,7 @@ const structuredData = [
       path: AI_AGENTS_PATH,
     },
   ]),
+  youtubeLessonJsonLd("run-any-ai-coding-agent"),
 ];
 
 export default function BestTerminalForClaudeCodeAndCodexPage() {
@@ -84,6 +91,7 @@ export default function BestTerminalForClaudeCodeAndCodexPage() {
       />
       <Hero />
       <DemoSection {...AGENTS_DEMO} />
+      <Lesson />
       <WhyParallel />
       <Features />
       <Alerts />

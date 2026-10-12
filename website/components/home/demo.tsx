@@ -108,6 +108,10 @@ const LESSON_CAPTION: Record<
     heading: "Let an agent check your code while you're away",
     blurb: "A short video: set up an automation, then read what it found.",
   },
+  "run-any-ai-coding-agent": {
+    heading: "Claude Code and Codex built in, any other agent one click away",
+    blurb: "A short video: add Cursor and omp, then run them side by side.",
+  },
   "sixty-seconds": {
     heading:
       "Start a project, then hand it to Claude Code or Codex — one click each",

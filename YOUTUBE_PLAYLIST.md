@@ -30,3 +30,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - Run Claude Code from Your iPhone: Connect lpm Link to Your Mac with Built-in Tailscale — https://youtu.be/OGttu6tgb0I
 - Use Multiple Claude Code Accounts and Switch Automatically — https://youtu.be/-vvdAsp4JJU
 - Create an Automation — https://youtu.be/WWG_380qtXs
+- Run Any AI Coding Agent in lpm: Claude Code, Codex, Cursor, omp — https://youtu.be/mnmC5xABT_s

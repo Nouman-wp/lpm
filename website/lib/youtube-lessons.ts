@@ -100,6 +100,13 @@ const LESSONS = {
       "Create an automation in lpm, step by step: a job that runs an AI agent, a shell command or a project action on a schedule, and keeps what it found for you to read.",
     uploadDate: "2026-10-11T09:00:00+00:00",
   },
+  "run-any-ai-coding-agent": {
+    id: "mnmC5xABT_s",
+    name: "Run Any AI Coding Agent in lpm: Claude Code, Codex, Cursor, omp",
+    description:
+      "Claude Code and Codex come built into lpm, and any other AI coding agent can be added as a header button in seconds: here Cursor CLI and omp (https://omp.sh) are added with + Action and run side by side in one project. Gemini CLI or any other terminal agent works the same way.",
+    uploadDate: "2026-10-12T09:00:00+00:00",
+  },
   "sixty-seconds": {
     id: "H46vW5DPbZk",
     name: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",
