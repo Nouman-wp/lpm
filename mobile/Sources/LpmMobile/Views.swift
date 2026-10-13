@@ -973,8 +973,11 @@ struct TerminalScreen: View {
             .background(theme.backgroundColor.ignoresSafeArea(.all, edges: .all))
             .animation(.easeOut(duration: keyboard.duration), value: keyboard.height)
             .ignoresSafeArea(.keyboard, edges: .bottom)
-            .connectionTitle(term.label)
+            .navigationTitle(term.label)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) { TerminalTitle(term: term) }
+            }
             .projectMenuToolbar(project: liveProject, onSpawnedTerminal: { t in
                 // The new terminal is owned by the desktop that opened it; claim it
                 // for this phone before pushing so the pushed screen renders live
