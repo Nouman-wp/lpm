@@ -76,6 +76,7 @@ struct WebTerminalView: UIViewRepresentable {
         web.scrollView.contentInsetAdjustmentBehavior = .never
         // xterm owns scrolling inside the page; the webview itself must not bounce.
         web.scrollView.isScrollEnabled = false
+        web.hideInputAccessoryBar()
         web.navigationDelegate = context.coordinator
         context.coordinator.web = web
 

@@ -1,8 +1,7 @@
 import SwiftUI
 
-/// A terminal screen's title: the tab's name over what its agent is doing and for
-/// how long — "Working 3m 5s", "Done took 4m 12s" — as the desktop's agent chip
-/// reads it. The connection's status takes that line whenever the Mac isn't
+/// A terminal screen's title: the tab's name over how long its agent has been at
+/// it — "3m 5s". The connection's status takes that line whenever the Mac isn't
 /// connected; a plain shell has no line at all.
 struct TerminalTitle: View {
     @Environment(AppModel.self) private var model
@@ -22,20 +21,11 @@ struct TerminalTitle: View {
                 .lineLimit(1)
             if !model.demoMode && !model.link.isReady {
                 LinkStatusLabel(line: model.link.statusLine)
-            } else if let agent {
-                HStack(spacing: 4) {
-                    Text(agent.state.label)
-                        .agentTone(agent.state)
-                    if let since = agent.since {
-                        Group {
-                            if agent.until != nil { Text("took") }
-                            ElapsedText(since: since, until: agent.until, precise: true)
-                        }
-                        .foregroundStyle(.secondary)
-                    }
-                }
-                .font(.caption2.weight(.medium))
-                .lineLimit(1)
+            } else if let agent, let since = agent.since {
+                ElapsedText(since: since, until: agent.until, precise: true)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
         }
         .accessibilityElement(children: .combine)

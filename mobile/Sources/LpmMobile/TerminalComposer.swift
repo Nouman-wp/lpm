@@ -308,6 +308,13 @@ struct TerminalComposer: View {
         unifiedField
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
+            .swipeDownDismissesKeyboard(!fieldScrollsText)
+    }
+
+    // At its 5-line cap the field scrolls its own text, and a downward swipe
+    // there is scrolling back, not closing the keyboard.
+    private var fieldScrollsText: Bool {
+        isExpanded && singleLineHeight > 0 && expandedTextHeight > singleLineHeight * 4.5
     }
 
     // One layout for both states — the TextField and buttons are never swapped
@@ -971,29 +978,39 @@ private struct ComposerMentionMenu: View {
 /// Horizontally scrolling row of control keys plus a clipboard Paste key. Each key
 /// sends its raw escape/control sequence to the terminal immediately — independent
 /// of the compose field — so Ctrl-C, Esc, and arrow navigation work without
-/// composing a message. Paste inserts the clipboard string into the field.
+/// composing a message. Paste inserts the clipboard string into the field. While
+/// the keyboard is open, a key pinned at the end closes it.
 private struct SpecialKeyBar: View {
     let key: (String) -> Void
     let onPaste: () -> Void
+    @StateObject private var keyboard = KeyboardObserver()
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                cap("esc") { key("\u{1b}") }
-                cap("tab") { key("\t") }
-                cap("⌃C") { key("\u{03}") }
-                cap("⏎") { key("\r") }
-                Divider().frame(height: 18)
-                arrow("chevron.up") { key("\u{1b}[A") }
-                arrow("chevron.down") { key("\u{1b}[B") }
-                arrow("chevron.left") { key("\u{1b}[D") }
-                arrow("chevron.right") { key("\u{1b}[C") }
-                Divider().frame(height: 18)
-                arrow("doc.on.clipboard", action: onPaste)
+        HStack(spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    cap("esc") { key("\u{1b}") }
+                    cap("tab") { key("\t") }
+                    cap("⌃C") { key("\u{03}") }
+                    cap("⏎") { key("\r") }
+                    Divider().frame(height: 18)
+                    arrow("chevron.up") { key("\u{1b}[A") }
+                    arrow("chevron.down") { key("\u{1b}[B") }
+                    arrow("chevron.left") { key("\u{1b}[D") }
+                    arrow("chevron.right") { key("\u{1b}[C") }
+                    Divider().frame(height: 18)
+                    arrow("doc.on.clipboard", action: onPaste)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            if keyboard.isShown {
+                Divider().frame(height: 18)
+                arrow("keyboard.chevron.compact.down", action: Keyboard.dismiss)
+                    .padding(.horizontal, 12)
+            }
         }
+        .swipeDownDismissesKeyboard()
     }
 
     private func cap(_ label: String, _ action: @escaping () -> Void) -> some View {
