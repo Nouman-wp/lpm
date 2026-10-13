@@ -73,6 +73,10 @@ struct WebTerminalView: UIViewRepresentable {
         web.isOpaque = false
         web.backgroundColor = ground
         web.scrollView.backgroundColor = ground
+        // WebKit leaves the keyboard's appearance to the view's own style, so in
+        // light mode tapping the terminal would raise a light keyboard under the
+        // dark composer. Every terminal theme is dark.
+        web.overrideUserInterfaceStyle = .dark
         web.scrollView.contentInsetAdjustmentBehavior = .never
         // xterm owns scrolling inside the page; the webview itself must not bounce.
         web.scrollView.isScrollEnabled = false

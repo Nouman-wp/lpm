@@ -196,6 +196,7 @@ struct TerminalComposer: View {
         composerStack
             .background(ground)
             .environment(\.colorScheme, terminalTools ? .dark : systemColorScheme)
+            .darkKeyboard(terminalTools)
             .animation(.easeOut(duration: 0.12), value: slashMatches.count)
             .animation(.easeOut(duration: 0.12), value: hasMentionContent)
             .animation(.easeOut(duration: 0.15), value: store.transforming)
