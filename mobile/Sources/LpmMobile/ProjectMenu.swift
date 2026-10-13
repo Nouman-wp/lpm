@@ -2,17 +2,16 @@ import SwiftUI
 import UIKit
 
 /// The project's control menu in the nav bar: a single "more" button whose native
-/// menu holds Start/Stop, the run-actions submenu, and (when present) profiles.
-/// Per-service display and toggles live in the list's Services section.
+/// menu holds Start/Stop and (when present) profiles. Actions have their own bolt
+/// button beside it; per-service display and toggles live in the list's Services
+/// section.
 struct ProjectRunControl: View {
     @Environment(AppModel.self) private var model
     let project: Project
     let pending: Bool
-    let actions: [Action]
     let changedCount: Int?
     let onStart: (_ profile: String) -> Void
     let onStop: () -> Void
-    let onRunAction: (_ action: Action) -> Void
     let onReviewChanges: () -> Void
     let onMemory: () -> Void
     let onNotes: () -> Void
@@ -85,16 +84,6 @@ struct ProjectRunControl: View {
             }
             if project.canHaveWorkStatus {
                 WorkStatusMenu(project: project, noteFor: $noteFor)
-            }
-
-            if !actions.isEmpty {
-                Menu {
-                    ForEach(actions) { a in
-                        Button { onRunAction(a) } label: { actionLabel(a) }
-                    }
-                } label: {
-                    Label("Actions", systemImage: "bolt")
-                }
             }
 
             if !project.profiles.isEmpty {
@@ -188,15 +177,6 @@ struct ProjectRunControl: View {
     }
 
     @ViewBuilder
-    private func actionLabel(_ a: Action) -> some View {
-        if a.emoji.isEmpty {
-            Text(a.label)
-        } else {
-            Text("\(a.emoji)  \(a.label)")
-        }
-    }
-
-    @ViewBuilder
     private func profileLabel(_ p: Profile) -> some View {
         if running && project.activeProfile == p.name {
             Label(p.name, systemImage: "checkmark")
@@ -239,7 +219,6 @@ struct ProjectMenuHost: ViewModifier {
     @State private var noteFor: WorkStatusChoice?
     @State private var claudeConsent: ClaudeConsentRequest?
 
-    private var actions: [Action] { project.actions.flatMap { $0.runnableLeaves } }
     // Changed-file count for the Review Changes menu item; nil until the snapshot
     // loads (or when the project isn't a git repo).
     private var changedCount: Int? {
@@ -330,11 +309,9 @@ struct ProjectMenuHost: ViewModifier {
                 ToolbarItem(placement: .topBarTrailing) {
                     ProjectRunControl(project: project,
                                       pending: pending,
-                                      actions: actions,
                                       changedCount: changedCount,
                                       onStart: { model.startProject(project, profile: $0) },
                                       onStop: { model.stopProject(project) },
-                                      onRunAction: { beginRun($0) },
                                       onReviewChanges: { showChanges = true },
                                       onMemory: { showMemory = true },
                                       onNotes: { showNotes = true },

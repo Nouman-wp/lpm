@@ -836,63 +836,6 @@ struct QueuedActionLine: View {
     }
 }
 
-private final class KeyboardObserver: ObservableObject {
-    @Published private(set) var height: CGFloat = 0
-    @Published private(set) var duration: Double = 0.25
-
-    private let center: NotificationCenter
-    private var observers: [NSObjectProtocol] = []
-
-    init(center: NotificationCenter = .default) {
-        self.center = center
-        observers = [
-            center.addObserver(
-                forName: UIResponder.keyboardWillChangeFrameNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] notification in
-                self?.update(from: notification)
-            },
-            center.addObserver(
-                forName: UIResponder.keyboardWillHideNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] notification in
-                self?.update(from: notification, hidden: true)
-            }
-        ]
-    }
-
-    deinit {
-        observers.forEach(center.removeObserver)
-    }
-
-    private func update(from notification: Notification, hidden: Bool = false) {
-        duration = (notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber)?
-            .doubleValue ?? 0.25
-
-        guard !hidden,
-              let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
-            height = 0
-            return
-        }
-
-        height = keyboardOverlap(for: frame)
-    }
-
-    private func keyboardOverlap(for screenFrame: CGRect) -> CGFloat {
-        guard let window = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .flatMap(\.windows)
-            .first(where: { $0.isKeyWindow }) else {
-            return max(0, UIScreen.main.bounds.maxY - screenFrame.minY)
-        }
-
-        let frame = window.convert(screenFrame, from: nil)
-        return max(0, window.bounds.maxY - frame.minY - window.safeAreaInsets.bottom)
-    }
-}
-
 /// A single terminal: xterm.js (in a WKWebView) renders output the client streams
 /// in and posts keystrokes back — the same emulator the desktop uses, so rendering
 /// matches and scrollback works. The nav bar floats translucently over the top.
@@ -930,13 +873,17 @@ struct TerminalScreen: View {
         // above the keyboard when it opens.
         return VStack(spacing: 0) {
             ZStack {
-                WebTerminalView(term: term, onFirstContent: {
-                    withAnimation(.easeOut(duration: 0.2)) { hasContent = true }
-                }, fontSize: fontSize, theme: theme, onOpenPath: { paths, line in
-                    Haptics.tap()
-                    preview = FilePreviewTarget(project: term.project, paths: paths, line: line)
-                })
-                    .environment(model)
+                // Resizing the web view every keyboard frame reflowed xterm and sent
+                // the Mac a PTY resize each time; it slides instead and refits once.
+                KeyboardSteadyFrame(keyboard: keyboard) { hiddenTop in
+                    WebTerminalView(term: term, onFirstContent: {
+                        withAnimation(.easeOut(duration: 0.2)) { hasContent = true }
+                    }, topInset: hiddenTop, fontSize: fontSize, theme: theme, onOpenPath: { paths, line in
+                        Haptics.tap()
+                        preview = FilePreviewTarget(project: term.project, paths: paths, line: line)
+                    })
+                        .environment(model)
+                }
                 if controlled && !hasContent && ended == nil {
                     TerminalLoadingView(background: theme.backgroundColor)
                 }
@@ -969,10 +916,7 @@ struct TerminalScreen: View {
                     .environment(model)
             }
         }
-            .padding(.bottom, keyboard.height)
             .background(theme.backgroundColor.ignoresSafeArea(.all, edges: .all))
-            .animation(.easeOut(duration: keyboard.duration), value: keyboard.height)
-            .ignoresSafeArea(.keyboard, edges: .bottom)
             .navigationTitle(term.label)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

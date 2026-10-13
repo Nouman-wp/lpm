@@ -41,7 +41,8 @@ struct WebTerminalView: UIViewRepresentable {
     /// Fired once, when the first screen content renders — lets the host screen
     /// drop its loading spinner.
     var onFirstContent: (() -> Void)? = nil
-    /// Top safe-area inset so xterm's content clears the translucent nav bar.
+    /// Height at the top of the web view that sits out of sight, so xterm fits
+    /// its rows to the part below it.
     var topInset: CGFloat = 0
     /// Phone-local terminal preferences (Settings → Terminal). SwiftUI re-runs
     /// updateUIView when these change, which pushes them into the page.
