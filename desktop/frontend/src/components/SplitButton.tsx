@@ -94,11 +94,12 @@ interface SplitButtonProps {
   disabled: boolean;
   onRunAction: (action: ActionInfo) => void;
   onContextMenu?: (e: MouseEvent) => void;
+  onHover?: () => void;
   size?: ActionSize;
   scope?: string;
 }
 
-export function SplitButton({ action, disabled, onRunAction, onContextMenu, size = "default", scope = "global" }: SplitButtonProps) {
+export function SplitButton({ action, disabled, onRunAction, onContextMenu, onHover, size = "default", scope = "global" }: SplitButtonProps) {
   const [open, setOpen] = useState(false);
   const [remembered, setRemembered] = useState<string | null>(() => loadRememberedChild(scope, action.name));
   useEffect(() => {
@@ -224,7 +225,7 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, size
   );
 
   return (
-    <div ref={triggerRef} onContextMenu={onContextMenu} className={`${s.wrapper} cursor-grab select-none`}>
+    <div ref={triggerRef} onContextMenu={onContextMenu} onMouseEnter={onHover} className={`${s.wrapper} cursor-grab select-none`}>
       {trigger}
       {dropdown}
     </div>

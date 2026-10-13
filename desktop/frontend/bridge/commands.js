@@ -90,6 +90,9 @@ export function CancelAIGenerate(genId) {
 export function CancelActionBackground(runId) {
   return invoke("cancel_action_background", { runId });
 }
+export function RefreshActionLabel(projectName, actionName) {
+  return invoke("refresh_action_label", { projectName, actionName });
+}
 export function CheckActionPortConflict(projectName, actionName) {
   return invoke("check_action_port_conflict", { projectName, actionName });
 }

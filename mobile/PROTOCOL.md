@@ -715,6 +715,18 @@ workStatus?: { state: "in_progress"|"blocked"|"done"|"custom", label?: string, e
                           // and emoji so the row still reads on a Mac whose palette differs; a built-in one has
                           // neither. Absent when the project has no status. `since` is 0 when unknown
 actions: [ActionInfo]     // recursive: { name (composite parent:child), label, emoji, cmd, type, display, children[] … }
+                          // `label` is what the button shows, already rendered: a label with variables
+                          // ({{git.branch}}, {{git.tag}}, {{git.tagAge}}, {{git.nextPatch}}, {{project}}) or
+                          // $(command)s arrives as today's text, and `configLabel` then carries the label as
+                          // written (absent when the two match). `emoji` renders the same way (its first word),
+                          // with `configEmoji` as written, present (even "") whenever the emoji was rendered; a
+                          // rendered-empty emoji is absent. The same holds for `inputs[].label` and
+                          // `inputs[].options[].label`, each with its own `configLabel`. The Mac emits
+                          // `projects-changed` when a rendered label moves (a new tag or branch, new command
+                          // output, an age ticking over), so the phone redraws by refetching `projects`.
+                          // Editors read `actionBody`, which keeps the templates, and `labelRefresh`/`labelRefreshOnHover`
+                          // ride along as unmanaged keys. `labelRefreshOnHover: true` asks a pointer-driven client to
+                          // rerun the action's commands when hovered; the phone has no hover and ignores it
 ```
 
 **ClaudeAccount** (from `claudeAccounts`):

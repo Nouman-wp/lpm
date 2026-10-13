@@ -216,6 +216,13 @@ extension DemoServer {
             if let children = entry["actions"] as? [String: Any] {
                 entry["children"] = self.actionInfoChildren(parent: key, children)
             }
+            // An unchanged template keeps the label the Mac would render from it.
+            if let i = existing,
+               let template = self.world.projects[idx].actions[i]["configLabel"] as? String,
+               (entry["label"] as? String) == template {
+                entry["configLabel"] = template
+                entry["label"] = self.world.projects[idx].actions[i]["label"]
+            }
             if let i = existing { self.world.projects[idx].actions[i] = entry }
             else { self.world.projects[idx].actions.append(entry) }
             self.reflowProjectLayer(project)
@@ -295,12 +302,20 @@ extension DemoServer {
         guard let top = actions.first(where: { ($0["name"] as? String) == parts[0] }) else {
             return nil
         }
-        var body = top
-        body.removeValue(forKey: "name")
-        body.removeValue(forKey: "children")
+        let body = configBody(top)
         if parts.count == 2 {
             return (body["actions"] as? [String: Any])?[parts[1]] as? [String: Any]
         }
+        return body
+    }
+
+    /// The action as its config file holds it: a rendered label goes back to the
+    /// template the Mac rendered it from.
+    private func configBody(_ action: [String: Any]) -> [String: Any] {
+        var body = action
+        body.removeValue(forKey: "name")
+        body.removeValue(forKey: "children")
+        if let template = body.removeValue(forKey: "configLabel") { body["label"] = template }
         return body
     }
 
@@ -353,9 +368,7 @@ extension DemoServer {
             out += "actions:\n"
             for a in p.actions {
                 guard let name = a["name"] as? String else { continue }
-                var body = a
-                body.removeValue(forKey: "name")
-                body.removeValue(forKey: "children")
+                let body = configBody(a)
                 if body.count == 1, let cmd = body["cmd"] as? String {
                     out += "  \(name): \(yamlScalar(cmd))\n"
                 } else {

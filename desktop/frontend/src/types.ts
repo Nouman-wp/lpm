@@ -74,11 +74,14 @@ export const zoneDisplayOf = (zone: Pick<ZoneInfo, "display">): ZoneDisplay =>
 export interface ActionInputOption {
   label: string;
   value: string;
+  // Set when label was rendered from variables or $(…); the text as written.
+  configLabel?: string;
 }
 
 export interface ActionInputInfo {
   key: string;
   label: string;
+  configLabel?: string;
   type: string;
   required: boolean;
   placeholder: string;
@@ -89,8 +92,15 @@ export interface ActionInputInfo {
 
 export interface ActionInfo {
   name: string;
+  // What the button shows. A label with variables or $(…) commands arrives
+  // rendered, with the text as written in configLabel for edit forms.
   label: string;
+  configLabel?: string;
+  // Hovering the button runs its label commands again.
+  labelRefreshOnHover?: boolean;
   emoji?: string;
+  // The emoji as written when variables or $(…) rendered it.
+  configEmoji?: string;
   color?: string;
   shortcut?: string;
   cmd: string;

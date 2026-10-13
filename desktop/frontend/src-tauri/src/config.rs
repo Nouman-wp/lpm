@@ -1116,6 +1116,10 @@ struct ActionFull {
     cmd: String,
     #[serde(default)]
     label: String,
+    #[serde(rename = "labelRefresh", default, deserialize_with = "scalar_text")]
+    label_refresh: String,
+    #[serde(rename = "labelRefreshOnHover", default)]
+    label_refresh_on_hover: bool,
     #[serde(default)]
     emoji: String,
     #[serde(default)]
@@ -1152,6 +1156,16 @@ struct ActionFull {
     inputs: BTreeMap<String, ActionInputDef>,
     #[serde(default)]
     actions: BTreeMap<String, ActionDef>, // children
+}
+
+/// A scalar as text, so `labelRefresh: 30` reads like `labelRefresh: 30s`; any
+/// other shape is dropped rather than failing the whole file's actions.
+fn scalar_text<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    Ok(match serde_norway::Value::deserialize(d)? {
+        serde_norway::Value::String(s) => s,
+        serde_norway::Value::Number(n) => n.to_string(),
+        _ => String::new(),
+    })
 }
 
 impl ActionDef {
@@ -1545,7 +1559,7 @@ pub(crate) fn quote_remote_path(p: &str) -> String {
 }
 
 /// Resolve cwd against the remote base dir; absolute/tilde cwd wins verbatim.
-fn join_remote_dir(dir: &str, cwd: &str) -> String {
+pub(crate) fn join_remote_dir(dir: &str, cwd: &str) -> String {
     let cwd = cwd.trim().trim_end_matches('/');
     let dir = dir.trim().trim_end_matches('/');
     if cwd.is_empty() {
@@ -1735,16 +1749,20 @@ fn lookup_action(map: &BTreeMap<String, ActionFull>, name: &str) -> Option<Actio
 // merge. DEFERRED: recursive template extends, repo-level
 // extends resolved relative to the repo dir.
 
-#[derive(serde::Serialize, Clone)]
+#[derive(serde::Serialize, Clone, Default)]
 pub struct ActionInputOption {
     pub label: String,
     pub value: String,
+    #[serde(rename = "configLabel", skip_serializing_if = "String::is_empty")]
+    pub config_label: String,
 }
 
-#[derive(serde::Serialize, Clone)]
+#[derive(serde::Serialize, Clone, Default)]
 pub struct ActionInputInfo {
     pub key: String,
     pub label: String,
+    #[serde(rename = "configLabel", skip_serializing_if = "String::is_empty")]
+    pub config_label: String,
     #[serde(rename = "type")]
     pub kind: String,
     pub required: bool,
@@ -1755,10 +1773,21 @@ pub struct ActionInputInfo {
     pub options: Vec<ActionInputOption>,
 }
 
-#[derive(serde::Serialize, Clone)]
+#[derive(serde::Serialize, Clone, Default)]
 pub struct ActionInfo {
     pub name: String,
     pub label: String,
+    /// The label as written, present only when `label` was rendered from it.
+    #[serde(rename = "configLabel", skip_serializing_if = "String::is_empty")]
+    pub config_label: String,
+    #[serde(skip)]
+    pub label_refresh: String,
+    #[serde(rename = "labelRefreshOnHover", skip_serializing_if = "std::ops::Not::not")]
+    pub label_refresh_on_hover: bool,
+    /// The emoji as written, present (even empty) only when `emoji` was
+    /// rendered, so an edit form never saves a command's emoji as the fallback.
+    #[serde(rename = "configEmoji", skip_serializing_if = "Option::is_none")]
+    pub config_emoji: Option<String>,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub emoji: String,
     #[serde(skip_serializing_if = "String::is_empty")]
@@ -1861,6 +1890,12 @@ fn merge_action(d: &mut ActionFull, s: &ActionFull) {
     }
     if d.label.is_empty() {
         d.label = s.label.clone();
+    }
+    if d.label_refresh.is_empty() {
+        d.label_refresh = s.label_refresh.clone();
+    }
+    if !d.label_refresh_on_hover {
+        d.label_refresh_on_hover = s.label_refresh_on_hover;
     }
     if d.emoji.is_empty() {
         d.emoji = s.emoji.clone();
@@ -2152,10 +2187,12 @@ fn build_input_infos(inputs: &BTreeMap<String, ActionInputDef>) -> Vec<ActionInp
                     ActionInputOptionDef::Scalar(s) => ActionInputOption {
                         label: s.clone(),
                         value: s.clone(),
+                        ..Default::default()
                     },
                     ActionInputOptionDef::Full { label, value } => ActionInputOption {
                         label: label.clone(),
                         value: value.clone(),
+                        ..Default::default()
                     },
                 })
                 .collect();
@@ -2168,6 +2205,7 @@ fn build_input_infos(inputs: &BTreeMap<String, ActionInputDef>) -> Vec<ActionInp
                 default: inp.default.clone(),
                 persist: inp.persist,
                 options,
+                ..Default::default()
             }
         })
         .collect()
@@ -2209,6 +2247,10 @@ fn action_to_info(id: &str, name: &str, act: &ActionFull) -> ActionInfo {
     ActionInfo {
         name: id.to_string(),
         label,
+        config_label: String::new(),
+        label_refresh: act.label_refresh.clone(),
+        label_refresh_on_hover: act.label_refresh_on_hover,
+        config_emoji: None,
         emoji: act.emoji.clone(),
         color: act.color.clone(),
         shortcut: act.shortcut.clone(),
@@ -2248,14 +2290,19 @@ fn build_action_info(path: &str, key: &str, act: &ActionFull) -> ActionInfo {
     info
 }
 
-/// Sorted ActionInfo list (full recursive children) as JSON values.
-pub fn resolve_actions(file_name: &str) -> Vec<Value> {
+/// Sorted ActionInfo list (full recursive children) as JSON values, labels
+/// rendered for `ctx`.
+pub fn resolve_actions(file_name: &str, ctx: &crate::action_labels::Ctx) -> Vec<Value> {
     let resolved = resolve_action_map(file_name);
     let mut names: Vec<String> = resolved.keys().cloned().collect();
     sort_action_names(&mut names, |n| resolved.get(n).and_then(|a| a.position));
-    names
+    let mut infos: Vec<ActionInfo> = names
         .iter()
         .map(|name| build_action_info(name, name, &resolved[name]))
+        .collect();
+    crate::action_labels::apply(ctx, &mut infos);
+    infos
+        .into_iter()
         .map(|info| serde_json::to_value(info).unwrap_or(Value::Null))
         .collect()
 }
@@ -2452,7 +2499,14 @@ fn to_project_info(
         "running": running,
         "services": running_services,
         "allServices": all_services,
-        "actions": resolve_actions(file_name),
+        "actions": resolve_actions(
+            file_name,
+            &crate::action_labels::Ctx {
+                project: file_name,
+                root: &root,
+                ssh: is_remote.then_some(&ssh),
+            },
+        ),
         "zones": crate::zones::resolve_zones_with(
             file_name,
             Some(yaml.parent_name.as_str()).filter(|parent| !parent.is_empty()),
@@ -2731,14 +2785,20 @@ fn global_root() -> String {
 }
 
 fn global_project_info() -> Value {
+    let root = global_root();
+    let ctx = crate::action_labels::Ctx {
+        project: RESERVED_PROJECT_NAME,
+        root: &root,
+        ssh: None,
+    };
     json!({
         "name": RESERVED_PROJECT_NAME,
         "session": RESERVED_PROJECT_NAME,
-        "root": global_root(),
+        "root": root,
         "running": false,
         "services": [],
         "allServices": [],
-        "actions": resolve_actions(RESERVED_PROJECT_NAME),
+        "actions": resolve_actions(RESERVED_PROJECT_NAME, &ctx),
         "zones": crate::zones::resolve_zones(RESERVED_PROJECT_NAME),
         "profiles": [],
         "activeProfile": "",
@@ -3409,6 +3469,30 @@ mod action_lookup_tests {
         assert_eq!(project.layer, "web");
         let info = action_to_info("ios", "ios", &project);
         assert_eq!(serde_json::to_value(&info).unwrap()["layer"], "web");
+    }
+
+    #[test]
+    fn label_refresh_reads_a_number_and_is_inherited() {
+        let y: ActionsYaml = serde_norway::from_str(
+            "actions:\n  ver:\n    label: Ver $(git describe)\n    labelRefresh: 30\n    labelRefreshOnHover: true\n  odd:\n    cmd: x\n    labelRefresh: [1]\n",
+        )
+        .unwrap();
+        let shared = build_layer(&y);
+        assert_eq!(shared["ver"].label_refresh, "30");
+        assert_eq!(shared["odd"].label_refresh, "");
+        let mut project = ActionFull {
+            cmd: "./ver.sh".into(),
+            ..Default::default()
+        };
+        merge_action(&mut project, &shared["ver"]);
+        let info = action_to_info("ver", "ver", &project);
+        assert_eq!(info.label, "Ver $(git describe)");
+        assert_eq!(info.label_refresh, "30");
+        let json = serde_json::to_value(&info).unwrap();
+        assert_eq!(json["labelRefreshOnHover"], true);
+        for key in ["labelRefresh", "configLabel", "configEmoji"] {
+            assert!(json.get(key).is_none(), "{key}");
+        }
     }
 
     #[test]

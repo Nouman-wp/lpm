@@ -8,6 +8,8 @@ import { withEmoji } from "../withEmoji";
 import { actionButtonStyle } from "../actionColors";
 import { formatShortcut, parseShortcut } from "../shortcutParse";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
+import { refreshLabelOnHover } from "../labelHover";
+import { GLOBAL_TERMINALS_KEY } from "../terminals";
 
 const FLAT_BASE =
   "flex cursor-grab select-none items-center rounded-md border px-2.5 text-[11px] font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40";
@@ -34,6 +36,7 @@ interface ActionViewProps {
 
 export function ActionView({ action, size, disabled, onRun, onContextMenu, scope }: ActionViewProps) {
   const handleContextMenu = onContextMenu ? (e: MouseEvent) => onContextMenu(e, action) : undefined;
+  const handleHover = () => refreshLabelOnHover(scope ?? GLOBAL_TERMINALS_KEY, action);
 
   if (action.children?.length) {
     return (
@@ -42,6 +45,7 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
         disabled={disabled}
         onRunAction={onRun}
         onContextMenu={handleContextMenu}
+        onHover={handleHover}
         size={size}
         scope={scope}
       />
@@ -57,6 +61,7 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
       <button
         onClick={() => onRun(action)}
         onContextMenu={handleContextMenu}
+        onMouseEnter={handleHover}
         disabled={disabled}
         title={title}
         style={actionButtonStyle(action.color)}
@@ -70,6 +75,7 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
     <ActionButton
       onClick={() => onRun(action)}
       onContextMenu={handleContextMenu}
+      onMouseEnter={handleHover}
       disabled={disabled}
       variant="secondary"
       label={displayLabel}

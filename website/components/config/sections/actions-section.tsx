@@ -52,7 +52,16 @@ export function ActionsSection() {
         <code className="font-mono">prompt</code>{" "}(text sent to the agent a
         terminal action opens, once it&rsquo;s ready),{" "}
         <code className="font-mono">reuse</code>{" "}(use the terminal that&rsquo;s
-        already open), <code className="font-mono">port</code>{" "}and{" "}
+        already open), <code className="font-mono">labelRefresh</code>{" "}(how
+        often commands in a label run: a{" "}
+        <code className="font-mono">label</code>{" "}or{" "}
+        <code className="font-mono">emoji</code>{" "}can show a command&rsquo;s
+        output with <code className="font-mono">$(…)</code>, the branch with{" "}
+        <code className="font-mono">{"{{git.branch}}"}</code>, or the last tag
+        and how long ago it was made with{" "}
+        <code className="font-mono">{"{{git.tag}}"}</code>{" "}and{" "}
+        <code className="font-mono">{"{{git.tagAge}}"}</code>),{" "}
+        <code className="font-mono">port</code>{" "}and{" "}
         <code className="font-mono">portConflict</code>{" "}(ports that must be
         free first, as a number, a range like{" "}
         <code className="font-mono">&quot;3002-3010&quot;</code>, or a list),

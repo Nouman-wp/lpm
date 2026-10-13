@@ -475,6 +475,7 @@ fn run_background(
         &run_id,
         switching,
     );
+    crate::label_probes::refresh_project(&project_name);
 
     let mut runs = background_runs().lock().unwrap();
     if let Some(r) = runs.get_mut(&run_id) {

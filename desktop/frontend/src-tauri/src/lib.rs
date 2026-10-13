@@ -1,3 +1,4 @@
+mod action_labels;
 mod actions;
 mod adopt;
 mod agent_last_answer;
@@ -96,6 +97,9 @@ mod jobsocket;
 #[cfg(any(target_os = "linux", test))]
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 mod kokoro_venv;
+mod label_git;
+mod label_probes;
+mod label_template;
 mod lesson;
 mod lifecycle;
 mod log_streaming;
@@ -276,6 +280,7 @@ use fonts::*;
 #[allow(unused_imports)]
 use generated_commands::*;
 use git::*;
+use label_probes::refresh_action_label;
 use pull_request::*;
 use gitfollow::{follow_list, follow_pause, follow_resume, follow_stop};
 use gitautopull::{git_auto_pull, git_auto_pull_last, git_auto_pull_undo, set_auto_pull};
@@ -526,6 +531,9 @@ pub fn run() {
             // Watch ~/.lpm so config edits by another lpm instance or an external
             // editor re-emit projects-changed / templates-changed here.
             configwatch::start(handle.clone());
+            // Dynamic action labels: runs label commands and watches the git
+            // facts and ages labels show, re-emitting projects-changed on a move.
+            label_probes::start(handle.clone());
 
             // Live usage-limit meters: scan Codex's newest rollout and watch
             // ~/.codex/sessions; Claude limits arrive via the statusline

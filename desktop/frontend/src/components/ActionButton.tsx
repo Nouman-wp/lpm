@@ -15,6 +15,7 @@ const actionStyles = {
 export function ActionButton({
   onClick,
   onContextMenu,
+  onMouseEnter,
   disabled,
   variant,
   label,
@@ -22,6 +23,7 @@ export function ActionButton({
 }: {
   onClick: () => void;
   onContextMenu?: (e: MouseEvent) => void;
+  onMouseEnter?: () => void;
   disabled: boolean;
   variant: keyof typeof actionStyles;
   label: string;
@@ -31,6 +33,7 @@ export function ActionButton({
     <button
       onClick={onClick}
       onContextMenu={onContextMenu}
+      onMouseEnter={onMouseEnter}
       disabled={disabled}
       style={actionButtonStyle(color)}
       className={`inline-flex h-8 shrink-0 cursor-grab select-none items-center whitespace-nowrap rounded-lg px-3.5 text-xs font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 ${actionStyles[variant]}`}

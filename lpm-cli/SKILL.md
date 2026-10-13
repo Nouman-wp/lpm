@@ -32,6 +32,7 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 - `lpm remove <copy-name>` — remove a duplicate. For a linked worktree, this also removes its Git worktree registration and lpm-created branch. Originals and SSH projects (SSH duplicates too) need `--force`, and their folder is kept; don't use `--force` unless the user explicitly asks.
 - `lpm run [action | --command CMD] [--prompt TEXT] [-p proj]` — queue in a new app terminal, fire-and-forget.
 - `lpm set-status <key> <value>` / `lpm clear-status <key>` — report status to the app UI.
+- `lpm refresh-label [action] [-p proj]` — rerun the `$(…)` commands in an action's labels and emoji (with its menu items' and options') now and redraw labels built from git; no action refreshes every label in the project. Use it after changing what a dynamic label shows, such as at the end of a release script.
 - `lpm auto-pull [project] [--set on|off|default]` / `lpm auto-pull --all` — whether the app fast-forwards a project from origin by itself, and why. `--set` changes the project's own `autoPull` key through the running app, like `start`/`stop`; `default` removes it, so a duplicate or worktree follows its parent, else the Settings mode (Off / Chosen / All, changed only in the app). Change it only when the user asks.
 
 ### Automations

@@ -289,4 +289,45 @@ describe("inputDraftsFromInfos", () => {
       },
     });
   });
+
+  it("saves the labels as written", () => {
+    const infos = [
+      {
+        key: "bump",
+        label: "Release from main",
+        configLabel: "Release from {{git.branch}}",
+        type: "radio",
+        required: true,
+        placeholder: "",
+        default: "patch",
+        persist: false,
+        options: [
+          {
+            label: "Patch (v0.7.14)",
+            configLabel: "Patch ({{git.nextPatch:v*}})",
+            value: "patch",
+          },
+          {
+            label: "Minor (v0.8.0)",
+            configLabel: "Minor ($(./scripts/next.sh minor))",
+            value: "minor",
+          },
+          { label: "major", value: "major" },
+        ],
+      },
+    ];
+    expect(inputsToYamlMap(inputDraftsFromInfos(infos))).toEqual({
+      bump: {
+        label: "Release from {{git.branch}}",
+        type: "radio",
+        required: true,
+        default: "patch",
+        options: [
+          { label: "Patch ({{git.nextPatch:v*}})", value: "patch" },
+          { label: "Minor ($(./scripts/next.sh minor))", value: "minor" },
+          "major",
+        ],
+      },
+    });
+  });
 });

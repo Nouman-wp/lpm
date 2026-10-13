@@ -691,7 +691,7 @@ function inferShape(action: ActionInfo): Shape {
 function actionToDraft(action: ActionInfo, zones: readonly ZoneInfo[] = []): FormDraft {
   const children: ChildDraft[] = (action.children ?? []).map((c) => ({
     id: crypto.randomUUID(),
-    label: c.label,
+    label: c.configLabel ?? c.label,
     cmd: c.cmd,
     runMode: toRunMode(c.type),
     reuse: c.reuse ?? false,
@@ -701,8 +701,8 @@ function actionToDraft(action: ActionInfo, zones: readonly ZoneInfo[] = []): For
   }));
   return {
     shape: inferShape(action),
-    name: action.label,
-    emoji: action.emoji ?? "",
+    name: action.configLabel ?? action.label,
+    emoji: action.configEmoji ?? action.emoji ?? "",
     color: action.color ?? "",
     shortcut: action.shortcut ?? "",
     cmd: action.cmd,

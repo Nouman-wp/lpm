@@ -341,7 +341,10 @@ struct DemoWorld {
                 name: "api-gateway", label: "api-gateway", running: false,
                 services: [Svc(name: "server", cmd: "go run ./cmd/server", port: 8080, running: false)],
                 actions: [["name": "test", "label": "Test", "type": "background",
-                           "cmd": "go test ./..."]]
+                           "cmd": "go test ./..."],
+                          ["name": "release", "label": "🚀 Release · v2.4.1 · 3d ago",
+                           "configLabel": "🚀 Release · {{git.tag}} · {{git.tagAge}}",
+                           "type": "background", "cmd": "./scripts/release.sh", "confirm": true]]
             ),
             Project(
                 name: "mobile-app", label: "mobile-app", running: false,

@@ -11,7 +11,7 @@ Create and modify lpm config on macOS exclusively through `lpm config get` and `
 ## Load only the relevant reference
 
 - Read [references/core.md](references/core.md) for project identity, services, dependencies, profiles, duplicates, linked Git worktrees, auto pull, and project creation.
-- Read [references/actions.md](references/actions.md) when adding or changing actions, buttons, terminals, inputs, ports, shortcuts, colors, agent prompts, or nested menus.
+- Read [references/actions.md](references/actions.md) when adding or changing actions, buttons, terminals, inputs, ports, shortcuts, colors, dynamic labels, agent prompts, or nested menus.
 - Read [references/zones.md](references/zones.md) when creating, filling, rearranging, or removing button zones or zone layers.
 - Read [references/sharing.md](references/sharing.md) for `.lpm.yml`, global config, templates, `extends`, layering, and sparse overrides.
 - Read [references/ssh.md](references/ssh.md) for remote projects or `mode: sync`.
@@ -56,6 +56,7 @@ When `lpm config resolve` is unavailable, inspect the YAML project files read-on
 | Fold a zone into one button with a hover popup | `collapsed: true` on the zone's entry in its source file |
 | Put a button declared elsewhere into a zone or layer | sparse override with `display`, `layer`, and `position` only |
 | Colored button or terminal tab | action `color` |
+| Label or emoji that shows the branch, the last tag and its age, the next version, or a command's output (on a button, input or option) | `{{git.branch}}`, `{{git.tag}}`, `{{git.tagAge}}`, `{{git.nextPatch}}` or `$(command)` in `label` or `emoji` |
 | Agent terminal that starts with a task | `type: terminal` with an agent `cmd` plus `prompt` |
 | Hidden command with completion notification | `type: background` |
 | Send command into the focused terminal | `type: command` |

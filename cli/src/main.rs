@@ -20,6 +20,7 @@ mod list;
 mod logs;
 mod mobile;
 mod project;
+mod refreshlabel;
 mod remove;
 mod run;
 mod service;
@@ -60,7 +61,7 @@ control projects — start, stop, restart services, set agent status — by aski
 app over that socket (so the app stays the single owner of run-state).\n\n\
 Inspection commands: `list`, `project`, `logs`, `status`, `config resolve`, `config validate`. \
 Config transactions (need the app running): `config get`, `config apply`. Control commands: \
-`start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `worktree`, `remove`, `run`, `automations`. \
+`start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `worktree`, `remove`, `run`, `refresh-label`, `automations`. \
 `auto-pull` shows whether the app pulls a project by itself; `auto-pull --set` changes it \
 through the running app. \
 Connection commands (for a machine with no UI in front of it): `pair`, `connections`, \
@@ -364,6 +365,16 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Rerun an action's label commands now (or every one in the project) and
+    /// redraw labels built from git, via the running app.
+    RefreshLabel {
+        /// Action name (exact or unambiguous prefix); its menu items and options
+        /// refresh too. Omit to refresh every label in the project.
+        action: Option<String>,
+        /// Project to refresh; omit to infer from the environment / cwd.
+        #[arg(long, short = 'p')]
+        project: Option<String>,
+    },
 }
 
 fn exclude_uncommitted_override(exclude: bool, include: bool) -> Option<bool> {
@@ -528,6 +539,9 @@ fn main() -> ExitCode {
             all,
             json,
         } => auto_pull::run(&ctx, name.as_deref(), set, all, json),
+        Commands::RefreshLabel { action, project } => {
+            refreshlabel::run(&ctx, action.as_deref(), project.as_deref())
+        }
         Commands::Run {
             action,
             command,

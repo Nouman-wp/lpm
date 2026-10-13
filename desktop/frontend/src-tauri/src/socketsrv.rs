@@ -19,6 +19,7 @@
 //                     [--prompt=TEXT]
 //   remove_project <project>
 //   run_task <project> [--action=X | --command=X] [--prompt=TEXT]
+//   refresh_label <project> [action]
 //   set_resume <project> <pane_id> <session_id> [--provider=codex|claude] [--reporter-pid=N]
 //   list_jobs <project>
 //   run_job <project> <job_id>
@@ -167,14 +168,21 @@ fn socket_is_live(path: &str) -> bool {
 }
 
 /// Verbs a remote host is allowed to send on the restricted socket: status and
-/// session-id reporting only, never project control. set_resume is safe here
+/// session-id reporting only, never project control. refresh_label only reruns
+/// label commands the project's own config declares. set_resume is safe here
 /// because parse_resume_args rejects any session id that isn't a plain token —
 /// the id ends up inside a command typed into a terminal, so a hostile host
 /// must not be able to smuggle shell text through it.
 fn remote_allowed(command: &str) -> bool {
     matches!(
         command,
-        "ping" | "set_status" | "clear_status" | "list_status" | "set_resume" | "agent_child"
+        "ping"
+            | "set_status"
+            | "clear_status"
+            | "list_status"
+            | "set_resume"
+            | "agent_child"
+            | "refresh_label"
     )
 }
 
@@ -242,6 +250,7 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "config_get" => cmd_config_get(args),
         "config_apply" => cmd_config_apply(args, app),
         "set_auto_pull" => cmd_set_auto_pull(args, app),
+        "refresh_label" => crate::label_probes::cmd_refresh_label(args),
         "remove_project" => cmd_remove_project(args, app),
         "run_task" => cmd_run_task(args, app),
         "set_resume" => cmd_set_resume(args, store, app),

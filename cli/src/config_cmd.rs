@@ -13,6 +13,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 mod jobs;
+mod labels;
 mod project_fields;
 mod zones;
 
@@ -1051,6 +1052,8 @@ fn validate_action(
         &[
             "cmd",
             "label",
+            "labelRefresh",
+            "labelRefreshOnHover",
             "emoji",
             "color",
             "shortcut",
@@ -1121,6 +1124,7 @@ fn validate_action(
         );
     }
     validate_shortcut(map, path, report);
+    labels::validate_action_label(map, path, report);
     validate_inputs(map, path, report);
     let children = map.get(Value::String("actions".into()));
     validate_primary(map, children, path, report);
@@ -1209,6 +1213,7 @@ fn validate_inputs(map: &Mapping, path: &str, report: &mut Report) {
         for field in ["label", "type", "placeholder", "default"] {
             validate_string_field(input, field, &format!("{input_path}.{field}"), report);
         }
+        labels::validate_label_text(input, &input_path, report);
         for field in ["required", "persist"] {
             if let Some(value) = input.get(Value::String(field.into())) {
                 if value.as_bool().is_none() {
@@ -1245,6 +1250,11 @@ fn validate_inputs(map: &Mapping, path: &str, report: &mut Report) {
                 validate_keys(
                     option,
                     &["label", "value"],
+                    &format!("{input_path}.options[{index}]"),
+                    report,
+                );
+                labels::validate_label_text(
+                    option,
                     &format!("{input_path}.options[{index}]"),
                     report,
                 );

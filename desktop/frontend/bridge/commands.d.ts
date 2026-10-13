@@ -27,6 +27,7 @@ export function CancelAIGenerate(...args: any[]): Promise<any>;
 export function CancelActionBackground(...args: any[]): Promise<any>;
 export function CheckAICLIs(...args: any[]): Promise<any>;
 export function ListAgentCommands(...args: any[]): Promise<any>;
+export function RefreshActionLabel(...args: any[]): Promise<any>;
 export function CheckActionPortConflict(...args: any[]): Promise<any>;
 export function CheckClaudeHooks(...args: any[]): Promise<any>;
 export function CheckForUpdate(...args: any[]): Promise<any>;

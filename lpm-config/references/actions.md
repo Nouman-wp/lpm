@@ -6,6 +6,7 @@ Read this reference for actions, buttons, terminals, input prompts, ports, short
 - [Command quoting](#command-quoting)
 - [Scripts](#scripts)
 - [Fields](#fields)
+- [Dynamic labels](#dynamic-labels)
 - [Zones](#zones)
 - [Action types](#action-types)
 - [Agent prompt](#agent-prompt)
@@ -93,8 +94,10 @@ A script anywhere else stays on this Mac, so the synced action fails on the othe
 | Field | Type | Rule |
 |---|---|---|
 | `cmd` | string | Required unless child `actions` exist or this is a valid sparse override. |
-| `label` | string | Display label; defaults to the key. |
-| `emoji` | string | Icon shown on the button and on the terminal tab it opens. |
+| `label` | string | Display label; defaults to the key. May hold variables and `$(…)` commands; see [Dynamic labels](#dynamic-labels). |
+| `labelRefresh` | number or string | How often the action's `$(…)` commands run: seconds, or a number with `s`, `m` or `h` such as `5m`. Defaults to `1m`; the floor is `5s`. |
+| `labelRefreshOnHover` | boolean | Run the action's `$(…)` commands again when the pointer rests on the button; see [Dynamic labels](#dynamic-labels). |
+| `emoji` | string | Icon shown on the button and on the terminal tab it opens. May hold variables and `$(…)` commands; see [Dynamic labels](#dynamic-labels). |
 | `color` | string | Accent for the button and its terminal tab: a named accent (`red`, `orange`, `claude`, `amber`, `yellow`, `lime`, `green`, `emerald`, `teal`, `cyan`, `sky`, `blue`, `indigo`, `violet`, `purple`, `fuchsia`, `pink`, `rose`, `slate`, `gray`, `stone`), a named accent plus `-deep` such as `blue-deep`, or any CSS color such as `"#8b5cf6"` (quote a leading `#`). |
 | `shortcut` | string | Shortcut that runs the action while the project is open, such as `cmd+shift+b`: `cmd` (`ctrl` counts as `cmd`) or `alt`/`opt`, optionally `shift`, and exactly one key. |
 | `cwd` | string | Relative to the local root or remote `ssh.dir`; local paths must exist. |
@@ -112,6 +115,54 @@ A script anywhere else stays on this Mac, so the synced action fails on the othe
 | `position` | number | Lower values render first; unpositioned entries follow by key; floats are allowed. Inside a zone it orders the zone's buttons. |
 | `inputs` | mapping | Values prompted before execution and substituted into `{{key}}`. |
 | `actions` | mapping | Nested child actions. |
+
+## Dynamic labels
+
+A label can change on its own: a button's `label` and `emoji`, an input's `label`, and a radio option's `label`. Use `{{…}}` variables for facts lpm reads itself, and `$(…)` for anything a command can print; the command's first line of output takes its place.
+
+```yaml
+actions:
+  release:
+    cmd: ./scripts/release.sh {{bump}}
+    label: "Release · $(git describe --tags --abbrev=0) · {{git.tagAge:v*}}"   # Release · v0.7.13 · 6h ago
+    emoji: '$([ -n "$(git log "$(git describe --tags --abbrev=0)"..HEAD --oneline)" ] && echo 🟡 || echo 🟢)'
+    labelRefresh: 5m
+    labelRefreshOnHover: true
+    confirm: true
+    type: background
+    inputs:
+      bump:
+        label: What kind of release?
+        type: radio
+        default: patch
+        options:
+          - label: "Patch — bug fixes ({{git.nextPatch:v*}})"       # Patch — bug fixes (v0.7.14)
+            value: patch
+          - label: "Minor — new features ({{git.nextMinor:v*}})"    # Minor — new features (v0.8.0)
+            value: minor
+          - label: "Major — breaking changes ($(./scripts/next.sh major))"
+            value: major
+```
+
+| Variable | Value |
+|---|---|
+| `{{git.branch}}` | The checked-out branch, or the short commit when HEAD is detached. |
+| `{{git.tag}}` | The newest tag by creation date. `{{git.tag:v*}}` only considers tags matching the glob. |
+| `{{git.tagAge}}` | How long ago that tag was made, such as `just now`, `6h ago` or `2d ago`. Takes the same `:pattern`. |
+| `{{git.nextPatch}}`, `{{git.nextMinor}}`, `{{git.nextMajor}}` | The version after the highest version tag, keeping its prefix: from `v0.7.13`, `v0.7.14`, `v0.8.0` and `v1.0.0`. Takes the same `:pattern`. Empty until a version tag exists. |
+| `{{project}}` | The project's display name. |
+
+- The git variables read the repository holding the project root, so each copy and worktree shows its own branch and tags. A lightweight tag has no date of its own; its age is its commit's. Tag with `git tag -a` to show the exact release time.
+- The next-version variables bump from the highest version (`git tag --sort=-v:refname`), the tag a release script usually starts from, while `{{git.tag}}` is the newest by date. A pre-release suffix is dropped before bumping.
+- `$(…)` works as in the shell: quotes, escapes and nested `$(…)` inside it are fine. Single-quote the YAML value when the command has double quotes of its own, as the emoji above does; move anything longer into a script. Variables are not filled inside a command, so a branch or tag name never becomes shell code.
+- Commands run in the action's `cwd` with its `env` and `LPM_PROJECT_NAME`, through the same login shell as the action, with a 15-second timeout. They run when lpm starts, on the action's `labelRefresh` interval (one schedule for its label, emoji, input and option labels), and after a background run of any action in the project. The first line of output is used, cut to 60 characters. Until a command has printed something, or when it fails, it reads as empty.
+- `emoji` shows the first word of what it renders to, so a command can print `🟡 3 unreleased` and the emoji reads `🟡`; with nothing rendered the button shows no emoji. A terminal tab takes the emoji the button shows when the tab opens and keeps it, as it keeps its name.
+- `labelRefreshOnHover: true` runs the action's commands, and those of its menu items and options, again when the pointer rests on its button, at most every 5 seconds, so the label and the prompt it opens are current. It needs a pointer, so lpm Link relies on the `labelRefresh` interval.
+- `lpm refresh-label <action>` does the same from a script, without the 5-second limit, and `lpm refresh-label` with no action refreshes every label in the project. Call it after a script changes what a label shows, for example at the end of a release script.
+- When a variable or command is empty, brackets and separators it leaves behind (`()`, `[]`, and `·`, `|`, `-`, `/`, `:` and similar standing alone between spaces) are dropped: with no tags, `Patch — bug fixes ({{git.nextPatch}})` reads `Patch — bug fixes`. When nothing is left, a label shows the action's key.
+- An unknown `{{name}}`, or a `$(` that never closes, shows as written, and `lpm config apply` warns about it. Input `{{key}}` tokens fill `cmd`, `cwd`, `env` and `prompt`, never a label.
+- The button, the prompt and lpm Link update by themselves: a new tag or branch shows within a few seconds, command output when it next runs, and ages as they tick over.
+- Edit forms show and save labels and emoji as written, never their current value.
 
 ## Zones
 
@@ -167,7 +218,7 @@ actions:
         placeholder: v1.0.0
 ```
 
-Input fields support `label` (defaults to the key), `type`, `required`, `placeholder`, `default`, `persist`, `options`, and `position`. Types are `text` (default), `password`, and `radio`. A radio input requires options, and its default must match an option value. Options may be strings or `{label, value}` mappings; a mapping needs both `label` and `value`, or the app drops every action in the file.
+Input fields support `label` (defaults to the key), `type`, `required`, `placeholder`, `default`, `persist`, `options`, and `position`. Types are `text` (default), `password`, and `radio`. A radio input requires options, and its default must match an option value. Options may be strings or `{label, value}` mappings; a mapping needs both `label` and `value`, or the app drops every action in the file. Input and option labels may hold variables and `$(…)` commands; see [Dynamic labels](#dynamic-labels).
 
 Inputs are prompted in `position` order, then in key order. Set `position` when the prompt order should follow the command rather than the alphabet; leave it off when key order already reads correctly.
 

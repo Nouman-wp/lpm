@@ -456,7 +456,9 @@ function structuralContext(get: AppGet, projectName: string): StructuralContext 
 // A top-level button with nothing of its own: what a project file's position
 // note shows once the button it placed is gone from the file declaring it.
 function isEmptyButton(action: ActionInfo): boolean {
-  return !action.cmd && !action.children?.length && !action.emoji && (!action.label || action.label === action.name);
+  const label = action.configLabel ?? action.label;
+  const emoji = action.configEmoji ?? action.emoji;
+  return !action.cmd && !action.children?.length && !emoji && (!label || label === action.name);
 }
 
 // Nesting a button declared in a shared file leaves behind the position notes

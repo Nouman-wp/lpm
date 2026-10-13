@@ -257,17 +257,20 @@ export function inputDraftsFromInfos(
 ): InputDraft[] {
   return (infos ?? []).map((info) =>
     newInputDraft(info.key, {
-      label: info.label === info.key ? "" : info.label,
+      label: (info.configLabel ?? info.label) === info.key ? "" : (info.configLabel ?? info.label),
       type: toInputType(info.type),
       required: Boolean(info.required),
       placeholder: info.placeholder ?? "",
       default: info.default ?? "",
       persist: Boolean(info.persist),
-      options: (info.options ?? []).map((option) => ({
-        id: crypto.randomUUID(),
-        label: option.label === option.value ? "" : option.label,
-        value: option.value,
-      })),
+      options: (info.options ?? []).map((option) => {
+        const label = option.configLabel ?? option.label;
+        return {
+          id: crypto.randomUUID(),
+          label: label === option.value ? "" : label,
+          value: option.value,
+        };
+      }),
     }),
   );
 }
