@@ -32,4 +32,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - Create an Automation — https://youtu.be/WWG_380qtXs
 - Run Any AI Coding Agent in lpm: Claude Code, Codex, Cursor, omp — https://youtu.be/mnmC5xABT_s
 - Auto Git Pull in lpm: The Complete Guide — https://youtu.be/eUaxQqogl0I
-- Dynamic Action Labels in lpm: Buttons That Show Live Info — https://youtu.be/dkvq4iToxJ0
+- Dynamic Action Labels in lpm: Buttons That Show Live Info — https://youtu.be/eZoi4xTNSlg

@@ -115,7 +115,7 @@ const LESSONS = {
     uploadDate: "2026-10-12T09:00:00+00:00",
   },
   "dynamic-action-labels": {
-    id: "dkvq4iToxJ0",
+    id: "eZoi4xTNSlg",
     name: "Dynamic Action Labels in lpm: Buttons That Show Live Info",
     description:
       "Make lpm's action buttons show live information: your last release and how long ago it was, the branch you're on, or anything a command prints.",

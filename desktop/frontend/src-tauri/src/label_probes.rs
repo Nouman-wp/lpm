@@ -6,7 +6,7 @@
 
 use crate::action_labels::{self, Ctx};
 use crate::config::{self, SshSettings};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -29,15 +29,23 @@ struct Probe {
     ssh: Option<SshSettings>,
     dir: String,
     script: String,
-    every: Duration,
     output: Option<String>,
     ran_at: Option<Instant>,
     running: bool,
     due: bool,
     seen: Instant,
-    /// (project, action id) pairs whose labels show this probe's output; a
-    /// built-in git query has no action.
-    owners: HashSet<(String, String)>,
+    /// (project, action id) pairs whose labels show this probe's output, each
+    /// with the interval its label asks for; a built-in git query has no action.
+    owners: HashMap<(String, String), Duration>,
+}
+
+impl Probe {
+    /// The shortest interval any label showing it asks for. Each label's own
+    /// entry is replaced on every listing, so a changed `labelRefresh` counts
+    /// from the next run.
+    fn every(&self) -> Duration {
+        self.owners.values().min().copied().unwrap_or(Duration::MAX)
+    }
 }
 
 fn probes() -> &'static Mutex<HashMap<String, Probe>> {
@@ -100,26 +108,24 @@ fn read(
         ssh: ssh.cloned(),
         dir,
         script,
-        every,
         output: None,
         ran_at: None,
         running: false,
         due: true,
         seen: Instant::now(),
-        owners: HashSet::new(),
+        owners: HashMap::new(),
     });
     probe.seen = Instant::now();
-    probe.every = probe.every.min(every);
     probe
         .owners
-        .insert((owner.0.to_string(), owner.1.to_string()));
+        .insert((owner.0.to_string(), owner.1.to_string()), every);
     probe.output.clone().unwrap_or_default()
 }
 
 /// Run the project's label commands again now, after one of its actions ran.
 pub fn refresh_project(project: &str) {
     for probe in probes().lock().unwrap().values_mut() {
-        if probe.owners.iter().any(|(p, _)| p == project) {
+        if probe.owners.keys().any(|(p, _)| p == project) {
             probe.due = true;
         }
     }
@@ -129,7 +135,7 @@ fn owned_by(probe: &Probe, project: &str, action: &str) -> bool {
     let nested = format!("{action}:");
     probe
         .owners
-        .iter()
+        .keys()
         .any(|(p, a)| p == project && (a == action || a.starts_with(&nested)))
 }
 
@@ -212,7 +218,7 @@ fn run_due() {
     let free = MAX_RUNNING.saturating_sub(probes.values().filter(|p| p.running).count());
     let due: Vec<String> = probes
         .iter()
-        .filter(|(_, p)| !p.running && (p.due || p.ran_at.is_none_or(|t| t.elapsed() >= p.every)))
+        .filter(|(_, p)| !p.running && (p.due || p.ran_at.is_none_or(|t| t.elapsed() >= p.every())))
         .map(|(key, _)| key.clone())
         .take(free)
         .collect();

@@ -39,13 +39,33 @@ fn a_probe_is_shared_and_refreshed_by_project() {
     {
         let mut probes = probes().lock().unwrap();
         let probe = probes.get_mut(key).unwrap();
-        assert_eq!(probe.every, Duration::from_secs(30));
-        assert!(probe.owners.contains(&("p1".into(), "a".into())));
-        assert!(probe.owners.contains(&("p2".into(), "a".into())));
+        assert_eq!(probe.every(), Duration::from_secs(30));
+        assert!(probe.owners.contains_key(&("p1".into(), "a".into())));
+        assert!(probe.owners.contains_key(&("p2".into(), "a".into())));
         probe.due = false;
     }
     refresh_project("p2");
     assert!(probes().lock().unwrap()[key].due);
+}
+
+#[test]
+fn a_changed_interval_replaces_the_old_one() {
+    let key = "\n/tmp/w\necho interval";
+    let listing = |every| {
+        read(
+            ("p", "stars"),
+            None,
+            "/tmp/w".into(),
+            "echo interval".into(),
+            every,
+        )
+    };
+    listing(Duration::from_secs(60));
+    listing(Duration::from_secs(600));
+    assert_eq!(
+        probes().lock().unwrap()[key].every(),
+        Duration::from_secs(600)
+    );
 }
 
 #[test]
