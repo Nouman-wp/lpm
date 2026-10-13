@@ -11,6 +11,7 @@ const PATTERN_VARIABLES: &[&str] = &[
 
 pub(super) fn validate_action_label(map: &Mapping, path: &str, report: &mut Report) {
     validate_bool_field(map, "labelRefreshOnHover", path, report);
+    validate_bool_field(map, "labelRefreshOnChange", path, report);
     validate_every(map, path, report);
     for field in ["label", "emoji"] {
         validate_text(map, field, path, report);
@@ -157,6 +158,7 @@ mod tests {
             "    emoji: '$([ -n \"$(git log \"$(git describe --tags)\"..HEAD)\" ] && echo 🟡 || echo 🟢)'\n",
             "    labelRefresh: 5m\n",
             "    labelRefreshOnHover: true\n",
+            "    labelRefreshOnChange: true\n",
             "    inputs:\n",
             "      bump:\n",
             "        label: Release from {{git.branch}}\n",
@@ -229,6 +231,7 @@ mod tests {
         let report = report_for(concat!(
             "    cmd: x\n",
             "    labelRefreshOnHover: yes please\n",
+            "    labelRefreshOnChange: 1\n",
             "    labelCmd: git describe\n",
             "    emojiCmd: ./pending.sh\n",
             "    inputs:\n",
@@ -241,6 +244,7 @@ mod tests {
         ));
         for expected in [
             "release.labelRefreshOnHover",
+            "release.labelRefreshOnChange",
             "release.labelCmd: unknown",
             "release.emojiCmd: unknown",
             "options[0].labelCmd: unknown",

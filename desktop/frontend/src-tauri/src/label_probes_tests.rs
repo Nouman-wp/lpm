@@ -98,3 +98,46 @@ fn hovering_refreshes_the_action_and_its_menu_unless_it_just_ran() {
     refresh_action("hp", "rel", Duration::ZERO);
     assert!(probes().lock().unwrap()[keys[0]].due);
 }
+
+#[test]
+fn a_change_reruns_the_commands_but_defers_one_that_just_ran() {
+    let every = Duration::from_secs(60);
+    for (action, script) in [
+        ("todos", "echo c1"),
+        ("todos:open", "echo c2"),
+        ("other", "echo c3"),
+    ] {
+        read(("cp", action), None, "/tmp/c".into(), script.into(), every);
+    }
+    let keys = [
+        "\n/tmp/c\necho c1",
+        "\n/tmp/c\necho c2",
+        "\n/tmp/c\necho c3",
+    ];
+    for key in keys {
+        let mut probes = probes().lock().unwrap();
+        let probe = probes.get_mut(key).unwrap();
+        probe.due = false;
+        probe.ran_at = Some(Instant::now() - CHANGE_GAP);
+    }
+    assert!(refresh_for_change("cp", "todos"));
+    let due: Vec<bool> = keys
+        .iter()
+        .map(|k| probes().lock().unwrap()[*k].due)
+        .collect();
+    assert_eq!(due, [true, true, false]);
+
+    for key in &keys[..2] {
+        let mut probes = probes().lock().unwrap();
+        let probe = probes.get_mut(*key).unwrap();
+        probe.due = false;
+        probe.ran_at = Some(Instant::now());
+    }
+    assert!(!refresh_for_change("cp", "todos"));
+    assert!(!probes().lock().unwrap()[keys[0]].due);
+
+    probes().lock().unwrap().get_mut(keys[0]).unwrap().running = true;
+    probes().lock().unwrap().get_mut(keys[1]).unwrap().ran_at = Some(Instant::now() - CHANGE_GAP);
+    assert!(refresh_for_change("cp", "todos"));
+    assert!(probes().lock().unwrap()[keys[0]].due);
+}

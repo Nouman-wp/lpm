@@ -77,6 +77,9 @@ fn apply_one(ctx: &Ctx, a: &mut ActionInfo) {
         env: &a.env,
         every: parse_every(&a.label_refresh),
     };
+    if a.label_refresh_on_change && ctx.ssh.is_none() {
+        crate::label_watch::watch(ctx.project, &a.name, ctx.root);
+    }
     if let Some(label) = owner.finish(&a.label, key_of(&a.name)) {
         a.config_label = std::mem::replace(&mut a.label, label);
     }

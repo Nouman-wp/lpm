@@ -14,7 +14,7 @@ function fieldsOf(def: Def): string[] {
 
 const ACTION_FIELDS = [
   "actions", "cmd", "color", "confirm", "cwd", "display", "emoji", "env", "inputs", "label",
-  "labelRefresh", "labelRefreshOnHover", "layer", "mode", "port", "portConflict", "position", "primary", "prompt", "reuse", "shortcut",
+  "labelRefresh", "labelRefreshOnChange", "labelRefreshOnHover", "layer", "mode", "port", "portConflict", "position", "primary", "prompt", "reuse", "shortcut",
   "type",
 ].sort();
 

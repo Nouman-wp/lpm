@@ -114,6 +114,13 @@ const LESSONS = {
       "Everything auto pull in lpm can do, step by step: turn it on from the Pull button for one project or all of them, watch a teammate's commit pull in by itself, undo any pull from its note or the Git menu, see when it waits (uncommitted changes, unpushed commits, an agent at work), turn it off for one copy, and set Off, Chosen or All in Settings.",
     uploadDate: "2026-10-12T09:00:00+00:00",
   },
+  "dynamic-action-labels": {
+    id: "dkvq4iToxJ0",
+    name: "Dynamic Action Labels in lpm: Buttons That Show Live Info",
+    description:
+      "Make lpm's action buttons show live information: your last release and how long ago it was, the branch you're on, or anything a command prints.",
+    uploadDate: "2026-10-13T09:00:00+00:00",
+  },
   "sixty-seconds": {
     id: "H46vW5DPbZk",
     name: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",

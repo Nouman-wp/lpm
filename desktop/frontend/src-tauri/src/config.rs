@@ -1120,6 +1120,8 @@ struct ActionFull {
     label_refresh: String,
     #[serde(rename = "labelRefreshOnHover", default)]
     label_refresh_on_hover: bool,
+    #[serde(rename = "labelRefreshOnChange", default)]
+    label_refresh_on_change: bool,
     #[serde(default)]
     emoji: String,
     #[serde(default)]
@@ -1784,6 +1786,8 @@ pub struct ActionInfo {
     pub label_refresh: String,
     #[serde(rename = "labelRefreshOnHover", skip_serializing_if = "std::ops::Not::not")]
     pub label_refresh_on_hover: bool,
+    #[serde(skip)]
+    pub label_refresh_on_change: bool,
     /// The emoji as written, present (even empty) only when `emoji` was
     /// rendered, so an edit form never saves a command's emoji as the fallback.
     #[serde(rename = "configEmoji", skip_serializing_if = "Option::is_none")]
@@ -1896,6 +1900,9 @@ fn merge_action(d: &mut ActionFull, s: &ActionFull) {
     }
     if !d.label_refresh_on_hover {
         d.label_refresh_on_hover = s.label_refresh_on_hover;
+    }
+    if !d.label_refresh_on_change {
+        d.label_refresh_on_change = s.label_refresh_on_change;
     }
     if d.emoji.is_empty() {
         d.emoji = s.emoji.clone();
@@ -2250,6 +2257,7 @@ fn action_to_info(id: &str, name: &str, act: &ActionFull) -> ActionInfo {
         config_label: String::new(),
         label_refresh: act.label_refresh.clone(),
         label_refresh_on_hover: act.label_refresh_on_hover,
+        label_refresh_on_change: act.label_refresh_on_change,
         config_emoji: None,
         emoji: act.emoji.clone(),
         color: act.color.clone(),
@@ -3474,7 +3482,7 @@ mod action_lookup_tests {
     #[test]
     fn label_refresh_reads_a_number_and_is_inherited() {
         let y: ActionsYaml = serde_norway::from_str(
-            "actions:\n  ver:\n    label: Ver $(git describe)\n    labelRefresh: 30\n    labelRefreshOnHover: true\n  odd:\n    cmd: x\n    labelRefresh: [1]\n",
+            "actions:\n  ver:\n    label: Ver $(git describe)\n    labelRefresh: 30\n    labelRefreshOnHover: true\n    labelRefreshOnChange: true\n  odd:\n    cmd: x\n    labelRefresh: [1]\n",
         )
         .unwrap();
         let shared = build_layer(&y);
@@ -3488,9 +3496,10 @@ mod action_lookup_tests {
         let info = action_to_info("ver", "ver", &project);
         assert_eq!(info.label, "Ver $(git describe)");
         assert_eq!(info.label_refresh, "30");
+        assert!(info.label_refresh_on_change);
         let json = serde_json::to_value(&info).unwrap();
         assert_eq!(json["labelRefreshOnHover"], true);
-        for key in ["labelRefresh", "configLabel", "configEmoji"] {
+        for key in ["labelRefresh", "labelRefreshOnChange", "configLabel", "configEmoji"] {
             assert!(json.get(key).is_none(), "{key}");
         }
     }

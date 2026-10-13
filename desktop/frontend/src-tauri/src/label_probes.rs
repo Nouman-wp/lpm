@@ -23,6 +23,7 @@ const REMOTE_GIT_EVERY: Duration = Duration::from_secs(60);
 const MAX_RUNNING: usize = 4;
 const MAX_CHARS: usize = 60;
 const HOVER_GAP: Duration = Duration::from_secs(5);
+const CHANGE_GAP: Duration = Duration::from_secs(2);
 
 struct Probe {
     ssh: Option<SshSettings>,
@@ -124,19 +125,41 @@ pub fn refresh_project(project: &str) {
     }
 }
 
+fn owned_by(probe: &Probe, project: &str, action: &str) -> bool {
+    let nested = format!("{action}:");
+    probe
+        .owners
+        .iter()
+        .any(|(p, a)| p == project && (a == action || a.starts_with(&nested)))
+}
+
 /// Run the label commands of `action` and the items in its menu again now,
 /// unless they ran within `gap`.
 fn refresh_action(project: &str, action: &str, gap: Duration) {
-    let nested = format!("{action}:");
     for probe in probes().lock().unwrap().values_mut() {
-        let owned = probe
-            .owners
-            .iter()
-            .any(|(p, a)| p == project && (a == action || a.starts_with(&nested)));
-        if owned && probe.ran_at.is_none_or(|t| t.elapsed() >= gap) {
+        if owned_by(probe, project, action) && probe.ran_at.is_none_or(|t| t.elapsed() >= gap) {
             probe.due = true;
         }
     }
+}
+
+/// Run the label commands of `action` and its menu again for a change in the
+/// project's files. False when one ran a moment ago: a command that writes into
+/// the project mustn't rerun itself in a loop, and the caller asks again later
+/// instead of dropping the change. A run in progress reruns once it ends.
+pub(crate) fn refresh_for_change(project: &str, action: &str) -> bool {
+    let mut settled = true;
+    for probe in probes().lock().unwrap().values_mut() {
+        if !owned_by(probe, project, action) {
+            continue;
+        }
+        if probe.running || probe.ran_at.is_none_or(|t| t.elapsed() >= CHANGE_GAP) {
+            probe.due = true;
+        } else {
+            settled = false;
+        }
+    }
+    settled
 }
 
 /// Hovering a `labelRefreshOnHover` button.
@@ -168,6 +191,7 @@ pub fn start(app: AppHandle) {
         let mut tick: u32 = 0;
         loop {
             std::thread::sleep(TICK);
+            crate::label_watch::flush();
             run_due();
             tick = tick.wrapping_add(1);
             if tick.is_multiple_of(WATCH_TICKS)

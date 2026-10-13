@@ -1485,14 +1485,14 @@ fn relative_to<'a>(root: &str, full: &'a str) -> Option<Cow<'a, str>> {
 /// asked to watch, and a canonical one there is a `\\?\` path that the
 /// frontend, matching events by the project's root, would never recognise.
 #[cfg(not(windows))]
-fn watch_root(path: String) -> String {
+pub(crate) fn watch_root(path: String) -> String {
     std::fs::canonicalize(&path)
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or(path)
 }
 
 #[cfg(windows)]
-fn watch_root(path: String) -> String {
+pub(crate) fn watch_root(path: String) -> String {
     path
 }
 

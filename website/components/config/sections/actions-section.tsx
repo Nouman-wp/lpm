@@ -7,6 +7,7 @@ import {
   ACTIONS_PRIMARY_EXAMPLE,
   ACTIONS_SHORTHAND_EXAMPLE,
 } from "@/app/config/examples";
+import { YouTubeVideo } from "@/components/youtube-video";
 import { actionFields } from "../action-fields-data";
 import { Callout } from "../callout";
 import { FieldTable } from "../field-table";
@@ -70,6 +71,19 @@ export function ActionsSection() {
         <code className="font-mono">sync</code>). The app&rsquo;s action
         editor sets most of them for you.
       </Lede>
+
+      <Lede title="Dynamic labels." className="mt-4 mb-3">
+        A label can keep itself current: your last release and how long ago
+        it was with <code className="font-mono">{"{{git.tag}}"}</code>{" "}and{" "}
+        <code className="font-mono">{"{{git.tagAge}}"}</code>, or whatever a
+        command prints with <code className="font-mono">$(…)</code>, refreshed
+        on a timer or the moment the code changes. The lesson below sets one
+        up and has Claude Code add another:
+      </Lede>
+      <YouTubeVideo
+        lesson="dynamic-action-labels"
+        className="mb-6 rounded-xl ring-1 ring-black/5 dark:ring-white/10"
+      />
 
       <Lede title="Shorthand.">
         If all your action needs is a command, write it as a single line — the

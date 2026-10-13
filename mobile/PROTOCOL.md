@@ -724,8 +724,8 @@ actions: [ActionInfo]     // recursive: { name (composite parent:child), label, 
                           // `inputs[].options[].label`, each with its own `configLabel`. The Mac emits
                           // `projects-changed` when a rendered label moves (a new tag or branch, new command
                           // output, an age ticking over), so the phone redraws by refetching `projects`.
-                          // Editors read `actionBody`, which keeps the templates, and `labelRefresh`/`labelRefreshOnHover`
-                          // ride along as unmanaged keys. `labelRefreshOnHover: true` asks a pointer-driven client to
+                          // Editors read `actionBody`, which keeps the templates, and `labelRefresh`/`labelRefreshOnHover`/
+                          // `labelRefreshOnChange` ride along as unmanaged keys (the Mac watches files itself). `labelRefreshOnHover: true` asks a pointer-driven client to
                           // rerun the action's commands when hovered; the phone has no hover and ignores it
 ```
 

@@ -24,7 +24,12 @@ import {
   SSH_TERMINAL_MAC_PATH,
   WORKTREE_AGENTS_PATH,
 } from "@/lib/links";
-import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
+import {
+  breadcrumbJsonLd,
+  jsonLdString,
+  webPageJsonLd,
+  youtubeLessonJsonLd,
+} from "@/lib/structured-data";
 
 const TITLE = "lpm Config Reference — Services, Actions & Profiles";
 const DESCRIPTION =
@@ -67,6 +72,7 @@ const structuredData = [
     { name: "Home", path: "/" },
     { name: "Config reference", path: CONFIG_PATH },
   ]),
+  youtubeLessonJsonLd("dynamic-action-labels"),
 ];
 
 const RELATED: RelatedLink[] = [

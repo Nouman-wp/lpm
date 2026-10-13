@@ -1054,6 +1054,7 @@ fn validate_action(
             "label",
             "labelRefresh",
             "labelRefreshOnHover",
+            "labelRefreshOnChange",
             "emoji",
             "color",
             "shortcut",

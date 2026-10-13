@@ -169,6 +169,10 @@ const LESSON_CAPTION: Record<
     heading: "Your projects pull your teammates' commits by themselves",
     blurb: "A walkthrough: turn on auto pull, undo a pull, and see when it waits for your work.",
   },
+  "dynamic-action-labels": {
+    heading: "Buttons that show your last release, and update themselves",
+    blurb: "A short video: put Git facts and a command's output in a label, and watch it change as the code does.",
+  },
 };
 
 function DesktopOnlyPrompt({

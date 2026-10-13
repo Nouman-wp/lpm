@@ -100,6 +100,7 @@ mod kokoro_venv;
 mod label_git;
 mod label_probes;
 mod label_template;
+mod label_watch;
 mod lesson;
 mod lifecycle;
 mod log_streaming;
