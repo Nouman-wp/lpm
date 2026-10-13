@@ -1,12 +1,29 @@
 // DOM helpers for the contentEditable terminal composer. Image references are
 // rendered as atomic, non-editable "chips" so a token can only be selected or
 // removed as a whole — never split mid-text — and serialized back to the
-// `[Image #N]` placeholders the rest of the app expects.
+// `[Image #N]` placeholders the rest of the app expects. The field's DOM is kept
+// flat and anchored around chips (composerCanon.ts).
 
 import { basename } from "../path";
 import { isImagePath } from "../composerValue";
 import { ansiColors } from "./terminal-utils";
 import type { ComposerClipboardPayload } from "./composerClipboard";
+import {
+  chipToken,
+  isChip,
+  isStrayOnly,
+  partsToText,
+  pointOffset,
+  readParts,
+  serializedPrefix,
+} from "./composerDom";
+import {
+  anchorEditor,
+  canonicalizeEditor,
+  canonicalizeSelection,
+  setCaretAtOffset,
+} from "./composerCanon";
+import { adjacentUnit, chipBeside, insertPlainText, unitAt } from "./composerEditKeys";
 
 export { EMPTY_COMPOSER, isImagePath } from "../composerValue";
 export type { ComposerImage, ComposerValue } from "../composerValue";
@@ -20,8 +37,9 @@ const IMAGE_TOKEN_RE = /\[Image #(\d+)\]/g;
 // Shared visual base for an image chip, so the editable composer chip and the
 // read-only history chip (MessageImageChip) can't drift apart. Each site layers
 // its own interaction classes (group/cursor/hover) on top.
-export const IMAGE_CHIP_CLASS =
-  "inline-flex select-none items-center gap-1.5 rounded-lg bg-[#38bdf8]/20 py-0.5 pl-0.5 pr-2 align-middle text-[12px] font-medium leading-4 text-[#38bdf8]";
+const IMAGE_CHIP_BASE_CLASS =
+  "inline-flex items-center gap-1.5 rounded-lg bg-[#38bdf8]/20 py-0.5 pl-0.5 pr-2 align-middle text-[12px] font-medium leading-4 text-[#38bdf8]";
+export const IMAGE_CHIP_CLASS = `select-none ${IMAGE_CHIP_BASE_CLASS}`;
 export const IMAGE_CHIP_THUMB_CLASS =
   "relative h-[18px] w-[18px] shrink-0 overflow-hidden rounded-md bg-[var(--bg-secondary)] ring-1 ring-inset ring-black/15";
 // A file chip's label is the dropped file's basename, which can run long; cap its
@@ -34,7 +52,9 @@ export const FILE_CHIP_LABEL_CLASS = "max-w-[160px] truncate";
 // N" pill, modernized: a real thumbnail avatar leads (a muted glyph until it
 // loads via setChipThumbnail). Hovering the chip swaps the avatar for a remove
 // "×" overlay — click it to drop the attachment; click the label to preview it.
-const CHIP_CLASS = `group ${IMAGE_CHIP_CLASS} cursor-zoom-in transition-colors hover:bg-[#38bdf8]/30`;
+// Unlike the history chip it stays selectable, so a selection over it paints the
+// chip as selected.
+const CHIP_CLASS = `group ${IMAGE_CHIP_BASE_CLASS} cursor-zoom-in transition-colors hover:bg-[#38bdf8]/30`;
 
 const THUMB_CLASS = `${IMAGE_CHIP_THUMB_CLASS} cursor-pointer text-[var(--text-secondary)] transition-colors hover:text-[var(--accent-red)]`;
 
@@ -54,6 +74,8 @@ const VIDEO_ICON =
   '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-opacity group-hover:opacity-0"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>';
 const AUDIO_ICON =
   '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-opacity group-hover:opacity-0"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+const FOLDER_ICON =
+  '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-opacity group-hover:opacity-0"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
 const VIDEO_EXT_RE = /\.(mp4|mov|webm|mkv|avi|m4v|flv|wmv|mpe?g)$/i;
 const AUDIO_EXT_RE = /\.(mp3|wav|m4a|aac|flac|ogg|oga|opus|aiff?)$/i;
 
@@ -103,6 +125,26 @@ export function renderFileChip(chip: HTMLElement, path: string): void {
   }
 }
 
+// A file chip whose path turned out to be a folder takes the folder glyph.
+export function renderFolderChip(chip: HTMLElement): void {
+  const ph = chip.querySelector<HTMLElement>("[data-img-ph]");
+  if (ph) ph.innerHTML = FOLDER_ICON;
+  chip.querySelector("[data-img-remove]")?.setAttribute("title", "Remove folder");
+}
+
+// Number the image chips 1, 2, 3… in field order. The "[Image #N]" token stays
+// the attachment's stable id; the label is only what the user reads, so it
+// restarts with every prompt and isn't consumed by non-image files.
+export function relabelImageChips(root: HTMLElement, isImage: (chip: HTMLElement) => boolean): void {
+  let n = 0;
+  root.querySelectorAll<HTMLElement>("[data-img]").forEach((chip) => {
+    if (chip.dataset.file === "1" || !isImage(chip)) return;
+    n += 1;
+    const label = chip.querySelector<HTMLElement>("[data-img-label]");
+    if (label && label.textContent !== `Image ${n}`) label.textContent = `Image ${n}`;
+  });
+}
+
 // Fill a chip's thumbnail avatar with its loaded image, dropping the placeholder
 // glyph. The <img> sits under the hover "×" overlay and ignores pointer events,
 // so a click resolves to the avatar (remove). No-op if already set.
@@ -115,38 +157,15 @@ export function setChipThumbnail(chip: HTMLElement, dataUrl: string): void {
   img.draggable = false;
   img.className =
     "pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity group-hover:opacity-0";
+  const ph = slot.querySelector<HTMLElement>("[data-img-ph]");
+  // A file named like an image that doesn't decode keeps the image glyph rather
+  // than WebKit's broken-image box.
+  img.onerror = () => {
+    img.remove();
+    if (ph && !ph.isConnected) slot.insertBefore(ph, slot.firstChild);
+  };
   slot.insertBefore(img, slot.firstChild);
-  slot.querySelector("[data-img-ph]")?.remove();
-}
-
-function isChip(node: Node | null): node is HTMLElement {
-  return node instanceof HTMLElement && node.dataset.img !== undefined;
-}
-
-// Invisible residue wedged against a chip: zero-length text nodes WebKit leaves
-// after editing, plus the zero-width-space caret anchor we park after a trailing
-// chip (see ensureTrailingCaretAnchor). Skip both so chip lookup finds the chip
-// behind them — but never a visible whitespace separator, which stays.
-function skipEmptyText(node: Node | null, dir: "prev" | "next"): Node | null {
-  while (isStrayOnlyText(node)) {
-    node = dir === "prev" ? node.previousSibling : node.nextSibling;
-  }
-  return node;
-}
-
-// The chip immediately before a (container, offset) position, skipping empty
-// text residue. Shared by chipBeforeCaret and insertItemsAtCaret's separator.
-function chipBeforePoint(container: Node, offset: number): HTMLElement | null {
-  let node: Node | null;
-  if (container.nodeType === Node.TEXT_NODE) {
-    // Anything real before the caret means the chip isn't adjacent; a stray-only
-    // prefix (the caret anchor parked after a chip) is residue to look past.
-    if (!isStrayOnly((container.nodeValue ?? "").slice(0, offset))) return null;
-    node = skipEmptyText(container.previousSibling, "prev");
-  } else {
-    node = skipEmptyText(container.childNodes[offset - 1] ?? null, "prev");
-  }
-  return isChip(node) ? node : null;
+  ph?.remove();
 }
 
 // True when the field shows nothing at all (drives the placeholder). Uses the
@@ -158,133 +177,12 @@ export function isEditorEmpty(root: HTMLElement): boolean {
   );
 }
 
-// Zero-width/format characters, the object-replacement char, and C0/C1 control
-// codes (except tab and newline) that should never be part of composer text.
-// WebKit can leave these behind when the caret navigates around a chip.
-const STRAY_CHARS_RE =
-  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u200B\u2060\uFEFF\uFFFC]/g;
-
-const STRAY_CHARS_TEST = new RegExp(STRAY_CHARS_RE.source);
-
-const ZWSP = "\u200B";
-
-// True when `str` holds no visible content — empty once stray/zero-width
-// characters (WebKit's tofu residue and the caret-anchor ZWSP) are stripped.
-function isStrayOnly(str: string): boolean {
-  return str.replace(STRAY_CHARS_RE, "").length === 0;
-}
-
-// A text node holding nothing but stray/zero-width characters — invisible
-// residue, including the caret anchor we park after a trailing chip.
-function isStrayOnlyText(node: Node | null): node is Text {
-  return (
-    node != null &&
-    node.nodeType === Node.TEXT_NODE &&
-    isStrayOnly(node.nodeValue ?? "")
-  );
-}
-
-// A WebKit filler <br>: invisible residue left after a chip when the text in
-// front of it is deleted. Carries no value (serializeEditor treats a trailing
-// <br> as padding) but blocks the caret from anchoring after the chip.
-function isFillerBr(node: Node | null): node is HTMLElement {
-  return node instanceof HTMLElement && node.tagName === "BR";
-}
-
-// Strip stray characters from the live editor DOM (not just at serialize time),
-// keeping the collapsed caret in place. WebKit injects these when the caret
-// moves around a contenteditable=false chip; this removes the visible "tofu"
-// boxes from the field itself. Returns true if anything changed.
-export function normalizeStrayChars(root: HTMLElement): boolean {
-  if (!STRAY_CHARS_TEST.test(root.textContent ?? "")) return false;
-  const sel = window.getSelection();
-  const anchorNode = sel && sel.rangeCount > 0 ? sel.anchorNode : null;
-  const anchorOffset = sel ? sel.anchorOffset : 0;
-  let newAnchorOffset = anchorOffset;
-  let changed = false;
-
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const nodes: Text[] = [];
-  for (let t = walker.nextNode(); t; t = walker.nextNode())
-    nodes.push(t as Text);
-
-  for (const node of nodes) {
-    const val = node.nodeValue ?? "";
-    // Keep the caret anchor parked after a chip that ends its line block (a lone
-    // ZWSP as the block's last node): stripping it would re-expose the WebKit
-    // caret-paint bug and leave an empty residue node behind. serializeEditor
-    // strips it anyway.
-    if (
-      val === ZWSP &&
-      node === node.parentNode?.lastChild &&
-      isChip(node.previousSibling)
-    )
-      continue;
-    const cleaned = val.replace(STRAY_CHARS_RE, "");
-    if (cleaned === val) continue;
-    if (node === anchorNode) {
-      // Pull the caret back by however many stray chars sat before it.
-      newAnchorOffset = val
-        .slice(0, anchorOffset)
-        .replace(STRAY_CHARS_RE, "").length;
-    }
-    node.nodeValue = cleaned;
-    changed = true;
-  }
-
-  if (changed && sel && anchorNode && root.contains(anchorNode)) {
-    const max =
-      anchorNode.nodeType === Node.TEXT_NODE
-        ? (anchorNode.nodeValue?.length ?? 0)
-        : anchorNode.childNodes.length;
-    try {
-      const range = document.createRange();
-      range.setStart(anchorNode, Math.min(newAnchorOffset, max));
-      range.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    } catch {}
-  }
-  return changed;
-}
-
-// Walk the editor and rebuild the plain-text value: text nodes verbatim (minus
-// stray characters), chips as `[Image #N]`, line breaks as "\n". WebKit parks a
-// placeholder <br> at the end of the field for caret visibility — skip it so it
-// doesn't add a phantom trailing newline. Also serializes a selection fragment
-// cloned out of the editor (selectionClipboardPayload).
+// Rebuild the plain-text value: text verbatim (minus stray characters and caret
+// anchors), chips as `[Image #N]`, line breaks as "\n" (readParts' rules). Also
+// serializes a selection fragment cloned out of the editor
+// (selectionClipboardPayload).
 export function serializeEditor(root: HTMLElement | DocumentFragment): string {
-  let out = "";
-  const visit = (parent: Node) => {
-    const children = Array.from(parent.childNodes);
-    children.forEach((node, idx) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        out += (node.nodeValue ?? "").replace(STRAY_CHARS_RE, "");
-        return;
-      }
-      if (!(node instanceof HTMLElement)) return;
-      if (node.dataset.img) {
-        out += `[Image #${node.dataset.img}]`;
-        return;
-      }
-      if (node.tagName === "BR") {
-        const isTrailingPad = parent === root && idx === children.length - 1;
-        if (!isTrailingPad) out += "\n";
-        return;
-      }
-      // The slash-command highlight is an inline wrapper, not a block: emit its
-      // text in place so the serialized value is identical to the unwrapped text.
-      if (node.dataset.cmd !== undefined) {
-        visit(node);
-        return;
-      }
-      // A block wrapper WebKit may introduce represents a new visual line.
-      if (out.length && !out.endsWith("\n")) out += "\n";
-      visit(node);
-    });
-  };
-  visit(root);
-  return out;
+  return partsToText(readParts(root));
 }
 
 // Split a serialized value into ordered segments of plain text and image tokens
@@ -328,6 +226,15 @@ export function selectionClipboardPayload(
     return null;
   const frag = range.cloneContents();
   if (!frag.querySelector("[data-img]")) return null;
+  return fragmentClipboardPayload(frag, imagePaths);
+}
+
+// A cloned piece of the editor as a clipboard payload: its serialized text plus
+// the token→path map for the chips it holds.
+export function fragmentClipboardPayload(
+  frag: DocumentFragment,
+  imagePaths: Map<number, string>,
+): ComposerClipboardPayload {
   const text = serializeEditor(frag);
   const images: Record<string, string> = {};
   for (const seg of splitByImageTokens(text)) {
@@ -366,6 +273,7 @@ export function setEditorContent(root: HTMLElement, value: string): void {
         : createImageChip(seg.image),
     );
   }
+  anchorEditor(root);
 }
 
 export function presentImageTokens(root: HTMLElement): Set<number> {
@@ -377,72 +285,17 @@ export function presentImageTokens(root: HTMLElement): Set<number> {
   return present;
 }
 
-// WebKit mispaints a caret placed immediately after a contenteditable=false chip
-// that ends its line block (it strands it at the line start, before the image).
-// Parking the caret inside a zero-width-space text node after the chip gives it a
-// real inline text position WebKit paints correctly. serializeEditor strips the
-// ZWSP and chip lookups treat it as residue, so it never affects value or
-// Backspace. `block` is the field itself for a first-line chip, or the wrapped
-// <div> for a later line. Returns the anchor node, or null when the block's last
-// node isn't a chip.
-function ensureTrailingCaretAnchor(block: HTMLElement): Text | null {
-  // Deleting the last text in front of a trailing chip can leave WebKit's bogus
-  // filler <br> after it ([chip]<br>); drop it so the chip is the real last node.
-  const tail = block.lastChild;
-  if (isFillerBr(tail) && isChip(tail.previousSibling)) {
-    tail.remove();
-  }
-  const last = block.lastChild;
-  if (isStrayOnlyText(last) && isChip(last.previousSibling)) {
-    last.nodeValue = ZWSP;
-    return last;
-  }
-  if (!isChip(block.lastChild)) return null;
-  const anchor = document.createTextNode(ZWSP);
-  block.appendChild(anchor);
-  return anchor;
-}
-
-// Whether the chip ends its own line — only a WebKit filler <br> or stray/anchor
-// residue follows it within its block. This is the caret-after-chip position
-// WebKit mispaints (stranding the caret at the line start, before the image), so
-// it needs the ZWSP anchor (placeCaretAfterChip).
-function isLineEndChip(node: Node): boolean {
-  for (let n = node.nextSibling; n; n = n.nextSibling) {
-    if (!isStrayOnlyText(n) && !isFillerBr(n)) return false;
-  }
-  return true;
-}
-
-// Seat the caret immediately after a chip, within the chip's own line block (the
-// whole field for a first-line chip, or the wrapped <div> WebKit creates for a
-// later line). A chip that ends its line triggers WebKit's caret mispaint, so
-// park a ZWSP after it (ensureTrailingCaretAnchor) and seat the caret in that
-// anchor — a real text position WebKit paints correctly. Falls back to
-// setStartAfter if the chip somehow isn't its block's last node.
-function placeCaretAfterChip(root: HTMLElement, chip: HTMLElement): void {
-  const block =
-    chip.parentElement && chip.parentElement !== root
-      ? chip.parentElement
-      : root;
-  const anchor = ensureTrailingCaretAnchor(block);
-  const sel = window.getSelection();
-  if (!sel) return;
-  const range = document.createRange();
-  if (anchor) range.setStart(anchor, anchor.nodeValue?.length ?? 0);
-  else range.setStartAfter(chip);
-  range.collapse(true);
-  sel.removeAllRanges();
-  sel.addRange(range);
-}
+const needsSpace = (ch: string | undefined) => ch !== undefined && !/\s/.test(ch);
 
 // Insert chips and/or text at the caret (falling back to the end of the field
-// when the selection is elsewhere, e.g. an OS drop). Items are space-separated;
-// no trailing space is added, so a single Backspace right after a chip removes
-// the whole chip instead of first eating a phantom space. Paste reconstruction
-// passes `separate: false` to keep its segment runs verbatim — except two
-// adjacent chips still get a separating space, so their tokens never serialize
-// touching (whose resolved paths would concatenate on send).
+// when the selection is elsewhere, e.g. an OS drop). Items are space-separated,
+// and a dropped chip gets a space from a word it would otherwise touch on either
+// side; no trailing space is added at a line end, so a single Backspace right
+// after a chip removes the whole chip instead of first eating a phantom space.
+// Paste reconstruction passes `separate: false` to keep its segment runs
+// verbatim — except two adjacent chips still get a separating space, so their
+// tokens never serialize touching (whose resolved paths would concatenate on
+// send).
 export function insertItemsAtCaret(
   root: HTMLElement,
   items: Array<HTMLElement | string>,
@@ -462,61 +315,55 @@ export function insertItemsAtCaret(
     range.collapse(false);
   }
   range.deleteContents();
+  const start = pointOffset(root, range.startContainer, range.startOffset);
 
-  // If we're dropping a chip right after an existing chip, separate them so they
-  // don't serialize as touching [Image #N][Image #M] (whose resolved file paths
-  // would concatenate on send). Plain text adjacent to a chip is left untouched.
-  const firstIsChip =
-    items[0] instanceof HTMLElement && items[0].dataset.img !== undefined;
-  const needsLeadingSpace =
-    firstIsChip &&
-    chipBeforePoint(range.startContainer, range.startOffset) !== null;
+  const isItemChip = (item: HTMLElement | string | undefined) =>
+    item instanceof HTMLElement && item.dataset.img !== undefined;
+  const before = unitAt(root, range.startContainer, range.startOffset, "backward").unit;
+  const after = unitAt(root, range.startContainer, range.startOffset, "forward").unit;
+  const value = serializeEditor(root);
+  const leadSpace = isItemChip(items[0])
+    ? before?.kind === "chip" || (separate && needsSpace(value[start - 1]))
+    : false;
+  const lastItem = items[items.length - 1];
+  const trailSpace = isItemChip(lastItem)
+    ? after?.kind === "chip" || (separate && needsSpace(value[start]))
+    : false;
 
   const frag = document.createDocumentFragment();
-  let lastNode: Node | null = null;
-  if (needsLeadingSpace) frag.appendChild(document.createTextNode(" "));
+  if (leadSpace) frag.appendChild(document.createTextNode(" "));
   let prevWasChip = false;
+  let length = leadSpace ? 1 : 0;
   items.forEach((item, i) => {
-    const itemIsChip =
-      typeof item !== "string" && item.dataset.img !== undefined;
-    if (i > 0 && (separate || (prevWasChip && itemIsChip)))
+    const itemIsChip = isItemChip(item);
+    if (i > 0 && (separate || (prevWasChip && itemIsChip))) {
       frag.appendChild(document.createTextNode(" "));
-    lastNode = typeof item === "string" ? document.createTextNode(item) : item;
-    frag.appendChild(lastNode);
+      length += 1;
+    }
+    frag.appendChild(typeof item === "string" ? document.createTextNode(item) : item);
+    length += typeof item === "string" ? item.length : chipToken(item).length;
     prevWasChip = itemIsChip;
   });
+  if (trailSpace) frag.appendChild(document.createTextNode(" "));
   range.insertNode(frag);
+  anchorEditor(root);
 
-  if (lastNode) {
-    const tail = lastNode;
-    const placeCaret = () => {
-      if (!root.contains(tail)) return;
-      // Don't pull focus back to a field the user has since left (a late async
-      // image save); callers that own the drop focus it before inserting.
-      if (!hadFocus && !focused()) return;
-      // Focus first: after an unfocused OS drop WebKit ignores a programmatic
-      // selection until the field is focused.
-      root.focus();
-      // A chip that ends its line needs the ZWSP anchor so the caret paints
-      // after the image instead of stranding at the line start (the bug when an
-      // image is dropped onto its own line); other runs take the caret right
-      // after the inserted content.
-      if (isChip(tail) && isLineEndChip(tail)) {
-        placeCaretAfterChip(root, tail);
-        return;
-      }
-      const after = document.createRange();
-      after.setStartAfter(tail);
-      after.collapse(true);
-      const live = window.getSelection();
-      live?.removeAllRanges();
-      live?.addRange(after);
-    };
-    placeCaret();
-    // The drop focuses the field late; re-applying once layout settles makes the
-    // painted caret match the (already correct) selection.
-    if (hadFocus) requestAnimationFrame(placeCaret);
-  }
+  const caretAt = start + length;
+  const placeCaret = () => {
+    // Don't pull focus back to a field the user has since left (a late async
+    // image save); callers that own the drop focus it before inserting.
+    if (!hadFocus && !focused()) return;
+    // Focus first: after an unfocused OS drop WebKit ignores a programmatic
+    // selection until the field is focused.
+    root.focus();
+    setCaretAtOffset(root, caretAt);
+  };
+  placeCaret();
+  // The drop focuses the field late; re-applying once layout settles makes the
+  // painted caret match the (already correct) selection.
+  if (hadFocus) requestAnimationFrame(() => {
+    if (serializeEditor(root).length >= caretAt) placeCaret();
+  });
 }
 
 // Select a whole chip so a click highlights all of it (and a following
@@ -548,7 +395,7 @@ export function selectedChip(root: HTMLElement): HTMLElement | null {
   let chips = 0;
   for (const node of Array.from(frag.childNodes)) {
     if (isChip(node)) chips += 1;
-    else if (!isStrayOnlyText(node)) return null;
+    else if (node.nodeType !== Node.TEXT_NODE || !isStrayOnly(node.nodeValue ?? "")) return null;
   }
   if (chips !== 1) return null;
   const n = frag.querySelector<HTMLElement>("[data-img]")?.dataset.img;
@@ -559,72 +406,31 @@ export function selectedChip(root: HTMLElement): HTMLElement | null {
 
 // Remove a chip and leave a collapsed caret where it was.
 export function removeChip(chip: HTMLElement): void {
-  const parent = chip.parentNode;
-  if (!parent) return;
-  const idx = Array.prototype.indexOf.call(parent.childNodes, chip);
-  // A trailing ZWSP caret anchor that exists only for this chip is now orphaned;
-  // drop it so an empty field reads as empty (placeholder) and leaves no residue.
-  const orphanAnchor =
-    isStrayOnlyText(chip.nextSibling) &&
-    chip.nextSibling === parent.lastChild &&
-    !isChip(chip.previousSibling)
-      ? chip.nextSibling
-      : null;
-  chip.remove();
-  orphanAnchor?.remove();
-  const sel = window.getSelection();
-  if (!sel) return;
-  const range = document.createRange();
-  range.setStart(parent, Math.min(idx, parent.childNodes.length));
-  range.collapse(true);
-  sel.removeAllRanges();
-  sel.addRange(range);
-  // Programmatic removal fires no input event, so re-anchor here too: deleting
-  // the last text/chip in front of another trailing chip would otherwise strand
-  // the caret before it (the WebKit mispaint). No-ops unless a chip is trailing.
-  if (parent instanceof HTMLElement) restoreTrailingChipCaret(parent);
-}
-
-// The chip immediately before a collapsed caret, if any (for Backspace).
-export function chipBeforeCaret(root: HTMLElement): HTMLElement | null {
-  const sel = window.getSelection();
-  if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return null;
-  const r = sel.getRangeAt(0);
-  if (!root.contains(r.startContainer)) return null;
-  return chipBeforePoint(r.startContainer, r.startOffset);
-}
-
-// The chip immediately after a collapsed caret, if any (for Delete).
-export function chipAfterCaret(root: HTMLElement): HTMLElement | null {
-  const sel = window.getSelection();
-  if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return null;
-  const r = sel.getRangeAt(0);
-  if (!root.contains(r.startContainer)) return null;
-  let node: Node | null;
-  if (r.startContainer.nodeType === Node.TEXT_NODE) {
-    const text = r.startContainer.nodeValue ?? "";
-    // Caret parked in the trailing stray anchor after a chip: nothing real lies
-    // ahead, so forward-Delete targets the chip behind the anchor — symmetric
-    // with Backspace, which chipBeforeCaret already resolves from this spot.
-    if (
-      isStrayOnly(text.slice(r.startOffset)) &&
-      skipEmptyText(r.startContainer.nextSibling, "next") === null
-    ) {
-      node = isStrayOnly(text.slice(0, r.startOffset))
-        ? skipEmptyText(r.startContainer.previousSibling, "prev")
-        : null;
-    } else if (r.startOffset < text.length) {
-      return null;
-    } else {
-      node = skipEmptyText(r.startContainer.nextSibling, "next");
-    }
-  } else {
-    node = skipEmptyText(
-      r.startContainer.childNodes[r.startOffset] ?? null,
-      "next",
-    );
+  const root = chip.closest<HTMLElement>("[contenteditable='true']");
+  if (!root) {
+    chip.remove();
+    return;
   }
-  return isChip(node) ? node : null;
+  const at = pointOffset(root, chip, 0);
+  chip.remove();
+  setCaretAtOffset(root, at);
+}
+
+// The chip immediately before a collapsed caret, if any (for Backspace). Caret
+// anchors between them don't count.
+export function chipBeforeCaret(root: HTMLElement): HTMLElement | null {
+  return chipBeside(root, "backward");
+}
+
+// The chip immediately after a collapsed caret, if any (for Delete). At the very
+// end of the field, past a trailing chip, nothing real lies ahead, so
+// forward-Delete targets the chip behind the caret — symmetric with Backspace.
+export function chipAfterCaret(root: HTMLElement): HTMLElement | null {
+  const ahead = adjacentUnit(root, "forward");
+  if (!ahead) return null;
+  if (ahead.unit?.kind === "chip") return ahead.unit.chip;
+  if (ahead.unit) return null;
+  return chipBeside(root, "backward");
 }
 
 export interface CaretEdges {
@@ -646,183 +452,54 @@ export function caretEdges(root: HTMLElement): CaretEdges {
   ) {
     return { collapsed: false, atStart: false, atEnd: false };
   }
-  const isEmptyRange = (configure: (r: Range) => void) => {
-    const r = document.createRange();
-    r.selectNodeContents(root);
-    configure(r);
-    const frag = r.cloneContents();
-    return (
-      (frag.textContent ?? "").length === 0 && !frag.querySelector("[data-img]")
-    );
-  };
+  const start = pointOffset(root, range.startContainer, range.startOffset);
+  const end = pointOffset(root, range.endContainer, range.endOffset);
   return {
     collapsed: sel.isCollapsed,
-    atStart: isEmptyRange((r) =>
-      r.setEnd(range.startContainer, range.startOffset),
-    ),
-    atEnd: isEmptyRange((r) => r.setStart(range.endContainer, range.endOffset)),
+    atStart: start === 0,
+    atEnd: end === serializeEditor(root).length,
   };
 }
 
 export function placeCaretAtEnd(root: HTMLElement): void {
-  const anchor = ensureTrailingCaretAnchor(root);
-  const sel = window.getSelection();
-  if (!sel) return;
-  const range = document.createRange();
-  if (anchor) {
-    range.setStart(anchor, anchor.nodeValue?.length ?? 0);
-    range.collapse(true);
-  } else {
-    range.selectNodeContents(root);
-    range.collapse(false);
-  }
-  sel.removeAllRanges();
-  sel.addRange(range);
+  setCaretAtOffset(root, serializeEditor(root).length);
 }
 
-// True when the field holds visible text outside any chip. Lets a caret that
-// legitimately sits before a trailing chip (real text precedes it) be told apart
-// from a chips-only field, where the caret can only belong after the chip.
-function hasTextOutsideChips(root: HTMLElement): boolean {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  for (let t = walker.nextNode(); t; t = walker.nextNode()) {
-    if ((t as Text).parentElement?.closest("[data-img]")) continue;
-    if (!isStrayOnly(t.nodeValue ?? "")) return true;
-  }
-  return false;
-}
-
-// After an edit deletes the text in front of a trailing chip, WebKit strands the
-// caret before the chip — the same mispaint ensureTrailingCaretAnchor hides,
-// re-exposed because the ZWSP anchor was deleted along with the text. Re-anchor
-// (restoring the ZWSP) when the caret belongs after the trailing chip: either it
-// already sits at the end, or the field is chips-only so there is nothing else
-// it could edit (WebKit moves the real caret to the field start here, not just
-// the paint). Editing text *before* a trailing chip is left untouched. Returns
-// true if it re-anchored.
-export function restoreTrailingChipCaret(root: HTMLElement): boolean {
-  const sel = window.getSelection();
-  if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return false;
-  if (!root.contains(sel.getRangeAt(0).startContainer)) return false;
-  let last: Node | null = root.lastChild;
-  while (last && (isStrayOnlyText(last) || isFillerBr(last))) {
-    last = last.previousSibling;
-  }
-  if (!isChip(last)) return false;
-  if (!caretEdges(root).atEnd && hasTextOutsideChips(root)) return false;
-  placeCaretAtEnd(root);
-  return true;
-}
-
-// Post-mutation caret hygiene in one call: strip WebKit's stray characters and
-// re-anchor the caret after a trailing chip. Returns whether either moved the
-// DOM/selection, so callers persist the draft only when something changed.
+// Post-mutation hygiene in one call: fold WebKit's line blocks back into flat
+// text, keep the caret anchors beside chips, and seat the caret on a canonical
+// point. Returns whether the DOM or the caret moved, so callers persist the
+// draft only when something changed.
 export function normalizeComposer(root: HTMLElement): boolean {
-  const normalized = normalizeStrayChars(root);
-  const reanchored = restoreTrailingChipCaret(root);
-  return normalized || reanchored;
+  return canonicalizeEditor(root);
 }
 
-// Raw text from the field start to a collapsed caret — chip labels and the ZWSP
-// caret anchors included — or null when the selection isn't a collapsed caret
-// inside the field. Backs caretCharOffset, whose length must pair 1:1 with the raw
-// DOM characters placeCaretAtCharOffset walks, so this deliberately keeps the
-// residue lineBeforeCaret strips.
-function caretPrefixText(root: HTMLElement): string | null {
-  const sel = window.getSelection();
-  if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return null;
-  const r = sel.getRangeAt(0);
-  if (!root.contains(r.endContainer)) return null;
-  const pre = document.createRange();
-  pre.selectNodeContents(root);
-  pre.setEnd(r.endContainer, r.endOffset);
-  return pre.toString();
+// After a click or a finished selection gesture: move a caret (or a range end)
+// off a spot WebKit mispaints — flush against a chip, or inside one.
+export function settleSelection(root: HTMLElement): boolean {
+  return canonicalizeSelection(root, true);
 }
 
 // A chip's stand-in on a computed line: one object-replacement char — a non-space
 // boundary that lets an "@" or "/" typed right after a chip trigger its menu (see
 // MENTION_TRIGGER and SLASH_TRIGGER), without dragging in the chip's "Image N"
 // label. It's in STRAY_CHARS_RE, so real typed text can never contain one, and
-// lineBeforeCaret adds it directly (not via a text node), so the strip that clears
-// residue leaves it intact.
+// serializedPrefix adds it directly (not via a text node), so the strip that
+// clears residue leaves it intact.
 const LINE_CHIP_PLACEHOLDER = "￼";
 
-// Walk the DOM in document order with serializeEditor's rules but stop at a
-// collapsed caret, returning the serialized prefix up to it — or null unless the
-// selection is a collapsed caret inside the field. `chipText` supplies each
-// chip's stand-in, the one axis on which callers differ: lineBeforeCaret wants a
-// single LINE_CHIP_PLACEHOLDER (so triggers see a boundary, not the "Image N"
-// label), while caretOffsetInSerialized wants the real "[Image #N]" token so the
-// offset matches serializeEditor's output. Text nodes contribute their value
-// minus stray residue, <br> and block wrappers become "\n", data-cmd spans are
-// descended inline.
-//
-// This can't lean on caretPrefixText's Range.toString(): that string (1) folds in
-// a chip's inner "Image N" label and the invisible ZWSP anchor parked after a
-// chip, and (2) emits no "\n" for a <br> or a block-wrapper boundary — so for
-// [chip]<br>"@" it collapses to the single line "Image 1​@", where neither the
-// mention nor the slash trigger fires.
+// The serialized prefix up to a collapsed caret inside the field (chips as
+// `chipText`), or null without one. Range.toString() can't stand in: it folds in
+// a chip's "Image N" label and the caret anchors, and emits no "\n" for a <br> or
+// a block boundary.
 function serializedPrefixToCaret(
   root: HTMLElement,
-  chipText: (n: string) => string,
+  chipText: (chip: HTMLElement) => string,
 ): string | null {
   const sel = window.getSelection();
   if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return null;
   const r = sel.getRangeAt(0);
-  const caretNode = r.endContainer;
-  const caretOffset = r.endOffset;
-  if (!root.contains(caretNode)) return null;
-
-  let out = "";
-  let done = false;
-  const visit = (parent: Node) => {
-    const children = Array.from(parent.childNodes);
-    for (let idx = 0; idx < children.length; idx++) {
-      // Caret in an element container sits before child `caretOffset`: emit the
-      // children ahead of it, then stop.
-      if (parent === caretNode && idx >= caretOffset) {
-        done = true;
-        return;
-      }
-      const node = children[idx];
-      if (node === caretNode && caretNode.nodeType === Node.TEXT_NODE) {
-        out += (caretNode.nodeValue ?? "")
-          .slice(0, caretOffset)
-          .replace(STRAY_CHARS_RE, "");
-        done = true;
-        return;
-      }
-      if (node.nodeType === Node.TEXT_NODE) {
-        out += (node.nodeValue ?? "").replace(STRAY_CHARS_RE, "");
-        continue;
-      }
-      if (!(node instanceof HTMLElement)) continue;
-      if (node.dataset.img) {
-        out += chipText(node.dataset.img);
-        continue;
-      }
-      if (node.tagName === "BR") {
-        const isTrailingPad = parent === root && idx === children.length - 1;
-        if (!isTrailingPad) out += "\n";
-        continue;
-      }
-      if (node.dataset.cmd !== undefined) {
-        visit(node);
-        if (done) return;
-        continue;
-      }
-      if (out.length && !out.endsWith("\n")) out += "\n";
-      visit(node);
-      if (done) return;
-    }
-    // Caret at the very end of this element container (offset === child count):
-    // the loop exhausts without hitting the idx guard, but nothing after this
-    // parent precedes the caret either.
-    if (parent === caretNode) done = true;
-  };
-  visit(root);
-
-  return out;
+  if (!root.contains(r.endContainer)) return null;
+  return serializedPrefix(root, r.endContainer, r.endOffset, chipText);
 }
 
 // The caret's line — from the last break up to a collapsed caret — which the
@@ -841,59 +518,23 @@ export function textBeforeCaret(root: HTMLElement): string | null {
 }
 
 // The caret's position as an offset into the value serializeEditor would produce
-// — the offset space the composer's undo snapshots store. Unlike caretCharOffset
-// (raw Range.toString() length: chip labels + ZWSP anchors, no "\n"), each chip
-// counts as its full "[Image #N]" token and each break as one "\n", so the offset
-// pairs 1:1 with the serialized text and survives the rebuild that restores it.
+// — the offset space the composer's undo snapshots store. Each chip counts as its
+// full "[Image #N]" token and each break as one "\n", so the offset pairs 1:1
+// with the serialized text and survives the rebuild that restores it.
 export function caretOffsetInSerialized(root: HTMLElement): number | null {
-  const out = serializedPrefixToCaret(root, (n) => `[Image #${n}]`);
+  const out = serializedPrefixToCaret(root, chipToken);
   return out === null ? null : out.length;
 }
 
-// Seat the caret at a serialized-text offset (caretOffsetInSerialized's inverse)
-// over a DOM rebuilt from that text — text nodes carrying literal "\n" runs and
-// atomic image chips, as applyHistoryEntry produces. An offset that lands inside a
-// chip's "[Image #N]" token seats the caret immediately after the chip (a
-// non-editable atom has no interior position). Falls back to the field end when
-// the offset runs past the content.
+// Seat the caret at a serialized-text offset (caretOffsetInSerialized's inverse).
+// An offset that lands inside a chip's "[Image #N]" token seats the caret
+// immediately after the chip (a non-editable atom has no interior position);
+// one past the content seats it at the field end.
 export function placeCaretAtSerializedOffset(
   root: HTMLElement,
   offset: number,
 ): void {
-  let acc = 0;
-  for (const node of Array.from(root.childNodes)) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const len = (node.nodeValue ?? "").length;
-      if (acc + len >= offset) {
-        const sel = window.getSelection();
-        if (!sel) return;
-        const range = document.createRange();
-        range.setStart(node, Math.max(0, Math.min(len, offset - acc)));
-        range.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(range);
-        return;
-      }
-      acc += len;
-      continue;
-    }
-    if (isChip(node)) {
-      const tokenLen = `[Image #${node.dataset.img}]`.length;
-      if (acc + tokenLen >= offset) {
-        const sel = window.getSelection();
-        if (!sel) return;
-        const range = document.createRange();
-        if (offset <= acc) range.setStartBefore(node);
-        else range.setStartAfter(node);
-        range.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(range);
-        return;
-      }
-      acc += tokenLen;
-    }
-  }
-  placeCaretAtEnd(root);
+  setCaretAtOffset(root, offset);
 }
 
 // WebKit's Selection.modify("extend", "backward", "character") steps by grapheme
@@ -984,8 +625,8 @@ export function insertTextAtCaret(root: HTMLElement, text: string): boolean {
 // Replace the "@<frag>" preceding the caret with arbitrary `text` (no leading
 // "@"), used when a mention expands to injected content — e.g. a service's
 // captured logs — instead of a literal token the agent resolves. `text` may hold
-// newlines; execCommand inserts them as the same break structure ordinary typing
-// would, so serializeEditor round-trips it. Returns false when no "@" is found.
+// newlines, which go in as "\n" characters (WebKit's insertText would split them
+// into <div> lines). Returns false when no "@" is found.
 export function replaceMentionFragmentWith(
   root: HTMLElement,
   text: string,
@@ -999,14 +640,16 @@ export function replaceMentionFragmentWith(
   const fragLen = graphemeCount(line.slice(at)); // "@" plus the typed fragment
   for (let i = 0; i < fragLen; i++)
     sel.modify("extend", "backward", "character");
-  document.execCommand("insertText", false, text);
+  if (text.includes("\n")) insertPlainText(root, text);
+  else document.execCommand("insertText", false, text);
   return true;
 }
 
 // A leading command on the first line: optional indent, "/name" (a CLI slash
 // command) or "$name" (Codex's skill-mention form), then a space or end — so a
-// path like "/usr/bin" (slash inside) never matches.
-const COMMAND_TOKEN_RE = /^(\s*)([/$][a-z0-9:_-]+)(?=\s|$)/i;
+// path like "/usr/bin" (slash inside) never matches. A caret anchor before a chip
+// right after the command ends it too.
+const COMMAND_TOKEN_RE = /^(\s*)([/$][a-z0-9:_-]+)(?=[\s\u200B]|$)/i;
 
 function firstTextNode(root: HTMLElement): Text | null {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -1031,36 +674,6 @@ function leadingPlainText(root: HTMLElement): string {
   return out;
 }
 
-// Caret position as a count of visible characters from the field start, stable
-// across the unwrap/rewrap below since that only re-nests text, never edits it.
-export function caretCharOffset(root: HTMLElement): number | null {
-  const text = caretPrefixText(root);
-  return text === null ? null : text.length;
-}
-
-export function placeCaretAtCharOffset(
-  root: HTMLElement,
-  offset: number,
-): void {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let acc = 0;
-  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-    const len = (n.nodeValue ?? "").length;
-    if (acc + len >= offset) {
-      const sel = window.getSelection();
-      if (!sel) return;
-      const range = document.createRange();
-      range.setStart(n, Math.max(0, Math.min(len, offset - acc)));
-      range.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(range);
-      return;
-    }
-    acc += len;
-  }
-  placeCaretAtEnd(root);
-}
-
 function unwrapCmdSpans(root: HTMLElement): void {
   root.querySelectorAll<HTMLElement>("[data-cmd]").forEach((span) => {
     const parent = span.parentNode;
@@ -1074,7 +687,7 @@ function unwrapCmdSpans(root: HTMLElement): void {
 // The lpm-memory invocation in either CLI's form ("/" Claude, "$" Codex)
 // followed by a session-id token — the id is wrapped as a pill when it names a
 // known session (see highlightCommand).
-const MEMORY_ARG_TOKEN_RE = /^\s*[/$]lpm-memory\s+([a-z0-9-]+)(?=\s|$)/i;
+const MEMORY_ARG_TOKEN_RE = /^\s*[/$]lpm-memory\s+([a-z0-9-]+)(?=[\s\u200B]|$)/i;
 
 // Color a recognized leading "/command" in the composer the way the CLIs do. The
 // command is wrapped in an inline span (serialized away by serializeEditor) only
@@ -1118,7 +731,7 @@ export function highlightCommand(
     return;
   }
 
-  const offset = caretCharOffset(root);
+  const offset = caretOffsetInSerialized(root);
   unwrapCmdSpans(root);
   if (want) {
     const node = firstTextNode(root);
@@ -1156,7 +769,7 @@ export function highlightCommand(
       }
     }
   }
-  if (offset !== null) placeCaretAtCharOffset(root, offset);
+  if (offset !== null) setCaretAtOffset(root, offset);
 }
 
 // Seat a collapsed caret at the drop coordinates so a dropped image lands where
@@ -1174,5 +787,6 @@ export function placeCaretFromPoint(
   if (!sel) return false;
   sel.removeAllRanges();
   sel.addRange(range);
+  canonicalizeSelection(root);
   return true;
 }

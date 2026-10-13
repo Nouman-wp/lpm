@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import {
   DeleteMemorySession,
   GetServiceLogs,
+  FileExists,
+  ListDirs,
   NotesReadFileAsInput,
   ReadClipboardFiles,
   ReadClipboardImage,
@@ -79,6 +81,7 @@ import {
   chipAfterCaret,
   chipBeforeCaret,
   createImageChip,
+  fragmentClipboardPayload,
   highlightCommand,
   insertItemsAtCaret,
   insertTextAtCaret,
@@ -91,23 +94,39 @@ import {
   placeCaretAtSerializedOffset,
   placeCaretFromPoint,
   presentImageTokens,
+  relabelImageChips,
   removeChip,
   renderFileChip,
+  renderFolderChip,
   replaceArgFragment,
   replaceMentionFragment,
   replaceMentionFragmentWith,
   replaceSlashFragment,
-  restoreTrailingChipCaret,
   selectChip,
   selectedChip,
   selectionClipboardPayload,
   serializeEditor,
   setChipThumbnail,
   setEditorContent,
+  settleSelection,
   splitByImageTokens,
   textBeforeCaret,
   type ComposerImage,
 } from "./composerEditor";
+import {
+  deleteBeside,
+  deleteSelection,
+  extendSelection,
+  insertLineBreak,
+  insertPlainText,
+  killToLineBoundary,
+  killToLineEnd,
+  lastKill,
+  moveToLineEdge,
+  stepCaret,
+} from "./composerEditKeys";
+import { composerDragActive, useComposerDragMove } from "../hooks/useComposerDragMove";
+import { useComposerUndo, type UndoSnapshot } from "../hooks/useComposerUndo";
 import {
   readClipboardPayload,
   writeClipboardPayload,
@@ -204,14 +223,6 @@ interface TerminalComposerProps {
 // service can't bury the prompt (or the agent's context).
 const MENTION_LOG_LINES = 200;
 
-const UNDO_COALESCE_MS = 350;
-const UNDO_LIMIT = 200;
-
-interface UndoSnapshot {
-  text: string;
-  images: Record<string, string>;
-  caret: number | null;
-}
 
 // "/lpm-memory " (Claude) or "$lpm-memory " (Codex skill mention) with a
 // partial session id at the caret — completes the invocation's argument from
@@ -416,14 +427,6 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // re-entry so a second Enter on the same tab can't double-deliver it, while
   // still letting a different prepared prompt be sent in the meantime.
   const sending = useRef<Set<string>>(new Set());
-  // Native undo is unreliable here — every keystroke also runs normalizeComposer/
-  // highlightCommand, mutating the DOM outside WebKit's undo stack — so undo runs
-  // on these snapshot stacks instead. undoBase is the state the live edits diverge
-  // from; the stacks hold the committed steps on either side of it.
-  const undoStack = useRef<UndoSnapshot[]>([]);
-  const redoStack = useRef<UndoSnapshot[]>([]);
-  const undoBase = useRef<UndoSnapshot | null>(null);
-  const commitTimer = useRef<number | null>(null);
   // Read by the show effect (keyed on `shown`) so it doesn't re-run on focus
   // changes — clicking a pane's terminal must not steal focus into its input.
   const focusedRef = useRef(focused);
@@ -476,6 +479,16 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       if (!isImagePath(path)) {
         chip.dataset.thumb = "file";
         renderFileChip(chip, path);
+        // A dropped folder has no extension to tell it by; ask this Mac (a peer
+        // chip's path lives on the host, so it keeps the file glyph).
+        if (!peerSlug) {
+          void FileExists(path)
+            .then((isFile) => (isFile ? false : ListDirs(path).then(() => true)))
+            .then((isDir) => {
+              if (isDir && chip.isConnected) renderFolderChip(chip);
+            })
+            .catch(() => {});
+        }
         return;
       }
       chip.dataset.thumb = "pending";
@@ -487,6 +500,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           chip.dataset.thumb = "failed";
         });
     });
+    relabelImageChips(editor, (chip) => isImagePath(imagePaths.current.get(Number(chip.dataset.img)) ?? ""));
   }, [peerSlug]);
 
   // Push the current tab set into the reactive mirror. Labels are computed only
@@ -911,6 +925,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     placeCaretFromPoint(editor, x, y);
   }, []);
 
+  useComposerDragMove(editorRef, containerRef);
+
   // OS file drops (from Finder) arrive as paths via the shared drop bridge.
   useEffect(() => {
     return registerFileDropHandler("terminal-composer", (x, y, paths) => {
@@ -934,7 +950,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     const onOver = (e: Event) => {
       if (!inside) return;
       const detail = (e as CustomEvent<[number, number]>).detail;
-      setDragOver(!!detail && pointInComposer(detail[0], detail[1]));
+      setDragOver(!!detail && !composerDragActive() && pointInComposer(detail[0], detail[1]));
     };
     const off = () => {
       inside = false;
@@ -973,11 +989,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         );
         return;
       }
-      document.execCommand("insertText", false, text);
-      histIdx.current = -1;
-      syncState();
+      insertPlainText(editorRef.current!, text, "insertFromPaste");
     },
-    [insertItems, syncState],
+    [insertItems],
   );
 
   const handlePaste = useCallback(
@@ -1109,7 +1123,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     // switch (autoclose, or a background send finishing while the user edits
     // another tab) is covered by the activeTabId effect and must not wipe the
     // undo history of the tab being edited now.
-    if (sentId === activeId.current) resetUndo();
+    if (sentId === activeId.current) edits.reset();
     editor.focus();
   };
 
@@ -1409,65 +1423,16 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const undoSnapshot = (): UndoSnapshot | null => {
     const editor = editorRef.current;
     if (!editor) return null;
+    // Only the attachments in the field: a path registered for a chip that is
+    // about to be inserted must not make the pre-insert state look different
+    // once it is restored, or redo would treat it as a fresh edit and drop the
+    // redo history.
+    const present = presentImageTokens(editor);
     return {
       text: serializeEditor(editor),
-      images: Object.fromEntries(imagePaths.current),
+      images: Object.fromEntries([...imagePaths.current].filter(([token]) => present.has(token))),
       caret: caretOffsetInSerialized(editor),
     };
-  };
-
-  const sameUndoState = (a: UndoSnapshot, b: UndoSnapshot): boolean => {
-    if (a.text !== b.text) return false;
-    const keys = Object.keys(a.images);
-    return keys.length === Object.keys(b.images).length && keys.every((k) => a.images[k] === b.images[k]);
-  };
-
-  const resetUndo = () => {
-    if (commitTimer.current !== null) {
-      clearTimeout(commitTimer.current);
-      commitTimer.current = null;
-    }
-    undoStack.current = [];
-    redoStack.current = [];
-    undoBase.current = undoSnapshot();
-  };
-
-  const commitUndo = () => {
-    if (commitTimer.current !== null) {
-      clearTimeout(commitTimer.current);
-      commitTimer.current = null;
-    }
-    const live = undoSnapshot();
-    if (!live) return;
-    const base = undoBase.current;
-    if (base) {
-      if (sameUndoState(live, base)) return;
-      undoStack.current.push(base);
-      if (undoStack.current.length > UNDO_LIMIT) undoStack.current.shift();
-    }
-    undoBase.current = live;
-    redoStack.current = [];
-  };
-
-  const scheduleCommit = () => {
-    if (commitTimer.current !== null) clearTimeout(commitTimer.current);
-    commitTimer.current = window.setTimeout(() => {
-      commitTimer.current = null;
-      commitUndo();
-    }, UNDO_COALESCE_MS);
-  };
-
-  // Closing a step at each word boundary (a typed space or line break) is what
-  // makes ⌘Z walk back word by word rather than clearing a whole burst at once.
-  const noteEditForUndo = (input: InputEvent) => {
-    if (input.isComposing) return; // a settled IME word is captured on the next edit / undo flush
-    const type = input.inputType || "";
-    const wordBoundary =
-      type === "insertLineBreak" ||
-      type === "insertParagraph" ||
-      (type === "insertText" && input.data !== null && /\s/.test(input.data));
-    if (wordBoundary) commitUndo();
-    else scheduleCommit();
   };
 
   const applyUndoSnapshot = (snap: UndoSnapshot) => {
@@ -1482,68 +1447,29 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     histIdx.current = -1;
   };
 
-  const undo = (): boolean => {
-    commitUndo(); // finalize any pending burst so it stays redoable
-    if (undoStack.current.length === 0) return false;
-    if (undoBase.current) redoStack.current.push(undoBase.current);
-    const prev = undoStack.current.pop()!;
-    undoBase.current = prev;
-    applyUndoSnapshot(prev);
-    return true;
-  };
+  const edits = useComposerUndo({
+    editorRef,
+    read: undoSnapshot,
+    apply: applyUndoSnapshot,
+    locked: () => transforming.current,
+  });
+  const commitUndo = edits.commit;
 
-  const redo = (): boolean => {
-    commitUndo(); // a pending edit branches history: keep the typed text, abandon redo
-    if (redoStack.current.length === 0) return false;
-    if (undoBase.current) undoStack.current.push(undoBase.current);
-    const next = redoStack.current.pop()!;
-    undoBase.current = next;
-    applyUndoSnapshot(next);
-    return true;
-  };
-
-  // Latest undo/redo for the beforeinput listener below, which subscribes once.
-  const historyRef = useRef({ undo, redo });
-  historyRef.current = { undo, redo };
-
-  // ⌘Z / ⌘⇧Z reach the field as `historyUndo` / `historyRedo` beforeinput events,
-  // not keydown — an enabled Edit-menu key-equivalent is consumed before keydown
-  // fires (the same reason the menu's cut/copy/paste arrive as native editing
-  // events). Drive our own stacks and cancel WebKit's native undo, which never
-  // saw the programmatic mutations and would corrupt the field. The keydown
-  // branch covers the case where the native stack is empty, so the menu item is
-  // disabled and the key falls through to the webview.
+  // Off macOS a Ctrl+B/I/U formatting input is never wanted in a plain prompt.
   useEffect(() => {
     const editor = editorRef.current;
-    if (!editor) return;
+    if (!editor || isMac) return;
     const onBeforeInput = (e: InputEvent) => {
-      if (e.inputType === "historyUndo") {
-        e.preventDefault();
-        historyRef.current.undo();
-      } else if (e.inputType === "historyRedo") {
-        e.preventDefault();
-        historyRef.current.redo();
-      } else if (!isMac && isFormatInput(e.inputType)) {
-        e.preventDefault();
-      }
+      if (isFormatInput(e.inputType)) e.preventDefault();
     };
     editor.addEventListener("beforeinput", onBeforeInput);
     return () => editor.removeEventListener("beforeinput", onBeforeInput);
   }, []);
 
-  // Reset on tab switch (and the mount that seeds the first tab). resetUndo is
-  // intentionally not a dep — it changes every render and would wipe history.
+  // Reset on tab switch (and the mount that seeds the first tab).
   useEffect(() => {
-    resetUndo();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTabId]);
-
-  useEffect(
-    () => () => {
-      if (commitTimer.current !== null) clearTimeout(commitTimer.current);
-    },
-    [],
-  );
+    edits.reset();
+  }, [activeTabId, edits]);
 
   // Arrow Up/Down through the sent-message ring. The cursor is advanced before
   // the field is rewritten so applyHistoryEntry's syncState parks the new
@@ -1974,8 +1900,57 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       histIdx.current = -1;
       syncState(false);
       commitUndo();
-    } else {
+    } else if (!deleteSelection(editor, "deleteByCut")) {
       document.execCommand("delete");
+    }
+  };
+
+  // Backspace/Delete (and ⌃H/⌃D): a whole chip goes as a unit, and a line break,
+  // anything behind a caret anchor, or a selection spanning a chip or a break is
+  // deleted through the DOM — WebKit's own deletion merges its line blocks across
+  // a chip and takes the chip or the whole next line with it. Plain characters
+  // delete natively. Returns whether the key was handled.
+  const deleteKey = (editor: HTMLDivElement, dir: "backward" | "forward", plain: boolean): boolean => {
+    const chip = selectedChip(editor) ?? (dir === "backward" ? chipBeforeCaret(editor) : chipAfterCaret(editor));
+    if (chip) {
+      deleteImageChip(chip);
+      return true;
+    }
+    if (!plain) return false;
+    const inputType = dir === "backward" ? "deleteContentBackward" : "deleteContentForward";
+    return deleteSelection(editor, inputType) || deleteBeside(editor, dir);
+  };
+
+  // ⌃Y puts back what ⌃K last killed, chips included (with fresh tokens).
+  const yank = () => {
+    const killed = lastKill();
+    if (killed) insertItems(payloadToItems(killed, registerImagePath), false);
+  };
+
+  // macOS text bindings WebKit gets wrong around a chip: ⌃A/⌃E stop at it and
+  // ⌃K leaves a phantom line behind it, so the field does them itself on the
+  // value's logical lines. Returns whether the key was one of them and handled.
+  const macCtrlEdit = (editor: HTMLDivElement, key: string): boolean => {
+    switch (key) {
+      case "a":
+        return moveToLineEdge(editor, "backward");
+      case "e":
+        return moveToLineEdge(editor, "forward");
+      case "k":
+        return killToLineEnd(editor, (frag) => fragmentClipboardPayload(frag, imagePaths.current));
+      case "y":
+        yank();
+        return true;
+      case "h":
+        return deleteKey(editor, "backward", true);
+      case "d":
+        return deleteKey(editor, "forward", true);
+      case "b":
+        return stepCaret(editor, "backward");
+      case "f":
+        return stepCaret(editor, "forward");
+      default:
+        return false;
     }
   };
 
@@ -2071,25 +2046,30 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         return;
       }
       e.preventDefault();
-      if (chord === "undo") undo();
-      else if (chord === "redo") redo();
+      if (chord === "undo") edits.undo();
+      else if (chord === "redo") edits.redo();
       else if (chord === "newTab") addTab();
       else if (chord === "closeTab") closeTab(activeId.current);
+      else if (chord === "deleteBack" && deleteKey(editor, "backward", true)) return;
+      else if (chord === "deleteForward" && deleteKey(editor, "forward", true)) return;
+      else if (chord === "charBack" && stepCaret(editor, "backward")) return;
+      else if (chord === "charForward" && stepCaret(editor, "forward")) return;
+      else if (chord === "killLineEnd") killToLineBoundary(editor, "forward");
+      else if (chord === "killLineStart") killToLineBoundary(editor, "backward");
       else {
         runComposerEdit(chord);
         scheduleNormalize();
       }
       return;
     }
-    // Handles ⌘Z/⌘⇧Z only when it reaches keydown (native stack empty, so the
-    // Edit-menu item is disabled); the enabled-menu case goes through the
-    // beforeinput listener above. We always own ⌘Z — native undo corrupts this
-    // field — so it never falls through.
+    // ⌘Z/⌘⇧Z normally arrive through the Edit menu (the listener above); this
+    // covers a keydown that still reaches the field. We always own ⌘Z — native
+    // undo corrupts this field — so it never falls through.
     if (e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === "z") {
       e.preventDefault();
       e.stopPropagation();
-      if (e.shiftKey) redo();
-      else undo();
+      if (e.shiftKey) edits.redo();
+      else edits.undo();
       return;
     }
     // ⌘⇧T / ⌘⇧W act on the composer's own tabs while the input is focused. addTab
@@ -2119,6 +2099,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     // Off macOS app chords carry Ctrl too, so only the field's own keys stop.
     if (composerKeepsCtrlChord(e.nativeEvent)) {
       e.stopPropagation();
+      if (isMac && !e.metaKey && !e.altKey && !e.shiftKey && macCtrlEdit(editor, e.key.toLowerCase())) {
+        e.preventDefault();
+        return;
+      }
     }
     // Any caret move can make WebKit inject stray chars around a chip — the
     // explicit stepping below covers the common case, this cleans the rest
@@ -2148,8 +2132,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     }
     if (e.key === "Enter" && e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
-      document.execCommand("insertText", false, "\n");
-      histIdx.current = -1;
+      insertLineBreak(editor);
       return;
     }
     if (e.key === "Escape") {
@@ -2165,29 +2148,20 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     // A whole-chip selection (left behind by a body click) is removed too, since
     // WebKit only collapses such a selection on the first press.
     if (e.key === "Backspace" || e.key === "Delete") {
-      const chip =
-        selectedChip(editor) ?? (e.key === "Backspace" ? chipBeforeCaret(editor) : chipAfterCaret(editor));
-      if (chip) {
+      const plain = !e.altKey && !e.metaKey && !e.ctrlKey;
+      if (deleteKey(editor, e.key === "Backspace" ? "backward" : "forward", plain)) {
         e.preventDefault();
         e.stopPropagation();
-        deleteImageChip(chip);
         return;
       }
     }
-    // Step the caret across an atomic chip ourselves; WebKit's native navigation
-    // around contenteditable=false inline elements can otherwise leave stray
-    // placeholder characters behind.
-    if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.shiftKey && !e.metaKey && !e.altKey) {
-      const chip = e.key === "ArrowLeft" ? chipBeforeCaret(editor) : chipAfterCaret(editor);
-      if (chip) {
+    // Step (or extend the selection) across an atomic chip or a caret anchor in
+    // one press; WebKit's native navigation stops on the invisible anchor and can
+    // leave stray placeholder characters behind.
+    if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.metaKey && !e.altKey && !e.ctrlKey) {
+      const dir = e.key === "ArrowLeft" ? "backward" : "forward";
+      if (e.shiftKey ? extendSelection(editor, dir) : stepCaret(editor, dir)) {
         e.preventDefault();
-        const range = document.createRange();
-        if (e.key === "ArrowLeft") range.setStartBefore(chip);
-        else range.setStartAfter(chip);
-        range.collapse(true);
-        const sel = window.getSelection();
-        sel?.removeAllRanges();
-        sel?.addRange(range);
         return;
       }
     }
@@ -2250,11 +2224,11 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       }
       return;
     }
-    // A plain click landing after a trailing chip mispaints the caret at the
-    // field start; re-anchor it once the click's selection settles.
+    // A click lands the caret where WebKit mispaints it — flush against a chip —
+    // or a selection gesture starts at one; seat it once the click settles.
     requestAnimationFrame(() => {
       const editor = editorRef.current;
-      if (editor && restoreTrailingChipCaret(editor)) syncState();
+      if (editor) settleSelection(editor);
     });
   };
 
@@ -2345,13 +2319,19 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           onInput={(e) => {
             histIdx.current = -1;
             const editor = editorRef.current;
-            if (editor) normalizeComposer(editor);
-            noteEditForUndo(e.nativeEvent as InputEvent);
+            // Never restructure the text an IME is still composing; it settles
+            // on compositionend.
+            if (editor && !(e.nativeEvent as InputEvent).isComposing) normalizeComposer(editor);
+            edits.noteEdit(e.nativeEvent as InputEvent);
             syncState();
             if (editor) highlightCommand(editor, isSlashCommand, memorySessionIds);
             updateSlashMenu();
             updateMentionMenu();
             updateHint();
+          }}
+          onCompositionEnd={() => {
+            const editor = editorRef.current;
+            if (editor && normalizeComposer(editor)) syncState();
           }}
           onFocus={() => {
             refreshMentions();

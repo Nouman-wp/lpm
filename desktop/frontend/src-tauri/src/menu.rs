@@ -16,6 +16,8 @@ const ID_SETTINGS: &str = "lpm-menu-settings";
 const ID_FEEDBACK: &str = "lpm-menu-feedback";
 const ID_CHECK_UPDATES: &str = "lpm-menu-check-updates";
 const ID_SELECT_ALL: &str = "lpm-menu-select-all";
+const ID_UNDO: &str = "lpm-menu-undo";
+const ID_REDO: &str = "lpm-menu-redo";
 
 // Installed on macOS only. On Linux/Windows it would be an in-window menubar
 // whose Ctrl accelerators (Ctrl+A, Ctrl+,) take keys from the terminal; the app
@@ -61,9 +63,20 @@ pub fn build_and_set(app: &AppHandle) -> tauri::Result<()> {
         .accelerator("CmdOrCtrl+A")
         .build(app)?;
 
+    // The native Undo/Redo are disabled whenever WebKit's own history is empty,
+    // and a disabled item still swallows ⌘Z/⌘⇧Z, so a field with its own undo
+    // stack (the terminal composer) could never see them. Emit instead; the
+    // frontend routes them to the focused field (menuEdit.ts).
+    let undo = MenuItemBuilder::with_id(ID_UNDO, "Undo")
+        .accelerator("CmdOrCtrl+Z")
+        .build(app)?;
+    let redo = MenuItemBuilder::with_id(ID_REDO, "Redo")
+        .accelerator("CmdOrCtrl+Shift+Z")
+        .build(app)?;
+
     let edit = SubmenuBuilder::new(app, "Edit")
-        .undo()
-        .redo()
+        .item(&undo)
+        .item(&redo)
         .separator()
         .cut()
         .copy()
@@ -93,6 +106,12 @@ pub fn handle_event(app: &AppHandle, event: MenuEvent) {
         ID_FEEDBACK => show_and_emit(app, "menu-open-feedback"),
         ID_SELECT_ALL => {
             let _ = app.emit("menu-select-all", ());
+        }
+        ID_UNDO => {
+            let _ = app.emit("menu-undo", ());
+        }
+        ID_REDO => {
+            let _ = app.emit("menu-redo", ());
         }
         ID_CHECK_UPDATES => {
             show_main(app);

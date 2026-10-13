@@ -550,13 +550,15 @@ function MessageText({
   images: Record<string, string>;
   slug: string | null;
 }) {
+  // Images are numbered by position, like the composer labels them.
+  let imageNumber = 0;
   return (
     <>
       {splitByImageTokens(text).map((seg, i) => {
         if (seg.image === null || !images[seg.image]) return <span key={i}>{seg.text}</span>;
         const path = images[seg.image];
         return isImagePath(path) ? (
-          <MessageImageChip key={i} index={seg.image} path={path} slug={slug} />
+          <MessageImageChip key={i} index={++imageNumber} path={path} slug={slug} />
         ) : (
           <MessageFileChip key={i} path={path} />
         );

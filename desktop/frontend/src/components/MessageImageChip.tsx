@@ -16,6 +16,8 @@ export function MessageImageChip({ index, path, slug }: MessageImageChipProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
   const { url } = useImageDataUrl(path, slug);
+  // A file named like an image that doesn't decode keeps the glyph.
+  const [broken, setBroken] = useState(false);
 
   // The preview is pinned to the hover-time rect, so scrolling the (virtualized)
   // history list or resizing the window would leave it floating — dismiss on both.
@@ -42,8 +44,14 @@ export function MessageImageChip({ index, path, slug }: MessageImageChipProps) {
         className={`mx-0.5 ${IMAGE_CHIP_CLASS}`}
       >
         <span className={`${IMAGE_CHIP_THUMB_CLASS} flex items-center justify-center text-[var(--text-muted)]`}>
-          {url ? (
-            <img src={url} alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover" />
+          {url && !broken ? (
+            <img
+              src={url}
+              alt=""
+              draggable={false}
+              onError={() => setBroken(true)}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
           ) : (
             <ImageIcon size={12} />
           )}

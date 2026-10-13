@@ -12,6 +12,8 @@ import {
 } from "react";
 import { toast } from "sonner";
 import {
+  FileExists,
+  ListDirs,
   ReadClipboardFiles,
   SaveClipboardImage,
   TransformText,
@@ -38,6 +40,7 @@ import {
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
 import { loadImageDataUrl } from "./imageDataUrl";
 import {
+  caretOffsetInSerialized,
   chipAfterCaret,
   chipBeforeCaret,
   createImageChip,
@@ -48,25 +51,38 @@ import {
   normalizeComposer,
   payloadToItems,
   placeCaretAtEnd,
+  placeCaretAtSerializedOffset,
   placeCaretFromPoint,
   presentImageTokens,
+  relabelImageChips,
   removeChip,
   renderFileChip,
-  restoreTrailingChipCaret,
+  renderFolderChip,
   selectedChip,
   selectionClipboardPayload,
   serializeEditor,
   setChipThumbnail,
   setEditorContent,
+  settleSelection,
   splitByImageTokens,
   type ComposerImage,
   type ComposerValue,
 } from "./composerEditor";
 import {
+  deleteBeside,
+  deleteSelection,
+  extendSelection,
+  insertLineBreak,
+  insertPlainText,
+  stepCaret,
+} from "./composerEditKeys";
+import { composerDragActive, useComposerDragMove } from "../hooks/useComposerDragMove";
+import {
   readClipboardPayload,
   writeClipboardPayload,
 } from "./composerClipboard";
-import { isFormatChord } from "./composerKeys";
+import { composerChord, isFormatChord } from "./composerKeys";
+import { useComposerUndo } from "../hooks/useComposerUndo";
 
 export { EMPTY_COMPOSER };
 export type { ComposerImage, ComposerValue };
@@ -194,6 +210,12 @@ export function InputComposer({
       if (!isImagePath(path)) {
         chip.dataset.thumb = "file";
         renderFileChip(chip, path);
+        void FileExists(path)
+          .then((isFile) => (isFile ? false : ListDirs(path).then(() => true)))
+          .then((isDir) => {
+            if (isDir && chip.isConnected) renderFolderChip(chip);
+          })
+          .catch(() => {});
         return;
       }
       chip.dataset.thumb = "pending";
@@ -205,6 +227,7 @@ export function InputComposer({
           chip.dataset.thumb = "failed";
         });
     });
+    relabelImageChips(editor, (chip) => isImagePath(imagePaths.current.get(Number(chip.dataset.img)) ?? ""));
   }, []);
 
   // Recompute the placeholder state, forget paths whose chip was deleted, paint
@@ -248,9 +271,13 @@ export function InputComposer({
     (items: Array<HTMLElement | string>, separate = true) => {
       const editor = editorRef.current;
       if (!editor || items.length === 0) return;
+      // Its own undo step: programmatic insertion fires no input event.
+      edits.commit();
       insertItemsAtCaret(editor, items, separate);
       syncState();
+      edits.commit();
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- edits is stable
     [syncState],
   );
 
@@ -307,9 +334,11 @@ export function InputComposer({
   );
 
   const deleteImageChip = (chip: HTMLElement) => {
+    edits.commit();
     imagePaths.current.delete(Number(chip.dataset.img));
     removeChip(chip);
     syncState();
+    edits.commit();
   };
 
   // Replace the whole field from a serialized value + its token→path map (used
@@ -338,14 +367,49 @@ export function InputComposer({
     [syncState],
   );
 
+  // ⌘Z walks the field's own snapshots: its chips, caret anchors and line breaks
+  // are edited through the DOM, outside WebKit's native history.
+  const edits = useComposerUndo({
+    editorRef,
+    read: () => {
+      const editor = editorRef.current;
+      if (!editor) return null;
+      const present = presentImageTokens(editor);
+      return {
+        text: serializeEditor(editor),
+        images: Object.fromEntries([...imagePaths.current].filter(([token]) => present.has(token))),
+        caret: caretOffsetInSerialized(editor),
+      };
+    },
+    apply: (snap) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      applyHistoryEntry(snap.text, snap.images);
+      if (snap.caret !== null) placeCaretAtSerializedOffset(editor, snap.caret);
+      highlight();
+    },
+    locked: () => transforming.current,
+  });
+
+  // Replace the field with a recalled or rewritten prompt as its own undo step,
+  // so ⌘Z brings back what it replaced.
+  const replaceField = useCallback(
+    (text: string, images: Record<string, string>) => {
+      edits.commit();
+      applyHistoryEntry(text, images);
+      edits.commit();
+    },
+    [edits, applyHistoryEntry],
+  );
+
   const loadFromHistory = useCallback(
     (text: string, images: Record<string, string>) => {
       const editor = editorRef.current;
       if (!editor) return;
       editor.focus();
-      applyHistoryEntry(text, images);
+      replaceField(text, images);
     },
-    [applyHistoryEntry],
+    [replaceField],
   );
 
   // Release the transform lock and re-seat focus once the field is editable.
@@ -397,7 +461,7 @@ export function InputComposer({
             toast.error("AI returned an empty response");
             return;
           }
-          applyHistoryEntry(text, images);
+          replaceField(text, images);
         } else {
           const list = await gen.runAll(count, (genIds) =>
             generateVariants(history?.projectName ?? null, aiCwd, params, action.instruction, value, count, genIds),
@@ -415,17 +479,17 @@ export function InputComposer({
         if (!openedPicker) endTransform();
       }
     },
-    [aiCwd, ai, gen, applyHistoryEntry, endTransform],
+    [aiCwd, ai, gen, replaceField, endTransform],
   );
 
   const chooseVariant = useCallback(
     (text: string) => {
       const images = variants?.images ?? {};
       setVariants(null);
-      applyHistoryEntry(text, images);
+      replaceField(text, images);
       endTransform();
     },
-    [variants, applyHistoryEntry, endTransform],
+    [variants, replaceField, endTransform],
   );
 
   const closeVariants = useCallback(() => {
@@ -453,9 +517,12 @@ export function InputComposer({
       placeCaretAtEnd(editor);
     }
     syncState();
+    edits.reset();
     // Mount-only: defaultValue is a seed, never re-applied.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useComposerDragMove(editorRef, boxRef);
 
   // OS (Finder) drops arrive as paths via the shared drop bridge; claim them when
   // they land on this composer and seat the caret where they fell.
@@ -487,7 +554,7 @@ export function InputComposer({
     const onOver = (e: Event) => {
       if (!inside) return;
       const detail = (e as CustomEvent<[number, number]>).detail;
-      setDragOver(!!detail && pointInBox(boxRef.current, detail[0], detail[1]));
+      setDragOver(!!detail && !composerDragActive() && pointInBox(boxRef.current, detail[0], detail[1]));
     };
     const off = () => {
       inside = false;
@@ -558,8 +625,7 @@ export function InputComposer({
       );
       return;
     }
-    document.execCommand("insertText", false, text);
-    syncState();
+    insertPlainText(editorRef.current!, text, "insertFromPaste");
   };
 
   // Same clipboard contract as the terminal composer: a selection holding chips
@@ -578,7 +644,7 @@ export function InputComposer({
     if (!cut) return;
     const chip = selectedChip(editor);
     if (chip) deleteImageChip(chip);
-    else document.execCommand("delete");
+    else if (!deleteSelection(editor, "deleteByCut")) document.execCommand("delete");
   };
 
   // In-app / web drags deliver File objects through the DOM (OS file drops go
@@ -615,26 +681,48 @@ export function InputComposer({
       e.preventDefault();
       return;
     }
+    // ⌘Z/⌘⇧Z when one reaches keydown, and Ctrl+Z/Ctrl+Y off macOS: always the
+    // field's own history, never WebKit's.
+    const chord = composerChord(e.nativeEvent);
+    const metaZ = e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === "z";
+    if (chord === "undo" || chord === "redo" || metaZ) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (transforming.current) return;
+      if (chord === "redo" || (metaZ && e.shiftKey)) edits.redo();
+      else edits.undo();
+      return;
+    }
     // Shift+Enter inserts a newline; plain Enter bubbles so the host (e.g. a
     // dialog) can submit on it.
     if (e.key === "Enter" && e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       e.stopPropagation();
-      document.execCommand("insertText", false, "\n");
+      insertLineBreak(editor);
       return;
     }
     // A single Backspace/Delete next to a chip removes the whole image at once —
     // the caret can never sit inside a chip, so partial deletion is impossible.
+    // A line break, or text behind a caret anchor, deletes through the DOM
+    // (composerEditKeys.ts).
     if (e.key === "Backspace" || e.key === "Delete") {
+      const dir = e.key === "Backspace" ? "backward" : "forward";
       const chip =
         selectedChip(editor) ??
-        (e.key === "Backspace"
-          ? chipBeforeCaret(editor)
-          : chipAfterCaret(editor));
-      if (chip) {
+        (dir === "backward" ? chipBeforeCaret(editor) : chipAfterCaret(editor));
+      const plain = !e.altKey && !e.metaKey && !e.ctrlKey;
+      const inputType = dir === "backward" ? "deleteContentBackward" : "deleteContentForward";
+      if (chip) deleteImageChip(chip);
+      if (chip || (plain && (deleteSelection(editor, inputType) || deleteBeside(editor, dir)))) {
         e.preventDefault();
         e.stopPropagation();
-        deleteImageChip(chip);
+        return;
+      }
+    }
+    if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.metaKey && !e.altKey && !e.ctrlKey) {
+      const dir = e.key === "ArrowLeft" ? "backward" : "forward";
+      if (e.shiftKey ? extendSelection(editor, dir) : stepCaret(editor, dir)) {
+        e.preventDefault();
         return;
       }
     }
@@ -655,11 +743,11 @@ export function InputComposer({
       }
       return;
     }
-    // A click after a trailing chip mispaints the caret at the field start;
-    // re-anchor it once the click's selection settles.
+    // A click lands the caret flush against a chip, where WebKit mispaints it,
+    // or a selection gesture starts at one; seat it once the click settles.
     requestAnimationFrame(() => {
       const editor = editorRef.current;
-      if (editor && restoreTrailingChipCaret(editor)) syncState();
+      if (editor) settleSelection(editor);
     });
   };
 
@@ -694,10 +782,15 @@ export function InputComposer({
           spellCheck={false}
           autoCorrect="off"
           autoCapitalize="off"
-          onInput={() => {
+          onInput={(e) => {
             const editor = editorRef.current;
-            if (editor) normalizeComposer(editor);
+            if (editor && !(e.nativeEvent as InputEvent).isComposing) normalizeComposer(editor);
+            edits.noteEdit(e.nativeEvent as InputEvent);
             syncState();
+          }}
+          onCompositionEnd={() => {
+            const editor = editorRef.current;
+            if (editor && normalizeComposer(editor)) syncState();
           }}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}

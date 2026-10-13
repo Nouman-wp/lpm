@@ -9,7 +9,6 @@ vi.mock("./terminal-utils", () => ({
 }));
 
 import {
-  caretCharOffset,
   caretOffsetInSerialized,
   graphemeCount,
   highlightCommand,
@@ -250,18 +249,6 @@ describe("slashFragmentAt / hintCommandAt", () => {
     expect(slashFragmentAt("codex", " /rev")).toBeNull();
     expect(slashFragmentAt("codex", "￼/rev")).toBeNull();
     expect(hintCommandAt("codex", "fix the build /rev ")).toBeNull();
-  });
-});
-
-describe("caretCharOffset (unchanged raw-char pairing)", () => {
-  it("counts chip label text and the ZWSP anchor as raw characters", () => {
-    const root = editor();
-    const text = document.createTextNode(`${ZWSP}ab`);
-    root.append(chip(1), text);
-    caretAt(text, text.nodeValue!.length);
-
-    // "Image 1" (7) + ZWSP (1) + "ab" (2) = 10 raw chars up to the caret.
-    expect(caretCharOffset(root)).toBe("Image 1".length + 1 + 2);
   });
 });
 

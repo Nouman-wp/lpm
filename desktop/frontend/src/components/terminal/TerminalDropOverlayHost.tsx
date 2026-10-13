@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { TerminalDropOverlay } from "./TerminalDropOverlay";
+import { composerDragActive } from "../../hooks/useComposerDragMove";
 
 interface DropTarget {
   rect: DOMRect;
@@ -36,7 +37,8 @@ export function TerminalDropOverlayHost() {
       dragActive = true;
     };
     const onOver = (e: Event) => {
-      if (!dragActive) return;
+      // Text dragged out of a composer isn't a file drop onto the terminal.
+      if (!dragActive || composerDragActive()) return;
       const [x, y] = (e as CustomEvent<[number, number]>).detail ?? [];
       if (typeof x !== "number" || typeof y !== "number") return;
       const el = terminalAt(x, y);
