@@ -56,7 +56,8 @@ const SERVICE_REMOVE_KEYS: &[&str] = &[
 // rides along untouched through an edit. `prompt` and `inputs` are managed on
 // desktop but deliberately absent here: the phone editor doesn't surface
 // either, so keeping them unmanaged stops a phone edit from clearing them.
-// `layer` is left unmanaged the same way so a phone edit keeps it.
+// `layer` is managed with `display`: the phone picks both, and a button moved
+// out of a zone drops its layer, as a desktop move does.
 const MANAGED_ACTION_KEYS: &[&str] = &[
     "label",
     "emoji",
@@ -70,6 +71,7 @@ const MANAGED_ACTION_KEYS: &[&str] = &[
     "port",
     "portConflict",
     "display",
+    "layer",
     "actions",
     "position",
 ];
@@ -878,6 +880,25 @@ mod tests {
         // Unmanaged env + inputs ride along untouched.
         assert_eq!(get(entry, &["env", "FOO"]).unwrap().as_str(), Some("bar"));
         assert!(get(entry, &["inputs", "x"]).is_some());
+    }
+
+    #[test]
+    fn action_moved_out_of_a_zone_drops_its_layer() {
+        let mut layers = vec![layer(
+            LayerKind::Project,
+            "actions:\n  review:\n    cmd: claude\n    display: agents\n    layer: claude\n",
+        )];
+        save_action_in(
+            &mut layers,
+            "review",
+            &json!({ "cmd": "claude", "display": "header" }),
+            None,
+            None,
+        )
+        .unwrap();
+        let entry = get(&layers[0].doc, &["actions", "review"]).unwrap();
+        assert_eq!(entry.get("display").unwrap().as_str(), Some("header"));
+        assert!(entry.get("layer").is_none());
     }
 
     #[test]

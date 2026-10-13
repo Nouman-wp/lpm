@@ -109,7 +109,7 @@ final class LinkStore {
     var facts: LinkFacts? {
         guard let model, !model.demoMode, pairing || model.activeRecord != nil else { return nil }
         let record = model.activeRecord
-        let hosts = pairing ? [host].compactMap { $0 } : (record?.hosts ?? [])
+        let hosts = pairing ? [host].compactMap { $0 } : (model.linkRecord?.hosts ?? [])
         let tailscale = BuiltInTailscale.shared
         var state = model.connection
         if case .connecting = state, let lastFailure { state = .failed(lastFailure) }
@@ -130,7 +130,13 @@ final class LinkStore {
             tailscaleState: tailscale.status.state,
             probedAllFailed: probedAllFailed,
             farewell: pairing ? nil : record?.farewell,
-            reconnectReason: reconnectReason)
+            reconnectReason: reconnectReason,
+            via: pairing ? nil : viaName)
+    }
+
+    /// The Mac the active machine is opened through, by name.
+    private var viaName: String? {
+        model?.activeRecord.flatMap { model?.viaMac(of: $0) }?.displayName
     }
 
     nonisolated static let usesTailscaleAppKey = "pairing.usesTailscaleApp"
@@ -174,7 +180,7 @@ final class LinkStore {
     /// How the phone expects to reach the Mac from the network it's on: its home
     /// address on the Mac's own network, otherwise one that works from anywhere.
     private var expectedRoute: AddressKind? {
-        guard let model, !pairing, network.isOnline, let hosts = model.activeRecord?.hosts else { return nil }
+        guard let model, !pairing, network.isOnline, let hosts = model.linkRecord?.hosts else { return nil }
         if network.medium != .cellular && atHome(hosts) { return .home }
         let kinds = hosts.map(AddressKind.of)
         if kinds.contains(.tailscale) { return .tailscale }
@@ -185,7 +191,7 @@ final class LinkStore {
         LinkStatusLine.make(ready: isReady, demo: model?.demoMode ?? false,
                             kind: host.map(AddressKind.of), issue: issue,
                             slow: slowConnect, route: expectedRoute,
-                            found: model?.recoveryStatus != nil)
+                            found: model?.recoveryStatus != nil, via: pairing ? nil : viaName)
     }
 
     var identityCode: String? { newFingerprint.map(IdentityCode.of(fingerprint:)) }
@@ -225,7 +231,7 @@ final class LinkStore {
             if let host { checks[host] = AddressCheck(reachable: true, detail: "ok", at: Date()) }
         case .failed(let raw):
             cancelSlow()
-            if LpmClient.isOfflineHint(raw) { lastFailure = raw }
+            if LpmClient.isOfflineHint(raw) || raw == LpmClient.relayOfflineError { lastFailure = raw }
             endTrying()
         case .idle:
             cancelSlow()
@@ -384,8 +390,9 @@ final class LinkStore {
         for mac in model.macs where mac.localId != model.activeMacId {
             if reach[mac.localId] == nil { reach[mac.localId] = .checking }
             let id = mac.localId
+            let target = model.linkRecord(of: mac)
             Task { @MainActor in
-                let up = await HostProbe.anyReachable(mac.hosts, port: Int(mac.port))
+                let up = await HostProbe.anyReachable(target.hosts, port: Int(target.port))
                 self.reach[id] = up ? .online : .offline
             }
         }

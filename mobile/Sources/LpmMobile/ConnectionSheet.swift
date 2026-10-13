@@ -12,6 +12,9 @@ struct ConnectionSheet: View {
     @State private var tailscale = BuiltInTailscale.shared
 
     private var record: MacRecord? { model.activeRecord }
+    /// The Mac whose addresses the active machine is reached at: itself, or the
+    /// Mac it's opened through.
+    private var reached: MacRecord? { model.linkRecord }
 
     var body: some View {
         NavigationStack {
@@ -75,8 +78,8 @@ struct ConnectionSheet: View {
     }
 
     private func testAll() async {
-        guard let record else { return }
-        await model.link.test(record.hosts, port: Int(record.port), updatingIssue: true)
+        guard let reached else { return }
+        await model.link.test(reached.hosts, port: Int(reached.port), updatingIssue: true)
     }
 
     private func header(_ record: MacRecord) -> some View {
@@ -108,7 +111,9 @@ struct ConnectionSheet: View {
     // MARK: addresses
 
     private func addresses(_ record: MacRecord) -> some View {
-        let hosts = record.hosts.sorted { AddressKind.of($0).sortRank < AddressKind.of($1).sortRank }
+        let via = model.viaMac(of: record)
+        let hosts = model.linkRecord(of: record).hosts
+            .sorted { AddressKind.of($0).sortRank < AddressKind.of($1).sortRank }
         let hasAway = hosts.contains { AddressKind.of($0).worksAway }
         return Section {
             ForEach(hosts, id: \.self) { host in
@@ -121,9 +126,11 @@ struct ConnectionSheet: View {
             }
             .disabled(!model.link.testing.isEmpty)
         } header: {
-            Text("Ways to reach it")
+            Text(via.map { "Through \($0.displayName)" } ?? "Ways to reach it")
         } footer: {
-            if !hasAway {
+            if let via {
+                Text("Not on this iPhone, so it opens through \(via.displayName) at these addresses.")
+            } else if !hasAway {
                 Text("Only its home network address is saved, so it works on that Wi-Fi only. Set up Tailscale on the Mac in lpm → Settings → Mobile devices; lpm Link adds its new address the next time it connects.")
             } else {
                 Text("A home network address not answering is normal while you're away.")
@@ -162,10 +169,12 @@ struct ConnectionSheet: View {
 
     private func machine(_ record: MacRecord) -> some View {
         Section(record.displayName) {
-            NavigationLink {
-                EditEndpointView(macId: record.localId)
-            } label: {
-                Label("Addresses", systemImage: "point.3.connected.trianglepath.dotted")
+            if record.via == nil {
+                NavigationLink {
+                    EditEndpointView(macId: record.localId)
+                } label: {
+                    Label("Addresses", systemImage: "point.3.connected.trianglepath.dotted")
+                }
             }
             Button {
                 renameText = record.displayName
@@ -173,11 +182,13 @@ struct ConnectionSheet: View {
             } label: {
                 Label("Rename", systemImage: "pencil")
             }
-            Button {
-                model.link.afterSheetCloses { model.repairActiveMac(reason: .chosen) }
-                dismiss()
-            } label: {
-                Label("Pair again", systemImage: "macbook.and.iphone")
+            if record.via == nil {
+                Button {
+                    model.link.afterSheetCloses { model.repairActiveMac(reason: .chosen) }
+                    dismiss()
+                } label: {
+                    Label("Pair again", systemImage: "macbook.and.iphone")
+                }
             }
             Button(role: .destructive) {
                 removing = true
@@ -191,11 +202,11 @@ struct ConnectionSheet: View {
     private func details(_ record: MacRecord) -> some View {
         Section {
             DisclosureGroup("Details") {
-                LabeledContent("Port", value: String(record.port))
+                LabeledContent("Port", value: String(model.linkRecord(of: record).port))
                 if let host = model.link.host {
                     LabeledContent("Address in use") { Text(host).monospaced() }
                 }
-                ForEach(record.hosts, id: \.self) { host in
+                ForEach(model.linkRecord(of: record).hosts, id: \.self) { host in
                     if let check = model.link.checks[host] {
                         LabeledContent(host) { Text(check.detail) }
                             .monospaced()
@@ -216,6 +227,9 @@ struct ConnectionSheet: View {
 
     private var removeMessage: String {
         let next = model.nextMacAfterRemoval.map { " You’ll switch to “\($0.displayName)”." } ?? ""
+        if let via = record.flatMap(model.viaMac(of:)) {
+            return "It stays connected to “\(via.displayName)”, and its projects open from there again.\(next)"
+        }
         return "This iPhone will be unpaired and its notifications will stop.\(next) To add it back, pair it again."
     }
 }

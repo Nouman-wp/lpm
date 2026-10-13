@@ -53,19 +53,22 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Listener, Manager, State};
 use tungstenite::{accept, Error as WsError, Message, WebSocket};
 
+mod relay;
+pub(crate) mod relayed;
+
 // One phone connection's transport. The acceptor handles both this build's
 // TLS-wrapped clients (remotetls.rs) and, transitionally, the plaintext clients
 // of the pre-TLS mobile app — picked per connection by sniffing the first byte.
 // Everything above the stream (WebSocket handshake, Origin refusal, auth, frames)
 // is identical on both; a single concrete type keeps `WebSocket<T>` monomorphic.
-enum RemoteStream {
+pub(crate) enum RemoteStream {
     Plain(TcpStream),
     Tls(Box<rustls::StreamOwned<rustls::ServerConnection, TcpStream>>),
 }
 
 impl RemoteStream {
     /// The underlying TCP socket — for read-timeout tuning on either variant.
-    fn tcp(&self) -> &TcpStream {
+    pub(crate) fn tcp(&self) -> &TcpStream {
         match self {
             RemoteStream::Plain(s) => s,
             RemoteStream::Tls(t) => t.get_ref(),
@@ -97,7 +100,7 @@ impl Write for RemoteStream {
     }
 }
 
-type ClientWs = WebSocket<RemoteStream>;
+pub(crate) type ClientWs = WebSocket<RemoteStream>;
 
 const DEFAULT_PORT: u16 = 8765;
 // Output history kept per terminal. A phone that was away (locked, backgrounded,
@@ -107,17 +110,17 @@ const DEFAULT_PORT: u16 = 8765;
 // opened terminal would be needless work.
 const RING_CAP: usize = 512 * 1024; // output kept for resuming an away phone
 const SEED_CAP: usize = 96 * 1024; // recent scrollback replayed onto a fresh screen
-const POLL: Duration = Duration::from_millis(25); // read-timeout / outbound-drain cadence
+pub(crate) const POLL: Duration = Duration::from_millis(25); // read-timeout / outbound-drain cadence
 const AUTH_TIMEOUT: Duration = Duration::from_secs(20);
 // Liveness for the post-auth loop, keyed off any successful read — a data frame,
 // or the protocol-level Ping the phone sends every 20s, or the Pong answering
 // ours (URLSession replies to those on its own). A healthy connection never comes
 // near either threshold; a phone that vanished without a RST does.
-const READ_SILENCE_PING: Duration = Duration::from_secs(30); // send a protocol Ping past this
-const READ_SILENCE_DEAD: Duration = Duration::from_secs(90); // give the connection up past this
+pub(crate) const READ_SILENCE_PING: Duration = Duration::from_secs(30); // send a protocol Ping past this
+pub(crate) const READ_SILENCE_DEAD: Duration = Duration::from_secs(90); // give the connection up past this
 // Fail a blocked write instead of hanging for the kernel's retransmission
 // timeout (minutes) on a peer that stopped ACKing.
-const WRITE_TIMEOUT: Duration = Duration::from_secs(20);
+pub(crate) const WRITE_TIMEOUT: Duration = Duration::from_secs(20);
 // How long a goodbye gets to reach the phones: several drain ticks of every
 // connection thread, short enough not to hold up sleep or quit.
 const FAREWELL_FLUSH: Duration = Duration::from_millis(250);
@@ -129,6 +132,10 @@ const PAIR_MIN_GAP_MS: i64 = 5000; // min spacing between approve-on-Mac dialogs
 const DEVICE_REFRESH_GAP: Duration = Duration::from_secs(1); // shared device-list re-read gap
 const DEVICE_REFRESH_FLOOR: Duration = Duration::from_millis(100); // min spacing between failed re-reads
 const LIVE_REFRESH_GAP: Duration = Duration::from_secs(5); // established-session device-list re-read gap
+
+/// Sent in `paired` and `ready`: requests this Mac answers that an older one
+/// silently ignores, so the phone only sends what will get a reply.
+const PHONE_FEATURES: &[&str] = &[crate::peeruploadhost::FILE_UPLOAD_FEATURE];
 
 /// Whether a device-list re-read may wait for a save that is in progress.
 #[derive(Clone, Copy)]
@@ -198,6 +205,9 @@ struct Client {
     subs: Arc<Mutex<HashSet<String>>>,
     device_id: String,
     route: Route,
+    /// A phone another Mac relays here over its peer link (remote/relayed.rs),
+    /// not one on this machine's own phone server.
+    relayed: bool,
 }
 
 /// Recent output for one terminal, positioned in that terminal's byte stream.
@@ -265,6 +275,9 @@ struct HubInner {
     // any tab tree — never appear. Unlike labels (upsert-only), this is
     // authoritative membership + order.
     tree_ids: Mutex<HashMap<String, Vec<String>>>,
+    // Relayed phone -> its name, for the "Active on <name>" placeholder: a phone
+    // relayed here isn't one of this machine's paired devices.
+    relay_names: Mutex<HashMap<String, String>>,
     // Queued phone requests to run an action / open a terminal. The frontend
     // drains this via remote_take_run_actions — the emitted event is only a
     // wake-up, so a request survives arriving before the main window's
@@ -610,6 +623,7 @@ impl RemoteHub {
             .iter()
             .find(|d| d.id == id)
             .map(|d| crate::remotepresence::display_name(d).to_string())
+            .or_else(|| self.inner.relay_names.lock().unwrap().get(id).cloned())
             .filter(|n| !n.is_empty())
             .unwrap_or_else(|| "iPhone".to_string())
     }
@@ -624,18 +638,21 @@ pub fn tee_output(app: &AppHandle, id: &str, _project: &str, text: &str) {
     let Some(hub) = app.try_state::<RemoteHub>() else {
         return;
     };
-    if !hub.inner.enabled.load(Ordering::Relaxed) {
+    if !keeps_output(app, &hub) {
         return;
     }
     let off = hub.ring_push(id, text);
     // `off` positions the chunk in the terminal's byte stream: a phone uses it to
     // drop what a seed already covered and to notice a gap (this queue drops on
     // overflow) so it can ask for the missing slice.
-    let payload = json!({ "t": "o", "id": id, "d": text, "off": off }).to_string();
+    let mut payload = None;
     let clients = hub.inner.clients.lock().unwrap();
     for c in clients.values() {
         if c.subs.lock().unwrap().contains(id) {
-            let _ = c.tx.try_send(payload.clone());
+            let frame = payload.get_or_insert_with(|| {
+                json!({ "t": "o", "id": id, "d": text, "off": off }).to_string()
+            });
+            let _ = c.tx.try_send(frame.clone());
         }
     }
 }
@@ -645,7 +662,7 @@ pub fn tee_exit(app: &AppHandle, id: &str, code: i32) {
     let Some(hub) = app.try_state::<RemoteHub>() else {
         return;
     };
-    if !hub.inner.enabled.load(Ordering::Relaxed) {
+    if !keeps_output(app, &hub) {
         return;
     }
     let payload = json!({ "t": "exit", "id": id, "code": code }).to_string();
@@ -658,6 +675,13 @@ pub fn tee_exit(app: &AppHandle, id: &str, code: i32) {
         }
     }
     hub.drop_ring(id);
+}
+
+/// Whether terminal output is kept for phones: this machine's own phone server
+/// is on, or a Mac it hosts as a peer may relay a phone here, whose terminals
+/// have to open on their recent output like any other phone's.
+fn keeps_output(app: &AppHandle, hub: &RemoteHub) -> bool {
+    hub.inner.enabled.load(Ordering::Relaxed) || crate::peer::hosting(app)
 }
 
 /// Whether any phone is attached right now. Lets a hot emitter skip building a
@@ -675,13 +699,25 @@ pub(crate) fn phones_connected(app: &AppHandle) -> bool {
 /// is going to sleep, lpm is quitting, or remote control was turned off — and
 /// give the connection threads a moment to write it before the sockets close.
 pub(crate) fn farewell(hub: &RemoteHub, reason: &str) {
-    if !hub.inner.enabled.load(Ordering::Relaxed) || !has_clients(hub) {
+    let enabled = hub.inner.enabled.load(Ordering::Relaxed);
+    // A relayed phone came in over a peer link, so turning this machine's own
+    // phone server off doesn't end it; sleeping or quitting does.
+    let told: Vec<SyncSender<String>> = hub
+        .inner
+        .clients
+        .lock()
+        .unwrap()
+        .values()
+        .filter(|c| if c.relayed { reason != "off" } else { enabled })
+        .map(|c| c.tx.clone())
+        .collect();
+    if told.is_empty() {
         return;
     }
-    broadcast(
-        hub,
-        json!({ "t": "bye", "reason": reason, "at": crate::status::now_millis() }),
-    );
+    let frame = json!({ "t": "bye", "reason": reason, "at": crate::status::now_millis() });
+    for tx in told {
+        let _ = tx.try_send(frame.to_string());
+    }
     std::thread::sleep(FAREWELL_FLUSH);
 }
 
@@ -724,13 +760,13 @@ fn record_draft(hub: &RemoteHub, id: &str, text: &str) -> Option<u64> {
 }
 
 /// Fan out a terminal's new control owner to paired phones. Called from
-/// `control::broadcast` alongside the desktop `app.emit`. No-op when the server
-/// is disabled (no clients to notify).
+/// `control::broadcast` alongside the desktop `app.emit`. No-op when no phone
+/// is attached.
 pub fn push_control(app: &AppHandle, id: &str, owner: &Option<crate::control::Owner>) {
     let Some(hub) = app.try_state::<RemoteHub>() else {
         return;
     };
-    if !hub.inner.enabled.load(Ordering::Relaxed) {
+    if !has_clients(&hub) {
         return;
     }
     let owner = crate::control::owner_json(owner);
@@ -1004,6 +1040,19 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
         FirstFrame::PairRequest { name, replaces } => {
             handle_pair_request(&mut ws, &hub, &app, &name, replaces)
         }
+        FirstFrame::Relay { device_id, slug } => {
+            let name = hub.device_name(&device_id);
+            note_presence(&hub, &app, &device_id, route);
+            relay::run(&mut ws, &app, &device_id, &name, &slug, || {
+                hub.refresh_live_devices();
+                hub.inner.generation.load(Ordering::SeqCst) == generation
+                    && hub.device_exists(&device_id)
+            });
+            note_presence(&hub, &app, &device_id, route);
+            let _ = ws.close(None);
+            let _ = ws.flush();
+            return;
+        }
     };
     let device_id = match outcome {
         Some(outcome) => {
@@ -1034,6 +1083,7 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
             subs: subs.clone(),
             device_id: device_id.clone(),
             route,
+            relayed: false,
         },
     );
     // A fresh connection counts as on screen until the app says otherwise.
@@ -1132,16 +1182,31 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
     for (_, w) in watches.drain() {
         w.stop.store(true, Ordering::SeqCst);
     }
-    // Release any terminal control this phone held so ownership transfers back to
-    // a desktop window (or another presenter) instead of stranding on a gone
-    // client. The control surface is keyed by device, not connection, so when the
-    // same phone still has another live connection (it reconnected while this one
-    // lingered), its control must survive this teardown. The single hold of the
-    // clients lock covers every connection already in the map; a reconnect that
-    // authenticated but hasn't inserted itself yet is invisible here, so the drop
-    // still fires — harmlessly, since that connection re-claims the presenter slot
-    // when it processes its own `sub`.
-    let owner = mobile_owner(&hub, &device_id);
+    let still_here = release_session(&hub, &app, conn_id, &device_id);
+    // A socket that lingered after the phone moved networks closes late; the
+    // newer connection is the one to record.
+    if still_here {
+        let _ = app.emit("remote-devices-changed", ());
+    } else {
+        hub.inner.away.lock().unwrap().remove(&device_id);
+        note_presence(&hub, &app, &device_id, route);
+    }
+    let _ = ws.close(None);
+    let _ = ws.flush();
+}
+
+/// Drop a finished connection, returning whether the same phone still has
+/// another. Releases any terminal control the phone held so ownership transfers
+/// back to a desktop window (or another presenter) instead of stranding on a
+/// gone client. The control surface is keyed by device, not connection, so when
+/// the same phone still has another live connection (it reconnected while this
+/// one lingered), its control must survive this teardown. The single hold of the
+/// clients lock covers every connection already in the map; a reconnect that
+/// authenticated but hasn't inserted itself yet is invisible here, so the drop
+/// still fires — harmlessly, since that connection re-claims the presenter slot
+/// when it processes its own `sub`.
+fn release_session(hub: &RemoteHub, app: &AppHandle, conn_id: u64, device_id: &str) -> bool {
+    let owner = mobile_owner(hub, device_id);
     let (changed, still_here) = {
         let mut clients = hub.inner.clients.lock().unwrap();
         clients.remove(&conn_id);
@@ -1155,18 +1220,9 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
         }
     };
     for (id, new_owner) in changed {
-        crate::control::broadcast(&app, &id, &new_owner);
+        crate::control::broadcast(app, &id, &new_owner);
     }
-    // A socket that lingered after the phone moved networks closes late; the
-    // newer connection is the one to record.
-    if still_here {
-        let _ = app.emit("remote-devices-changed", ());
-    } else {
-        hub.inner.away.lock().unwrap().remove(&device_id);
-        note_presence(&hub, &app, &device_id, route);
-    }
-    let _ = ws.close(None);
-    let _ = ws.flush();
+    still_here
 }
 
 /// A phone connected or left: stamp when and how, and let an open Settings
@@ -1205,6 +1261,12 @@ enum FirstFrame {
     PairRequest {
         name: String,             // the phone's device name
         replaces: Option<String>, // the record this phone is re-pairing over
+    },
+    /// A paired phone asking this Mac to carry it to one of the machines it
+    /// connects to (remote/relay.rs). Its credential is already checked.
+    Relay {
+        device_id: String,
+        slug: String,
     },
 }
 
@@ -1257,6 +1319,7 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
                                 "serverId": hub.server_id(),
                                 "serverName": server_name(),
                                 "platform": crate::peer::platform_id(),
+                                "features": PHONE_FEATURES,
                             })),
                         )
                         .to_string(),
@@ -1294,11 +1357,32 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
                             "serverId": hub.server_id(),
                             "serverName": server_name(),
                             "platform": crate::peer::platform_id(),
+                            "features": PHONE_FEATURES,
                         })),
                     )
                     .to_string(),
                 ));
                 FirstFrame::Done(Some(AuthOutcome::Resumed(id.to_string())))
+            } else {
+                let _ = ws.send(Message::text(
+                    json!({ "t": "error", "error": "unauthorized" }).to_string(),
+                ));
+                FirstFrame::Done(None)
+            }
+        }
+        Some("relay") => {
+            let id = v
+                .get("deviceId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let token = v.get("token").and_then(Value::as_str).unwrap_or_default();
+            let slug = v.get("slug").and_then(Value::as_str).unwrap_or_default();
+            hub.refresh_devices();
+            if check_device(hub, id, token) {
+                FirstFrame::Relay {
+                    device_id: id.to_string(),
+                    slug: slug.to_string(),
+                }
             } else {
                 let _ = ws.send(Message::text(
                     json!({ "t": "error", "error": "unauthorized" }).to_string(),
@@ -1433,6 +1517,7 @@ fn handle_pair_request(
                         "serverId": hub.server_id(),
                         "serverName": server_name(),
                         "platform": crate::peer::platform_id(),
+                        "features": PHONE_FEATURES,
                     })),
                 )
                 .to_string(),
@@ -1633,8 +1718,20 @@ fn check_device(hub: &RemoteHub, id: &str, token: &str) -> bool {
 
 // --- request dispatch --------------------------------------------------------
 
-fn send(ws: &mut ClientWs, val: Value) -> Result<(), ()> {
-    ws.send(Message::text(val.to_string())).map_err(|_| ())
+/// Where a phone session's direct replies go: its own socket, or the queue of
+/// a session relayed here over a peer link (remote/relayed.rs).
+trait PhoneSink {
+    fn send_text(&mut self, text: String) -> Result<(), ()>;
+}
+
+impl PhoneSink for ClientWs {
+    fn send_text(&mut self, text: String) -> Result<(), ()> {
+        self.send(Message::text(text)).map_err(|_| ())
+    }
+}
+
+fn send(ws: &mut dyn PhoneSink, val: Value) -> Result<(), ()> {
+    ws.send_text(val.to_string())
 }
 
 fn result_reply(kind: &str, r: Result<(), String>) -> Value {
@@ -1990,7 +2087,7 @@ fn save_config_reply(app: &AppHandle, project: &str, layer: &str, content: Strin
 }
 
 fn handle_msg(
-    ws: &mut ClientWs,
+    ws: &mut dyn PhoneSink,
     txt: &str,
     hub: &RemoteHub,
     app: &AppHandle,
@@ -4164,6 +4261,9 @@ fn handle_msg(
             crate::remote_update::handle(app, out, t)
         }
         "claudeAccounts" | "setClaudeAccount" => crate::remote_claude::handle(app, out, t, &v),
+        "uploadBegin" | "uploadChunk" | "uploadDone" | "uploadAbort" => {
+            crate::remote_upload::handle(app, out, t, &v)
+        }
         _ => {}
     }
     Ok(())
@@ -5600,6 +5700,9 @@ pub(crate) fn state_value(hub: &RemoteHub) -> Value {
     // one says how it is connected now.
     let mut live: HashMap<String, (u64, Route)> = HashMap::new();
     for (conn_id, c) in hub.inner.clients.lock().unwrap().iter() {
+        if c.relayed {
+            continue;
+        }
         let newest = live.get(&c.device_id).is_none_or(|(id, _)| *conn_id > *id);
         if newest {
             live.insert(c.device_id.clone(), (*conn_id, c.route));
@@ -5998,6 +6101,10 @@ mod tests {
     }
 
     fn attach_client(hub: &RemoteHub, device: &str) -> mpsc::Receiver<String> {
+        attach(hub, device, false)
+    }
+
+    fn attach(hub: &RemoteHub, device: &str, relayed: bool) -> mpsc::Receiver<String> {
         let (tx, rx) = mpsc::sync_channel::<String>(8);
         hub.inner.clients.lock().unwrap().insert(
             hub.inner.next_id.fetch_add(1, Ordering::SeqCst) + 1,
@@ -6006,6 +6113,7 @@ mod tests {
                 subs: Arc::new(Mutex::new(HashSet::new())),
                 device_id: device.to_string(),
                 route: Route::Network,
+                relayed,
             },
         );
         rx
@@ -6041,6 +6149,20 @@ mod tests {
         let rx = attach_client(&hub, "a");
         farewell(&hub, "quit");
         assert!(rx.try_recv().is_err());
+    }
+
+    // A relayed phone came in over a peer link, not this machine's phone server:
+    // it hears that the machine is going away, but not that the server was
+    // turned off, which doesn't end it.
+    #[test]
+    fn a_relayed_phone_hears_sleep_but_not_the_server_turning_off() {
+        let hub = RemoteHub::default();
+        let rx = attach(&hub, "relayed", true);
+        farewell(&hub, "off");
+        assert!(rx.try_recv().is_err());
+        farewell(&hub, "sleep");
+        let frame: Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+        assert_eq!(frame["reason"], "sleep");
     }
 
     // Regression for the non-blocking-accept bug: a socket accepted from a

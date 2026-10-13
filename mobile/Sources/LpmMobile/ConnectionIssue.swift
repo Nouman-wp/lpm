@@ -33,6 +33,10 @@ enum ConnectionIssue: Equatable {
     case codeRejected
     case pairingUnavailable
     case qrMismatch
+    /// A machine opened through another Mac (`via`) that this Mac can't reach
+    /// right now, or whose lpm is too old to be opened that way.
+    case relayOffline(via: String)
+    case relayUnsupported(via: String)
 
     var isConnecting: Bool {
         if case .connecting = self { return true }
@@ -186,6 +190,15 @@ extension ConnectionIssue {
             return IssueCopy(title: "This QR code doesn't match the Mac",
                              message: "Show a fresh code in lpm → Settings → Mobile devices, then scan again.",
                              icon: "qrcode", tone: .problem, actions: [.enterNewCode])
+        case .relayOffline(let via):
+            return IssueCopy(title: "\(via) isn't connected to \(mac)",
+                             message: "\(Mac) may be asleep, or lpm isn't open on it. lpm keeps trying.",
+                             icon: "point.3.connected.trianglepath.dotted", tone: .problem,
+                             actions: [.retry, .details])
+        case .relayUnsupported(let via):
+            return IssueCopy(title: "Update lpm on \(mac)",
+                             message: "It needs a newer lpm to open through \(via).",
+                             icon: "arrow.up.circle", tone: .problem, actions: [.retry])
         }
     }
 }
@@ -212,6 +225,8 @@ struct LinkFacts {
     var probedAllFailed = false
     var farewell: Farewell?
     var reconnectReason: ReconnectReason?
+    /// The Mac the active machine is opened through, when it isn't on this phone.
+    var via: String?
 }
 
 extension ConnectionIssue {
@@ -231,6 +246,8 @@ extension ConnectionIssue {
             case LpmClient.pairMismatchError: return .qrMismatch
             case LpmClient.identityChangedError: return .identityChanged
             case LpmClient.unauthorizedError, LpmClient.noCredentialError: return .notRecognized
+            case LpmClient.relayOfflineError: return .relayOffline(via: f.via ?? "your Mac")
+            case LpmClient.relayUnsupportedError: return .relayUnsupported(via: f.via ?? "your Mac")
             default: return unreachable(f)
             }
         }
@@ -280,8 +297,10 @@ struct LinkStatusLine: Equatable {
     /// the phone expects to reach the Mac from its network, and `found` a Mac
     /// just found at a new address on this network.
     static func make(ready: Bool, demo: Bool, kind: AddressKind?, issue: ConnectionIssue?,
-                     slow: Bool = false, route: AddressKind? = nil, found: Bool = false) -> LinkStatusLine {
+                     slow: Bool = false, route: AddressKind? = nil, found: Bool = false,
+                     via: String? = nil) -> LinkStatusLine {
         if demo { return LinkStatusLine(text: "Demo · sample projects", tone: .live) }
+        if ready, let via { return LinkStatusLine(text: "Connected · through \(via)", tone: .live) }
         if ready {
             switch kind {
             case .tailscale: return LinkStatusLine(text: "Connected · over Tailscale", tone: .live)
@@ -306,6 +325,8 @@ struct LinkStatusLine: Equatable {
         case .phoneOffline: return LinkStatusLine(text: "iPhone is offline", tone: .problem)
         case .notRecognized, .identityRejected: return LinkStatusLine(text: "Not paired", tone: .problem)
         case .identityChanged: return LinkStatusLine(text: "Check its identity", tone: .problem)
+        case .relayOffline(let via): return LinkStatusLine(text: "Not connected to \(via)", tone: .problem)
+        case .relayUnsupported: return LinkStatusLine(text: "Needs an lpm update", tone: .problem)
         default: return LinkStatusLine(text: "Not connected", tone: .problem)
         }
     }

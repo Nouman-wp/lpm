@@ -178,7 +178,8 @@ struct ProjectsView: View {
     }
 
     /// A project of one of the Mac's machines. It lives on that machine, so
-    /// opening it switches this phone over to it.
+    /// opening it switches this phone over to it — directly, or through the Mac
+    /// when the machine isn't on this phone.
     @ViewBuilder
     private func machineProjectLink(_ row: SidebarRow, in section: MachineSection) -> some View {
         let agents = agentRows(row.project, tabTitles: [:])
@@ -193,9 +194,9 @@ struct ProjectsView: View {
                     .foregroundStyle(.tertiary)
             }
             .padding(.leading, indent)
-            .foregroundStyle(section.record == nil ? Color.secondary : Color.primary)
+            .foregroundStyle(section.canOpen ? Color.primary : Color.secondary)
         }
-        .disabled(section.record == nil)
+        .disabled(!section.canOpen)
         .listRowSeparator(agents.isEmpty ? .visible : .hidden, edges: .bottom)
 
         if !agents.isEmpty {
@@ -204,7 +205,7 @@ struct ProjectsView: View {
                     model.openOnMachine(section, project: row.project.name, terminal: terminal)
                 }
             }
-            .disabled(section.record == nil)
+            .disabled(!section.canOpen)
             .listRowInsets(EdgeInsets(top: 0, leading: 16 + 22 + indent, bottom: 8, trailing: 16))
             .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
         }

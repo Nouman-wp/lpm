@@ -414,10 +414,21 @@ final class AppModel {
         return macs.first { $0.localId == id }
     }
 
+    /// The saved Mac a record's connection goes to: the record itself, or for a
+    /// machine opened through another Mac, that Mac — whose addresses,
+    /// credential and certificate it uses.
+    func linkRecord(of record: MacRecord) -> MacRecord {
+        guard let via = record.via else { return record }
+        return macs.first { $0.localId == via.macId } ?? record
+    }
+
+    /// `linkRecord(of:)` for the active Mac.
+    var linkRecord: MacRecord? { activeRecord.map(linkRecord(of:)) }
+
     /// The active Mac's stored credential, if any.
     func activeCredential() -> LpmClient.Credential? {
-        guard let id = activeMacId, macs.contains(where: { $0.localId == id }) else { return nil }
-        return Keychain.load(for: id)
+        guard let record = activeRecord else { return nil }
+        return Keychain.load(for: linkRecord(of: record).localId)
     }
 
     func persistMacs() {
@@ -546,7 +557,7 @@ final class AppModel {
     private func startRecoveryIfStale(_ s: LpmClient.State, from c: LpmClient) {
         guard case .failed(let hint) = s, LpmClient.isOfflineHint(hint),
               c === client, !recovering,
-              let sid = activeRecord?.serverId, !sid.isEmpty else { return }
+              let sid = linkRecord?.serverId, !sid.isEmpty else { return }
         recovering = true
         recoveryHandled = []
         discovery.onChange = { [weak self] found in self?.handleDiscovered(found) }
@@ -585,10 +596,10 @@ final class AppModel {
         for mac in found {
             guard let sid = mac.serverId, !sid.isEmpty,
                   !recoveryHandled.contains(sid),
-                  let record = macs.first(where: { $0.serverId == sid }) else { continue }
+                  let record = macs.first(where: { $0.serverId == sid && $0.via == nil }) else { continue }
             recoveryHandled.insert(sid)
             let localId = record.localId
-            let isActive = localId == activeMacId
+            let isActive = localId == linkRecord?.localId
             Task { @MainActor in
                 guard let resolved = await self.discovery.resolve(mac) else {
                     // Resolution failed — allow a later batch to retry this Mac.
@@ -632,11 +643,12 @@ final class AppModel {
         // Enforce the stored pin for this Mac, read fresh on each TLS handshake so
         // a just-completed TOFU pin takes effect on the next reconnect. A nil pin
         // (never pinned, or migration) is accepted, then pinned after auth.
-        let localId = activeMacId
+        let localId = linkRecord?.localId
         let c = LpmClient(endpoint: .init(host: host, port: port),
                           credential: credential,
                           deviceName: UIDevice.current.name,
-                          pinProvider: { localId.map { Keychain.loadPin(for: $0) } ?? nil })
+                          pinProvider: { localId.map { Keychain.loadPin(for: $0) } ?? nil },
+                          relay: activeRecord?.via?.slug)
         wire(c)
         client = c
         c.connect()
@@ -780,12 +792,12 @@ final class AppModel {
     }
 
     func savedHosts() -> [String] {
-        let hosts = activeRecord?.hosts ?? []
+        let hosts = linkRecord?.hosts ?? []
         return hosts.isEmpty ? ["127.0.0.1"] : hosts
     }
 
     func savedPort() -> Int {
-        Int(activeRecord?.port ?? MacStore.defaultPort)
+        Int(linkRecord?.port ?? MacStore.defaultPort)
     }
 
     // MARK: saved Macs
@@ -801,7 +813,7 @@ final class AppModel {
         restoreSnapshot()
         link.reach[record.localId] = nil
         link.refreshReach(force: true)
-        if let cred = Keychain.load(for: record.localId) {
+        if let cred = Keychain.load(for: linkRecord(of: record).localId) {
             connectBest(credential: cred)
         }
     }
@@ -823,9 +835,10 @@ final class AppModel {
     /// the `serverId` dedupe in `handlePaired` refreshes the saved record in place
     /// rather than adding a second entry for the same Mac.
     func repairActiveMac(reason: RepairReason? = nil) {
-        guard !demoMode, activeMacId != nil else { return }
-        pendingRepairMacId = activeMacId
-        link.repairMacId = activeMacId
+        // A machine opened through another Mac is paired again by pairing that Mac.
+        guard !demoMode, let target = linkRecord?.localId else { return }
+        pendingRepairMacId = target
+        link.repairMacId = target
         link.repairReason = reason ?? (needsRepair ? .notRecognized : .chosen)
         link.sheetOpen = false
         link.identityCheckOpen = false
@@ -930,7 +943,7 @@ final class AppModel {
     /// (nil if the active Mac is the only one). Shared with the confirmation copy so
     /// the named fallback can never diverge from the actual behavior.
     var nextMacAfterRemoval: MacRecord? {
-        macs.first { $0.localId != activeMacId }
+        macs.first { $0.localId != activeMacId && $0.via?.macId != activeMacId }
     }
 
     /// Remove a saved Mac: delete its record + Keychain credential and its saved
@@ -938,17 +951,21 @@ final class AppModel {
     /// another saved Mac if one remains — otherwise back to the pairing screen.
     func removeMac(_ id: UUID) {
         if demoMode { exitDemo(); return }
-        let wasActive = id == activeMacId
-        let next = wasActive ? nextMacAfterRemoval : nil
+        // The machines opened through this Mac go with it: they connect as it.
+        let gone = Set([id] + macs.filter { $0.via?.macId == id }.map(\.localId))
+        let wasActive = activeMacId.map(gone.contains) ?? false
+        let next = wasActive ? macs.first { !gone.contains($0.localId) } : nil
         if wasActive { resetSessionState() }
-        Keychain.delete(for: id)
-        PushRegistrar.forget(id)
-        link.snapshots.remove(id)
-        link.reach[id] = nil
-        macs.removeAll { $0.localId == id }
+        for removed in gone {
+            Keychain.delete(for: removed)
+            PushRegistrar.forget(removed)
+            link.snapshots.remove(removed)
+            link.reach[removed] = nil
+        }
+        macs.removeAll { gone.contains($0.localId) }
         if wasActive { activeMacId = next?.localId }
         persistMacs()
-        if wasActive, let next, let cred = Keychain.load(for: next.localId) {
+        if wasActive, let next, let cred = Keychain.load(for: linkRecord(of: next).localId) {
             restoreSnapshot()
             connectBest(credential: cred)
         }
@@ -970,6 +987,8 @@ final class AppModel {
         let localId: UUID
         if let sid = serverId, !sid.isEmpty, let idx = macs.firstIndex(where: { $0.serverId == sid }) {
             localId = macs[idx].localId
+            // Paired with directly now, so it no longer goes through another Mac.
+            macs[idx].via = nil
             // Any pairing of an already-saved Mac often resolves only the one
             // address it reached the Mac at (approve-on-Mac always does; a fresh
             // "Add a Mac" scan carries only what its QR knew), so overwriting
@@ -1026,6 +1045,7 @@ final class AppModel {
         let localId: UUID
         if let sid = p.serverId, let idx = macs.firstIndex(where: { $0.serverId == sid }) {
             localId = macs[idx].localId
+            macs[idx].via = nil
             macs[idx].hosts = Self.unionHosts(existing: macs[idx].hosts, fresh: p.hosts)
             macs[idx].port = p.port
         } else {
@@ -1071,7 +1091,7 @@ final class AppModel {
     /// persistence hit). Absent field / older Mac / unknown serverId: no-op.
     private func mergeAdvertisedHosts(serverId: String?, hosts: [String]) {
         guard !demoMode, let sid = serverId, !sid.isEmpty, !hosts.isEmpty,
-              let idx = macs.firstIndex(where: { $0.serverId == sid }) else { return }
+              let idx = macs.firstIndex(where: { $0.serverId == sid && $0.via == nil }) else { return }
         let merged = Self.unionHosts(existing: macs[idx].hosts, fresh: hosts)
         guard merged != macs[idx].hosts else { return }
         macs[idx].hosts = merged
@@ -1084,7 +1104,7 @@ final class AppModel {
     /// pinned here on its first wss:// connect). Never overwrites an existing pin —
     /// a changed cert is caught by the pin check, not silently re-pinned.
     private func persistObservedPinIfNeeded() {
-        guard let id = activeMacId, let fp = client?.observedFingerprint, !fp.isEmpty else { return }
+        guard let id = linkRecord?.localId, let fp = client?.observedFingerprint, !fp.isEmpty else { return }
         if Keychain.loadPin(for: id) == nil { Keychain.savePin(fp, for: id) }
     }
 
@@ -1092,7 +1112,7 @@ final class AppModel {
     /// stored pin so the next connect re-pins the current cert via TOFU, then
     /// reconnect. Only reachable from the explicit mismatch prompt — never silent.
     func trustNewIdentity() {
-        guard let id = activeMacId else { return }
+        guard let id = linkRecord?.localId else { return }
         // Pin exactly the certificate whose code the user compared, so a further
         // change is caught again instead of trusted on first use.
         if let fp = link.newFingerprint { Keychain.savePin(fp, for: id) } else { Keychain.deletePin(for: id) }
@@ -1286,7 +1306,10 @@ final class AppModel {
     /// Sent whenever both a token and a live authed connection exist — re-sent after
     /// every reconnect since the token can rotate and the frame is idempotent.
     private func sendApnsTokenIfPossible() {
-        guard case .ready = connection, let client, let payload = pushPayload() else { return }
+        // A machine opened through another Mac doesn't know this phone; that Mac
+        // is registered by the sweep instead.
+        guard case .ready = connection, let client, activeRecord?.via == nil,
+              let payload = pushPayload() else { return }
         lastSentPushPayload = payload
         client.sendApnsToken(token: payload.token, env: payload.env, key: payload.key,
                              notifyWaiting: payload.waiting,
@@ -2590,6 +2613,7 @@ final class AppModel {
         c.onUpload = { [weak self] id, reqId, path in
             self?.composerStores[id]?.resolveUpload(reqId: reqId, path: path)
         }
+        c.onUploadStep = { [weak self] step in self?.composerStores[step.termId]?.applyUploadStep(step) }
         c.onMentions = { [weak self] proj, entries in self?.mentions[proj] = entries }
         c.onHistory = { [weak self] proj, rows in self?.history[proj] = rows.filter { !$0.isDraft } }
     }

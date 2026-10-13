@@ -9,9 +9,12 @@ struct MachineSection: Identifiable {
     let record: MacRecord?
     /// Where adding it to this phone stands, while it isn't on it.
     let pending: MachineImporter.Status?
+    /// Not on this phone, but the live Mac can carry the phone to it.
+    let throughMac: Bool
 
     var id: String { machine.slug }
     var projectCount: Int { rows.filter { !$0.isChild }.count }
+    var canOpen: Bool { record != nil || throughMac }
 }
 
 /// A machine's projects with each copy right under the project it was made
@@ -41,11 +44,15 @@ extension AppModel {
         guard !demoMode else { return [] }
         let pending = Dictionary(machineImporter.rows(macs: macs).map { ($0.machine.slug, $0.status) },
                                  uniquingKeysWith: { a, _ in a })
+        // Only a Mac this phone reaches itself can carry it on to another machine.
+        let relays = activeRecord?.via == nil
         return machineImporter.machines.filter(\.isConnected).map { m in
-            MachineSection(machine: m,
-                           rows: machineRows(m.projects ?? []),
-                           record: machineImporter.record(for: m, macs: macs),
-                           pending: pending[m.slug])
+            let record = machineImporter.record(for: m, macs: macs)
+            return MachineSection(machine: m,
+                                  rows: machineRows(m.projects ?? []),
+                                  record: record,
+                                  pending: pending[m.slug],
+                                  throughMac: record == nil && relays && m.relay)
         }
     }
 
@@ -67,7 +74,7 @@ extension AppModel {
     /// machine, then go to the project (and the terminal, when one is given) once
     /// its list has loaded.
     func openOnMachine(_ section: MachineSection, project: String, terminal: String? = nil) {
-        guard let record = section.record else { return }
+        guard let record = section.record ?? recordThroughLiveMac(section) else { return }
         guard let serverId = record.serverId else {
             pendingNotificationTarget = nil
             switchTo(record)
@@ -77,8 +84,29 @@ extension AppModel {
     }
 
     func switchToMachine(_ section: MachineSection) {
-        guard let record = section.record else { return }
+        guard let record = section.record ?? recordThroughLiveMac(section) else { return }
         pendingNotificationTarget = nil
         switchTo(record)
+    }
+
+    /// The saved entry that opens one of the live Mac's machines through it,
+    /// made the first time it's opened that way. Like a machine added here, it
+    /// reads as it does in that Mac's sidebar.
+    private func recordThroughLiveMac(_ section: MachineSection) -> MacRecord? {
+        guard section.throughMac, let mac = activeRecord else { return nil }
+        let via = MacVia(macId: mac.localId, slug: section.machine.slug)
+        if let saved = macs.first(where: { $0.via == via }) { return saved }
+        let m = section.machine
+        let record = MacRecord(localId: UUID(), serverId: m.serverId, name: m.name, customName: m.name,
+                               hosts: [], port: mac.port, platform: m.platform, via: via)
+        macs.append(record)
+        persistMacs()
+        return record
+    }
+
+    /// The Mac a machine opened through another one goes through.
+    func viaMac(of record: MacRecord) -> MacRecord? {
+        guard let via = record.via else { return nil }
+        return macs.first { $0.localId == via.macId }
     }
 }

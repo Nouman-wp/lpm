@@ -83,6 +83,7 @@ const HOST_FEATURES: &[&str] = &[
     crate::peerread::FILE_RANGE_FEATURE,
     REMOTE_PAIR_FEATURE,
     crate::peersettings::HOST_SETTINGS_FEATURE,
+    crate::remote::relayed::PHONE_RELAY_FEATURE,
 ];
 
 /// HOST_FEATURES plus those this build offers only on some platforms.
@@ -468,6 +469,13 @@ impl PeerHub {
 }
 
 // --- output tee (called from pty::flush / exit, alongside the mobile tee) -----
+
+/// Whether this machine takes peer connections, and so may be handed a phone
+/// another Mac relays here.
+pub(crate) fn hosting(app: &AppHandle) -> bool {
+    app.try_state::<PeerHub>()
+        .is_some_and(|hub| hub.inner.enabled.load(Ordering::Relaxed))
+}
 
 /// Append a PTY output chunk to the peer ring and fan it out to subscribed peers.
 /// A no-op when the host server is disabled. Never blocks the reader.
@@ -986,6 +994,7 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
 
     hub.inner.clients.lock().unwrap().remove(&conn_id);
     crate::gitwatchhost::drop_conn(conn_id); // stop watching folders for a gone follower
+    crate::remote::relayed::drop_conn(conn_id); // end the phones it was carrying here
                                              // Release any terminal control this peer held so ownership transfers back to a
                                              // host window (or another presenter) instead of stranding on a gone client.
     let owner = peer_owner(&hub, &device_id);
@@ -1452,6 +1461,12 @@ fn handle_msg(
         // machine's own. Settings are on the invoke denylist; these frames reach
         // only those fields (peersettings.rs).
         "settingsGet" | "settingsSet" => crate::peersettings::handle(app, out, t, &v),
+        // A phone the client Mac is carrying here: it opens this machine's
+        // projects without pairing with it (remote/relayed.rs).
+        "phoneOpen" | "phoneIn" | "phoneClose" => {
+            answer_soon(QUICK_FOR);
+            crate::remote::relayed::handle(app, out, conn_id, t, &v)
+        }
         // Not a request/reply: the follower states which folders it follows, and
         // this Mac pushes their changes until it says otherwise or goes away.
         "gitFollowWatch" => {

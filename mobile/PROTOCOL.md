@@ -120,6 +120,12 @@ and `selfUpdate` is true when the phone may install a newer release there (see
 Both ride `paired` **and** `ready`. **Absent** from a desktop that predates them;
 treat a missing `selfUpdate` as false.
 
+`features` lists requests this machine answers that an older one silently
+ignores, so the phone sends them only where they will get a reply. Today:
+`"fileUpload"` — the chunked attach (`uploadBegin` … `uploadDone`, under
+[Requests](#requests-phone--desktop-and-their-replies)). Rides `paired` **and** `ready`; **absent** from a desktop
+that predates it, which means none.
+
 `hosts` (**optional**) is the Mac's current candidate address list, most-preferred
 first — the same LAN-then-Tailscale list the pairing QR's repeated `h=` params
 carry (the Tailscale entry only while that toggle is on and a tailnet interface
@@ -197,7 +203,7 @@ disconnects while pending, the Mac cancels the request and dismisses its dialog.
 ```
 → `{ "t": "ready", "serverId": "<uuid>", "serverName": "My MacBook Pro",
 "platform": "macos", "version": "0.6.10", "selfUpdate": true,
-"hosts": ["192.168.1.23", "100.101.102.103"] }`
+"features": ["fileUpload"], "hosts": ["192.168.1.23", "100.101.102.103"] }`
 on success, or `{ "t": "error", "error": "unauthorized" }`. `serverId` and
 `serverName` are the same stable identity + computer name returned by `paired`,
 re-sent on every resume so a phone paired with multiple Macs keeps them labeled
@@ -236,6 +242,32 @@ revoked, or the app's data was reset. Retrying the same credential can never
 succeed, so the phone stops reconnecting and offers to pair again (sending
 `replaces` with the dead `deviceId`, above) rather than looping.
 
+**Relay** (instead of `auth`, to open one of the Mac's
+[machines](#machines-this-mac-connects-to) without pairing with it):
+```json
+{ "t": "relay", "deviceId": "<uuid>", "token": "<base64 bearer token>", "slug": "<machine slug>" }
+```
+The credential is this Mac's, checked exactly as for `auth`; `slug` names the
+machine in the `machines` reply. The Mac carries the connection on over its own
+link to that machine, and from there on the machine answers as itself: its
+`ready` (with its own `serverId`, `serverName`, `platform`, `version`, `features`,
+and no `hosts`), then every request and push exactly as on a direct connection,
+in the same order. The machine knows the phone by the `deviceId` it has on this
+Mac, so a terminal's `owner` still names this phone. Its push notifications
+don't reach a phone that way — `apnsToken` belongs to Macs the phone is paired
+with — and the machine's own phone server can be off.
+
+Failures, each followed by the Mac closing the connection:
+`{ "t": "error", "error": "unauthorized" }` as for `auth`;
+`{ "t": "error", "error": "relay-offline" }` — the Mac isn't connected to the
+machine right now (retry with backoff); `{ "t": "error", "error":
+"relay-unsupported" }` — the machine's lpm predates relayed phones. A relayed
+connection also ends when the Mac loses its link to the machine. The machine
+says `bye` when it sleeps or quits, but not when its own phone server is turned
+off — that doesn't end a relayed connection. A Mac that predates `relay` closes
+the connection without a reply; the phone only relays to a machine marked
+`relay: true`.
+
 ## Requests (phone → desktop) and their replies
 
 | Request | Reply |
@@ -259,6 +291,10 @@ succeed, so the phone stops reconnecting and offers to pair again (sending
 | `{ "t": "terminals", "project": "<name>" }` | `{ "t": "terminals", "project": "<name>", "terminals": [Terminal…] }` |
 | `{ "t": "slash", "id": "<termId>", "project": "<name>" }` | `{ "t": "slash", "id": "<termId>", "commands": [SlashCommand…] }` — slash-command autocomplete; empty unless the terminal runs a known AI CLI (the frontend registers each terminal's CLI, detected from its launch command) |
 | `{ "t": "upload", "id": "<termId>", "data": "<base64 blob>", "mime": "image/jpeg", "name": "<original filename>"?, "reqId": <any>? }` | `{ "t": "upload", "id": "<termId>", "ok": true, "path": "<on-Mac path>", "reqId": <any>? }` / `{ "ok": false, "error": "…", "reqId": <any>? }` — saves the blob to a temp file on the Mac (scp'd first for a remote pane); the phone drops the path into the composer, which pastes it so an agent loads it. With `name` the file is saved under its **original basename** (uniquified in a fresh temp subdir) and **any** `mime` is accepted — arbitrary files, not just images. Without `name` (image-only callers, unchanged) the file is keyed by `mime` (default `image/png`) like before. Runs on a worker thread (base64 decode + fs write + possible scp), so a large upload never stalls this connection's keystrokes/resizes — replies may therefore arrive **out of order**. Pass `reqId` (string or number) and it is echoed verbatim so the phone correlates each reply to its request by id rather than FIFO (FIFO desyncs permanently if a reply is lost on a socket drop). Omit `reqId` (older phones) → the reply omits it too, unchanged |
+| `{ "t": "uploadBegin", "id": "<termId>", "name": "<original filename>", "bytes": N, "reqId": <any> }` | `{ "t": "uploadBegin", "id": "<termId>", "ok": true, "uploadId": "<id>", "chunk": 1048576, "reqId": <any> }` / `{ …, "ok": false, "error": "…" }` — starts the **chunked attach**, for a file too big for one `upload` frame (the phone uses it for every video and Files pick when `features` has `"fileUpload"`). The Mac opens an empty file under the name's basename in a fresh temp folder; over 1 GiB is refused here, before any bytes. `chunk` is the piece size to send. The same state machine takes a file from another Mac (`peeruploadhost.rs`) |
+| `{ "t": "uploadChunk", "id": "<termId>", "uploadId": "<id>", "offset": N, "b64": "<base64 piece>", "reqId": <any> }` | `{ "t": "uploadChunk", "id": "<termId>", "ok": true, "received": N, "reqId": <any> }` / `{ …, "ok": false, "error": "…" }` — appends one piece. Pieces must arrive **in order** (`offset` = bytes received so far) and the Mac answers each on its own thread, so send the next only after this reply. A piece out of order or past `bytes` is refused and nothing is written. An upload untouched for 10 minutes is deleted |
+| `{ "t": "uploadDone", "id": "<termId>", "uploadId": "<id>", "reqId": <any> }` | `{ "t": "uploadDone", "id": "<termId>", "ok": true, "path": "<on-Mac path>", "reqId": <any> }` / `{ …, "ok": false, "error": "…" }` — closes the file and answers with its path, quoted for pasting exactly as `upload` quotes it (scp'd first for a remote pane, which can take a while). Refused while bytes are missing; the upload stays open so the rest can still be sent |
+| `{ "t": "uploadAbort", "id": "<termId>", "uploadId": "<id>" }` | — (no reply) deletes the partial file. The phone sends it when it gives up on an upload, queued across a reconnect so the Mac still frees the space |
 | `{ "t": "mentions", "project": "<name>" }` | `{ "t": "mentions", "project": "<name>", "entries": [{ path, dir, changed }…] }` — @-mention targets: the project's files/dirs (relative paths), with git working-tree changes flagged. Fetched once, filtered client-side |
 | `{ "t": "history", "project": "<name>", "q": "<search>" }` | `{ "t": "history", "project": "<name>", "rows": [HistoryRow…] }` — recent sent prompts for the project (newest first), for recall |
 | `{ "t": "historyAdd", "project": "<name>", "id": "<termId>", "label": "<tab>", "text": "…" }` | — records a prompt the phone sent into the shared message history |
@@ -446,7 +482,7 @@ styles:
 | `{ "t": "deleteService", "project": "<name>", "key": "<service>" }` | `{ "t": "deleteService", "ok": true, "project": "<name>", "key": "<service>" }` / `{ "ok": false, "project": "<name>", "key": "<service>", "error": "…" }` — deletes `services.<key>` from its owning layer and strips every reference to it (profile lists + other services' `dependsOn`/`depends_on`) across all layers, dropping an emptied `services:` map. Async (worker); comments reflow; emits `projects-changed` |
 | `{ "t": "saveProfile", "project": "<name>", "name": "<profile>", "services": ["<service>"…], "previousName": "<old>"? }` | `{ "t": "saveProfile", "ok": true, "project": "<name>", "name": "<profile>" }` / `{ "ok": false, "project": "<name>", "name": "<profile>", "error": "…" }` — sets `profiles.<name>` to the given service list. With `previousName` ≠ `name` the profile is renamed in its owning layer first. A new profile is created in the `project` layer. Async (worker); comments reflow; emits `projects-changed` |
 | `{ "t": "deleteProfile", "project": "<name>", "name": "<profile>" }` | `{ "t": "deleteProfile", "ok": true, "project": "<name>", "name": "<profile>" }` / `{ "ok": false, "project": "<name>", "name": "<profile>", "error": "…" }` — deletes `profiles.<name>` from its owning layer, dropping an emptied `profiles:` map. Async (worker); comments reflow; emits `projects-changed` |
-| `{ "t": "saveAction", "project": "<name>", "key": "<action>", "payload": ActionBody, "previousKey": "<old>"?, "section": "actions"\|"terminals"? }` | `{ "t": "saveAction", "ok": true, "project": "<name>", "key": "<action>" }` / `{ "ok": false, "project": "<name>", "key": "<action>", "error": "…" }` — creates or edits an action. The existing body is read first and **merged**: the payload's managed fields (`label`, `emoji`, `shortcut`, `cmd`, `cwd`, `type`, `reuse`, `confirm`, `port`, `portConflict`, `display`, `actions`, `position`) replace those on the entry, while **unmanaged** fields (`env`, `inputs`, hand-authored keys) ride along untouched — so `payload` is the full managed mapping the form built (omit a managed field to clear it). The edit lands in the entry's existing section + layer; a new entry is created under `section` (default `actions`) in the `project` layer. With `previousKey` ≠ `key` the entry is renamed, preserving its section. A **new** key containing `:` is rejected (composite names address an existing nested child, edited through its parent's payload). Async (worker); comments reflow; emits `projects-changed` |
+| `{ "t": "saveAction", "project": "<name>", "key": "<action>", "payload": ActionBody, "previousKey": "<old>"?, "section": "actions"\|"terminals"? }` | `{ "t": "saveAction", "ok": true, "project": "<name>", "key": "<action>" }` / `{ "ok": false, "project": "<name>", "key": "<action>", "error": "…" }` — creates or edits an action. The existing body is read first and **merged**: the payload's managed fields (`label`, `emoji`, `shortcut`, `cmd`, `cwd`, `type`, `reuse`, `confirm`, `port`, `portConflict`, `display`, `layer`, `actions`, `position`) replace those on the entry, while **unmanaged** fields (`env`, `inputs`, hand-authored keys) ride along untouched — so `payload` is the full managed mapping the form built (omit a managed field to clear it). The edit lands in the entry's existing section + layer; a new entry is created under `section` (default `actions`) in the `project` layer. With `previousKey` ≠ `key` the entry is renamed, preserving its section. A **new** key containing `:` is rejected (composite names address an existing nested child, edited through its parent's payload). Async (worker); comments reflow; emits `projects-changed` |
 | `{ "t": "deleteAction", "project": "<name>", "key": "<action>" }` | `{ "t": "deleteAction", "ok": true, "project": "<name>", "key": "<action>" }` / `{ "ok": false, "project": "<name>", "key": "<action>", "error": "…" }` — deletes the action from the topmost layer/section that has it (`actions:` then `terminals:`), dropping an emptied section. Async (worker); comments reflow; emits `projects-changed` |
 
 ### Composer draft sync
@@ -500,11 +536,12 @@ Connections), so the phone can add them without a QR per machine. For each one
 the phone doesn't have, it asks for a pairing offer and redeems the code with a
 normal [`pair`](#handshake-first-frame-required-within-20s) directly against that
 machine. The machine is then an ordinary saved machine that the phone reaches on
-its own, with this Mac asleep.
+its own, with this Mac asleep. A machine the phone hasn't added can still be
+opened through this Mac with a `relay` connection.
 
 | Request | Reply |
 |---|---|
-| `{ "t": "machines" }` | `{ "t": "machines", "machines": [{ "slug": "<id>", "name": "…", "platform": "linux"\|"macos"\|"", "serverId": "<uuid>"\|"", "state": "ready"\|"offline"\|"update", "projects": [ProjectInfo…] }…] }` — every enabled connection. `name` is what this Mac's sidebar calls it. `serverId` is the one the machine sends phones on `paired`/`ready`, so a phone can skip a machine it already has; empty until this Mac has talked to a build of it that reports one. `state`: `ready` = this Mac is connected and can get a code; `offline` = not connected; `update` = its lpm predates arming a pairing on request. `projects` (only on a connected machine that answered, and only from a Mac that has it) is the machine's own list in the `projects` reply's shape, its names as the machine itself uses them, in the row order this Mac's sidebar shows. The sidebar order holds each machine's slot as a `peer:<slug>` token. The Mac also pushes this frame unasked, debounced, whenever a machine connects, drops, or changes its projects or agent statuses. Async: waits up to 8s on each machine. A Mac that predates this request never replies |
+| `{ "t": "machines" }` | `{ "t": "machines", "machines": [{ "slug": "<id>", "name": "…", "platform": "linux"\|"macos"\|"", "serverId": "<uuid>"\|"", "state": "ready"\|"offline"\|"update", "projects": [ProjectInfo…] }…] }` — every enabled connection. `name` is what this Mac's sidebar calls it. `serverId` is the one the machine sends phones on `paired`/`ready`, so a phone can skip a machine it already has; empty until this Mac has talked to a build of it that reports one. `state`: `ready` = this Mac is connected and can get a code; `offline` = not connected; `update` = its lpm predates arming a pairing on request. `projects` (only on a connected machine that answered, and only from a Mac that has it) is the machine's own list in the `projects` reply's shape, its names as the machine itself uses them, in the row order this Mac's sidebar shows. `relay: true` means the phone can open it through this Mac with a [`relay`](#handshake-first-frame-required-within-20s) connection, without pairing with it (absent on a Mac that predates relaying). The sidebar order holds each machine's slot as a `peer:<slug>` token. The Mac also pushes this frame unasked, debounced, whenever a machine connects, drops, or changes its projects or agent statuses. Async: waits up to 8s on each machine. A Mac that predates this request never replies |
 | `{ "t": "machinePair", "slug": "<id>" }` | `{ "t": "machinePair", "slug": "<id>", "ok": true, "code": "…", "hosts": ["…"], "port": N, "fingerprint": "<hex sha256>", "serverId": "<uuid>", "name": "…", "platform": "…" }` / `{ "t": "machinePair", "slug": "<id>", "ok": false, "error": "…" }` — has the machine arm a single-use pairing code (the same one its QR would carry, 10-minute expiry) and turns its phone server on. `hosts` leads with the address this Mac reaches it at (for a server reached over SSH, the SSH hostname), then the machine's own addresses; loopback is never included. `fingerprint` is the machine's certificate, to verify on the pairing connection like a QR's `f=`. Async: waits on the machine for up to 20s |
 
 ### Updating lpm
@@ -714,7 +751,10 @@ workStatus?: { state: "in_progress"|"blocked"|"done"|"custom", label?: string, e
                           // statusEntries, which is what the agent is doing. A custom one carries its own label
                           // and emoji so the row still reads on a Mac whose palette differs; a built-in one has
                           // neither. Absent when the project has no status. `since` is 0 when unknown
-actions: [ActionInfo]     // recursive: { name (composite parent:child), label, emoji, cmd, type, display, children[] … }
+actions: [ActionInfo]     // recursive: { name (composite parent:child), label, emoji, cmd, type, display, layer?, position?, children[] … }
+                          // `display` is header (also "" or "button"), footer, menu, or the name of a zone; `layer` picks
+                          // the zone's layer (absent or unknown: its first). A display naming no zone shows in the header.
+                          // `position` orders a row's buttons and zones together: positioned first, then by name.
                           // `label` is what the button shows, already rendered: a label with variables
                           // ({{git.branch}}, {{git.tag}}, {{git.tagAge}}, {{git.nextPatch}}, {{project}}) or
                           // $(command)s arrives as today's text, and `configLabel` then carries the label as
@@ -727,6 +767,12 @@ actions: [ActionInfo]     // recursive: { name (composite parent:child), label, 
                           // Editors read `actionBody`, which keeps the templates, and `labelRefresh`/`labelRefreshOnHover`/
                           // `labelRefreshOnChange` ride along as unmanaged keys (the Mac watches files itself). `labelRefreshOnHover: true` asks a pointer-driven client to
                           // rerun the action's commands when hovered; the phone has no hover and ignores it
+zones: [ZoneInfo]         // framed groups of buttons in the header or footer row, sorted by position:
+                          // { name, label, rows: 1…3, display: "header"|"footer", position?, layers?: [{ name, label?,
+                          //   position? }], collapsed?: bool, source: "project"|"repo"|"global" }. Placement only: an
+                          // action joins one with `display: <name>`. `rows` is the zone's height in buttons, filled
+                          // top to bottom and then across. With `layers`, the zone shows one layer at a time;
+                          // `collapsed` folds it into one button. `source` is the file that declares it
 ```
 
 **ClaudeAccount** (from `claudeAccounts`):
@@ -775,8 +821,8 @@ dependsOn: [string]?
 
 **ActionBody** (the `body`/`payload` of `actionBody`/`saveAction`) — an action's
 full mapping. Managed fields the form owns: `label`, `emoji`, `shortcut`, `cmd`,
-`cwd`, `type`, `reuse`, `confirm`, `port`, `portConflict`, `display`, `actions`
-(nested children), `position`. Any other key (`env`, `inputs`, hand-authored) is
+`cwd`, `type`, `reuse`, `confirm`, `port`, `portConflict`, `display`, `layer`,
+`actions` (nested children), `position`. Any other key (`env`, `inputs`, hand-authored) is
 **unmanaged** and preserved across an edit. A scalar shorthand entry reads back
 as `{ "cmd": … }`.
 

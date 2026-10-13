@@ -123,7 +123,8 @@ final class PushRegistrar {
     private func sweepOnce(_ context: @escaping @MainActor () -> Context?) async {
         guard let ctx = context() else { return }
         let signature = Self.signature(ctx.payload)
-        for mac in ctx.macs where mac.localId != ctx.liveMacId {
+        // A machine opened through another Mac doesn't know this phone.
+        for mac in ctx.macs where mac.localId != ctx.liveMacId && mac.via == nil {
             guard Self.storedSignature(mac.localId) != signature else { continue }
             if await register(mac, payload: ctx.payload) {
                 Self.storeSignature(signature, for: mac.localId)

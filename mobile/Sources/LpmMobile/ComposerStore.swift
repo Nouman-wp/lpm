@@ -1,13 +1,12 @@
 import SwiftUI
 import UIKit
-import UniformTypeIdentifiers
 
-/// One queued attachment in the composer: an image (Photos/Camera/clipboard) or an
-/// arbitrary file (Files). It uploads to the Mac in the background as soon as it's
-/// added; the returned Mac path is held here and appended to the outgoing message
-/// on send, never shown in the text field.
+/// One queued attachment in the composer: an image (Photos/Camera/clipboard), a
+/// video (Photos) or an arbitrary file (Files). It uploads to the Mac in the
+/// background as soon as it's added; the returned Mac path is held here and
+/// appended to the outgoing message on send, never shown in the text field.
 struct Attachment: Identifiable {
-    enum Kind { case image, file }
+    enum Kind { case image, video, file }
     enum Status {
         case uploading
         case uploaded(String) // the on-Mac path
@@ -16,11 +15,13 @@ struct Attachment: Identifiable {
 
     let id = UUID()
     let kind: Kind
-    let filename: String
-    let mime: String
-    /// A small preview for image chips (nil for files).
+    var filename: String
+    var mime: String
+    /// A small preview for image and video chips (nil for files).
     var thumbnail: UIImage?
     var status: Status = .uploading
+    /// How much of a file sent in pieces has reached the Mac, 0...1.
+    var progress: Double?
     /// Per-upload id the server echoes, matching this chip's reply regardless of
     /// order. Changes on retry so a late reply for a superseded attempt is ignored.
     var reqId: String = ""
@@ -41,7 +42,8 @@ struct Attachment: Identifiable {
         case .uploaded(let p): state = "d:" + p
         case .failed(let e): state = "f:" + e
         }
-        return "\(id.uuidString)|\(state)|\(thumbnail == nil ? 0 : 1)"
+        let percent = progress.map { Int($0 * 100) } ?? -1
+        return "\(id.uuidString)|\(filename)|\(state)|\(percent)|\(thumbnail == nil ? 0 : 1)"
     }
 }
 
@@ -88,6 +90,8 @@ final class ComposerStore: ObservableObject {
     @Published var showVariants = false
     @Published var variants: [TransformVariant] = []
     @Published var transformError: String?
+    /// Why an attachment couldn't be sent, when retrying won't help.
+    @Published var uploadError: String?
     private var transformReqId: String?
     private var transformVariantCount = 1
     // The tab the rewrite was started on, so its result lands on that tab even if
@@ -106,6 +110,10 @@ final class ComposerStore: ObservableObject {
     // Attachment ids awaiting an upload reply, in send order — only a FIFO fallback
     // for an old server that doesn't echo `reqId` (new servers match by reqId).
     private var pendingOrder: [UUID] = []
+    // Local copies of picked files and videos, kept until they reach the Mac so a
+    // failed upload can be retried, and the piece-by-piece uploads in flight.
+    var fileSources: [UUID: URL] = [:]
+    var fileUploads: [UUID: ChunkedUpload] = [:]
 
     // Bidirectional draft sync with the Mac (and any other paired phone). The
     // active tab's text is pushed here (debounced); an inbound remote draft is
@@ -170,6 +178,7 @@ final class ComposerStore: ObservableObject {
         tabs.remove(at: index)
         if activeIndex >= tabs.count { activeIndex = tabs.count - 1 }
         else if index < activeIndex { activeIndex -= 1 }
+        pruneFileSources()
     }
 
     /// After a successful send: close the sent tab if others remain, else clear it
@@ -180,6 +189,7 @@ final class ComposerStore: ObservableObject {
         } else {
             tabs[0] = ComposerTab()
             activeIndex = 0
+            pruneFileSources()
         }
         // The active input is now empty; push the cleared draft to the phone's Mac
         // immediately rather than waiting out the debounce.
@@ -240,25 +250,6 @@ final class ComposerStore: ObservableObject {
         return (b64, image.downscaledForUpload(maxDimension: 240))
     }
 
-    func addFile(_ url: URL) {
-        let name = url.lastPathComponent
-        let mime = (UTType(filenameExtension: url.pathExtension)?.preferredMIMEType) ?? "application/octet-stream"
-        let att = Attachment(kind: .file, filename: name, mime: mime, thumbnail: nil)
-        let id = att.id
-        if tabs.indices.contains(activeIndex) { tabs[activeIndex].attachments.append(att) }
-        // Read + base64-encode off the main thread (a large file blocks it otherwise).
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let scoped = url.startAccessingSecurityScopedResource()
-            let b64 = (try? Data(contentsOf: url))?.base64EncodedString()
-            if scoped { url.stopAccessingSecurityScopedResource() }
-            DispatchQueue.main.async {
-                guard let self else { return }
-                if let b64 { self.beginUpload(id, b64: b64, mime: mime, name: name, thumbnail: nil) }
-                else { self.removeAttachment(id) }
-            }
-        }
-    }
-
     /// Set the chip's thumbnail and fire its upload (main). Called after encoding.
     private func beginUpload(_ id: UUID, b64: String, mime: String, name: String?, thumbnail: UIImage?) {
         if let thumbnail { updateAttachment(id) { $0.thumbnail = thumbnail } }
@@ -268,7 +259,7 @@ final class ComposerStore: ObservableObject {
     /// Tag the chip with a fresh reqId the server echoes (so the reply matches this
     /// exact chip regardless of arrival order), retain the payload for retry, record
     /// FIFO order (old-server fallback), and send.
-    private func dispatchUpload(_ id: UUID, b64: String, mime: String, name: String?) {
+    func dispatchUpload(_ id: UUID, b64: String, mime: String, name: String?) {
         let reqId = UUID().uuidString
         uploadPayloads[id] = (b64, mime, name)
         pendingOrder.append(id)
@@ -283,6 +274,7 @@ final class ComposerStore: ObservableObject {
     /// Retry a failed upload with its retained payload and a new reqId (so a late
     /// reply for the prior attempt can't mis-resolve this chip).
     func retryUpload(_ id: UUID) {
+        if let file = fileSources[id] { return uploadFile(id, file: file) }
         guard let payload = uploadPayloads[id] else { return }
         dispatchUpload(id, b64: payload.b64, mime: payload.mime, name: payload.name)
     }
@@ -291,6 +283,7 @@ final class ComposerStore: ObservableObject {
         for i in tabs.indices { tabs[i].attachments.removeAll { $0.id == id } }
         uploadPayloads[id] = nil
         pendingOrder.removeAll { $0 == id }
+        pruneFileSources()
     }
 
     /// An upload reply landed: match it to its chip by `reqId` (empty reqId ⇒ old
@@ -313,8 +306,10 @@ final class ComposerStore: ObservableObject {
     /// The link dropped: fail every still-uploading chip so Send isn't blocked
     /// forever; the retained payload lets the user retry once reconnected.
     func failInFlightUploads() {
-        guard !pendingOrder.isEmpty else { return }
+        guard !pendingOrder.isEmpty || !fileUploads.isEmpty else { return }
         pendingOrder.removeAll()
+        for upload in fileUploads.values { upload.cancel() }
+        fileUploads.removeAll()
         for i in tabs.indices {
             for j in tabs[i].attachments.indices where tabs[i].attachments[j].isPending {
                 tabs[i].attachments[j].status = .failed("Upload interrupted")
@@ -322,7 +317,7 @@ final class ComposerStore: ObservableObject {
         }
     }
 
-    private func updateAttachment(_ id: UUID, _ mutate: (inout Attachment) -> Void) {
+    func updateAttachment(_ id: UUID, _ mutate: (inout Attachment) -> Void) {
         for i in tabs.indices {
             if let j = tabs[i].attachments.firstIndex(where: { $0.id == id }) {
                 mutate(&tabs[i].attachments[j])

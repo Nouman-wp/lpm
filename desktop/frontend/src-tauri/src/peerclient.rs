@@ -23,6 +23,9 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tungstenite::{Error as WsError, Message, WebSocket};
 
+mod phone;
+pub(crate) use phone::PhoneChannelError;
+
 const POLL: Duration = Duration::from_millis(25);
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3); // per-candidate dial cap when pairing
@@ -102,6 +105,10 @@ struct PeerConn {
     supports_file_range: AtomicBool, // host serves any file a chunk at a time
     supports_self_update: AtomicBool, // a paired Mac can update lpm there (peermacupdate.rs)
     supports_host_settings: AtomicBool, // host shares its own settings (peersettings.rs)
+    supports_phone_relay: AtomicBool, // host runs phones this Mac relays to it (peerclient/phone.rs)
+    // The phones this Mac is relaying to the host, by channel: where the frames
+    // the host sends each one go.
+    phones: Mutex<HashMap<u64, SyncSender<String>>>,
     in_run: AtomicBool,        // a request just queued is one of a run (see invoke_in_run)
     generation: AtomicU64,     // bump to retire the current connection thread
     // Present only for a peer reached over SSH. Owned here so the forward is torn
@@ -113,6 +120,7 @@ pub(crate) struct PhoneMachine {
     pub entry: PeerEntry,
     pub connected: bool,
     pub supports_remote_pair: bool,
+    pub supports_phone_relay: bool,
 }
 
 /// Where a chunk sits relative to the stream already applied, given the chunk's
@@ -159,6 +167,8 @@ impl PeerConn {
             supports_file_range: AtomicBool::new(false),
             supports_self_update: AtomicBool::new(false),
             supports_host_settings: AtomicBool::new(false),
+            supports_phone_relay: AtomicBool::new(false),
+            phones: Mutex::new(HashMap::new()),
             in_run: AtomicBool::new(false),
             generation: AtomicU64::new(0),
         }
@@ -515,6 +525,7 @@ impl PeerClientHub {
             // so nothing may later resume from an offset into them.
             conn.attached.lock().unwrap().clear();
             conn.offsets.lock().unwrap().clear();
+            conn.phones.lock().unwrap().clear();
             conn.fail_pending(reason);
         }
     }
@@ -843,6 +854,7 @@ impl PeerClientHub {
                 PhoneMachine {
                     connected: flag(|c| &c.connected),
                     supports_remote_pair: flag(|c| &c.supports_remote_pair),
+                    supports_phone_relay: flag(|c| &c.supports_phone_relay),
                     entry,
                 }
             })
@@ -1533,6 +1545,7 @@ fn run_conn(hub: PeerClientHub, conn: Arc<PeerConn>, generation: u64) {
         conn.supports_sync.store(false, Ordering::Relaxed);
         conn.supports_sync2.store(false, Ordering::Relaxed);
         *conn.out.lock().unwrap() = None;
+        conn.phones.lock().unwrap().clear();
         conn.fail_pending(PEER_DISCONNECTED);
         emit_state_changed(&hub);
         if !conn.enabled.load(Ordering::SeqCst)
@@ -2017,6 +2030,10 @@ fn connect_session(
         has_feature(crate::peersettings::HOST_SETTINGS_FEATURE),
         Ordering::Relaxed,
     );
+    conn.supports_phone_relay.store(
+        has_feature(crate::remote::relayed::PHONE_RELAY_FEATURE),
+        Ordering::Relaxed,
+    );
 
     let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
     *conn.out.lock().unwrap() = Some(tx);
@@ -2174,6 +2191,7 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                 crate::peermacupdate::relay_progress(app, slug, &v);
             }
         }
+        "phoneOut" | "phoneClose" => phone::route(conn, &v),
         "result" => {
             let Some(req) = v.get("reqId").and_then(Value::as_u64) else {
                 return;

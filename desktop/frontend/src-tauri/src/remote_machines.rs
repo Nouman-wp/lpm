@@ -11,7 +11,9 @@
 // any address the server sees on its own interfaces.
 //
 // Each connected machine's projects ride along, so the phone's list can show
-// them in the machine's sidebar slot just as this Mac's sidebar does.
+// them in the machine's sidebar slot just as this Mac's sidebar does. A machine
+// marked `relay` can also be opened through this Mac without pairing with it
+// (remote/relay.rs).
 use crate::peer::PeerEntry;
 use crate::peerclient::{PeerClientHub, PhoneMachine};
 use serde_json::{json, Value};
@@ -186,6 +188,7 @@ fn machine_json(m: &PhoneMachine) -> Value {
         "platform": m.entry.platform,
         "serverId": m.entry.phone_server_id,
         "state": machine_state(m),
+        "relay": m.connected && m.supports_phone_relay,
     })
 }
 
@@ -344,6 +347,7 @@ mod tests {
             entry: PeerEntry::default(),
             connected,
             supports_remote_pair,
+            supports_phone_relay: false,
         }
     }
 

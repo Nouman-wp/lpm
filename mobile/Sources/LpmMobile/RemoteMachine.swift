@@ -22,6 +22,8 @@ struct RemoteMachine: Identifiable {
     /// Its own projects as the Mac's sidebar shows them. Nil when the Mac didn't
     /// send them: it isn't connected, didn't answer, or the Mac predates them.
     let projects: [Project]?
+    /// The Mac can carry this phone to it, so it opens without being added here.
+    let relay: Bool
 
     var id: String { slug }
     var isLinuxHost: Bool { platform == "linux" }
@@ -34,6 +36,7 @@ struct RemoteMachine: Identifiable {
         serverId = nonEmpty(o["serverId"])
         state = State(rawValue: o["state"] as? String ?? "") ?? .offline
         projects = (o["projects"] as? [[String: Any]])?.map(Project.init)
+        relay = o["relay"] as? Bool ?? false
     }
 }
 

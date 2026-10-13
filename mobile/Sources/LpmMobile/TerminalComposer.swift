@@ -214,7 +214,8 @@ struct TerminalComposer: View {
             .onChange(of: branchesCount) { _, _ in if mentionActive { recomputeMentions() } }
             .onChange(of: servicesCount) { _, _ in if mentionActive { recomputeMentions() } }
             .photosPicker(isPresented: $showPhotoPicker, selection: $photoItems,
-                          maxSelectionCount: 10, matching: .images, photoLibrary: .shared())
+                          maxSelectionCount: 10, matching: .any(of: [.images, .videos]),
+                          photoLibrary: .shared())
             .fileImporter(isPresented: $showFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
                 if case .success(let urls) = result { for u in urls { store.addFile(u) } }
             }
@@ -241,7 +242,8 @@ struct TerminalComposer: View {
                 ComposerVariantsSheet(store: store)
             }
             .sheet(item: $dupSeed) { seed in dupSheet(seed) }
-            .modifier(ComposerAlerts(sendWarning: $sendWarning, transformError: $store.transformError))
+            .modifier(ComposerAlerts(sendWarning: $sendWarning, transformError: $store.transformError,
+                                     uploadError: $store.uploadError))
     }
 
     @ViewBuilder private func dupSheet(_ seed: DupSeed) -> some View {
@@ -659,14 +661,28 @@ struct TerminalComposer: View {
     private func loadPhotos(_ items: [PhotosPickerItem]) {
         // Reserve ordered placeholder chips on main so they keep selection order,
         // even though the loads/encodes below finish in arbitrary order.
-        let ids = items.map { _ in store.reserveImagePlaceholder() }
-        for (item, id) in zip(items, ids) {
-            Task {
-                let data = try? await item.loadTransferable(type: Data.self)
-                await MainActor.run { store.fillImageUpload(id, data: data) }
+        for item in items {
+            if Self.isVideo(item) {
+                let id = store.reserveVideoPlaceholder()
+                Task {
+                    let movie = try? await item.loadTransferable(type: PickedMovie.self)
+                    await MainActor.run { store.fillVideoUpload(id, file: movie?.url) }
+                }
+            } else {
+                let id = store.reserveImagePlaceholder()
+                Task {
+                    let data = try? await item.loadTransferable(type: Data.self)
+                    await MainActor.run { store.fillImageUpload(id, data: data) }
+                }
             }
         }
         photoItems = []
+    }
+
+    /// A Live Photo carries a movie too; it goes as its still, like any photo.
+    private static func isVideo(_ item: PhotosPickerItem) -> Bool {
+        let types = item.supportedContentTypes
+        return types.contains { $0.conforms(to: .movie) } && !types.contains { $0.conforms(to: .image) }
     }
 }
 
@@ -683,6 +699,7 @@ private struct DupSeed: Identifiable {
 private struct ComposerAlerts: ViewModifier {
     @Binding var sendWarning: String?
     @Binding var transformError: String?
+    @Binding var uploadError: String?
 
     func body(content: Content) -> some View {
         content
@@ -694,6 +711,10 @@ private struct ComposerAlerts: ViewModifier {
                 get: { transformError != nil }, set: { if !$0 { transformError = nil } })) {
                 Button("OK", role: .cancel) { transformError = nil }
             } message: { Text(transformError ?? "") }
+            .alert("Couldn’t attach", isPresented: Binding(
+                get: { uploadError != nil }, set: { if !$0 { uploadError = nil } })) {
+                Button("OK", role: .cancel) { uploadError = nil }
+            } message: { Text(uploadError ?? "") }
     }
 }
 

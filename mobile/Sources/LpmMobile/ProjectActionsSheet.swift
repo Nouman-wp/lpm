@@ -1,26 +1,23 @@
 import SwiftUI
 
-/// Every project action as the desktop shows them: the header row, the footer
-/// row and the menu-only list, each as desktop buttons. Picking one hands it back
-/// to the host, which runs it once the sheet is gone; + adds an action and a
-/// long-press edits one.
+/// Every project action as the desktop shows them: the header row and the footer
+/// row, each with its zones framed among the buttons, and the menu-only list.
+/// Picking one hands it back to the host, which runs it once the sheet is gone;
+/// + adds an action and a long-press edits one.
 struct ProjectActionsSheet: View {
     let project: Project
     let onPick: (Action) -> Void
     @Environment(AppModel.self) private var model
     @State private var editor: ActionEditorContext?
 
-    private var header: [Action] { project.actions.filter { $0.display != "footer" && $0.display != "menu" } }
-    private var footer: [Action] { project.actions.filter { $0.display == "footer" } }
-    private var menuOnly: [Action] { project.actions.filter { $0.display == "menu" } }
-
     var body: some View {
+        let rows = ActionRows(actions: project.actions, zones: project.zones)
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    section("Header", header, compact: false)
-                    section("Footer", footer, compact: true)
-                    section("Menu", menuOnly, compact: false)
+                    section("Header", rows.header, compact: false)
+                    section("Footer", rows.footer, compact: true)
+                    section("Menu", rows.menu.map(ActionRowItem.action), compact: false)
                 }
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -46,21 +43,31 @@ struct ProjectActionsSheet: View {
     }
 
     @ViewBuilder
-    private func section(_ title: String, _ actions: [Action], compact: Bool) -> some View {
-        if !actions.isEmpty {
+    private func section(_ title: String, _ items: [ActionRowItem], compact: Bool) -> some View {
+        if !items.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text(title)
                     .textCase(.uppercase)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
                 FlowLayout(spacing: 8) {
-                    ForEach(actions) { action in
-                        DesktopActionButton(action: action, project: project.name, compact: compact,
-                                            onEdit: { editor = .edit(key: $0.name) }, onRun: onPick)
+                    ForEach(items) { item in
+                        switch item {
+                        case .action(let action):
+                            DesktopActionButton(action: action, project: project.name, compact: compact,
+                                                onEdit: edit, onRun: onPick)
+                        case .zone(let zone, let lists):
+                            ActionZoneView(zone: zone, lists: lists, project: project.name, compact: compact,
+                                           onEdit: edit, onRun: onPick)
+                        }
                     }
                 }
             }
         }
+    }
+
+    private func edit(_ action: Action) {
+        editor = .edit(key: action.name)
     }
 }
 

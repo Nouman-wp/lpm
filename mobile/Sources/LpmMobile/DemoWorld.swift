@@ -47,6 +47,8 @@ struct DemoWorld {
         // Action mappings kept as raw wire dicts — the shape is recursive and
         // largely inert data, so structuring it would only add friction.
         var actions: [[String: Any]] = []
+        // Zones as the Mac sends them (ZoneInfo), sorted by position.
+        var zones: [[String: Any]] = []
         var status: [Status] = []
     }
 
@@ -132,6 +134,7 @@ struct DemoWorld {
     // monotonic (like the Mac hub's) so a re-typed draft always outranks a prior one.
     var composerDrafts: [String: ComposerDraft] = [:]
     var composerDraftRev = 0
+    var uploadNames: [String: String] = [:] // chunked uploadId -> file name
 
     // MARK: Git
 
@@ -323,8 +326,14 @@ struct DemoWorld {
     }
 
     private mutating func seedProjects() {
-        func action(_ name: String, _ label: String, _ cmd: String) -> [String: Any] {
-            ["name": name, "label": label, "type": "command", "cmd": cmd]
+        func action(_ name: String, _ label: String, _ cmd: String, display: String? = nil) -> [String: Any] {
+            var action: [String: Any] = ["name": name, "label": label, "type": "command", "cmd": cmd]
+            action["display"] = display
+            return action
+        }
+        func agent(_ name: String, _ label: String, _ cmd: String, layer: String, color: String) -> [String: Any] {
+            ["name": name, "label": label, "type": "terminal", "cmd": cmd, "color": color,
+             "display": "agents", "layer": layer]
         }
         projects = [
             Project(
@@ -334,8 +343,20 @@ struct DemoWorld {
                     Svc(name: "api", cmd: "npm run api", port: 4000, running: true),
                     Svc(name: "worker", cmd: "npm run worker", port: 0, running: false),
                 ],
-                actions: [action("test", "Test", "npm test"),
-                          action("lint", "Lint", "npm run lint")]
+                actions: [action("test", "Test", "npm test", display: "checks"),
+                          action("lint", "Lint", "npm run lint", display: "checks"),
+                          agent("fix-tests", "Fix tests", "claude \"Fix the failing tests\"",
+                                layer: "claude", color: "claude"),
+                          agent("review", "Review", "claude \"Review my changes\"",
+                                layer: "claude", color: "claude"),
+                          agent("codex-review", "Review", "codex \"Review my changes\"",
+                                layer: "codex", color: "cyan")],
+                zones: [["name": "checks", "label": "Checks", "rows": 1, "display": "header",
+                         "position": 1, "source": "project"],
+                        ["name": "agents", "label": "Agents", "rows": 2, "display": "header",
+                         "position": 2, "source": "project",
+                         "layers": [["name": "claude", "label": "Claude", "position": 1],
+                                    ["name": "codex", "label": "Codex", "position": 2]]]]
             ),
             Project(
                 name: "api-gateway", label: "api-gateway", running: false,
@@ -501,8 +522,49 @@ struct DemoWorld {
           worker:
             cmd: npm run worker
         actions:
-          test: npm test
-          lint: npm run lint
+          test:
+            cmd: npm test
+            display: checks
+          lint:
+            cmd: npm run lint
+            display: checks
+          fix-tests:
+            label: Fix tests
+            cmd: claude "Fix the failing tests"
+            type: terminal
+            color: claude
+            display: agents
+            layer: claude
+          review:
+            label: Review
+            cmd: claude "Review my changes"
+            type: terminal
+            color: claude
+            display: agents
+            layer: claude
+          codex-review:
+            label: Review
+            cmd: codex "Review my changes"
+            type: terminal
+            color: cyan
+            display: agents
+            layer: codex
+        zones:
+          checks:
+            rows: 1
+            label: Checks
+            position: 1
+          agents:
+            rows: 2
+            label: Agents
+            position: 2
+            layers:
+              claude:
+                label: Claude
+                position: 1
+              codex:
+                label: Codex
+                position: 2
         """
     }
 
@@ -554,6 +616,7 @@ extension DemoWorld {
             "profiles": p.profiles.map { ["name": $0.name, "services": $0.services] },
             "activeProfile": p.activeProfile,
             "actions": p.actions,
+            "zones": p.zones,
         ]
         if let ws = p.workStatus { d["workStatus"] = ws }
         if let autoPull = p.autoPull { d["autoPull"] = autoPull }

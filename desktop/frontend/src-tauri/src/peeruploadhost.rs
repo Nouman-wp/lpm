@@ -1,6 +1,8 @@
-// Host half of a peer file attach: the Mac a terminal runs on takes the file in
-// 1 MiB pieces instead of one base64 frame, so what can be attached is bounded by
-// disk rather than by the WebSocket's max frame.
+// Host half of a file attach from another Mac or from the phone: the Mac a
+// terminal runs on takes the file in 1 MiB pieces instead of one base64 frame, so
+// what can be attached is bounded by disk rather than by the WebSocket's max
+// frame. The phone's link frames its replies itself (remote_upload.rs) around the
+// same `run`.
 //
 // Four verbs — begin, chunk, done, abort — over the same dedicated-frame plumbing
 // as "bring changes": each runs on its own thread and answers through the
@@ -46,22 +48,7 @@ pub fn handle(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
     let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
     let (app, out, verb, v) = (app.clone(), out.clone(), t.to_string(), v.clone());
     std::thread::spawn(move || {
-        let res = match verb.as_str() {
-            "uploadBegin" => begin(&v),
-            "uploadChunk" => chunk(&v),
-            // The ssh hop for a remote-backed pane happens here rather than in
-            // `finish` so the state machine itself stays testable without an app.
-            "uploadDone" => finish(&v).and_then(|local| {
-                crate::upload::host_path_for_terminal(
-                    &app.state::<crate::pty::PtyState>(),
-                    &str_arg(&v, "terminalId"),
-                    local,
-                )
-                .map(|path| json!({ "path": path }))
-            }),
-            "uploadAbort" => abort(&v),
-            _ => Err(format!("unknown upload request: {verb}")),
-        };
+        let res = run(&app, &verb, &v, &str_arg(&v, "terminalId"));
         // An abort is fire-and-forget from the client, which sends it on a path
         // that has already failed and is waiting on nothing.
         if req_id.is_null() {
@@ -75,6 +62,33 @@ pub fn handle(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
     });
 }
 
+/// One upload verb, start to finish. Blocking, so callers run it off their
+/// connection's read loop. `uploadDone` answers with the RAW path the pane
+/// `terminal_id` can read the file at.
+pub(crate) fn run(
+    app: &AppHandle,
+    verb: &str,
+    v: &Value,
+    terminal_id: &str,
+) -> Result<Value, String> {
+    match verb {
+        "uploadBegin" => begin(v),
+        "uploadChunk" => chunk(v),
+        // The ssh hop for a remote-backed pane happens here rather than in
+        // `finish` so the state machine itself stays testable without an app.
+        "uploadDone" => finish(v).and_then(|local| {
+            crate::upload::host_path_for_terminal(
+                &app.state::<crate::pty::PtyState>(),
+                terminal_id,
+                local,
+            )
+            .map(|path| json!({ "path": path }))
+        }),
+        "uploadAbort" => abort(v),
+        _ => Err(format!("unknown upload request: {verb}")),
+    }
+}
+
 fn str_arg(v: &Value, key: &str) -> String {
     v.get(key)
         .and_then(Value::as_str)
@@ -82,10 +96,10 @@ fn str_arg(v: &Value, key: &str) -> String {
         .to_string()
 }
 
-/// The name is chosen by the other Mac, so it is reduced to a basename before it
+/// The name is chosen by the sender, so it is reduced to a basename before it
 /// ever reaches the filesystem: only the temp folder made for this one upload may
-/// be written to, never a path the sender picked. A Mac name this platform can't
-/// hold has the offending characters replaced.
+/// be written to, never a path the sender picked. A name this platform can't hold
+/// has the offending characters replaced.
 fn safe_basename(name: &str) -> String {
     std::path::Path::new(name.trim())
         .file_name()

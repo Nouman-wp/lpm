@@ -32,6 +32,11 @@ enum Wire {
     static func auth(deviceId: String, token: String) -> String {
         json(["t": "auth", "deviceId": deviceId, "token": token])
     }
+    /// Sign in to the Mac and ask it to carry this connection to one of the
+    /// machines it connects to; the machine then answers as itself.
+    static func relay(deviceId: String, token: String, slug: String) -> String {
+        json(["t": "relay", "deviceId": deviceId, "token": token, "slug": slug])
+    }
     static func projects() -> String { json(["t": "projects"]) }
     static func sidebar() -> String { json(["t": "sidebar"]) }
     static func stats(days: Int) -> String { json(["t": "stats", "days": days]) }
@@ -50,6 +55,23 @@ enum Wire {
         var obj: [String: Any] = ["t": "upload", "id": id, "data": data, "mime": mime, "reqId": reqId]
         if let name, !name.isEmpty { obj["name"] = name }
         return json(obj)
+    }
+    /// The chunked attach, for a Mac whose `features` has "fileUpload": begin
+    /// with the name and size, send each piece at its offset after the last one
+    /// is acknowledged, then `uploadDone` answers with the path to paste.
+    static func uploadBegin(id: String, name: String, bytes: Int64, reqId: String) -> String {
+        json(["t": "uploadBegin", "id": id, "name": name, "bytes": bytes, "reqId": reqId])
+    }
+    static func uploadChunk(id: String, uploadId: String, offset: Int64, data: String, reqId: String) -> String {
+        json(["t": "uploadChunk", "id": id, "uploadId": uploadId, "offset": offset, "b64": data,
+              "reqId": reqId])
+    }
+    static func uploadDone(id: String, uploadId: String, reqId: String) -> String {
+        json(["t": "uploadDone", "id": id, "uploadId": uploadId, "reqId": reqId])
+    }
+    /// No `reqId`: the Mac answers an abort with nothing.
+    static func uploadAbort(id: String, uploadId: String) -> String {
+        json(["t": "uploadAbort", "id": id, "uploadId": uploadId])
     }
     static func mentions(project: String) -> String { json(["t": "mentions", "project": project]) }
     static func history(project: String, q: String) -> String {
@@ -449,9 +471,10 @@ enum Wire {
         // `hosts` is the Mac's current candidate address list (empty from an
         // older Mac that doesn't advertise one). `platform` is what the server
         // runs on ("macos"/"linux"; nil from an older build — treat as a Mac).
-        // `build` is the lpm it runs, nil from a build too old to say.
+        // `build` is the lpm it runs, nil from a build too old to say. `features`
+        // names requests it answers that an older Mac would silently ignore.
         case paired(deviceId: String, token: String, serverId: String?, serverName: String?,
-                    hosts: [String], platform: String?, build: MacBuild?)
+                    hosts: [String], platform: String?, build: MacBuild?, features: Set<String>)
         // Approve-on-Mac pairing: the Mac accepted the request and put up its Allow
         // dialog, showing the same match code both screens display.
         case pairPending(matchCode: String)
@@ -460,7 +483,7 @@ enum Wire {
         // that can't show the dialog at all), or "timeout" (no answer).
         case pairDenied(reason: String, message: String?)
         case ready(serverId: String?, serverName: String?, hosts: [String], platform: String?,
-                   build: MacBuild?)
+                   build: MacBuild?, features: Set<String>)
         // The Mac is about to close this connection on purpose: "sleep", "quit" or
         // "off" (remote control turned off), with when it said so (ms).
         case bye(reason: String, at: Int?)
@@ -486,6 +509,7 @@ enum Wire {
         case mentions(project: String, [MentionEntry])
         case history(project: String, [HistoryRow])
         case upload(id: String, reqId: String, path: String)
+        case uploadStep(UploadStep)
         case status(project: String, [StatusEntry])
         case jobs([AutomationJob], error: String?)
         case jobHistory(project: String, jobId: String, entries: [AutomationHistoryEntry], error: String?)
@@ -665,7 +689,8 @@ enum Wire {
                                serverName: obj["serverName"] as? String,
                                hosts: obj["hosts"] as? [String] ?? [],
                                platform: obj["platform"] as? String,
-                               build: MacBuild(obj))
+                               build: MacBuild(obj),
+                               features: Set(obj["features"] as? [String] ?? []))
             case "pairPending":
                 return .pairPending(matchCode: obj["matchCode"] as? String ?? "")
             case "pairDenied":
@@ -676,7 +701,8 @@ enum Wire {
                               serverName: obj["serverName"] as? String,
                               hosts: obj["hosts"] as? [String] ?? [],
                               platform: obj["platform"] as? String,
-                              build: MacBuild(obj))
+                              build: MacBuild(obj),
+                              features: Set(obj["features"] as? [String] ?? []))
             case "bye":
                 return .bye(reason: obj["reason"] as? String ?? "", at: obj["at"] as? Int)
             case "error": return .error(obj["error"] as? String ?? "error")
@@ -724,6 +750,8 @@ enum Wire {
                 return .upload(id: obj["id"] as? String ?? "",
                                reqId: Wire.reqIdString(obj["reqId"]),
                                path: ok ? (obj["path"] as? String ?? "") : "")
+            case "uploadBegin", "uploadChunk", "uploadDone":
+                return .uploadStep(UploadStep(obj))
             case "status":
                 return .status(project: obj["project"] as? String ?? "",
                                (obj["status"] as? [[String: Any]] ?? []).map(StatusEntry.init))
@@ -1377,6 +1405,7 @@ struct Project: Identifiable {
     let profiles: [Profile]
     let activeProfile: String
     let actions: [Action]
+    let zones: [Zone]
 
     var id: String { name }
     var isDuplicate: Bool { !parentName.isEmpty }
@@ -1399,17 +1428,19 @@ struct Project: Identifiable {
         profiles = (o["profiles"] as? [[String: Any]] ?? []).map(Profile.init)
         activeProfile = o["activeProfile"] as? String ?? ""
         actions = (o["actions"] as? [[String: Any]] ?? []).map(Action.init)
+        zones = (o["zones"] as? [[String: Any]] ?? []).map(Zone.init)
     }
 
     private init(name: String, label: String, running: Bool, isRemote: Bool, parentName: String,
                  worktree: Bool, workStatus: WorkStatus?, autoPull: Bool?, claude: ClaudeOwnChoice,
                  statusEntries: [StatusEntry], services: [Service], allServices: [Service],
-                 profiles: [Profile], activeProfile: String, actions: [Action]) {
+                 profiles: [Profile], activeProfile: String, actions: [Action], zones: [Zone]) {
         self.name = name; self.label = label; self.running = running; self.isRemote = isRemote
         self.parentName = parentName; self.worktree = worktree; self.workStatus = workStatus
         self.autoPull = autoPull; self.claude = claude
         self.statusEntries = statusEntries; self.services = services; self.allServices = allServices
         self.profiles = profiles; self.activeProfile = activeProfile; self.actions = actions
+        self.zones = zones
     }
 
     /// A copy with fresh status — used by the status-changed push, which must not
@@ -1418,7 +1449,7 @@ struct Project: Identifiable {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
                 worktree: worktree, workStatus: workStatus, autoPull: autoPull, claude: claude,
                 statusEntries: entries, services: services, allServices: allServices, profiles: profiles,
-                activeProfile: activeProfile, actions: actions)
+                activeProfile: activeProfile, actions: actions, zones: zones)
     }
 
     /// A copy wearing a status the phone has asked for but the Mac hasn't
@@ -1428,7 +1459,7 @@ struct Project: Identifiable {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
                 worktree: worktree, workStatus: status, autoPull: autoPull, claude: claude,
                 statusEntries: statusEntries, services: services, allServices: allServices, profiles: profiles,
-                activeProfile: activeProfile, actions: actions)
+                activeProfile: activeProfile, actions: actions, zones: zones)
     }
 
     /// A copy wearing the auto pull choice the phone just made, until the
@@ -1437,7 +1468,7 @@ struct Project: Identifiable {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
                 worktree: worktree, workStatus: workStatus, autoPull: value, claude: claude,
                 statusEntries: statusEntries, services: services, allServices: allServices,
-                profiles: profiles, activeProfile: activeProfile, actions: actions)
+                profiles: profiles, activeProfile: activeProfile, actions: actions, zones: zones)
     }
 
     /// A copy wearing the Claude account keys the phone just chose, until the
@@ -1446,7 +1477,7 @@ struct Project: Identifiable {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
                 worktree: worktree, workStatus: workStatus, autoPull: autoPull, claude: own,
                 statusEntries: statusEntries, services: services, allServices: allServices,
-                profiles: profiles, activeProfile: activeProfile, actions: actions)
+                profiles: profiles, activeProfile: activeProfile, actions: actions, zones: zones)
     }
 }
 
@@ -1459,6 +1490,9 @@ struct Action: Identifiable {
     let emoji: String
     let type: String   // terminal | command | background | ""
     let display: String
+    // The layer of the zone `display` names; empty means its first.
+    let layer: String
+    let position: Double?
     // The desktop's button color: a named accent ("cyan", "claude-deep") or a hex.
     let color: String
     // A group's split-button child: a child key, or "last-used".
@@ -1479,6 +1513,8 @@ struct Action: Identifiable {
         emoji = o["emoji"] as? String ?? ""
         type = o["type"] as? String ?? ""
         display = o["display"] as? String ?? ""
+        layer = o["layer"] as? String ?? ""
+        position = (o["position"] as? NSNumber)?.doubleValue
         color = o["color"] as? String ?? ""
         primary = o["primary"] as? String ?? ""
         confirm = o["confirm"] as? Bool ?? false

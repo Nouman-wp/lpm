@@ -161,6 +161,7 @@ mod remote_machines;
 mod remote_memory;
 mod remote_notes;
 mod remote_update;
+mod remote_upload;
 mod remotessh;
 mod remotestore;
 mod remotetls;

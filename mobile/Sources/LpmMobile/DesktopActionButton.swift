@@ -8,6 +8,8 @@ struct DesktopActionButton: View {
     let action: Action
     let project: String
     var compact = false
+    /// Stretches to the width it's offered, as a zone's buttons fill their column.
+    var fill = false
     /// Long-press offers Edit Action… when set.
     var onEdit: ((Action) -> Void)? = nil
     let onRun: (Action) -> Void
@@ -33,6 +35,7 @@ struct DesktopActionButton: View {
                 Text(action.displayLabel)
                     .lineLimit(1)
                     .padding(.horizontal, 14)
+                    .frame(maxWidth: fill ? .infinity : nil)
                     .desktopActionFace(ActionTint(action.color), compact: compact)
             }
             .buttonStyle(.plain)
@@ -47,6 +50,7 @@ struct DesktopActionButton: View {
                     chevron
                 }
                 .padding(.horizontal, 14)
+                .frame(maxWidth: fill ? .infinity : nil)
                 .desktopActionFace(ActionTint(action.color), compact: compact)
             }
             .menuStyle(.button)
@@ -61,7 +65,7 @@ struct DesktopActionButton: View {
                     .lineLimit(1)
                     .padding(.leading, 14)
                     .padding(.trailing, 12)
-                    .frame(maxHeight: .infinity)
+                    .frame(maxWidth: fill ? .infinity : nil, maxHeight: .infinity)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

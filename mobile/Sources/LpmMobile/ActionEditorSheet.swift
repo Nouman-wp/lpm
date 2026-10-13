@@ -58,20 +58,6 @@ private enum ActionRunIn: String, CaseIterable, Identifiable {
     }
 }
 
-/// Where the action appears in the project's controls. A zone is only offered
-/// for an action that already sits in one; the phone can't make or pick zones.
-private enum ActionPlacement: Hashable, Identifiable {
-    case header, footer, zone(String)
-    var id: Self { self }
-    var title: String {
-        switch self {
-        case .header: return "Top bar"
-        case .footer: return "Bottom bar"
-        case .zone(let name): return "Zone \u{201C}\(name)\u{201D}"
-        }
-    }
-}
-
 private struct OptionDraft: Identifiable {
     let id = UUID()
     var value = ""
@@ -116,11 +102,11 @@ private struct ActionDraft {
     var reuse = false
     var confirm = false
     var placement: ActionPlacement = .header
-    /// Where the action sat on disk. Moving it to the top bar from elsewhere
-    /// writes an explicit `header`, and so does keeping one, since it overrides
-    /// a footer or zone display from another file.
+    /// Where the action sat on disk. An edit that keeps it there leaves
+    /// `display` and `layer` as written; a move writes both, the top bar as an
+    /// explicit `header`, since it overrides a footer or zone display from
+    /// another file.
     var seededPlacement: ActionPlacement = .header
-    var explicitHeader = false
     var inputs: [InputDraft] = []
     var children: [ChildDraft] = []
     var color = ""
@@ -142,6 +128,7 @@ struct ActionEditorSheet: View {
     @State private var draft = ActionDraft()
     @State private var seedBody: [String: Any]?
     @State private var seedSection: String?
+    @State private var seedSource = "project"
     @State private var seeded = false
     @State private var didRequest = false
     @State private var confirmDelete = false
@@ -410,16 +397,17 @@ struct ActionEditorSheet: View {
     private var placementSection: some View {
         Section {
             Picker("Placement", selection: $draft.placement) {
-                ForEach(placementOptions) { Text($0.title).tag($0) }
+                ForEach(placementOptions) { Text($0.title(in: project.zones)).tag($0) }
             }
         } header: {
             Text("Placement")
+        } footer: {
+            if let hint = draft.placement.hint(in: project.zones) { Text(hint) }
         }
     }
 
     private var placementOptions: [ActionPlacement] {
-        if case .zone = draft.seededPlacement { return [.header, .footer, draft.seededPlacement] }
-        return [.header, .footer]
+        ActionPlacement.options(zones: project.zones, source: seedSource, current: draft.seededPlacement)
     }
 
     private var deleteSection: some View {
@@ -478,6 +466,7 @@ struct ActionEditorSheet: View {
             if let body = model.actionBody {
                 seedBody = body
                 seedSection = model.actionBodySection
+                if !model.actionBodySource.isEmpty { seedSource = model.actionBodySource }
                 seed(from: body, key: key)
                 seeded = true
             }
@@ -494,14 +483,9 @@ struct ActionEditorSheet: View {
         d.runIn = ActionRunIn.from(body["type"] as? String)
         d.reuse = (body["reuse"] as? Bool) == true
         d.confirm = (body["confirm"] as? Bool) == true
-        let display = body["display"] as? String ?? ""
-        switch display {
-        case "", "button", "header": d.placement = .header
-        case "footer": d.placement = .footer
-        default: d.placement = .zone(display)
-        }
+        d.placement = ActionPlacement(display: body["display"] as? String ?? "",
+                                      layer: body["layer"] as? String, zones: project.zones)
         d.seededPlacement = d.placement
-        d.explicitHeader = display == "header"
         if let inputs = body["inputs"] as? [[String: Any]] {
             d.inputs = inputs.map(inputDraft)
         }
@@ -560,9 +544,11 @@ struct ActionEditorSheet: View {
 
         setOrRemove(&p, "label", draft.label.trimmed.nilIfEmpty)
         setOrRemove(&p, "emoji", draft.emoji.trimmed.nilIfEmpty)
-        setOrRemove(&p, "display", displayValue)
+        if !context.isEditing || draft.placement != draft.seededPlacement {
+            setOrRemove(&p, "display", displayValue)
+            setOrRemove(&p, "layer", draft.placement.layer)
+        }
         setOrRemove(&p, "color", draft.color.nilIfEmpty)
-        if case .zone = draft.placement {} else { p.removeValue(forKey: "layer") }
 
         switch draft.kind {
         case .command:
@@ -593,8 +579,8 @@ struct ActionEditorSheet: View {
     private var displayValue: String? {
         switch draft.placement {
         case .footer: return "footer"
-        case .zone(let name): return name
-        case .header: return draft.explicitHeader || draft.seededPlacement != .header ? "header" : nil
+        case .zone(let name, _): return name
+        case .header: return context.isEditing ? "header" : nil
         }
     }
 

@@ -25,6 +25,10 @@ struct MacRecord: Codable, Identifiable, Equatable {
     // said so. Absent from records saved before these existed.
     var lastConnected: Date? = nil
     var farewell: Farewell? = nil
+    // Set for a machine this phone opens through another saved Mac instead of
+    // pairing with it. It connects with that Mac's addresses, credential and
+    // certificate, and the Mac carries it the rest of the way.
+    var via: MacVia? = nil
 
     var id: UUID { localId }
 
@@ -75,4 +79,11 @@ struct MacRecord: Codable, Identifiable, Equatable {
         }
         return false
     }
+}
+
+/// Where a machine opened through another Mac is reached: that Mac's saved
+/// record and the machine's slug among the machines it connects to.
+struct MacVia: Codable, Equatable {
+    let macId: UUID
+    let slug: String
 }

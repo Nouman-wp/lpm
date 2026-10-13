@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// The horizontal row of queued attachment chips above the composer input. Each
-/// chip shows an image thumbnail or a file glyph + name, its upload state
-/// (spinner / failed), and a remove button; tapping opens a preview. The Mac path
+/// chip shows an image or video thumbnail or a file glyph + name, its upload state
+/// (spinner and progress / failed), and a remove button; tapping opens a preview. The Mac path
 /// each upload returns is held on the chip and appended to the message on send —
 /// it never appears in the text field.
 struct ComposerAttachments: View, Equatable {
@@ -89,8 +89,16 @@ private struct AttachmentChip: View {
                 .aspectRatio(contentMode: .fill)
                 .frame(width: 38, height: 38)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    if attachment.kind == .video {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white)
+                            .shadow(radius: 2)
+                    }
+                }
         } else {
-            Image(systemName: "doc.fill")
+            Image(systemName: attachment.kind == .video ? "film" : "doc.fill")
                 .font(.system(size: 20))
                 .foregroundStyle(.secondary)
                 .frame(width: 38, height: 38)
@@ -104,7 +112,10 @@ private struct AttachmentChip: View {
         case .uploading:
             HStack(spacing: 4) {
                 ProgressView().controlSize(.mini)
-                Text("Uploading…").font(.system(size: 10)).foregroundStyle(.secondary)
+                Text(attachment.progress.map { "\(Int($0 * 100))%" } ?? "Uploading…")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
         case .uploaded:
             Label("Ready", systemImage: "checkmark.circle.fill")
@@ -120,7 +131,8 @@ private struct AttachmentChip: View {
     }
 }
 
-/// A full-screen image viewer (images) or filename detail (files) for a chip.
+/// A full-screen image viewer (images) or filename detail (videos, files) for a
+/// chip. A video's thumbnail is too small to fill the screen.
 private struct AttachmentPreview: View {
     let attachment: Attachment
     @Environment(\.dismiss) private var dismiss
@@ -129,14 +141,15 @@ private struct AttachmentPreview: View {
         NavigationStack {
             ZStack {
                 SwiftUI.Color.black.ignoresSafeArea()
-                if let image = attachment.thumbnail {
+                if attachment.kind == .image, let image = attachment.thumbnail {
                     Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .padding()
                 } else {
                     ContentUnavailableView {
-                        Label(attachment.filename, systemImage: "doc.fill")
+                        Label(attachment.filename,
+                              systemImage: attachment.kind == .video ? "film" : "doc.fill")
                     } description: {
                         Text(attachment.mime)
                     }

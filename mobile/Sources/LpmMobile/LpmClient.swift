@@ -42,6 +42,7 @@ final class LpmClient: NSObject {
     var onTerminals: ((_ project: String, _ terminals: [TerminalInfo]) -> Void)?
     var onSlash: ((_ id: String, _ commands: [SlashCommand]) -> Void)?
     var onUpload: ((_ id: String, _ reqId: String, _ path: String) -> Void)?
+    var onUploadStep: ((UploadStep) -> Void)?
     var onMentions: ((_ project: String, _ entries: [MentionEntry]) -> Void)?
     var onHistory: ((_ project: String, _ rows: [HistoryRow]) -> Void)?
     var onStatus: ((_ project: String, _ entries: [StatusEntry]) -> Void)?
@@ -231,6 +232,8 @@ final class LpmClient: NSObject {
     /// The last frame or heartbeat reply from the Mac. A link found dead on the
     /// way back from the background was last current then, not when noticed.
     private(set) var lastHeard: Date?
+    /// What the Mac said it answers in its `paired`/`ready` frame.
+    private(set) var hostFeatures = Set<String>()
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -310,6 +313,12 @@ final class LpmClient: NSObject {
     static let pairingUnavailableError = "pairing unavailable"
     static let noCredentialError = "no credential"
 
+    // A connection through the Mac to one of its machines (`relay`): the Mac
+    // isn't connected to the machine right now, which it may be again any
+    // moment, or the machine's lpm is too old to be opened this way.
+    static let relayOfflineError = "relay-offline"
+    static let relayUnsupportedError = "relay-unsupported"
+
     /// True for any of the retryable "offline" hints — the states the model's
     /// stale-host repick and mDNS recovery should react to, not just the generic
     /// unreachable one (a refused port is exactly what recovery can heal).
@@ -375,11 +384,17 @@ final class LpmClient: NSObject {
     // no pinning, no reconnect loop). See DemoServer.
     private let demoServer: DemoServer?
 
+    // The machine the Mac carries this connection to, for one opened through
+    // the Mac rather than paired with this phone. Nil for the Mac itself.
+    private let relaySlug: String?
+
     init(endpoint: Endpoint, credential: Credential?, deviceName: String,
-         pinProvider: (() -> String?)? = nil, expectedFingerprint: String? = nil) {
+         pinProvider: (() -> String?)? = nil, expectedFingerprint: String? = nil,
+         relay: String? = nil) {
         self.endpoint = endpoint
         self.credential = credential
         self.deviceName = deviceName
+        self.relaySlug = relay
         self.demoServer = nil
         self.pinning = PinningDelegate(pinProvider: pinProvider, expected: expectedFingerprint)
         super.init()
@@ -399,6 +414,7 @@ final class LpmClient: NSObject {
         self.endpoint = Endpoint(host: "demo", port: 0)
         self.credential = Credential(deviceId: DemoServer.deviceId, token: "demo")
         self.deviceName = deviceName
+        self.relaySlug = nil
         self.demoServer = demoServer
         self.pinning = PinningDelegate(pinProvider: nil, expected: nil)
         super.init()
@@ -445,6 +461,7 @@ final class LpmClient: NSObject {
             if case .ready = self.state { return }
             self.injectInbound(Wire.json([
                 "t": "ready", "serverId": DemoServer.serverId, "serverName": DemoServer.serverName,
+                "features": [ChunkedUpload.feature],
             ]))
         }
     }
@@ -571,6 +588,8 @@ final class LpmClient: NSObject {
             pendingHandshakeFrame = Wire.pairRequest(name: name, replaces: replacesDeviceId)
         } else if let code = pairingCode {
             pendingHandshakeFrame = Wire.pair(code: code, name: deviceName, replaces: replacesDeviceId)
+        } else if let c = credential, let slug = relaySlug {
+            pendingHandshakeFrame = Wire.relay(deviceId: c.deviceId, token: c.token, slug: slug)
         } else if let c = credential {
             pendingHandshakeFrame = Wire.auth(deviceId: c.deviceId, token: c.token)
         } else {
@@ -636,6 +655,17 @@ final class LpmClient: NSObject {
         teardownTask()
         guard wantConnected else { return }
         scheduleReconnect(reason)
+    }
+
+    /// The Mac answered but can't reach the machine this connection goes on to.
+    /// Retried like a machine that isn't answering, without blaming the network.
+    private func relayUnavailable() {
+        failureHint = Self.relayOfflineError
+        lastTransportErrorCode = nil
+        lastTransportErrorChain = nil
+        teardownTask()
+        guard wantConnected else { return }
+        scheduleReconnect(Self.relayOfflineError)
     }
 
     /// -1200...-1206 is URLSession's TLS band (handshake failed, cert rejected,
@@ -798,6 +828,21 @@ final class LpmClient: NSObject {
     func requestSlash(id: String, project: String) { send(Wire.slash(id: id, project: project)) }
     func uploadBlob(_ id: String, _ b64: String, mime: String, name: String?, reqId: String) {
         send(Wire.upload(id: id, data: b64, mime: mime, name: name, reqId: reqId))
+    }
+    // Each step is only worth sending on the link it belongs to: a reconnect
+    // fails the upload, so a replayed step would land on an upload already given
+    // up on. The abort is the exception, queued so the Mac frees the partial file.
+    func uploadBegin(_ id: String, name: String, bytes: Int64, reqId: String) {
+        sendLive(Wire.uploadBegin(id: id, name: name, bytes: bytes, reqId: reqId))
+    }
+    func uploadChunk(_ id: String, uploadId: String, offset: Int64, b64: String, reqId: String) {
+        sendLive(Wire.uploadChunk(id: id, uploadId: uploadId, offset: offset, data: b64, reqId: reqId))
+    }
+    func uploadDone(_ id: String, uploadId: String, reqId: String) {
+        sendLive(Wire.uploadDone(id: id, uploadId: uploadId, reqId: reqId))
+    }
+    func uploadAbort(_ id: String, uploadId: String) {
+        send(Wire.uploadAbort(id: id, uploadId: uploadId))
     }
     func requestMentions(project: String) { send(Wire.mentions(project: project)) }
     func requestHistory(project: String, q: String) { send(Wire.history(project: project, q: q)) }
@@ -1208,7 +1253,9 @@ final class LpmClient: NSObject {
     /// Dispatch one parsed inbound frame. Always called on the main queue.
     private func dispatch(_ frame: Wire.Inbound) {
         switch frame {
-            case .paired(let deviceId, let token, let serverId, let serverName, let hosts, let platform, let build):
+            case .paired(let deviceId, let token, let serverId, let serverName, let hosts, let platform, let build,
+                         let features):
+                self.hostFeatures = features
                 self.credential = Credential(deviceId: deviceId, token: token)
                 self.pairingCode = nil
                 self.pairRequestName = nil
@@ -1225,7 +1272,8 @@ final class LpmClient: NSObject {
                 self.onPairPending?(matchCode)
             case .pairDenied(let reason, let message):
                 self.failPair(reason, message: message)
-            case .ready(let serverId, let serverName, let hosts, let platform, let build):
+            case .ready(let serverId, let serverName, let hosts, let platform, let build, let features):
+                self.hostFeatures = features
                 self.set(.ready)
                 self.onConnected()
                 // A new connection starts out counted as on screen.
@@ -1245,6 +1293,8 @@ final class LpmClient: NSObject {
                 let when = at.map { Date(timeIntervalSince1970: Double($0) / 1000) } ?? Date()
                 self.farewellPending = true
                 self.onFarewell?(reason, when)
+            case .error(let e) where e == Self.relayOfflineError:
+                self.relayUnavailable()
             case .error(let e):
                 // The Mac dropped this device's record: retrying the same
                 // credential is pointless, so stop and report it as the sentinel
@@ -1262,6 +1312,7 @@ final class LpmClient: NSObject {
             case .terminals(let proj, let t): self.onTerminals?(proj, t)
             case .slash(let id, let cmds): self.onSlash?(id, cmds)
             case .upload(let id, let reqId, let path): self.onUpload?(id, reqId, path)
+            case .uploadStep(let step): self.onUploadStep?(step)
             case .mentions(let proj, let entries): self.onMentions?(proj, entries)
             case .history(let proj, let rows): self.onHistory?(proj, rows)
             case .status(let proj, let s): self.onStatus?(proj, s)

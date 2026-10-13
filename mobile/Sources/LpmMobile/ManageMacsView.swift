@@ -79,10 +79,14 @@ private struct MacDetailView: View {
                     Text("Leave blank to use the name it reports.")
                 }
                 Section {
-                    NavigationLink {
-                        EditEndpointView(macId: macId)
-                    } label: {
-                        LabeledContent("Addresses", value: "\(record.hosts.count)")
+                    if let via = model.viaMac(of: record) {
+                        LabeledContent("Opens through", value: via.displayName)
+                    } else {
+                        NavigationLink {
+                            EditEndpointView(macId: macId)
+                        } label: {
+                            LabeledContent("Addresses", value: "\(record.hosts.count)")
+                        }
                     }
                     if record.localId != model.activeMacId {
                         Button("Switch to it") {
@@ -107,7 +111,11 @@ private struct MacDetailView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This iPhone will be unpaired and its notifications will stop. To add it back, pair it again.")
+            if let via = record.flatMap(model.viaMac(of:)) {
+                Text("It stays connected to “\(via.displayName)”, and its projects open from there again.")
+            } else {
+                Text("This iPhone will be unpaired and its notifications will stop. To add it back, pair it again.")
+            }
         }
     }
 }

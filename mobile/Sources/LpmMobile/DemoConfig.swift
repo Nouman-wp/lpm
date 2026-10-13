@@ -2,7 +2,8 @@ import Foundation
 
 private let serviceKeyOrder = ["cmd", "cwd", "port", "portConflict", "env", "dependsOn"]
 private let actionKeyOrder = ["label", "emoji", "cmd", "cwd", "type", "reuse", "confirm",
-                              "display", "inputs", "actions"]
+                              "display", "layer", "inputs", "actions"]
+private let zoneKeyOrder = ["rows", "label", "display", "position", "collapsed", "layers"]
 private let inputKeyOrder = ["key", "label", "type", "required", "placeholder", "default",
                              "options", "value"]
 
@@ -376,7 +377,29 @@ extension DemoServer {
                 }
             }
         }
+        if !p.zones.isEmpty {
+            out += "zones:\n"
+            for zone in p.zones {
+                guard let name = zone["name"] as? String else { continue }
+                out += "  \(name):\n" + yamlLines(zoneBody(zone), indent: 4, order: zoneKeyOrder)
+            }
+        }
         return out
+    }
+
+    /// A zone as its config file holds it: the header is the default display,
+    /// and layers are keyed by name.
+    private func zoneBody(_ zone: [String: Any]) -> [String: Any] {
+        var body = zone
+        for key in ["name", "source"] { body.removeValue(forKey: key) }
+        if body["display"] as? String != "footer" { body.removeValue(forKey: "display") }
+        if let layers = body.removeValue(forKey: "layers") as? [[String: Any]], !layers.isEmpty {
+            body["layers"] = Dictionary(layers.compactMap { layer -> (String, [String: Any])? in
+                guard let name = layer["name"] as? String else { return nil }
+                return (name, layer.filter { $0.key != "name" })
+            }, uniquingKeysWith: { first, _ in first })
+        }
+        return body
     }
 
     // MARK: YAML emitter

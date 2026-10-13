@@ -36,7 +36,7 @@ struct MachineHeader: View {
             }
         }
         .contextMenu {
-            if section.record != nil {
+            if section.canOpen {
                 Button { model.switchToMachine(section) } label: {
                     Label("Switch to \(section.machine.name)", systemImage: "arrow.left.arrow.right")
                 }
@@ -45,10 +45,11 @@ struct MachineHeader: View {
     }
 
     private var detail: String? {
+        if section.record?.via?.macId == model.activeMacId { return "Opens through this Mac" }
         switch section.pending {
         case .adding?: return "Adding to this iPhone…"
         case .failed(let why)?: return why
-        case .removed?: return "Not on this iPhone"
+        case .removed?: return section.throughMac ? "Opens through this Mac" : "Not on this iPhone"
         case .needsUpdate?: return "Update lpm on it to open it here"
         case .offline?, nil: return nil
         }
