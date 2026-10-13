@@ -900,6 +900,9 @@ struct TerminalScreen: View {
     @State private var switched: TerminalInfo?
     // A file path tapped in the terminal, open in the preview sheet.
     @State private var preview: FilePreviewTarget?
+    // Top of the navigation stack, so a touch on a screen pushed over it isn't
+    // taken as looking at this terminal.
+    @State private var onScreen = false
     // Phone-local terminal preferences (Settings → Terminal).
     @AppStorage(TerminalPrefs.fontSizeKey) private var fontSize = TerminalPrefs.defaultFontSize
     @AppStorage(TerminalPrefs.themeKey) private var themeRaw = TerminalPrefs.defaultTheme.rawValue
@@ -974,6 +977,16 @@ struct TerminalScreen: View {
             })
             .navigationDestination(item: $switched) { TerminalScreen(term: $0, project: liveProject) }
             .sheet(item: $preview) { FilePreviewSheet(target: $0).environment(model) }
+            // Opening the terminal is the tap that sees it; a finish that lands while
+            // it is already open waits for the next touch, as on the desktop.
+            .background(WindowTouchObserver {
+                if onScreen { model.markTerminalSeen(project: term.project, paneId: term.id) }
+            })
+            .onAppear {
+                onScreen = true
+                model.markTerminalSeen(project: term.project, paneId: term.id)
+            }
+            .onDisappear { onScreen = false }
             // Fallback: never leave the spinner up if no snapshot ever arrives
             // (e.g. the link drops mid-open).
             .task {

@@ -1615,13 +1615,30 @@ final class AppModel {
     func clearAgentStatus(project: String, paneId: String, value: String) {
         guard !paneId.isEmpty, !value.isEmpty else { return }
         Haptics.tap()
+        dropAgentStatus(project: project, paneId: paneId, values: [value])
+    }
+
+    /// Retire the finish or problem a terminal shows once the user is looking at
+    /// it, as clicking its tab does on the desktop. A wait stays: the agent is
+    /// still asking for something.
+    func markTerminalSeen(project: String, paneId: String) {
+        let entries = projects.first(where: { $0.name == project })?.statusEntries ?? []
+        let seen = Set(entries.filter { $0.paneID == paneId && ($0.value == "Done" || $0.value == "Error") }
+            .map(\.value))
+        guard !seen.isEmpty else { return }
+        dropAgentStatus(project: project, paneId: paneId, values: seen)
+    }
+
+    private func dropAgentStatus(project: String, paneId: String, values: Set<String>) {
         if let idx = projects.firstIndex(where: { $0.name == project }) {
             let kept = projects[idx].statusEntries.filter {
-                !($0.paneID == paneId && $0.value == value)
+                !($0.paneID == paneId && values.contains($0.value))
             }
             projects[idx] = projects[idx].withStatus(kept)
         }
-        client?.clearStatus(project: project, paneId: paneId, value: value)
+        for value in values {
+            client?.clearStatus(project: project, paneId: paneId, value: value)
+        }
     }
 
     /// Load the agent-usage stats for a period (1/7/30 days, 0 = all time). Marks
