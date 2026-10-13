@@ -79,6 +79,7 @@ port_free() { curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$1/"; [ $? = 7
 serves() { [ "$(curl -s -o /dev/null --max-time 3 -w '%{http_code}' "http://127.0.0.1:$SERVICE_PORT/")" = 200 ]; }
 window_state() { xwininfo -name lpm 2>/dev/null | grep -q "$1"; }
 xterms() { V 'return document.querySelectorAll(".xterm").length' 2>/dev/null || echo 0; }
+term_focused() { [ "$(V 'return !!document.activeElement?.closest(".xterm")' 2>/dev/null)" = true ]; }
 
 app_env() {
     env -i HOME="$H" USER="$ME" LOGNAME="$ME" PATH=/usr/local/bin:/usr/bin:/bin \
@@ -296,7 +297,14 @@ t0=$(xterms)
 X key --clearmodifiers ctrl+shift+t
 wait_for 15 '[ "$(xterms)" -gt "$t0" ]'
 sleep 2
-X mousemove 800 400 click 1; sleep 0.5
+# Keys go wherever focus is, and on a slow runner the new terminal's composer can
+# still hold it after one click (the first typed key landed there), so click
+# until the terminal has it.
+for _ in 1 2 3 4 5; do
+    X mousemove 800 400 click 1; sleep 0.5
+    term_focused && break
+done
+term_focused || echo "focus before typing: $(V 'const a = document.activeElement; return a ? a.tagName + "." + a.className : "none"' 2>/dev/null)"
 X type --delay 20 "echo typed-\$((2+3)) > $PROJ/typed.out"; X key Return
 wait_for 10 'grep -q typed-5 "$PROJ/typed.out" 2>/dev/null'
 check "Ctrl+Shift+T terminal + typing" 'grep -q typed-5 "$PROJ/typed.out"'
