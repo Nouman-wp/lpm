@@ -6,8 +6,8 @@
 <link rel="stylesheet" href="xterm/xterm.css" />
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #2b2b2b; overscroll-behavior: none; }
-  /* The terminal sits within the safe area (below the nav bar); the inset is set from Swift. */
-  #term { position: absolute; inset: 0; padding: var(--top-inset, 0px) 6px 6px 6px; }
+  /* The terminal sits within the safe area (below the nav bar); the insets are set from Swift. */
+  #term { position: absolute; inset: 0; padding: var(--top-inset, 0px) 6px calc(6px + var(--bottom-inset, 0px)) 6px; }
   .xterm .xterm-viewport { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 </style>
 </head>
@@ -139,9 +139,11 @@
     const el = term.element;
     const TAP_SLOP = 8; // px of movement under which a touch is a tap, not a scroll
     let lastY = null, startY = 0, rect = null, accum = 0, scrolling = false;
+    // The WebGL renderer draws rows on a canvas, so a row's height is the screen's
+    // over the row count.
     const rowHeight = () => {
-      const r = el.querySelector('.xterm-rows')?.firstElementChild;
-      return (r && r.getBoundingClientRect().height) || Math.ceil(term.options.fontSize * 1.2);
+      const screen = el.querySelector('.xterm-screen');
+      return (screen && screen.getBoundingClientRect().height / term.rows) || Math.ceil(term.options.fontSize * 1.2);
     };
     // xterm opens OSC 8 hyperlinks on its own click, so a tap is replayed as one:
     // iOS's compatibility mouse events can stop at the hover the link reacts to.
@@ -163,12 +165,45 @@
       const row = Math.max(1, Math.min(term.rows, Math.round(((y - rect.top) / rect.height) * term.rows)));
       return '\x1b[<' + (up ? 64 : 65) + ';' + col + ';' + row + 'M';
     };
+    // Scroll by `dy` px of finger travel. Returns false once local scrollback
+    // hits its end, so a fling stops there.
+    const scrollBy = (dy, x, y) => {
+      accum += dy;
+      const rh = rowHeight();
+      const lines = (accum / rh) | 0;
+      if (lines === 0) return true;
+      accum -= lines * rh;
+      if (mouseOn() || term.buffer.active.type === 'alternate') {
+        const seq = wheel(lines > 0, x, y);
+        for (let i = 0; i < Math.abs(lines); i++) post('input', seq);
+        return true;
+      }
+      const before = term.buffer.active.viewportY;
+      term.scrollLines(-lines);
+      return term.buffer.active.viewportY !== before;
+    };
+    // A flick keeps scrolling after the finger lifts, slowing down as iOS does.
+    let samples = [], fling = 0, stoppedFling = false;
+    const flingFrom = (v, x, y) => {
+      let prev = performance.now();
+      const step = now => {
+        const dt = now - prev;
+        prev = now;
+        v *= Math.pow(0.95, dt / 16.7);
+        if (Math.abs(v) < 0.05 || !scrollBy(v * dt, x, y)) { fling = 0; return; }
+        fling = requestAnimationFrame(step);
+      };
+      fling = requestAnimationFrame(step);
+    };
     el.addEventListener('touchstart', e => {
+      stoppedFling = fling !== 0;
+      if (fling) { cancelAnimationFrame(fling); fling = 0; }
       if (e.touches.length === 1) {
         lastY = startY = e.touches[0].clientY;
         rect = el.getBoundingClientRect();
         accum = 0;
         scrolling = false;
+        samples = [];
       }
     }, { passive: true });
     el.addEventListener('touchmove', e => {
@@ -179,22 +214,22 @@
       // raise the keyboard. Only take over the gesture once it's a real scroll.
       if (!scrolling && Math.abs(t.clientY - startY) < TAP_SLOP) return;
       scrolling = true;
-      accum += t.clientY - lastY;
+      const now = performance.now();
+      samples.push({ t: now, y: t.clientY });
+      while (samples.length > 1 && now - samples[0].t > 80) samples.shift();
+      scrollBy(t.clientY - lastY, t.clientX, t.clientY);
       lastY = t.clientY;
-      const rh = rowHeight();
-      const lines = (accum / rh) | 0;
-      if (lines !== 0) {
-        accum -= lines * rh;
-        if (mouseOn() || term.buffer.active.type === 'alternate') {
-          const seq = wheel(lines > 0, t.clientX, t.clientY);
-          for (let i = 0; i < Math.abs(lines); i++) post('input', seq);
-        } else {
-          term.scrollLines(-lines);
-        }
-      }
       e.preventDefault();
     }, { passive: false });
     const end = e => {
+      if (lastY !== null && scrolling && samples.length > 1) {
+        const first = samples[0], last = samples[samples.length - 1];
+        const t = e.changedTouches[0];
+        const v = (last.y - first.y) / Math.max(1, last.t - first.t);
+        if (Math.abs(v) > 0.3 && performance.now() - last.t < 60 && t) flingFrom(v, t.clientX, t.clientY);
+      }
+      // A tap that only stopped a fling does nothing else, as on iOS.
+      if (stoppedFling && !scrolling) { lastY = null; e.preventDefault(); return; }
       // A touch that never became a scroll is a tap: on a URL it opens in the
       // browser and on a file path it opens the preview (preventDefault keeps iOS
       // from also focusing and raising the keyboard); anywhere else it focuses the
@@ -262,7 +297,33 @@
   let lastOutputAt = 0;
   window.lpmFeed = b64 => { lastOutputAt = performance.now(); term.write(b64ToBytes(b64)); };
   window.lpmSeed = b64 => { lastOutputAt = performance.now(); term.reset(); term.write(b64ToBytes(b64)); refit(); };
-  window.lpmSetTopInset = px => document.documentElement.style.setProperty('--top-inset', px + 'px');
+  window.lpmSetInsets = (top, bottom) => {
+    document.documentElement.style.setProperty('--top-inset', top + 'px');
+    document.documentElement.style.setProperty('--bottom-inset', bottom + 'px');
+  };
+
+  // Where the text ends, for the keyboard slide: the bottom of the cursor's row
+  // from the top of the page, and whether regaining rows would pull scrollback
+  // down so the text still ends at the bottom. Swift keeps the terminal pinned
+  // to its top while the text ends above the keyboard.
+  let extent = '', extentQueued = false;
+  const reportExtent = () => {
+    extentQueued = false;
+    const screen = term.element.querySelector('.xterm-screen');
+    if (!screen) return;
+    const b = term.buffer.active, box = screen.getBoundingClientRect();
+    const row = b.cursorY + b.baseY - b.viewportY;
+    const bottom = Math.round(box.top + (row + 1) * box.height / term.rows);
+    const fills = b.baseY > 0 && b.cursorY === term.rows - 1;
+    const next = bottom + ',' + fills;
+    if (next !== extent) { extent = next; post('extent', { bottom, fills }); }
+  };
+  const queueExtent = () => {
+    if (!extentQueued) { extentQueued = true; requestAnimationFrame(reportExtent); }
+  };
+  term.onCursorMove(queueExtent);
+  term.onScroll(queueExtent);
+  term.onResize(queueExtent);
 
   // Font size / theme, pushed from Swift (Settings → Terminal). Changing the font
   // reflows the grid, so refit afterwards to re-report geometry. Theme keeps the

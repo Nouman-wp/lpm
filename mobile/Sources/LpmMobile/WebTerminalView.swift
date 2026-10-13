@@ -41,9 +41,11 @@ struct WebTerminalView: UIViewRepresentable {
     /// Fired once, when the first screen content renders — lets the host screen
     /// drop its loading spinner.
     var onFirstContent: (() -> Void)? = nil
-    /// Height at the top of the web view that sits out of sight, so xterm fits
-    /// its rows to the part below it.
-    var topInset: CGFloat = 0
+    /// Heights at the top and bottom of the web view that sit out of sight, so
+    /// xterm fits its rows to the part between them.
+    var hiddenInsets = EdgeInsets()
+    /// Kept current with where the text ends, for the keyboard slide.
+    var textExtent: TextExtent? = nil
     /// Phone-local terminal preferences (Settings → Terminal). SwiftUI re-runs
     /// updateUIView when these change, which pushes them into the page.
     var fontSize: Int = TerminalPrefs.defaultFontSize
@@ -60,6 +62,7 @@ struct WebTerminalView: UIViewRepresentable {
         controller.add(context.coordinator, name: "ready")
         controller.add(context.coordinator, name: "openPath")
         controller.add(context.coordinator, name: "openURL")
+        controller.add(context.coordinator, name: "extent")
 
         let config = WKWebViewConfiguration()
         config.userContentController = controller
@@ -89,7 +92,8 @@ struct WebTerminalView: UIViewRepresentable {
         let dir = TerminalWebPool.webDir
         web.loadFileURL(dir.appendingPathComponent("terminal.html"), allowingReadAccessTo: dir)
 
-        context.coordinator.topInset = topInset
+        context.coordinator.hiddenInsets = hiddenInsets
+        context.coordinator.textExtent = textExtent
         context.coordinator.fontSize = fontSize
         context.coordinator.theme = theme
         context.coordinator.onFirstContent = onFirstContent
@@ -113,7 +117,7 @@ struct WebTerminalView: UIViewRepresentable {
         context.coordinator.onOpenPath = onOpenPath
         context.coordinator.applyFontSize(fontSize)
         context.coordinator.applyTheme(theme)
-        context.coordinator.applyTopInset(topInset)
+        context.coordinator.applyHiddenInsets(hiddenInsets)
         // Re-assert the PTY size when this phone becomes the owner: taking control
         // triggers no new xterm sizeChanged on its own, so without this the PTY
         // would stay at the previous owner's geometry.
@@ -122,7 +126,7 @@ struct WebTerminalView: UIViewRepresentable {
 
     static func dismantleUIView(_ web: WKWebView, coordinator: Coordinator) {
         let c = web.configuration.userContentController
-        ["input", "resize", "ready", "openPath", "openURL"].forEach { c.removeScriptMessageHandler(forName: $0) }
+        ["input", "resize", "ready", "openPath", "openURL", "extent"].forEach { c.removeScriptMessageHandler(forName: $0) }
         coordinator.model?.closeTerminalScreen(coordinator.termId, key: coordinator)
     }
 
@@ -130,7 +134,8 @@ struct WebTerminalView: UIViewRepresentable {
         weak var model: AppModel?
         let termId: String
         weak var web: WKWebView?
-        var topInset: CGFloat = 0
+        var hiddenInsets = EdgeInsets()
+        var textExtent: TextExtent?
         var fontSize = TerminalPrefs.defaultFontSize
         var theme: TerminalTheme = TerminalPrefs.defaultTheme
         var onFirstContent: (() -> Void)?
@@ -150,9 +155,9 @@ struct WebTerminalView: UIViewRepresentable {
         private var lastCols = 0
         private var lastRows = 0
         private var wasControlled = false
-        // The top inset last pushed to the page, so an unchanged inset (the common
-        // updateUIView case) skips a redundant cross-process evaluateJavaScript.
-        private var lastAppliedInset = Int.min
+        // The insets last pushed to the page, so unchanged insets (the common
+        // updateUIView case) skip a redundant cross-process evaluateJavaScript.
+        private var lastAppliedInsets: (top: Int, bottom: Int)?
         // Last font size / theme pushed to the page, so unchanged values (the
         // common updateUIView case) skip a redundant cross-process evaluateJavaScript.
         private var lastAppliedFontSize = Int.min
@@ -299,7 +304,7 @@ struct WebTerminalView: UIViewRepresentable {
             ready = false
             feedBuffer.removeAll(keepingCapacity: true)
             pendingSeed = nil
-            lastAppliedInset = Int.min
+            lastAppliedInsets = nil
             lastAppliedFontSize = Int.min
             lastAppliedThemeKey = nil
             let dir = TerminalWebPool.webDir
@@ -307,13 +312,13 @@ struct WebTerminalView: UIViewRepresentable {
             model?.reseed(termId)
         }
 
-        func applyTopInset(_ inset: CGFloat) {
-            topInset = inset
+        func applyHiddenInsets(_ insets: EdgeInsets) {
+            hiddenInsets = insets
             guard ready else { return }
-            let px = Int(inset)
-            guard px != lastAppliedInset else { return }
-            lastAppliedInset = px
-            web?.evaluateJavaScript("window.lpmSetTopInset(\(px))")
+            let px = (top: Int(insets.top), bottom: Int(insets.bottom))
+            guard lastAppliedInsets.map({ $0 != px }) ?? true else { return }
+            lastAppliedInsets = px
+            web?.evaluateJavaScript("window.lpmSetInsets(\(px.top), \(px.bottom))")
         }
 
         func applyFontSize(_ px: Int) {
@@ -351,6 +356,11 @@ struct WebTerminalView: UIViewRepresentable {
                 if let d = msg.body as? [String: Any], let paths = d["paths"] as? [String], !paths.isEmpty {
                     onOpenPath?(paths, d["line"] as? Int ?? 0)
                 }
+            case "extent":
+                if let d = msg.body as? [String: Any], let bottom = d["bottom"] as? Double {
+                    textExtent?.bottom = CGFloat(bottom)
+                    textExtent?.fillsOnGrow = d["fills"] as? Bool ?? true
+                }
             case "openURL":
                 // The text comes from whatever the terminal printed: open web links only.
                 if let s = msg.body as? String, let url = URL(string: s),
@@ -359,8 +369,7 @@ struct WebTerminalView: UIViewRepresentable {
                 }
             case "ready":
                 ready = true
-                lastAppliedInset = Int(topInset)
-                web?.evaluateJavaScript("window.lpmSetTopInset(\(Int(topInset)))")
+                applyHiddenInsets(hiddenInsets)
                 // Apply font/theme before the seed so the first paint uses them.
                 applyFontSize(fontSize)
                 applyTheme(theme)

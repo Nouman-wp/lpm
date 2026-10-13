@@ -844,6 +844,7 @@ struct TerminalScreen: View {
     let term: TerminalInfo
     let project: Project
     @StateObject private var keyboard = KeyboardObserver()
+    @State private var textExtent = TextExtent()
     // Flips when the first screen snapshot renders, hiding the loading spinner.
     @State private var hasContent = false
     // A terminal spawned by running an action from this screen — pushed on top.
@@ -875,10 +876,10 @@ struct TerminalScreen: View {
             ZStack {
                 // Resizing the web view every keyboard frame reflowed xterm and sent
                 // the Mac a PTY resize each time; it slides instead and refits once.
-                KeyboardSteadyFrame(keyboard: keyboard) { hiddenTop in
+                KeyboardSteadyFrame(keyboard: keyboard, extent: textExtent) { hidden in
                     WebTerminalView(term: term, onFirstContent: {
                         withAnimation(.easeOut(duration: 0.2)) { hasContent = true }
-                    }, topInset: hiddenTop, fontSize: fontSize, theme: theme, onOpenPath: { paths, line in
+                    }, hiddenInsets: hidden, textExtent: textExtent, fontSize: fontSize, theme: theme, onOpenPath: { paths, line in
                         Haptics.tap()
                         preview = FilePreviewTarget(project: term.project, paths: paths, line: line)
                     })
