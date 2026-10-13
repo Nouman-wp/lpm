@@ -19,7 +19,8 @@ interface TerminalFooterProps {
   onZoneContextMenu?: (e: MouseEvent, zone: ZoneInfo) => void;
   onRowContextMenu?: (e: MouseEvent<HTMLDivElement>) => void;
   disabled: boolean;
-  // Off screen (another project or detail view in front): the PR lookup pauses.
+  // Off screen (another project or detail view in front): the PR lookup pauses,
+  // and the branch status recounts on coming back.
   active?: boolean;
 }
 
@@ -35,7 +36,7 @@ export function TerminalFooter({
   disabled,
   active = true,
 }: TerminalFooterProps) {
-  const gitState = useGitStatus(projectPath);
+  const gitState = useGitStatus(projectPath, active);
   const isGitRepo = !!gitState.status?.isGitRepo;
   const branch = gitState.status?.detached ? "" : (gitState.status?.branch ?? "");
   const pullRequest = useBranchPullRequest(projectPath, branch, active && isGitRepo);

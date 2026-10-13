@@ -7,7 +7,7 @@ import { useGitChanged } from "./useGitChanged";
 type GitStatus = main.GitStatus;
 type Branch = main.Branch;
 
-export function useGitStatus(projectPath: string) {
+export function useGitStatus(projectPath: string, active = true) {
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
 
@@ -25,7 +25,11 @@ export function useGitStatus(projectPath: string) {
     }
   }, [projectPath]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  // The file watcher follows only the project in front, so a status kept while
+  // hidden can miss an auto pull or a commit; showing it again recounts.
+  useEffect(() => {
+    if (active) refresh();
+  }, [refresh, active]);
 
   useEventListener("focus", refresh);
 
