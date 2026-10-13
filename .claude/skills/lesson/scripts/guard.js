@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // node guard.js save|restore <backup>
-// A take drives the real Claude Code, Codex and Cursor CLIs, and some of what
-// it shows writes the user's own defaults: a model or effort pick in the
-// composer runs /model and /effort, and the status-line pages write
-// statusLine / status_line. take.sh saves these keys before every take and
+// A take drives the real Claude Code, Codex, Cursor and Muse Code CLIs, and
+// some of what it shows writes the user's own defaults: a model or effort pick
+// in the composer runs /model and /effort, the status-line pages write
+// statusLine / status_line, and Muse Code seeds its default model. take.sh saves these keys before every take and
 // puts them back afterwards, leaving any other change to those files alone.
 // `save` never replaces a backup a killed take left behind: take.sh restores
 // that one first.
@@ -30,6 +30,12 @@ const targets = () => [
     file: path.join(home(), ".cursor", "cli-config.json"),
     kind: "json",
     keys: ["model", "hasChangedDefaultModel", "maxMode", "modelParameters", "selectedModel", "modelSelectionHistory"],
+  },
+  {
+    name: "muse",
+    file: path.join(process.env.LESSON_GUARD_HOME ? path.join(home(), ".config") : process.env.XDG_CONFIG_HOME || path.join(home(), ".config"), "muse", "settings.json"),
+    kind: "json",
+    keys: ["provider", "model", "reasoning_effort"],
   },
 ];
 

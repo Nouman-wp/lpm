@@ -2,9 +2,10 @@
 // node models.js "opus 5.5 max" "gpt 6 astra ultra" "grok 4.7 xhigh" [--effort xhigh]
 // Turns loose model specs into exact launch commands, checked against what
 // the installed CLIs accept: Claude Code's own model table (read from its
-// binary), Codex's models cache (with each model's reasoning levels) and
-// Cursor CLI's model list (`agent --list-models`, most levels as their own
-// slug; Cursor itself checks a level it lists no slug for).
+// binary), Codex's models cache (with each model's reasoning levels), Muse
+// Code's model catalog (with each model's effort tiers) and Cursor CLI's model
+// list (`agent --list-models`, most levels as their own slug; Cursor itself
+// checks a level it lists no slug for).
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -63,6 +64,23 @@ function codexTable() {
     efforts: (m.supported_reasoning_levels || []).map((l) => (typeof l === "string" ? l : l.effort)),
   }));
   return codexCache;
+}
+
+const MUSE_CATALOG = path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share"), "muse", "model-catalog");
+
+// The `-contributor` variants are discounted for letting Meta use the session's
+// content, so a race never runs on one.
+let museCache;
+function museTable() {
+  if (museCache) return museCache;
+  if (!which("muse")) throw new Error("Muse Code (muse) is not on PATH: brew install --cask muse-code, then muse login");
+  const files = fs.existsSync(MUSE_CATALOG) ? fs.readdirSync(MUSE_CATALOG).filter((n) => n.endsWith(".json")) : [];
+  if (files.length === 0) throw new Error(`no Muse Code model catalog in ${MUSE_CATALOG}: run muse once after muse login`);
+  museCache = files
+    .flatMap((n) => JSON.parse(fs.readFileSync(path.join(MUSE_CATALOG, n), "utf8")).rows || [])
+    .filter((m) => m.visibility === "visible" && m.reasoning_effort_variants && !m.model_id.endsWith("-contributor"))
+    .map((m) => ({ id: m.model_id, released: m.release_date || "", efforts: m.reasoning_effort_variants.map((v) => v.tier) }));
+  return museCache;
 }
 
 const CURSOR_EFFORTS = ["minimal", "low", "medium", "high", "xhigh", "max"];
@@ -155,13 +173,29 @@ function resolveCodex(words, effort, spec) {
   return { cli: "codex", model: m.slug, name: codexName(m.slug), effort, pickerModel: codexName(m.slug) };
 }
 
+// Muse Code runs Meta's models by catalog id (`muse-wonder-1.0`); a bare line
+// ("muse spark") picks its newest release. A first release goes by its bare
+// name, as Meta calls it ("Muse Wonder").
+function resolveMuse(words, effort, spec) {
+  const models = museTable();
+  const joined = words.join("-");
+  const hits = models.filter((m) => m.id === joined || m.id.startsWith(`${joined}-`)).sort((a, b) => b.released.localeCompare(a.released));
+  if (hits.length === 0) throw new Error(`"${spec}": unknown Muse Code model; pick one of ${models.map((m) => m.id).join(", ")}`);
+  const m = hits.find((h) => h.id === joined) || hits[0];
+  if (effort && !m.efforts.includes(effort)) throw new Error(`"${spec}": ${m.id} supports ${m.efforts.join(", ")}, not ${effort}`);
+  const [, line, version] = /^(.*?)(?:-([\d.]+))?$/.exec(m.id);
+  const name = [...line.split("-").map(title), version !== "1.0" && version].filter(Boolean).join(" ");
+  return { cli: "muse", model: m.id, name, effort, pickerModel: null };
+}
+
 // Cursor lists most levels as their own slug (`grok-4.7-xhigh`, some with a
 // `cursor-` prefix) and takes any level it has as `<model>[effort=<level>]`;
 // a model with no Effort setting (`gemini-3.1-pro`) runs at one fixed level.
 // An effort is never swapped for another. The `-fast` variants are left out,
-// and so are the Claude and GPT models it lists, which run in their own CLIs.
+// and so are the Claude, GPT and Muse models it lists, which run in their own
+// CLIs.
 function resolveCursor(words, effort, spec) {
-  const models = cursorTable().filter((m) => !/^(claude|gpt)-/.test(m.slug));
+  const models = cursorTable().filter((m) => !/^(claude|gpt|muse)-/.test(m.slug));
   const joined = words.join("-");
   const base = (slug) => slug.replace(/^cursor-/, "");
   const levels = models.filter((m) => new RegExp(`^${joined.replace(/\./g, "\\.")}-(${CURSOR_EFFORTS.join("|")})$`).test(base(m.slug)));
@@ -226,14 +260,17 @@ function resolve(spec, effort = null) {
   const split = splitEffort(raw);
   const words = split.words;
   const wanted = split.effort || (effort && (EFFORT_ALIASES[effort.toLowerCase().replace(/\s+/g, "-")] || effort.toLowerCase()));
-  // Claude models run in Claude Code and GPT models in Codex, even though
-  // Cursor lists both; every other model runs in Cursor CLI.
+  // Claude models run in Claude Code, GPT models in Codex and Meta's Muse
+  // models in Muse Code, even though Cursor lists them; every other model runs
+  // in Cursor CLI.
   const claude = new Set(claudeTable().models.map((m) => m.family));
   const r = claude.has(words[0])
     ? resolveClaude(words, wanted, spec)
-    : isCodexModel(words[0])
-      ? resolveCodex(words, wanted, spec)
-      : resolveCursor(words, wanted, spec);
+    : words[0] === "muse"
+      ? resolveMuse(words, wanted, spec)
+      : isCodexModel(words[0])
+        ? resolveCodex(words, wanted, spec)
+        : resolveCursor(words, wanted, spec);
   if (ultracode && !(r.cli === "claude" && ULTRACODE_FAMILIES.has(words[0]))) {
     throw new Error(`"${spec}": ultracode is Claude Code's, on Fable, Opus and Sonnet only`);
   }
@@ -246,7 +283,11 @@ function resolve(spec, effort = null) {
   // under acceptEdits, so it is allowed up front. Bash is denied outright: a
   // shell call waits on an approval nobody gives, and ultracode's reviewers
   // make one to check their arithmetic (both before --permission-mode: these
-  // flags take the words after them as more tools).
+  // flags take the words after them as more tools). Muse Code gets its prompt
+  // the way Cursor does; its contributor mode, on by default, swaps the model
+  // for the catalog's discounted contributor one and lets Meta use the
+  // session's content. --trust-workspace skips the copy's trust prompt without
+  // saving trust, and its shell is off for the reason Claude's Bash is.
   const cmd = {
     claude: [
       "claude",
@@ -259,6 +300,7 @@ function resolve(spec, effort = null) {
     ],
     codex: ["codex", "-m", r.model, r.effort && `-c model_reasoning_effort=${r.effort}`, "-c check_for_update_on_startup=false"],
     cursor: ["agent", "--model", r.model.includes("[") ? `'${r.model}'` : r.model, "--trust", "--force"],
+    muse: ["muse", "--model", r.model, r.effort && `--effort ${r.effort}`, "--contributor-mode off", "--trust-workspace", "--disable-shell"],
   }[r.cli];
   return {
     ...r,
@@ -269,7 +311,7 @@ function resolve(spec, effort = null) {
     spokenEffort: level.map((l) => SPOKEN_EFFORT[l] || l).join(" ") || null,
     pickerEffort: r.effort ? (r.effort === "xhigh" ? "Extra High" : title(r.effort)) : null,
     dir: [r.name, ...level].join(" ").toLowerCase().replace(/[^a-z0-9.]+/g, "-"),
-    emoji: { claude: "✻", codex: "◆", cursor: "⬢" }[r.cli],
+    emoji: { claude: "✻", codex: "◆", cursor: "⬢", muse: "∞" }[r.cli],
     cmd: cmd.filter(Boolean).join(" "),
   };
 }

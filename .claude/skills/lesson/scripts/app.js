@@ -142,7 +142,7 @@ function connect(sockPath) {
 // one) would report usage and status to the user's real lpm through it. A pane
 // pinned to a Claude account exports its config dir, which would record the
 // lesson on that account; API keys would switch the agents to API billing.
-const HOST_ONLY = /^(CLAUDECODE|CLAUDE_CODE_|CLAUDE_PID|CLAUDE_EFFORT|CLAUDE_CONFIG_DIR$|CLAUDE_SECURESTORAGE_CONFIG_DIR$|LPM_|ANTHROPIC_(API_KEY|AUTH_TOKEN|BASE_URL|MODEL)$|OPENAI_API_KEY$|CURSOR_API_KEY$)/;
+const HOST_ONLY = /^(CLAUDECODE|CLAUDE_CODE_|CLAUDE_PID|CLAUDE_EFFORT|CLAUDE_CONFIG_DIR$|CLAUDE_SECURESTORAGE_CONFIG_DIR$|LPM_|ANTHROPIC_(API_KEY|AUTH_TOKEN|BASE_URL|MODEL)$|OPENAI_API_KEY$|CURSOR_API_KEY$|META_API_KEY$)/;
 
 function hostEnv(env = process.env) {
   return Object.fromEntries(Object.entries(env).filter(([k]) => !HOST_ONLY.test(k)));

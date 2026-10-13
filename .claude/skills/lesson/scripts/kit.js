@@ -83,8 +83,11 @@ function writeProject(lpmDir, workspace, { name, port = 3000, files, scripts, se
 }
 
 // Both agent CLIs ask for a one-time folder trust in a folder they have not
-// seen. The lesson shell wraps `claude` and `codex` to record it first, for
-// folders under the workspace only; the ledger lets the next take remove it.
+// seen. The lesson shell puts `claude` and `codex` shims first on its PATH that
+// record it, for folders under the workspace only, then run the real CLI; the
+// ledger lets the next take remove it. Shims, not shell functions: lpm's own
+// startup files define a `codex` function after the user's .zshrc, and it
+// runs `command codex`.
 const trustScript = (workspace) => `import fcntl, json, os, sys
 
 cwd = sys.argv[1]
@@ -154,16 +157,18 @@ function neutralShell(lpmDir, workspace) {
   }
   const trust = path.join(lpmDir, "lesson-trust.py");
   fs.writeFileSync(trust, trustScript(workspace));
+  const bin = path.join(dir, "bin");
+  fs.mkdirSync(bin, { recursive: true });
+  for (const cli of ["claude", "codex"]) {
+    fs.writeFileSync(
+      path.join(bin, cli),
+      `#!/bin/zsh -f\n/usr/bin/python3 ${JSON.stringify(trust)} "$PWD"\npath=(\${path:#\${0:A:h}})\nexec ${cli} "$@"\n`,
+      { mode: 0o755 },
+    );
+  }
   fs.writeFileSync(
     path.join(dir, ".zshrc"),
-    [
-      `[[ -f "$HOME/.zshrc" ]] && source "$HOME/.zshrc"`,
-      `PROMPT='%1~ %# '`,
-      `RPROMPT=''`,
-      `claude() { /usr/bin/python3 ${JSON.stringify(trust)} "$PWD"; command claude "$@"; }`,
-      `codex() { /usr/bin/python3 ${JSON.stringify(trust)} "$PWD"; command codex "$@"; }`,
-      "",
-    ].join("\n"),
+    [`[[ -f "$HOME/.zshrc" ]] && source "$HOME/.zshrc"`, `PROMPT='%1~ %# '`, `RPROMPT=''`, `path=(${JSON.stringify(bin)} $path)`, ""].join("\n"),
   );
   process.env.ZDOTDIR = dir;
 }

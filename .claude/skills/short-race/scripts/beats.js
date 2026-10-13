@@ -5,7 +5,7 @@
 // duplicates makes a copy whose model the dialog's per-run picker sets to model
 // B (or, when model B runs in the other CLI, the copy's run override starts the
 // project's second button, pinned to model B, with the prompt typed again, or,
-// for Cursor, passed as its launch argument), and
+// for Cursor and Muse Code, passed as its launch argument), and
 // "Open side by side", split into rows, shows run #1 on top and the copy below.
 // A race to index.html, then both pages in lpm's own browser. Each pane header
 // carries a colour badge with the model and its time. `cue` = the spoken word
@@ -20,6 +20,7 @@ const os = require("os");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const { cursorChat } = require("./cursor");
+const { museRun } = require("./muse");
 const { trimPayoff } = require("./trim");
 const kit = require("../../short/scripts/kit");
 const { claudeEntries } = require("../../lesson/scripts/agents");
@@ -57,12 +58,15 @@ const ADDR = (i) => `[data-lesson="addr-${i}"]`;
 const COLUMN = '[data-project-column]';
 // The copy inherits the project's header button, so it names the CLI rather
 // than model A; the banners and colour bars name the models.
-const BUTTON = { claude: "Claude", codex: "Codex", cursor: "Cursor" };
+const BUTTON = { claude: "Claude", codex: "Codex", cursor: "Cursor", muse: "Muse" };
 // The buttons' emoji, as a pattern the page builds (arguments reach it as JSON).
-const EMOJI = "[✻◆⬢]";
-// Cursor's turn ends on its last write; one that follows this soon means it
-// wasn't over.
-const CURSOR_SETTLE_MS = 1000;
+const EMOJI = "[✻◆⬢∞]";
+// The CLIs whose button carries the prompt as its launch argument: lpm folds a
+// prompt into the launch line only for Claude Code and Codex.
+const ARG_PROMPT = new Set(["cursor", "muse"]);
+// A Cursor or Muse Code turn ends on a time read off its log; a write or a new
+// turn that follows this soon means it wasn't over.
+const SETTLE_MS = 1000;
 
 const clock = (ms) => {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -144,6 +148,7 @@ function promptAt(cli, root, since) {
     // when the agent created the chat with its launch prompt.
     return cursorChat(root, since)?.createdAt ?? null;
   }
+  if (cli === "muse") return museRun(root, since)?.startedAt ?? null;
   const lines =
     cli === "claude"
       ? (fs.existsSync(claudeDir(root)) ? fs.readdirSync(claudeDir(root)) : [])
@@ -341,7 +346,11 @@ module.exports = function compareBeats({ config, dir }) {
     const cli = sides[i].cli;
     if (cli === "cursor") {
       const chat = cursorChat(roots[i], sentAt[i]);
-      return chat?.ended && Date.now() - chat.updatedAt > CURSOR_SETTLE_MS ? chat.updatedAt : null;
+      return chat?.ended && Date.now() - chat.updatedAt > SETTLE_MS ? chat.updatedAt : null;
+    }
+    if (cli === "muse") {
+      const run = museRun(roots[i], sentAt[i]);
+      return run?.endedAt && Date.now() - run.endedAt > SETTLE_MS ? run.endedAt : null;
     }
     return (cli === "claude" ? claudeSettled(roots[i], sentAt[i]) : codexDone(roots[i], sentAt[i])) ? Date.now() : null;
   };
@@ -465,9 +474,9 @@ module.exports = function compareBeats({ config, dir }) {
 
   // Model B in the other CLI: the copy's run override starts the project's
   // model B button. An override starts with an empty prompt, so the prompt is
-  // typed again, except for Cursor, whose button carries it.
+  // typed again, except for Cursor and Muse Code, whose button carries it.
   async function overrideCopy(s) {
-    const typed = sides[1].cli !== "cursor";
+    const typed = !ARG_PROMPT.has(sides[1].cli);
     const button = BUTTON[sides[1].cli];
     const has = async (part) => (await tagCopyRun(s, button)).includes(part);
     await kit.clickUntil(s, COPY_RUN, () => has("action"), { ms: 300 });
@@ -610,11 +619,11 @@ module.exports = function compareBeats({ config, dir }) {
       git(root, "commit", "-q", "-m", "Initial commit");
       const projects = path.join(lpmDir, "projects");
       fs.mkdirSync(projects, { recursive: true });
-      // Cursor takes the prompt as its launch argument, read from a file outside
-      // both projects so the terminal echoes a short command.
+      // Cursor and Muse Code take the prompt as their launch argument, read from
+      // a file outside both projects so the terminal echoes a short command.
       const promptFile = path.join(workspace, "prompt.txt");
       fs.writeFileSync(promptFile, config.prompt);
-      const launch = (m) => (m.cli === "cursor" ? `${m.cmd} "$(cat '${promptFile}')"` : m.cmd);
+      const launch = (m) => (ARG_PROMPT.has(m.cli) ? `${m.cmd} "$(cat '${promptFile}')"` : m.cmd);
       // Model B gets its own button only in the other CLI, where the copy's run
       // override starts it.
       const buttons = sides
@@ -653,8 +662,11 @@ module.exports = function compareBeats({ config, dir }) {
       await tagAll(s);
       racing = race(s);
       // Cursor names its model on its status line, which it draws inline just
-      // under the prompt, about halfway down its screen early in a chat.
-      const banner = (i) => (sides[i].cli === "cursor" ? [0.3, 0.45] : [0.3, 0.1]);
+      // under the prompt, about halfway down its screen early in a chat. Muse
+      // Code's sits under its input box, at the foot of the screen once the
+      // prompt and its first steps fill it.
+      const BANNER = { cursor: [0.3, 0.45], muse: [0.3, 0.92] };
+      const banner = (i) => BANNER[sides[i].cli] || [0.3, 0.1];
       await kit.focusLeft(s, TERM(0), { scale: 1.6, at: banner(0), ms: 450, cue: config.cues.a });
       await kit.focusLeft(s, TERM(1), { scale: 1.6, at: banner(1), ms: 450, cue: config.cues.b });
       await s.wide({ ms: 450, cue: config.cues.lpm });

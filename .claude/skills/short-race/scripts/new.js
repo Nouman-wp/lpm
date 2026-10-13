@@ -21,7 +21,12 @@ const DEFAULT_PROMPT =
 // 40%, so the giraffe sits high on the stage. A 16" MacBook Pro screen with
 // the Dock showing holds a window up to 1009 pt tall.
 const TALL = { window: { w: 570, h: 1000 }, windowShiftY: 6, stickerTop: 230 };
-const CLI_NAME = { claude: "Claude Code", codex: "Codex", cursor: "Cursor" };
+const CLI_NAME = { claude: "Claude Code", codex: "Codex", cursor: "Cursor", muse: "Muse Code" };
+// Cursor and Muse Code take the prompt as their launch argument, read from a
+// file: lpm folds a prompt into the launch line only for Claude Code and Codex.
+const ARG_PROMPT = new Set(["cursor", "muse"]);
+// "#muse" is the band's; viewers find Meta's models as Meta AI.
+const BRAND_TAG = { muse: "metaai" };
 
 const args = process.argv.slice(2);
 const VALUE_FLAGS = ["--effort", "--prompt", "--subject", "--slug"];
@@ -54,12 +59,13 @@ if (a.dir === b.dir) {
 // override starts the project's second button, which launches model B pinned.
 const crossCli = a.cli !== b.cli;
 // Run #1 takes the prompt through its composer, which types into Claude Code
-// and Codex; Cursor gets it as a launch argument, so it runs in the copy.
-if (a.cli === "cursor") {
+// and Codex; Cursor and Muse Code get it as a launch argument, so they run in
+// the copy.
+if (ARG_PROMPT.has(a.cli)) {
   console.error(
-    b.cli === "cursor"
-      ? `${a.name} and ${b.name} both run in Cursor CLI, and run #1 needs a Claude or GPT model: race one of them against one`
-      : `put ${a.name} on the right: a Cursor model runs in the copy`,
+    ARG_PROMPT.has(b.cli)
+      ? `${a.name} and ${b.name} both take their prompt at launch, and run #1 needs a Claude or GPT model: race one of them against one`
+      : `put ${a.name} on the right: a ${CLI_NAME[a.cli]} model runs in the copy`,
   );
   process.exit(1);
 }
@@ -92,11 +98,12 @@ if (!subject) {
 }
 // lpm types the copy's launch line, prompt included, into a shell that is still
 // starting, and macOS cuts a terminal line off at 1024 bytes: the agent never
-// starts and the race waits out its limit. Cursor reads its prompt from a file.
+// starts and the race waits out its limit. Cursor and Muse Code read their
+// prompt from a file.
 // The line is measured as lpm writes it, so the margin covers only the newline
 // and a stray byte or two.
 const LINE_MAX = 1010;
-if (b.cli !== "cursor") {
+if (!ARG_PROMPT.has(b.cli)) {
   // On the same CLI the copy runs run #1's button with model B pinned on it
   // the way the dialog's picker pins it: by family name ("--model opus").
   const pinB = [`--model ${b.pickerModel?.toLowerCase()}`, b.effort && `--effort ${b.effort}`].filter(Boolean).join(" ");
@@ -154,7 +161,7 @@ const narration = [
 
 const clis = new Set([a.cli, b.cli]);
 const hashtags = [
-  ...new Set([a.brand, b.brand].map((w) => w.toLowerCase())),
+  ...new Set([a, b].map((m) => BRAND_TAG[m.cli] || m.brand.toLowerCase())),
   clis.has("claude") ? "claudecode" : clis.has("codex") ? "codex" : "cursor",
   "vibecoding",
   !branded && "aicoding",
@@ -197,9 +204,10 @@ fs.writeFileSync(
     `  config: require("./compare.json"),\n  dir: __dirname,\n});\n`,
 );
 // A take changes the user's default model for new sessions: picking model A in
-// the composer runs Claude Code's /model and /effort, and Cursor CLI saves the
-// model it was launched with. take.sh puts each default back afterwards.
-const saved = [pickA && "claude", clis.has("cursor") && "cursor"].filter(Boolean);
+// the composer runs Claude Code's /model and /effort, Cursor CLI saves the
+// model it was launched with, and Muse Code seeds its catalog's default model.
+// take.sh puts each default back afterwards.
+const saved = [pickA && "claude", clis.has("cursor") && "cursor", clis.has("muse") && "muse"].filter(Boolean);
 const RUN_TAKE = path.join(MAKER, "scripts", "take.sh");
 const backup = (c) => `"$DIR/_${c}-settings.backup.json" ${c}`;
 fs.writeFileSync(
@@ -223,7 +231,7 @@ exec "${RUN_TAKE}" "$(dirname "$0")" "$@"
 
 console.log(`${slug}
   left:   ${a.label}  →  ${a.cmd}${pickA ? `, then ${[a.pickerModel, a.pickerEffort].filter(Boolean).join(" · ")} in its composer` : ""}${a.ultracode ? ", then /effort ultracode on in its terminal" : ""}
-  right:  ${b.label}  →  ${crossCli ? `the copy's run override: ` : ""}${b.cmd}${b.cli === "cursor" ? " <prompt>" : ""}
+  right:  ${b.label}  →  ${crossCli ? `the copy's run override: ` : ""}${b.cmd}${ARG_PROMPT.has(b.cli) ? " <prompt>" : ""}
   prompt: ${prompt}
   ${dir}/take.sh --no-audio --frames   (dry run)
   ${dir}/take.sh --frames              (the video)`);

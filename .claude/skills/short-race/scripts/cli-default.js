@@ -1,9 +1,11 @@
 #!/usr/bin/env node
-// node cli-default.js save|restore <backup> <claude|cursor>
+// node cli-default.js save|restore <backup> <claude|cursor|muse>
 // A take changes the user's default model for new sessions: picking a model or
 // level in lpm's composer runs Claude Code's /model and /effort, which save
-// "model" and "modelSettings.<id>.effortLevel" in ~/.claude/settings.json, and
-// launching Cursor CLI with --model saves it in ~/.cursor/cli-config.json.
+// "model" and "modelSettings.<id>.effortLevel" in ~/.claude/settings.json,
+// launching Cursor CLI with --model saves it in ~/.cursor/cli-config.json, and
+// Muse Code seeds its catalog's default model into ~/.config/muse/settings.json
+// when none is saved.
 // `save` sets the file aside before a take (never over a backup a crashed take
 // left); `restore` puts those keys back and keeps anything else that changed.
 const fs = require("fs");
@@ -15,6 +17,10 @@ const CLIS = {
   cursor: {
     file: path.join(os.homedir(), ".cursor", "cli-config.json"),
     keys: ["model", "hasChangedDefaultModel", "maxMode", "modelParameters", "selectedModel", "modelSelectionHistory"],
+  },
+  muse: {
+    file: path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "muse", "settings.json"),
+    keys: ["provider", "model", "reasoning_effort"],
   },
 };
 
@@ -54,7 +60,7 @@ module.exports = { save, restore };
 if (require.main === module) {
   const [cmd, backup, cli = "claude"] = process.argv.slice(2);
   if (!["save", "restore"].includes(cmd) || !backup || !CLIS[cli]) {
-    console.error("usage: node cli-default.js save|restore <backup> <claude|cursor>");
+    console.error("usage: node cli-default.js save|restore <backup> <claude|cursor|muse>");
     process.exit(1);
   }
   (cmd === "save" ? save : restore)(backup, cli);

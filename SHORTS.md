@@ -49,3 +49,5 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-pu
 - Opus 5.5 medium ultracode vs Opus 5.5 xhigh: the giraffe test
 - Opus 5.5 medium ultracode vs Opus 5.5 xhigh build a 3D game
 - Claude Haiku 5.5 vs Claude Opus 5.5 build a 3D game
+- ChatGPT vs Muse: GPT-6 Astra vs Muse Wonder build a 3D game
+- Claude vs Muse: Opus 5.5 high vs Muse Wonder build a 3D game

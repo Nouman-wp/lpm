@@ -56,7 +56,7 @@ test("only a lesson data directory is ever wiped", () => {
 });
 
 test("the lesson app never inherits a session, an account dir or API keys", () => {
-  const env = hostEnv({ PATH: "/bin", CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_CONFIG_DIR: "/x", LPM_DIR: "/y", OPENAI_API_KEY: "k", ANTHROPIC_API_KEY: "k", CURSOR_API_KEY: "k", HOME: "/h" });
+  const env = hostEnv({ PATH: "/bin", CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_CONFIG_DIR: "/x", LPM_DIR: "/y", OPENAI_API_KEY: "k", ANTHROPIC_API_KEY: "k", CURSOR_API_KEY: "k", META_API_KEY: "k", HOME: "/h" });
   assert.deepStrictEqual(env, { PATH: "/bin", HOME: "/h" });
 });
 

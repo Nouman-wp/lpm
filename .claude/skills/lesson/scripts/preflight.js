@@ -108,6 +108,11 @@ function agents() {
     : "";
   if (/codex/i.test(text) && !onPath("codex")) missing.push("Codex: npm install -g @openai/codex, then run `codex` once and sign in");
   if (/"cli": "cursor"/.test(text) && !onPath("agent")) missing.push("Cursor CLI: curl https://cursor.com/install -fsS | bash, then run `agent login`");
+  if (/"cli": "muse"/.test(text)) {
+    const auth = path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "muse", "auth.json");
+    if (!onPath("muse")) missing.push("Muse Code: brew install --cask muse-code, then run `muse login`");
+    else if (!fs.existsSync(auth)) missing.push("Muse Code's sign-in: run `muse login`");
+  }
 }
 
 // Claude asks once per folder before it runs there, and looks for that trust
