@@ -307,7 +307,9 @@ enum Wire {
 
     // MARK: updating lpm on the Mac
 
-    static func updateCheck() -> String { json(["t": "updateCheck"]) }
+    static func updateCheck(force: Bool = false) -> String {
+        json(force ? ["t": "updateCheck", "force": true] : ["t": "updateCheck"])
+    }
     static func updateInstall() -> String { json(["t": "updateInstall"]) }
     static func updateCancel() -> String { json(["t": "updateCancel"]) }
     static func gitUnwatch(project: String) -> String { json(["t": "gitUnwatch", "project": project]) }

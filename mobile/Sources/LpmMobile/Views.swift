@@ -324,6 +324,12 @@ struct ProjectsView: View {
                     Button { showingSettings = true } label: {
                         Label("Settings", systemImage: "gearshape")
                     }
+                    if model.macUpdate.canUpdate {
+                        Button { model.macUpdate.checkNow() } label: {
+                            Label("Check for lpm Updates…", systemImage: "arrow.down.circle")
+                        }
+                        .disabled(!model.macUpdate.canCheck || !model.link.isReady)
+                    }
                     Divider()
                     Button { addingProject = true } label: {
                         Label("Add Project…", systemImage: "plus.rectangle.on.folder")

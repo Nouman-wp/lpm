@@ -36,10 +36,12 @@ struct MacUpdateCheck {
     var currentVersion: String?
     var latestVersion: String?
     var updateAvailable: Bool
+    var error: String?
     var step: MacUpdateStep
 
     init(_ o: [String: Any]) {
         let ok = o["ok"] as? Bool ?? false
+        error = ok ? nil : o["error"] as? String ?? "The check didn't go through."
         currentVersion = ok ? o["currentVersion"] as? String : nil
         latestVersion = ok ? o["latestVersion"] as? String : nil
         updateAvailable = ok && (o["updateAvail"] as? Bool ?? false)

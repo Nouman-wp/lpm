@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Under the projects list: a newer lpm for the live Mac, and the install of it
-/// once one runs there, whoever started it.
+/// once one runs there, whoever started it — or the answer to a check asked for
+/// from the menu.
 struct MacUpdateBar: View {
     @Environment(AppModel.self) private var model
 
@@ -42,6 +43,12 @@ struct MacUpdateBar: View {
     private var target: String { store.newer.map { "lpm \($0)" } ?? "lpm" }
 
     private var title: String {
+        switch store.lookup {
+        case .checking?: return "Checking for updates…"
+        case .upToDate?: return "lpm is up to date"
+        case .failed?: return "Couldn't check for updates"
+        case nil: break
+        }
         if store.error != nil && store.state == nil { return "Couldn't update lpm" }
         switch store.state {
         case .checking?, .downloading?: return "Updating to \(target)"
@@ -54,7 +61,12 @@ struct MacUpdateBar: View {
 
     @ViewBuilder
     private var detail: some View {
-        if let error = store.error, store.state == nil {
+        if case .failed(let error)? = store.lookup {
+            Text(error)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        } else if let error = store.error, store.state == nil {
             Text(error)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -75,6 +87,7 @@ struct MacUpdateBar: View {
     }
 
     private var subtitle: String {
+        if store.lookup != nil { return store.version.map { "This Mac runs \($0)" } ?? "" }
         if store.cancelling { return "Cancelling…" }
         switch store.state {
         case .checking?: return "Checking…"
@@ -88,7 +101,13 @@ struct MacUpdateBar: View {
 
     @ViewBuilder
     private var icon: some View {
-        if store.error != nil && store.state == nil {
+        if let lookup = store.lookup {
+            switch lookup {
+            case .checking: ProgressView().controlSize(.small)
+            case .upToDate: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+            case .failed: Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            }
+        } else if store.error != nil && store.state == nil {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
         } else {
             switch store.state {
@@ -105,6 +124,10 @@ struct MacUpdateBar: View {
     @ViewBuilder
     private var trailing: some View {
         switch store.state {
+        case nil where store.lookup == .checking:
+            EmptyView()
+        case nil where store.lookup != nil:
+            close
         case nil:
             HStack(spacing: 4) {
                 if store.canInstall {
@@ -114,16 +137,7 @@ struct MacUpdateBar: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                 }
-                Button {
-                    store.dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 28, height: 28)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close")
+                close
             }
         case let state? where state.cancellable:
             Button("Cancel") { store.cancel() }
@@ -133,5 +147,18 @@ struct MacUpdateBar: View {
         default:
             EmptyView()
         }
+    }
+
+    private var close: some View {
+        Button {
+            store.dismiss()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 28, height: 28)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Close")
     }
 }

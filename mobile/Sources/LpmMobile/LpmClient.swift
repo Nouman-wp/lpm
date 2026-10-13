@@ -1063,7 +1063,7 @@ final class LpmClient: NSObject {
     }
     func gitAutoState(project: String) { send(Wire.gitAutoState(project: project)) }
 
-    func updateCheck() { send(Wire.updateCheck()) }
+    func updateCheck(force: Bool = false) { send(Wire.updateCheck(force: force)) }
     func updateInstall() { send(Wire.updateInstall()) }
     func updateCancel() { send(Wire.updateCancel()) }
     func gitAutoCancel(project: String) { send(Wire.gitAutoCancel(project: project)) }

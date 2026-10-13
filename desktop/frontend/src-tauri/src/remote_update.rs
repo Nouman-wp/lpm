@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
 
 /// A phone asks on every connect; GitHub answers 60 unauthenticated checks an
-/// hour, shared with the app's own.
+/// hour, shared with the app's own. A phone's Check for Updates (`force`) skips it.
 const CHECK_MAX_AGE: Duration = Duration::from_secs(60 * 60);
 const UNSUPPORTED: &str = "lpm on this machine can't be updated from a phone.";
 
@@ -46,8 +46,9 @@ pub(crate) fn with_build(mut frame: Value) -> Value {
     frame
 }
 
-pub fn handle(app: &AppHandle, out: &SyncSender<String>, t: &str) {
+pub fn handle(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
     let verb = t.to_string();
+    let force = v["force"].as_bool().unwrap_or(false);
     if !offered() {
         let _ = out.try_send(json!({ "t": verb, "ok": false, "error": UNSUPPORTED }).to_string());
         return;
@@ -56,7 +57,7 @@ pub fn handle(app: &AppHandle, out: &SyncSender<String>, t: &str) {
     let out = out.clone();
     std::thread::spawn(move || {
         let mut reply = match verb.as_str() {
-            "updateCheck" => check(&app),
+            "updateCheck" => check(&app, force),
             "updateInstall" => install(&app),
             _ => json!({ "ok": true, "stopping": crate::updates::cancel_update(app.state()) }),
         };
@@ -66,8 +67,8 @@ pub fn handle(app: &AppHandle, out: &SyncSender<String>, t: &str) {
 }
 
 /// The release this Mac could move to, and the install running now, if any.
-fn check(app: &AppHandle) -> Value {
-    let mut reply = match recent_check(app) {
+fn check(app: &AppHandle, force: bool) -> Value {
+    let mut reply = match recent_check(app, force) {
         Ok(info) => json!({
             "ok": true,
             "currentVersion": info.current_version,
@@ -82,10 +83,12 @@ fn check(app: &AppHandle) -> Value {
     reply
 }
 
-fn recent_check(app: &AppHandle) -> Result<UpdateInfo, String> {
-    if let Some((at, info)) = &*LAST_CHECK.lock().unwrap() {
-        if at.elapsed() < CHECK_MAX_AGE {
-            return Ok(info.clone());
+fn recent_check(app: &AppHandle, force: bool) -> Result<UpdateInfo, String> {
+    if !force {
+        if let Some((at, info)) = &*LAST_CHECK.lock().unwrap() {
+            if at.elapsed() < CHECK_MAX_AGE {
+                return Ok(info.clone());
+            }
         }
     }
     let info = crate::updates::check_for_update(app.state::<UpdateState>())?;

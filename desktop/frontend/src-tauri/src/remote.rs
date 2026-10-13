@@ -4258,7 +4258,7 @@ fn handle_msg(
         | "notesMessages" | "notesAddMessage" | "notesEditMessage" | "notesDeleteMessage"
         | "notesSearch" | "notesAttachment" => crate::remote_notes::handle(app, out, t, &v),
         "updateCheck" | "updateInstall" | "updateCancel" => {
-            crate::remote_update::handle(app, out, t)
+            crate::remote_update::handle(app, out, t, &v)
         }
         "claudeAccounts" | "setClaudeAccount" => crate::remote_claude::handle(app, out, t, &v),
         "uploadBegin" | "uploadChunk" | "uploadDone" | "uploadAbort" => {
