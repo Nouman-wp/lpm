@@ -20,29 +20,23 @@ struct BackgroundRunSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        if text.isEmpty {
-                            HStack(spacing: 8) {
-                                if running { ProgressView().controlSize(.small) }
-                                Text(running ? "Waiting for output…" : "No output.")
-                                    .foregroundStyle(.secondary)
-                            }
+            FollowingScrollView(follow: text) {
+                VStack(alignment: .leading, spacing: 0) {
+                    if text.isEmpty {
+                        HStack(spacing: 8) {
+                            if running { ProgressView().controlSize(.small) }
+                            Text(running ? "Waiting for output…" : "No output.")
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                    } else {
+                        Text(text)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding()
-                        } else {
-                            Text(text)
-                                .font(.system(.caption, design: .monospaced))
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding()
-                        }
-                        Color.clear.frame(height: 1).id("bg-bottom")
                     }
-                }
-                .onChange(of: text) { _, _ in
-                    withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo("bg-bottom", anchor: .bottom) }
                 }
             }
             .safeAreaInset(edge: .top, spacing: 0) { statusBar }

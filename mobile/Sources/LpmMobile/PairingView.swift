@@ -12,6 +12,8 @@ struct PairingView: View {
     @State private var scanning = false
     @State private var discovery = MacDiscovery()
     @State private var resolvingNearbyId: String?
+    // A nearby Mac whose address didn't answer, held for the alert that says so.
+    @State private var unreachableMac: MacDiscovery.DiscoveredMac?
     // The Mac being paired via approve-on-Mac, kept so the waiting sheet can retry
     // and "Enter code instead" can prefill the address.
     @State private var approvalMacName = ""
@@ -116,6 +118,15 @@ struct PairingView: View {
             Button("Not now", role: .cancel) { heldScan = nil }
         } message: {
             Text("Tailscale isn't set up on this Mac yet, so lpm Link can reach it only on its Wi-Fi. To use it from anywhere, set up Tailscale in lpm → Settings → Mobile devices and scan a new code — or add it later.")
+        }
+        .alert("Couldn't reach \(unreachableMac?.displayName ?? "this Mac")",
+               isPresented: Binding(get: { unreachableMac != nil }, set: { if !$0 { unreachableMac = nil } }),
+               presenting: unreachableMac) { mac in
+            Button("Try Again") { selectNearby(mac) }
+            Button("Enter Code") { codeTarget = CodeTarget() }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("It's listed on this Wi-Fi, but its address didn't answer. Make sure lpm is open on it, or pair with the code from lpm → Settings → Mobile devices.")
         }
     }
 
@@ -244,7 +255,10 @@ struct PairingView: View {
         Task {
             let resolved = await discovery.resolve(mac)
             resolvingNearbyId = nil
-            guard let resolved else { return }
+            guard let resolved else {
+                unreachableMac = mac
+                return
+            }
             approvalMacName = mac.displayName
             approvalHost = resolved.host
             approvalPort = Int(resolved.port)
