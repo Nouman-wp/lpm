@@ -75,6 +75,7 @@ struct ServiceLogsSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationBackground(Color(.systemBackground))
         .preferredColorScheme(.dark)
         .task(id: running) {
             guard running else { return }

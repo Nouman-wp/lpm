@@ -1,9 +1,10 @@
 import SwiftUI
 
 /// An action as the desktop draws it: its emoji and label on a bordered button
-/// washed in the action's color. A group whose `primary` resolves to a child is a
-/// split button — the face runs that child, the chevron lists them all — and any
-/// other group opens its children.
+/// washed in the action's color. A group whose `primary` resolves to a child, or
+/// that has a command of its own, is a split button — the face runs that child or
+/// the group's command, the chevron lists the children — and any other group opens
+/// its children.
 struct DesktopActionButton: View {
     let action: Action
     let project: String
@@ -41,6 +42,8 @@ struct DesktopActionButton: View {
             .buttonStyle(.plain)
         } else if let primary = action.primaryChild(remembered: memory.child(project: project, group: action.name)) {
             split(primary)
+        } else if !action.cmd.isEmpty {
+            split(action)
         } else {
             Menu {
                 ActionMenuItems(actions: action.children, onPick: run)

@@ -60,6 +60,7 @@ struct BackgroundRunSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationBackground(Color(.systemBackground))
         .preferredColorScheme(.dark)
         .task { model.loadBackgroundRunOutput(project: run.project, runId: run.runId) }
         .task(id: running) {

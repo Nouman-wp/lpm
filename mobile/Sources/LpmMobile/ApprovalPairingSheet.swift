@@ -11,6 +11,10 @@ struct ApprovalPairingSheet: View {
     let onRetry: () -> Void
     let onEnterCode: () -> Void
 
+    // The content's own height: a fixed `.medium` detent is half the screen,
+    // which clips the waiting and failure states on a small iPhone.
+    @State private var contentHeight: CGFloat = 0
+
     private var macLabel: String { macName.isEmpty ? "your Mac" : macName }
 
     var body: some View {
@@ -39,7 +43,10 @@ struct ApprovalPairingSheet: View {
         }
         .frame(maxWidth: .infinity)
         .padding(28)
-        .presentationDetents([.medium])
+        .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .presentationDetents(contentHeight > 0 ? [.height(contentHeight)] : [.medium])
         .interactiveDismissDisabled()
     }
 

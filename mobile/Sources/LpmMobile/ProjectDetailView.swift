@@ -131,9 +131,8 @@ struct ProjectDetail: View {
                         ServiceRow(service: s,
                                    running: runningServices.contains(s.name),
                                    pending: model.pendingServiceToggle[project.name]?[s.name] != nil,
-                                   onToggle: { model.toggleService(live.name, service: s.name) })
-                            .contentShape(Rectangle())
-                            .onTapGesture { logsForService = s }
+                                   onToggle: { model.toggleService(live.name, service: s.name) },
+                                   onOpen: { logsForService = s })
                             .compactRow()
                     }
                 } header: {
@@ -300,16 +299,24 @@ private struct ServiceRow: View {
     let running: Bool
     let pending: Bool
     let onToggle: () -> Void
+    let onOpen: () -> Void
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(service.name).lineLimit(1)
-            if service.port > 0 {
-                Text(":\(String(service.port))")
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
+            // The logs tap target stops short of the switch: a row-wide tap
+            // gesture would take the switch's taps for itself.
+            HStack(spacing: 8) {
+                Text(service.name).lineLimit(1)
+                if service.port > 0 {
+                    Text(":\(String(service.port))")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
             }
-            Spacer(minLength: 8)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onOpen)
             if pending {
                 ProgressView().controlSize(.small)
             } else {

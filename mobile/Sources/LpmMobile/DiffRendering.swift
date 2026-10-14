@@ -78,7 +78,10 @@ struct ParsedDiff {
     /// Parses hunk by hunk so each hunk's common leading indentation is trimmed and
     /// old/new line numbers are assigned by walking from the header's start lines.
     static func parse(_ diff: String) -> [DiffLine] {
-        let raw = diff.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var raw = diff.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        // The newline ending the diff's last line leaves one empty piece behind;
+        // kept, it would render as a phantom numbered context line.
+        if raw.last == "" { raw.removeLast() }
         var out: [DiffLine] = []
         var i = 0
         let n = raw.count

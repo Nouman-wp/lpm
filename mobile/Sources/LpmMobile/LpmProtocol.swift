@@ -1207,6 +1207,8 @@ struct AutomationJob: Identifiable {
     /// name. Older servers omit it.
     let summary: String
     let scheduleMode: String
+    // The five-field line of a `cron` schedule, as written; empty otherwise.
+    let cron: String
     let everySecs: Int
     let atMinutes: Int
     let days: [String]
@@ -1263,6 +1265,7 @@ struct AutomationJob: Identifiable {
         summary = o["description"] as? String ?? ""
         let schedule = o["schedule"] as? [String: Any] ?? [:]
         scheduleMode = schedule["mode"] as? String ?? ""
+        cron = schedule["cron"] as? String ?? ""
         everySecs = schedule["everySecs"] as? Int ?? 0
         atMinutes = schedule["atMinutes"] as? Int ?? 0
         days = schedule["days"] as? [String] ?? []
@@ -1499,6 +1502,9 @@ struct Action: Identifiable {
     let color: String
     // A group's split-button child: a child key, or "last-used".
     let primary: String
+    // A group's own command: its split button's face runs it (the desktop's
+    // `cmd` beside nested `actions`). Empty on a plain menu.
+    let cmd: String
     // Show a confirmation before running (destructive/irreversible commands).
     let confirm: Bool
     // User-supplied values substituted into the command as {{key}} before running.
@@ -1519,6 +1525,7 @@ struct Action: Identifiable {
         position = (o["position"] as? NSNumber)?.doubleValue
         color = o["color"] as? String ?? ""
         primary = o["primary"] as? String ?? ""
+        cmd = o["cmd"] as? String ?? ""
         confirm = o["confirm"] as? Bool ?? false
         inputs = (o["inputs"] as? [[String: Any]] ?? []).map(ActionInput.init)
         children = (o["children"] as? [[String: Any]] ?? []).map(Action.init)

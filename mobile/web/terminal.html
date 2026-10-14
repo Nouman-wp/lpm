@@ -385,7 +385,11 @@
     post('input', '\r');
   };
   let delivering = Promise.resolve();
+  // A send jumps to the live end: left scrolled back, the reply lands out of
+  // sight and the viewport, pinned to the oldest retained line once scrollback
+  // trims, reads as a frozen terminal.
   window.lpmSubmit = b64 => {
+    term.scrollToBottom();
     delivering = delivering.then(() => deliver(b64), () => deliver(b64));
   };
 

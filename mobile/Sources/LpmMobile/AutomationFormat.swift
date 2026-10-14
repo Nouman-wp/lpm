@@ -183,7 +183,12 @@ private func automationDateRulePhrase(_ job: AutomationJob) -> String? {
 }
 
 func automationScheduleText(_ job: AutomationJob) -> String {
-    if job.scheduleMode == "interval" { return intervalText(job) }
+    switch job.scheduleMode {
+    case "manual": return "Manual"
+    case "cron": return "Cron \(job.cron)"
+    case "interval": return intervalText(job)
+    default: break
+    }
     let time = automationTimePhrase(job)
     if let rule = automationDateRulePhrase(job) {
         if job.times > 1 { return "\(job.times) times \(rule) \(time)" }
