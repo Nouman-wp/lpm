@@ -131,6 +131,7 @@ struct ProjectsView: View {
     // The terminal a tapped task row opens. A task row is not a disclosure row —
     // it pushes without the chevron a NavigationLink would draw.
     @State private var openTerminal: TerminalTarget?
+    @State private var visiting: MachineVisit?
     @State private var screenWidth: CGFloat = 0
 
     private func isExpanded(_ g: ProjectFolder) -> Bool { expandedOverride[g.id] ?? !g.collapsed }
@@ -177,15 +178,15 @@ struct ProjectsView: View {
         }
     }
 
-    /// A project of one of the Mac's machines. It lives on that machine, so
-    /// opening it switches this phone over to it — directly, or through the Mac
-    /// when the machine isn't on this phone.
+    /// A project of one of the Mac's machines. It lives on that machine, so it
+    /// opens in a session of its own — directly, or through the Mac when the
+    /// machine isn't on this phone — while this Mac stays connected.
     @ViewBuilder
     private func machineProjectLink(_ row: SidebarRow, in section: MachineSection) -> some View {
         let agents = agentRows(row.project, tabTitles: [:])
         let indent: CGFloat = 20
         Button {
-            model.openOnMachine(section, project: row.project.name)
+            visiting = model.beginVisit(section, project: row.project.name)
         } label: {
             HStack {
                 ProjectRow(project: row.project, agentCount: agents.count, stale: isStale, showsQueued: false)
@@ -202,7 +203,7 @@ struct ProjectsView: View {
         if !agents.isEmpty {
             ProjectTerminalDeck(rows: agents) { agent in
                 if let terminal = agent.terminalId {
-                    model.openOnMachine(section, project: row.project.name, terminal: terminal)
+                    visiting = model.beginVisit(section, project: row.project.name, terminal: terminal)
                 }
             }
             .disabled(!section.canOpen)
@@ -289,7 +290,17 @@ struct ProjectsView: View {
             NotificationTerminalDestination(projectName: target.project,
                                             terminalId: target.terminalId)
         }
-        .onChange(of: model.notificationOpens) { _, _ in openTerminal = nil }
+        .navigationDestination(item: $visiting) { MachineVisitScreen(visit: $0) }
+        .onChange(of: visiting) { _, now in if now == nil { model.leaveVisit() } }
+        .onChange(of: model.visitSession == nil) { _, ended in if ended { visiting = nil } }
+        // Whatever was opened on another machine, from here or from Activity, is
+        // off screen once the list is back.
+        .onAppear { model.leaveVisit() }
+        .onChange(of: model.notificationOpens) { _, _ in
+            openTerminal = nil
+            visiting = nil
+            model.leaveVisit()
+        }
         .navigationTitle("Projects")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -337,6 +348,7 @@ struct ProjectsView: View {
                     Button { folderNameText = ""; creatingFolder = true } label: {
                         Label("New Folder…", systemImage: "folder.badge.plus")
                     }
+                    PairDirectlyMenuItems()
                 } label: {
                     // An agent waiting on you lives one tap deep, under Activity —
                     // the dot is what says the menu is worth opening.
@@ -422,14 +434,7 @@ struct ProjectsView: View {
         } message: { p in
             Text("This deletes “\(p.label)” and its folder from disk. This can't be undone.")
         }
-        .alert(
-            "Couldn't complete that",
-            isPresented: Binding(get: { model.actionError != nil }, set: { if !$0 { model.actionError = nil } })
-        ) {
-            Button("OK", role: .cancel) { model.actionError = nil }
-        } message: {
-            Text(model.actionError ?? "")
-        }
+        .modifier(SessionAlerts())
         .sheet(item: $duplicating) { p in
             DuplicateOptionsView(project: p, defaults: model.duplicateDefaults) { options in
                 model.duplicateProject(p, options: options)
@@ -440,14 +445,6 @@ struct ProjectsView: View {
         }
         .sheet(isPresented: $addingProject) {
             AddProjectSheet()
-        }
-        .alert(
-            "Heads up",
-            isPresented: Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })
-        ) {
-            Button("OK", role: .cancel) { model.notice = nil }
-        } message: {
-            Text(model.notice ?? "")
         }
         .modifier(FolderManagementModals(
             creatingFolder: $creatingFolder,

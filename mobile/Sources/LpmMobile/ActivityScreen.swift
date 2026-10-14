@@ -6,13 +6,20 @@ private enum ActivityRoute: Hashable, Identifiable {
     case project(String)
     case terminal(project: String, id: String)
     case automation(project: String, id: String)
+    case machine(MachineVisit)
 
     var id: String {
         switch self {
         case .project(let name): return "project:\(name)"
         case .terminal(let project, let id): return "terminal:\(project):\(id)"
         case .automation(let project, let id): return "automation:\(project):\(id)"
+        case .machine(let visit): return "machine:\(visit.id)"
         }
+    }
+
+    var isMachine: Bool {
+        if case .machine = self { return true }
+        return false
     }
 }
 
@@ -89,6 +96,10 @@ struct ActivityScreen: View {
             }
         }
         .navigationDestination(item: $route) { destination($0) }
+        .onChange(of: route) { before, _ in if before?.isMachine == true { model.leaveVisit() } }
+        .onChange(of: model.visitSession == nil) { _, ended in
+            if ended, route?.isMachine == true { route = nil }
+        }
         .alert("This row stays until it's done",
                isPresented: Binding(get: { blockedReason != nil },
                                     set: { if !$0 { blockedReason = nil } })) {
@@ -248,6 +259,8 @@ struct ActivityScreen: View {
             NotificationTerminalDestination(projectName: project, terminalId: id)
         case .automation(let project, let id):
             AutomationDetailView(project: project, jobId: id)
+        case .machine(let visit):
+            MachineVisitScreen(visit: visit)
         }
     }
 
@@ -260,8 +273,9 @@ struct ActivityScreen: View {
             let project = row.project.name
             guard !project.isEmpty else { return }
             if let slug = row.project.machine {
-                guard let section = model.machineSections.first(where: { $0.machine.slug == slug }) else { return }
-                model.openOnMachine(section, project: project, terminal: row.terminalId)
+                guard let section = model.machineSections.first(where: { $0.machine.slug == slug }),
+                      let visit = model.beginVisit(section, project: project, terminal: row.terminalId) else { return }
+                route = .machine(visit)
                 return
             }
             if let terminal = row.terminalId {

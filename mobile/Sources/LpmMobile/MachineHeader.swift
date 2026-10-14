@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// The header of a machine's section in the projects list: which machine it is,
-/// whether it is on this iPhone yet, and the one thing to do when it isn't.
+/// The header of a machine's section in the projects list: which machine it is
+/// and whether it is on this iPhone yet. Pairing it with this iPhone lives in the
+/// list's "…" menu.
 struct MachineHeader: View {
     @Environment(AppModel.self) private var model
     let section: MachineSection
@@ -27,8 +28,8 @@ struct MachineHeader: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            if let action {
-                Button(action.title, action: action.run)
+            if opensOnlyBySwitching {
+                Button("Open") { model.switchToMachine(section) }
                     .buttonStyle(.borderless)
                     .font(.subheadline.weight(.semibold))
             } else if section.machine.projects != nil {
@@ -55,17 +56,8 @@ struct MachineHeader: View {
         }
     }
 
-    private var action: (title: String, run: () -> Void)? {
-        let slug = section.machine.slug
-        switch section.pending {
-        case .failed?: return ("Try again", { model.machineImporter.add(slug) })
-        case .removed?: return ("Add", { model.machineImporter.add(slug) })
-        default: break
-        }
-        // A Mac too old to list a machine's projects still gets you there.
-        if section.machine.projects == nil, section.record != nil {
-            return ("Open", { model.switchToMachine(section) })
-        }
-        return nil
+    /// A Mac too old to list a machine's projects still gets you there.
+    private var opensOnlyBySwitching: Bool {
+        section.machine.projects == nil && section.record != nil
     }
 }

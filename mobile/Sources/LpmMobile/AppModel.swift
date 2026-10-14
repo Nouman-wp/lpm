@@ -105,7 +105,7 @@ final class AppModel {
     // stale timeout from clearing a newer in-flight load.
     @ObservationIgnored private let statsTimeout = GenerationTimeout<String>()
 
-    // Saved Macs and which one is live. The phone talks to exactly one Mac at a
+    // Saved Macs and which one is live. The live session talks to one Mac at a
     // time; `activeMacId` names it. An empty `macs` list means "not paired with any
     // Mac" and drives the root gate to the pairing screen.
     var macs: [MacRecord] = []
@@ -119,6 +119,15 @@ final class AppModel {
     // relaunch lands back on the pairing screen. Gates the persistence/push side
     // effects that only make sense for a real paired Mac.
     var demoMode = false
+
+    // Set on a session that opens one of the live Mac's machines alongside it
+    // (AppModel+Visit): it saves nothing and adds nothing to this phone.
+    @ObservationIgnored private(set) weak var visitHost: AppModel?
+    var isVisit: Bool { visitHost != nil }
+    // The machine opened from the projects list, and the timer that closes it
+    // once its screen has been left for a while.
+    var visitSession: AppModel?
+    @ObservationIgnored var visitLinger: DispatchWorkItem?
 
     // A brief status shown while automatic endpoint recovery is finding the active
     // Mac on the local network and reconnecting to it ("Found <name>,
@@ -293,7 +302,7 @@ final class AppModel {
     // sends route into the same web view so it can apply the bracketed-paste
     // wrapping the desktop does.
     @ObservationIgnored let terminalScreens = TerminalScreens()
-    @ObservationIgnored private var inForeground = true
+    @ObservationIgnored private(set) var inForeground = true
     // A prompt queued to submit into a terminal as soon as its web view is mounted
     // and seeded (used by "Ask agent…", which navigates to a terminal that may not
     // be on screen yet). Flushed + cleared by WebTerminalView once ready.
@@ -371,7 +380,8 @@ final class AppModel {
     @ObservationIgnored private var recoveryWindow: DispatchWorkItem?
     @ObservationIgnored private var recoveryHandled: Set<String> = []
 
-    init() {
+    init(visitHost: AppModel? = nil) {
+        self.visitHost = visitHost
         link.model = self
         link.network.onChange = { [weak self] from, to in self?.networkChanged(from: from, to: to) }
         git.model = self
@@ -432,7 +442,7 @@ final class AppModel {
     }
 
     func persistMacs() {
-        guard !demoMode else { return } // demo state is in-memory only
+        guard !demoMode, !isVisit else { return } // demo state is in-memory only
         MacStore.saveRecords(macs)
         MacStore.saveActiveId(activeMacId)
     }
@@ -556,7 +566,7 @@ final class AppModel {
     /// re-armed on each slow retry's hint, so it never browses in the background.
     private func startRecoveryIfStale(_ s: LpmClient.State, from c: LpmClient) {
         guard case .failed(let hint) = s, LpmClient.isOfflineHint(hint),
-              c === client, !recovering,
+              c === client, !recovering, !isVisit,
               let sid = linkRecord?.serverId, !sid.isEmpty else { return }
         recovering = true
         recoveryHandled = []
@@ -767,9 +777,11 @@ final class AppModel {
     func setInForeground(_ active: Bool) {
         inForeground = active
         client?.inForeground = active
+        visitSession?.setInForeground(active)
     }
 
     func reconnectIfNeeded() {
+        visitSession?.reconnectIfNeeded()
         guard !link.identityRejected else { return }
         // Even a `.ready` state can be stale after backgrounding (half-open
         // socket) — probe it instead of trusting it, so a dead link is noticed
@@ -837,9 +849,15 @@ final class AppModel {
     func repairActiveMac(reason: RepairReason? = nil) {
         // A machine opened through another Mac is paired again by pairing that Mac.
         guard !demoMode, let target = linkRecord?.localId else { return }
+        let reason = reason ?? (needsRepair ? .notRecognized : .chosen)
+        // Only the live session can put up the pairing sheet.
+        (visitHost ?? self).repairMac(target, reason: reason)
+    }
+
+    func repairMac(_ target: UUID, reason: RepairReason) {
         pendingRepairMacId = target
         link.repairMacId = target
-        link.repairReason = reason ?? (needsRepair ? .notRecognized : .chosen)
+        link.repairReason = reason
         link.sheetOpen = false
         link.identityCheckOpen = false
         addingMac = true
@@ -951,6 +969,7 @@ final class AppModel {
     /// another saved Mac if one remains — otherwise back to the pairing screen.
     func removeMac(_ id: UUID) {
         if demoMode { exitDemo(); return }
+        endVisit()
         // The machines opened through this Mac go with it: they connect as it.
         let gone = Set([id] + macs.filter { $0.via?.macId == id }.map(\.localId))
         let wasActive = activeMacId.map(gone.contains) ?? false
@@ -1135,7 +1154,8 @@ final class AppModel {
     /// Tear down the live connection to the current Mac and clear every cached
     /// per-session value, so switching Macs (or removing one) starts clean. Does
     /// NOT touch the saved-Mac records or their Keychain credentials.
-    private func resetSessionState() {
+    func resetSessionState() {
+        endVisit()
         client?.disconnect()
         client = nil
         probeGeneration += 1
@@ -2446,7 +2466,7 @@ final class AppModel {
                 c.requestDuplicateDefaults()
                 c.requestJobs()
                 // Demo Mode has no APNs identity and no relay — skip push registration.
-                if !self.demoMode {
+                if !self.demoMode && !self.isVisit {
                     self.requestPushRegistration()
                     self.syncPushRegistration()
                     c.requestMachines()
@@ -2486,7 +2506,7 @@ final class AppModel {
         }
         c.onListFrame = { [weak self, weak c] text in
             guard let self, let c, c === self.client, c.deviceId != nil, !self.demoMode,
-                  let id = self.activeMacId else { return }
+                  !self.isVisit, let id = self.activeMacId else { return }
             self.link.snapshots.record(text, for: id)
         }
         c.onApnsToken = { [weak self, weak c] ok in
@@ -2950,6 +2970,8 @@ final class AppModel {
     }
 
     private func wireMachines(_ c: LpmClient) {
+        // A visited machine's own machines are never added here.
+        guard !isVisit else { return }
         c.onMachines = { [weak self, weak c] machines in
             guard let self, let c, c === self.client, !self.demoMode,
                   let source = self.activeRecord?.serverId else { return }

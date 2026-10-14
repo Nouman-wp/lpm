@@ -70,37 +70,26 @@ extension AppModel {
         projects + activityMachines.flatMap(\.projects)
     }
 
-    /// Open a project of one of the Mac's machines: switch this phone to that
-    /// machine, then go to the project (and the terminal, when one is given) once
-    /// its list has loaded.
-    func openOnMachine(_ section: MachineSection, project: String, terminal: String? = nil) {
-        guard let record = section.record ?? recordThroughLiveMac(section) else { return }
-        guard let serverId = record.serverId else {
-            pendingNotificationTarget = nil
-            switchTo(record)
-            return
-        }
-        pendingNotificationTarget = NotificationOpenTarget(serverId: serverId, project: project, terminal: terminal)
-    }
-
     func switchToMachine(_ section: MachineSection) {
-        guard let record = section.record ?? recordThroughLiveMac(section) else { return }
+        guard let record = section.record ?? recordThroughLiveMac(section, saving: true) else { return }
         pendingNotificationTarget = nil
         switchTo(record)
     }
 
-    /// The saved entry that opens one of the live Mac's machines through it,
-    /// made the first time it's opened that way. Like a machine added here, it
-    /// reads as it does in that Mac's sidebar.
-    private func recordThroughLiveMac(_ section: MachineSection) -> MacRecord? {
+    /// The entry that opens one of the live Mac's machines through it. Switching
+    /// to it saves it the first time, and like a machine added here it reads as
+    /// it does in that Mac's sidebar.
+    func recordThroughLiveMac(_ section: MachineSection, saving: Bool) -> MacRecord? {
         guard section.throughMac, let mac = activeRecord else { return nil }
         let via = MacVia(macId: mac.localId, slug: section.machine.slug)
         if let saved = macs.first(where: { $0.via == via }) { return saved }
         let m = section.machine
         let record = MacRecord(localId: UUID(), serverId: m.serverId, name: m.name, customName: m.name,
                                hosts: [], port: mac.port, platform: m.platform, via: via)
-        macs.append(record)
-        persistMacs()
+        if saving {
+            macs.append(record)
+            persistMacs()
+        }
         return record
     }
 

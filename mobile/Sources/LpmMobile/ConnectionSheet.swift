@@ -37,7 +37,9 @@ struct ConnectionSheet: View {
                     }
                     addresses(record)
                     thisPhone
-                    machine(record)
+                    if !model.isVisit {
+                        machine(record)
+                    }
                     MacUpdateSection()
                     details(record)
                 }

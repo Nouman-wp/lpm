@@ -27,7 +27,7 @@ extension AppModel {
               let idx = macs.firstIndex(where: { $0.localId == id }) else { return }
         macs[idx].lastConnected = asOf
         persistMacs()
-        link.snapshots.touch(id, at: asOf)
+        if !isVisit { link.snapshots.touch(id, at: asOf) }
         if !projects.isEmpty { link.listAsOf = asOf }
     }
 
@@ -63,6 +63,7 @@ extension AppModel {
 
     /// The phone moved between Wi-Fi, cellular and offline.
     func networkChanged(from: NetworkWatcher.Medium, to: NetworkWatcher.Medium) {
+        visitSession?.networkChanged(from: from, to: to)
         guard to != .none, !demoMode else { return }
         let reason: ReconnectReason = from == .none ? .backOnline : (to == .wifi ? .joinedWiFi : .leftWiFi)
         rehome(reason: reason)
@@ -71,6 +72,7 @@ extension AppModel {
 
     /// Built-in Tailscale changed state; once it's up, its addresses work.
     func tailnetChanged(_ state: String) {
+        visitSession?.tailnetChanged(state)
         guard state == "running" else { return }
         link.tailnetCameUp()
         if case .ready = connection { return }

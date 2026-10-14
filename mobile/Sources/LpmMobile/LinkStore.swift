@@ -384,7 +384,7 @@ final class LinkStore {
 
     /// Check which of the other saved machines answer, at most every 45 seconds.
     func refreshReach(force: Bool = false) {
-        guard let model, !model.demoMode else { return }
+        guard let model, !model.demoMode, !model.isVisit else { return }
         if !force, let last = reachCheckedAt, Date().timeIntervalSince(last) < 45 { return }
         reachCheckedAt = Date()
         for mac in model.macs where mac.localId != model.activeMacId {
