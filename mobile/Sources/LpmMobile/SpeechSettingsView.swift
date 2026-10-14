@@ -23,13 +23,13 @@ struct SpeechSettingsView: View {
         Form {
             Section {
                 Picker("Engine", selection: $engine) {
-                    Text("This iPhone").tag("device")
+                    Text("This \(ThisDevice.noun)").tag("device")
                     Text("Mac").tag("mac")
                 }
             } footer: {
                 Text(engine == "mac"
                      ? "Your Mac synthesizes the speech with OpenAI and sends the audio over. Better voice, and you can scrub through it — but it needs your Mac, and the text is sent to OpenAI."
-                     : "Speech is generated on this iPhone. Works offline and nothing leaves the device.")
+                     : "Speech is generated on this \(ThisDevice.noun). Works offline and nothing leaves the device.")
             }
 
             Section {

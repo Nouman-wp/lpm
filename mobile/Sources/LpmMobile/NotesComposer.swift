@@ -22,6 +22,7 @@ struct NotesComposer: View {
     @State private var showCamera = false
     @State private var showFiles = false
     @State private var warning: String?
+    @FocusState private var focused: Bool
 
     private var notes: NotesStore { model.notes }
     private var chatKey: String { notes.key(project, chatId) }
@@ -95,6 +96,8 @@ struct NotesComposer: View {
         TextField("Write a note…", text: $text, axis: .vertical)
             .font(.body)
             .lineLimit(1...6)
+            .focused($focused)
+            .hardwareReturnSends(focus: $focused, send: send)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(Color(.secondarySystemBackground))

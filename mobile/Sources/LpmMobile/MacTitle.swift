@@ -22,7 +22,7 @@ struct MacTitle: View {
             }
             .buttonStyle(.plain)
             .disabled(model.demoMode)
-            .accessibilityHint("Shows how this iPhone reaches the Mac")
+            .accessibilityHint("Shows how this \(ThisDevice.noun) reaches the Mac")
         }
     }
 

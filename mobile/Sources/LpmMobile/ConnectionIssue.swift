@@ -100,7 +100,7 @@ extension ConnectionIssue {
             return IssueCopy(title: "Connecting to \(mac)…", message: message,
                              icon: "arrow.triangle.2.circlepath", tone: .waiting, actions: [.details])
         case .phoneOffline:
-            return IssueCopy(title: "This iPhone is offline",
+            return IssueCopy(title: "This \(ThisDevice.noun) is offline",
                              message: "lpm reconnects when you're back online.",
                              icon: "wifi.slash", tone: .problem, actions: [.phoneSettings])
         case .notAnswering(let away):
@@ -120,7 +120,7 @@ extension ConnectionIssue {
                                  icon: "network", tone: .problem, actions: [.signInTailscale, .details])
             case .waitingApproval:
                 return IssueCopy(title: "Waiting for Tailscale approval",
-                                 message: "Your Tailscale network asks an admin to approve this iPhone first.",
+                                 message: "Your Tailscale network asks an admin to approve this \(ThisDevice.noun) first.",
                                  icon: "network", tone: .waiting, actions: [.openAdmin, .details])
             case .broken:
                 return IssueCopy(title: "Built-in Tailscale can't connect",
@@ -128,11 +128,11 @@ extension ConnectionIssue {
                                  icon: "network", tone: .problem, actions: [.tailscaleSettings, .details])
             case .macSetup:
                 return IssueCopy(title: "\(Mac) only answers on its home network",
-                                 message: "Set up Tailscale on the Mac and this iPhone to use lpm from anywhere.",
+                                 message: "Set up Tailscale on the Mac and this \(ThisDevice.noun) to use lpm from anywhere.",
                                  icon: "network", tone: .problem, actions: [.tailscaleSettings, .details])
             case .app:
                 return IssueCopy(title: "Can't reach \(mac) over Tailscale",
-                                 message: "Check that the Tailscale app is connected on this iPhone and the Mac is awake.",
+                                 message: "Check that the Tailscale app is connected on this \(ThisDevice.noun) and the Mac is awake.",
                                  icon: "network", tone: .problem, actions: [.retry, .details])
             }
         case .lpmNotRunning:
@@ -141,11 +141,11 @@ extension ConnectionIssue {
                              icon: "app.dashed", tone: .problem, actions: [.retry, .details])
         case .secureFailed:
             return IssueCopy(title: "Couldn't connect securely",
-                             message: "Update lpm on \(mac) and lpm Link on this iPhone, then try again.",
+                             message: "Update lpm on \(mac) and lpm Link on this \(ThisDevice.noun), then try again.",
                              icon: "lock.trianglebadge.exclamationmark", tone: .problem,
                              actions: [.retry, .pairAgain, .details])
         case .notRecognized:
-            return IssueCopy(title: "\(Mac) no longer recognizes this iPhone",
+            return IssueCopy(title: "\(Mac) no longer recognizes this \(ThisDevice.noun)",
                              message: "Pair again to keep using it here.",
                              icon: "macbook.and.iphone", tone: .problem, actions: [.pairAgain])
         case .identityChanged:
@@ -154,7 +154,7 @@ extension ConnectionIssue {
                              icon: "exclamationmark.shield", tone: .problem, actions: [.compareCode])
         case .identityRejected:
             return IssueCopy(title: "Identity check failed",
-                             message: "lpm stopped connecting to \(mac) to keep this iPhone safe. Pair again when you're next to it.",
+                             message: "lpm stopped connecting to \(mac) to keep this \(ThisDevice.noun) safe. Pair again when you're next to it.",
                              icon: "xmark.shield", tone: .problem, actions: [.pairAgain])
         case .farewell(let farewell):
             let since = "Since \(farewell.at.formatted(date: .omitted, time: .shortened))."
@@ -322,7 +322,7 @@ struct LinkStatusLine: Equatable {
         case .notAnswering, .pairUnreachable: return LinkStatusLine(text: "Not answering", tone: .problem)
         case .lpmNotRunning: return LinkStatusLine(text: "lpm isn't running", tone: .problem)
         case .awayNeedsTailscale(.app): return LinkStatusLine(text: "Can't reach it over Tailscale", tone: .problem)
-        case .phoneOffline: return LinkStatusLine(text: "iPhone is offline", tone: .problem)
+        case .phoneOffline: return LinkStatusLine(text: "\(ThisDevice.noun) is offline", tone: .problem)
         case .notRecognized, .identityRejected: return LinkStatusLine(text: "Not paired", tone: .problem)
         case .identityChanged: return LinkStatusLine(text: "Check its identity", tone: .problem)
         case .relayOffline(let via): return LinkStatusLine(text: "Not connected to \(via)", tone: .problem)

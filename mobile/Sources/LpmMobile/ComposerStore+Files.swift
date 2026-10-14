@@ -113,7 +113,7 @@ extension ComposerStore {
         guard size <= Self.singleFrameLimit else {
             removeAttachment(id)
             uploadError = "\(file.lastPathComponent) is \(size / (1024 * 1024)) MB. "
-                + "Update lpm on your Mac to attach files over 8 MB from your iPhone."
+                + "Update lpm on your Mac to attach files over 8 MB from your \(ThisDevice.noun)."
             return
         }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in

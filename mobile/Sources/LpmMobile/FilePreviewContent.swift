@@ -44,7 +44,7 @@ struct FilePreviewContent: View {
                 ContentUnavailableView {
                     Label("No preview", systemImage: "doc")
                 } description: {
-                    Text("iPhone can't show this kind of file. Share it to open it in another app.")
+                    Text("\(ThisDevice.noun) can't show this kind of file. Share it to open it in another app.")
                 } actions: {
                     ShareLink(item: url) { Text("Share") }
                         .buttonStyle(.borderedProminent)

@@ -81,14 +81,14 @@ struct PairedSummarySheet: View {
             }
         case .app:
             row(icon: "network", tint: .blue, title: "Away from home",
-                detail: "Works while the Tailscale app is connected on this iPhone.") {
+                detail: "Works while the Tailscale app is connected on this \(ThisDevice.noun).") {
                 Text("Ready").font(.subheadline.weight(.semibold)).foregroundStyle(.green)
             }
         case .turnOnHere, .finishHere:
             row(icon: "network", tint: .blue, title: "Away from home",
                 detail: away == .finishHere
-                    ? "Finish setting up Built-in Tailscale on this iPhone to use lpm on cellular."
-                    : "Turn on Built-in Tailscale on this iPhone to use lpm on cellular.") {
+                    ? "Finish setting up Built-in Tailscale on this \(ThisDevice.noun) to use lpm on cellular."
+                    : "Turn on Built-in Tailscale on this \(ThisDevice.noun) to use lpm on cellular.") {
                 NavigationLink {
                     TailnetSettingsView()
                 } label: {
@@ -100,7 +100,7 @@ struct PairedSummarySheet: View {
             }
         case .macNotSetUp:
             row(icon: "network", tint: .gray, title: "Away from home",
-                detail: "Works on this Wi-Fi only. Set up Tailscale on the Mac (lpm → Settings → Mobile devices) and on this iPhone to use lpm anywhere.") {
+                detail: "Works on this Wi-Fi only. Set up Tailscale on the Mac (lpm → Settings → Mobile devices) and on this \(ThisDevice.noun) to use lpm anywhere.") {
                 NavigationLink {
                     TailnetSettingsView()
                 } label: {

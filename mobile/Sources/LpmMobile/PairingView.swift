@@ -171,11 +171,11 @@ struct PairingView: View {
     private var subtitle: String {
         switch model.link.repairReason {
         case .notRecognized?:
-            return "It no longer recognizes this iPhone. Approve it on the Mac — its name and addresses stay as they are."
+            return "It no longer recognizes this \(ThisDevice.noun). Approve it on the Mac — its name and addresses stay as they are."
         case .identity?:
             return "Pairing again confirms it's your Mac. Approve it on the Mac — its name and addresses stay as they are."
         case .chosen?:
-            return "Approve this iPhone on the Mac again. Its name and addresses stay as they are."
+            return "Approve this \(ThisDevice.noun) on the Mac again. Its name and addresses stay as they are."
         case nil:
             return showsWaysToPair
                 ? "Open lpm on your Mac. Pick it below, then approve on the Mac."

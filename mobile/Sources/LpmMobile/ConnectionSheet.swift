@@ -131,7 +131,7 @@ struct ConnectionSheet: View {
             Text(via.map { "Through \($0.displayName)" } ?? "Ways to reach it")
         } footer: {
             if let via {
-                Text("Not on this iPhone, so it opens through \(via.displayName) at these addresses.")
+                Text("Not on this \(ThisDevice.noun), so it opens through \(via.displayName) at these addresses.")
             } else if !hasAway {
                 Text("Only its home network address is saved, so it works on that Wi-Fi only. Set up Tailscale on the Mac in lpm → Settings → Mobile devices; lpm Link adds its new address the next time it connects.")
             } else {
@@ -152,7 +152,7 @@ struct ConnectionSheet: View {
                 }
             }
         } header: {
-            Text("This iPhone")
+            Text("This \(ThisDevice.noun)")
         } footer: {
             Text("Reaches your Mac from cellular or any Wi-Fi, no Tailscale app needed.")
         }
@@ -195,7 +195,7 @@ struct ConnectionSheet: View {
             Button(role: .destructive) {
                 removing = true
             } label: {
-                Label("Remove from this iPhone", systemImage: "trash")
+                Label("Remove from this \(ThisDevice.noun)", systemImage: "trash")
                     .foregroundStyle(.red)
             }
         }
@@ -232,7 +232,7 @@ struct ConnectionSheet: View {
         if let via = record.flatMap(model.viaMac(of:)) {
             return "It stays connected to “\(via.displayName)”, and its projects open from there again.\(next)"
         }
-        return "This iPhone will be unpaired and its notifications will stop.\(next) To add it back, pair it again."
+        return "This \(ThisDevice.noun) will be unpaired and its notifications will stop.\(next) To add it back, pair it again."
     }
 }
 

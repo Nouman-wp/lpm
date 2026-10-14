@@ -96,7 +96,7 @@ private struct MacDetailView: View {
                     }
                 }
                 Section {
-                    Button("Remove from this iPhone", role: .destructive) { removing = true }
+                    Button("Remove from this \(ThisDevice.noun)", role: .destructive) { removing = true }
                 }
             }
         }
@@ -114,7 +114,7 @@ private struct MacDetailView: View {
             if let via = record.flatMap(model.viaMac(of:)) {
                 Text("It stays connected to “\(via.displayName)”, and its projects open from there again.")
             } else {
-                Text("This iPhone will be unpaired and its notifications will stop. To add it back, pair it again.")
+                Text("This \(ThisDevice.noun) will be unpaired and its notifications will stop. To add it back, pair it again.")
             }
         }
     }

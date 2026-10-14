@@ -123,18 +123,18 @@ struct AwayFromHomeCard: View {
     private var detail: String {
         switch phase {
         case .ready: return "Built-in Tailscale is on. Pairing works on cellular and any Wi-Fi."
-        case .app: return "Keep it connected on this iPhone, signed in to the same account as your Mac."
+        case .app: return "Keep it connected on this \(ThisDevice.noun), signed in to the same account as your Mac."
         case .inProgress:
             switch tailscale.status.state {
             case "needsLogin": return "Sign in with the Tailscale account you use on your Mac."
-            case "needsApproval": return "Waiting for an admin to approve this iPhone."
+            case "needsApproval": return "Waiting for an admin to approve this \(ThisDevice.noun)."
             case "error", "stopped": return tailscale.status.error ?? "Built-in Tailscale can't connect."
             default: return "Connecting to Tailscale…"
             }
         case .notSetUp:
             return "Set up Tailscale first, so pairing also works on cellular. Without it, lpm only works on your Mac's Wi-Fi."
         case .localOnly:
-            return "lpm will reach your Mac only while this iPhone is on its Wi-Fi — not on cellular or other networks. Set up Tailscale any time to use it anywhere."
+            return "lpm will reach your Mac only while this \(ThisDevice.noun) is on its Wi-Fi — not on cellular or other networks. Set up Tailscale any time to use it anywhere."
         }
     }
 }

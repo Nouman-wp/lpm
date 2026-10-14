@@ -48,9 +48,9 @@ struct MachineHeader: View {
     private var detail: String? {
         if section.record?.via?.macId == model.activeMacId { return "Opens through this Mac" }
         switch section.pending {
-        case .adding?: return "Adding to this iPhone…"
+        case .adding?: return "Adding to this \(ThisDevice.noun)…"
         case .failed(let why)?: return why
-        case .removed?: return section.throughMac ? "Opens through this Mac" : "Not on this iPhone"
+        case .removed?: return section.throughMac ? "Opens through this Mac" : "Not on this \(ThisDevice.noun)"
         case .needsUpdate?: return "Update lpm on it to open it here"
         case .offline?, nil: return nil
         }

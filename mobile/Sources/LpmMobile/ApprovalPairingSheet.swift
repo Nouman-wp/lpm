@@ -29,7 +29,7 @@ struct ApprovalPairingSheet: View {
                             message: "\(macLabel) is busy with another pairing request. Try again in a moment.")
                 case LpmClient.badAddressReason:
                     failure(icon: "exclamationmark.triangle", title: "Address not usable",
-                            message: "This iPhone can't connect to the address found for \(macLabel). Enter the pairing details from your Mac instead.")
+                            message: "This \(ThisDevice.noun) can't connect to the address found for \(macLabel). Enter the pairing details from your Mac instead.")
                 default:
                     failure(icon: "hand.raised.slash", title: "Pairing declined",
                             message: message ?? "Pairing was declined on the Mac.")
@@ -70,7 +70,7 @@ struct ApprovalPairingSheet: View {
             VStack(spacing: 6) {
                 Text("Confirm on your Mac")
                     .font(.title3.weight(.bold))
-                Text("Approve this iPhone in the lpm window on \(macLabel), and check the code matches.")
+                Text("Approve this \(ThisDevice.noun) in the lpm window on \(macLabel), and check the code matches.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

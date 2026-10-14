@@ -128,7 +128,7 @@ final class FileFetch {
             try handle?.seek(toOffset: UInt64(chunk.offset))
             try handle?.write(contentsOf: chunk.data)
         } catch {
-            fail("Couldn't save the file on this iPhone.")
+            fail("Couldn't save the file on this \(ThisDevice.noun).")
             return
         }
         received += Int64(chunk.data.count)
@@ -154,7 +154,7 @@ final class FileFetch {
         if kind.isText {
             total = min(size, Self.textCap)
         } else if size > Self.maxBytes {
-            fail("This file is over 1 GB — too large to open on iPhone.")
+            fail("This file is over 1 GB — too large to open on \(ThisDevice.noun).")
             return false
         } else {
             total = size
@@ -170,7 +170,7 @@ final class FileFetch {
             handle = try FileHandle(forWritingTo: url)
             fileURL = url
         } catch {
-            fail("Couldn't save the file on this iPhone.")
+            fail("Couldn't save the file on this \(ThisDevice.noun).")
             return false
         }
         return true

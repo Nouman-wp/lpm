@@ -111,7 +111,7 @@ private struct NearbyMacRow: View {
 
     private var subtitle: String {
         if mac.isDev { return "Development build" }
-        if paired { return "Already on this iPhone" }
+        if paired { return "Already on this \(ThisDevice.noun)" }
         return mac.requestPair ? "Tap, then approve on the Mac" : "Linux host · pairs with a code"
     }
 
