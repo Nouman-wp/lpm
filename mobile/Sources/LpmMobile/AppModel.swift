@@ -2392,8 +2392,10 @@ final class AppModel {
         center.getDeliveredNotifications { delivered in
             let stale = delivered.compactMap { note -> String? in
                 let info = note.request.content.userInfo
+                // An automation alert has no status key: it reports a finished run,
+                // not a status that can move on, so it stays until it's read.
                 guard let project = info["project"] as? String,
-                      let key = info["statusKey"] as? String,
+                      let key = info["statusKey"] as? String, !key.isEmpty,
                       let entries = live[project]
                 else { return nil }
                 let announced = info["status"] as? String
