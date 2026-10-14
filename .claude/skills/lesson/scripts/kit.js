@@ -230,6 +230,8 @@ async function clickUntil(s, sel, done, opts = {}) {
     if (await done()) return;
     await s.click(sel, { at: opts.at, ms: 300 });
   }
+  const end = Date.now() + 1500;
+  while (Date.now() < end && !(await done())) await s.hold(150);
 }
 
 // Clicks a header agent button until a new tab opens; resolves with the time

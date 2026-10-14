@@ -455,6 +455,15 @@ module.exports = function compareBeats({ config, dir }) {
   async function openDuplicates(s) {
     await kit.clickUntil(s, SEND_MENU, () => kit.isVisible(s, RUN_IN_DUPLICATES), { ms: 300 });
     await s.click(RUN_IN_DUPLICATES, { at: [0.3, 0.5], ms: 300 });
+    // A click on the menu item once left the menu open with no dialog
+    // (2026-10-14); retry only while the item is still there.
+    for (let i = 0; i < 2; i++) {
+      const end = Date.now() + 2000;
+      while (Date.now() < end && !(await kit.isVisible(s, MODEL_SELECT))) await s.hold(150);
+      if ((await kit.isVisible(s, MODEL_SELECT)) || !(await kit.isVisible(s, RUN_IN_DUPLICATES))) break;
+      s.log("Run in duplicates: no dialog yet, clicking again");
+      await s.click(RUN_IN_DUPLICATES, { at: [0.3, 0.5], ms: 300 });
+    }
     await s.waitFor(MODEL_SELECT, 5000);
   }
 
