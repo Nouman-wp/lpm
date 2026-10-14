@@ -257,7 +257,7 @@ struct ProjectMenuHost: ViewModifier {
             // present an alert on every one at once. The review screen owns its
             // own copy of this alert, hence the !showChanges gate too.
             .alert(
-                "Something went wrong",
+                model.git.opError[project.name]?.title ?? "",
                 isPresented: Binding(
                     get: { isVisible && !showChanges && !showAutoSheet && model.git.opError[project.name] != nil },
                     set: { if !$0 { model.git.opError[project.name] = nil } }
@@ -265,7 +265,7 @@ struct ProjectMenuHost: ViewModifier {
             ) {
                 Button("OK", role: .cancel) { model.git.opError[project.name] = nil }
             } message: {
-                Text(model.git.opError[project.name] ?? "")
+                Text(model.git.opError[project.name]?.message ?? "")
             }
             .sheet(item: $runInputsFor) { action in
                 ActionInputsSheet(action: action) { values in afterInputs(action, values) }

@@ -13,7 +13,8 @@ struct ConnectionStatusBar: View {
                 .padding(.vertical, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(.bar)
-                .overlay(alignment: .bottom) { Divider() }
+                // A bare Divider over an HStack takes its axis and draws a vertical line.
+                .overlay(alignment: .bottom) { VStack(spacing: 0) { Divider() } }
                 .transition(.move(edge: .top).combined(with: .opacity))
         }
     }

@@ -32,7 +32,7 @@ final class GitReviewStore {
     // Push/commit/generate-message failures surface on the review screen; PR
     // draft/create failures surface inside the PR sheet, kept separate so an open
     // sheet's error doesn't also fire the screen's alert.
-    var opError: [String: String] = [:] {
+    var opError: [String: GitOpError] = [:] {
         didSet {
             for (k, v) in opError where oldValue[k] != v { Haptics.error(); break }
         }
@@ -220,7 +220,7 @@ final class GitReviewStore {
         client?.gitCommit(project: project, message: message, files: files)
         armTimeout("commit", project, seconds: 120) { [weak self] in
             guard let self, self.committing.remove(project) != nil else { return }
-            self.opError[project] = "Commit timed out. Check your Mac and try again."
+            self.opError[project] = GitOpError(title: "Commit failed", message: "Commit timed out. Check your Mac and try again.")
         }
     }
 
@@ -231,7 +231,7 @@ final class GitReviewStore {
         client?.gitPush(project: project)
         armTimeout("push", project, seconds: 120) { [weak self] in
             guard let self, self.pushing.remove(project) != nil else { return }
-            self.opError[project] = "Push timed out. Check your Mac and try again."
+            self.opError[project] = GitOpError(title: "Push failed", message: "Push timed out. Check your Mac and try again.")
         }
     }
 
@@ -242,7 +242,7 @@ final class GitReviewStore {
         client?.gitGenMessage(project: project, files: files)
         armTimeout("genMessage", project, seconds: 120) { [weak self] in
             guard let self, self.generatingMessage.remove(project) != nil else { return }
-            self.opError[project] = "Message generation timed out. Try again."
+            self.opError[project] = GitOpError(title: "Couldn't write a message", message: "Message generation timed out. Try again.")
         }
     }
 
@@ -361,7 +361,7 @@ final class GitReviewStore {
         client?.gitPull(project: project)
         armTimeout("pull", project, seconds: 120) { [weak self] in
             guard let self, self.pulling.remove(project) != nil else { return }
-            self.opError[project] = "Pull timed out. Check your Mac and try again."
+            self.opError[project] = GitOpError(title: "Pull failed", message: "Pull timed out. Check your Mac and try again.")
         }
     }
 
@@ -372,7 +372,7 @@ final class GitReviewStore {
         client?.gitFetch(project: project)
         armTimeout("fetch", project, seconds: 120) { [weak self] in
             guard let self, self.fetching.remove(project) != nil else { return }
-            self.opError[project] = "Fetch timed out. Check your Mac and try again."
+            self.opError[project] = GitOpError(title: "Fetch failed", message: "Fetch timed out. Check your Mac and try again.")
         }
     }
 
@@ -383,7 +383,7 @@ final class GitReviewStore {
         client?.gitAutoPullUndo(project: project)
         armTimeout("autoPullUndo", project, seconds: 60) { [weak self] in
             guard let self, self.undoingAutoPull.remove(project) != nil else { return }
-            self.opError[project] = "Undoing the auto pull timed out. Check your Mac and try again."
+            self.opError[project] = GitOpError(title: "Couldn't undo the auto pull", message: "Undoing the auto pull timed out. Check your Mac and try again.")
         }
     }
 
@@ -394,7 +394,7 @@ final class GitReviewStore {
         client?.gitDiscardAll(project: project)
         armTimeout("discard", project, seconds: 60) { [weak self] in
             guard let self, self.discarding.remove(project) != nil else { return }
-            self.opError[project] = "Discarding changes timed out. Try again."
+            self.opError[project] = GitOpError(title: "Couldn't discard changes", message: "Discarding changes timed out. Try again.")
         }
     }
 
@@ -458,7 +458,7 @@ final class GitReviewStore {
         clearTimeout("commit", project)
         committing.remove(project)
         if let error {
-            opError[project] = error
+            opError[project] = GitOpError(title: "Commit failed", message: error)
         } else {
             Haptics.success()
             commitTick[project, default: 0] += 1
@@ -470,7 +470,7 @@ final class GitReviewStore {
         clearTimeout("push", project)
         pushing.remove(project)
         if let error {
-            opError[project] = error
+            opError[project] = GitOpError(title: "Push failed", message: error)
         } else {
             Haptics.success()
             load(project)
@@ -483,7 +483,7 @@ final class GitReviewStore {
         if let message {
             generatedMessage[project] = message
         } else if let error {
-            opError[project] = error
+            opError[project] = GitOpError(title: "Couldn't write a message", message: error)
         }
     }
 
@@ -512,25 +512,25 @@ final class GitReviewStore {
     func finishPull(_ project: String, error: String?) {
         clearTimeout("pull", project)
         pulling.remove(project)
-        if let error { opError[project] = error } else { load(project) }
+        if let error { opError[project] = GitOpError(title: "Pull failed", message: error) } else { load(project) }
     }
 
     func finishFetch(_ project: String, error: String?) {
         clearTimeout("fetch", project)
         fetching.remove(project)
-        if let error { opError[project] = error } else { load(project) }
+        if let error { opError[project] = GitOpError(title: "Fetch failed", message: error) } else { load(project) }
     }
 
     func finishAutoPullUndo(_ project: String, error: String?) {
         clearTimeout("autoPullUndo", project)
         undoingAutoPull.remove(project)
-        if let error { opError[project] = error } else { load(project) }
+        if let error { opError[project] = GitOpError(title: "Couldn't undo the auto pull", message: error) } else { load(project) }
     }
 
     func finishDiscard(_ project: String, error: String?) {
         clearTimeout("discard", project)
         discarding.remove(project)
-        if let error { opError[project] = error } else { load(project) }
+        if let error { opError[project] = GitOpError(title: "Couldn't discard changes", message: error) } else { load(project) }
     }
 
     func applyBranches(_ project: String, current: String, branches: [GitBranch], error: String?) {

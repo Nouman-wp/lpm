@@ -24,11 +24,15 @@ struct ActionInputsSheet: View {
                 ForEach(action.inputs) { input in
                     Section {
                         if input.isSelect {
+                            // Every option on its own row, as the desktop lists its
+                            // radio buttons; the section header already names it.
                             Picker(input.label, selection: binding(for: input)) {
                                 ForEach(input.options) { opt in
                                     Text(opt.label).tag(opt.value)
                                 }
                             }
+                            .pickerStyle(.inline)
+                            .labelsHidden()
                         } else if input.isSecret {
                             SecureField(input.placeholder.isEmpty ? input.label : input.placeholder,
                                         text: binding(for: input))

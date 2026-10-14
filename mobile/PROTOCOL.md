@@ -10,10 +10,11 @@ is a WebSocket client. This document is the contract both sides implement.
   **no plaintext (`ws://`) fallback** — every accepted socket is wrapped in TLS
   before the WebSocket handshake.
 - Default port `8765` (configurable in Settings → Mobile devices).
-- The server binds `127.0.0.1` (loopback) by default, or `0.0.0.0` when the user
-  enables "Allow connections over the network". Away-from-home use over a
-  **Tailscale** tailnet still works (connect to the Mac's tailnet IP); the tailnet
-  and TLS layers simply compose.
+- The server binds every interface (`0.0.0.0`) whenever remote control is on, so
+  a paired phone reaches it over the LAN, and away from home over a **Tailscale**
+  tailnet (connect to the Mac's tailnet IP); the tailnet and TLS layers simply
+  compose. Reaching the port grants nothing by itself: every connection still has
+  to pair or authenticate (below).
 - **Certificate & pinning.** The Mac presents a single **self-signed** leaf
   certificate (ECDSA P-256, CN `lpm`, ~10-year validity), generated once and
   persisted as PEM next to `remote.json` in `~/.lpm` (`remote-cert.pem` /
@@ -66,12 +67,12 @@ matching the stable `serverId` in the TXT record rather than a remembered addres
   - `dev` — present and `"1"` **only** on a dev build; absent on release. Lets the
     phone distinguish a dev and a prod instance running on the same Mac (which
     also have distinct `serverId`s and ports).
-- **When advertising is active:** only while the remote server is **running and
-  bound to the LAN** (the "Allow connections over the network" option, i.e. bound
-  to `0.0.0.0`). A loopback-only server is **not** advertised. The record is
-  withdrawn when the server stops or drops off the LAN, and re-published (with a
-  fresh port/name) whenever a config change rebinds the server. Dev and prod
-  instances each advertise their own record.
+- **When advertising is active:** whenever the remote server is **running** — it
+  listens on every interface while remote control is on (see
+  [Transport](#transport)). The record is withdrawn when the server stops or
+  can't bind its port, and re-published (with a fresh port/name) whenever a
+  config change rebinds the server. Dev and prod instances each advertise their
+  own record.
 
 ## Handshake (first frame, required within 20s)
 

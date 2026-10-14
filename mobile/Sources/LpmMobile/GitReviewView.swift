@@ -104,13 +104,13 @@ struct GitReviewView: View {
             // project menu, whose git ops report into the same gitOpError slot —
             // without the gate both screens would try to present this alert.
             .alert(
-                "Something went wrong",
+                model.git.opError[name]?.title ?? "",
                 isPresented: Binding(get: { isVisible && model.git.opError[name] != nil },
                                      set: { if !$0 { model.git.opError[name] = nil } })
             ) {
                 Button("OK", role: .cancel) { model.git.opError[name] = nil }
             } message: {
-                Text(model.git.opError[name] ?? "")
+                Text(model.git.opError[name]?.message ?? "")
             }
             .sheet(isPresented: $showPrSheet) {
                 GitPrSheet(project: project)
@@ -234,6 +234,7 @@ struct GitReviewView: View {
             .buttonStyle(.borderedProminent)
             .disabled(!canCommit)
             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            .listRowSeparator(.hidden)
         } header: {
             Text("Commit")
         } footer: {
@@ -439,7 +440,8 @@ private struct GitFileSection: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .bottom) { Divider() }
+        // A bare Divider over an HStack takes its axis and draws a vertical line.
+        .overlay(alignment: .bottom) { VStack(spacing: 0) { Divider() } }
     }
 
     @ViewBuilder

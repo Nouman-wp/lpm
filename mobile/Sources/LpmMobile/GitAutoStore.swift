@@ -235,7 +235,7 @@ final class GitAutoStore {
                 Haptics.success()
             case .failed:
                 if presented.contains(project) { Haptics.error() }
-                else { model?.git.opError[project] = run.error }
+                else { model?.git.opError[project] = GitOpError(title: "\(run.kind.title) failed", message: run.error) }
             default:
                 break
             }
@@ -264,7 +264,8 @@ final class GitAutoStore {
             return
         }
         if let pullError {
-            model?.git.opError[project] = "Switched to \(base), but pull failed: \(pullError)"
+            model?.git.opError[project] = GitOpError(title: "Pull failed",
+                                                     message: "Switched to \(base), but the pull failed: \(pullError)")
         } else {
             Haptics.success()
         }

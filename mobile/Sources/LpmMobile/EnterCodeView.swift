@@ -43,7 +43,7 @@ struct EnterCodeView: View {
     var body: some View {
         Form {
             Section("Pairing code") {
-                TextField("K7Q4PX", text: $code)
+                TextField("AB12-CD34", text: $code)
                     .font(.system(.title2, design: .monospaced).weight(.semibold))
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()

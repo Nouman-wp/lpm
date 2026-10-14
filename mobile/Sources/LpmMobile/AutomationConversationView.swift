@@ -24,32 +24,28 @@ struct AutomationConversationView: View {
     }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 24) {
-                    ForEach(entries) { entry in
-                        AutomationMessage(entry: entry, isRoot: entry.at == rootAt,
-                                          sourceID: "\(key):\(entry.at)",
-                                          title: job?.displayName ?? "Automation",
-                                          subtitle: project)
-                    }
-                    if let pendingMessage {
-                        AutomationPendingMessage(message: pendingMessage,
-                                                 live: model.automationLiveOutput[key]?.text ?? "")
-                    } else if job?.running == true,
-                              let live = model.automationLiveOutput[key]?.text,
-                              !live.isEmpty {
-                        AutomationLiveMessage(text: live)
-                    }
-                    Color.clear.frame(height: 1).id("automation-bottom")
+        FollowingScrollView(follow: AutomationProgress(entries: entries.count,
+                                                      live: model.automationLiveOutput[key]?.text),
+                            returnToEnd: pendingMessage != nil) {
+            LazyVStack(alignment: .leading, spacing: 24) {
+                ForEach(entries) { entry in
+                    AutomationMessage(entry: entry, isRoot: entry.at == rootAt,
+                                      sourceID: "\(key):\(entry.at)",
+                                      title: job?.displayName ?? "Automation",
+                                      subtitle: project)
                 }
-                .padding(16)
+                if let pendingMessage {
+                    AutomationPendingMessage(message: pendingMessage,
+                                             live: model.automationLiveOutput[key]?.text ?? "")
+                } else if job?.running == true,
+                          let live = model.automationLiveOutput[key]?.text,
+                          !live.isEmpty {
+                    AutomationLiveMessage(text: live)
+                }
             }
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
-            .onAppear { scrollToBottom(proxy, animated: false) }
-            .onChange(of: entries.count) { _, _ in scrollToBottom(proxy, animated: true) }
-            .onChange(of: model.automationLiveOutput[key]?.text) { _, _ in scrollToBottom(proxy, animated: false) }
+            .padding(16)
         }
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
         // The reader sits under the nav bar, not over the composer: it stays put
         // while the conversation scrolls, and the reply field keeps the thumb zone.
         // The band takes the chat's own background so scrolled text doesn't show
@@ -135,12 +131,13 @@ struct AutomationConversationView: View {
         model.sendAutomationFollowup(project: project, jobId: jobId, at: tail.at, message: message,
                                      agent: job.agent, model: job.model, effort: job.effort)
     }
+}
 
-    private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool) {
-        let action = { proxy.scrollTo("automation-bottom", anchor: .bottom) }
-        if animated { withAnimation(.easeOut(duration: 0.2), action) }
-        else { action() }
-    }
+/// What new in a run moves its conversation along: a finished turn, or more of
+/// the live output.
+private struct AutomationProgress: Equatable {
+    let entries: Int
+    let live: String?
 }
 
 private struct AutomationMessage: View {

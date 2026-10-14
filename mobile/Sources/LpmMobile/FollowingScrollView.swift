@@ -10,6 +10,9 @@ private let followSlack: CGFloat = 40
 struct FollowingScrollView<Content: View, Key: Equatable>: View {
     /// Changes whenever new output lands.
     let follow: Key
+    /// Turning true takes the reader back to the end wherever they are, as
+    /// sending a reply does.
+    var returnToEnd = false
     @ViewBuilder let content: () -> Content
 
     @State private var atEnd = true
@@ -33,9 +36,15 @@ struct FollowingScrollView<Content: View, Key: Equatable>: View {
                 }
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewportHeight = $0 }
+            .onAppear { proxy.scrollTo(followBottomID, anchor: .bottom) }
             .onChange(of: follow) { _, _ in
                 guard atEnd else { return }
                 withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(followBottomID, anchor: .bottom) }
+            }
+            .onChange(of: returnToEnd) { _, now in
+                guard now else { return }
+                atEnd = true
+                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(followBottomID, anchor: .bottom) }
             }
         }
     }
