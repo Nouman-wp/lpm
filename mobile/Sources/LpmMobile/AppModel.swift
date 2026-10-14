@@ -969,6 +969,13 @@ final class AppModel {
     /// another saved Mac if one remains — otherwise back to the pairing screen.
     func removeMac(_ id: UUID) {
         if demoMode { exitDemo(); return }
+        // The Mac forgets this phone too. A machine opened through another Mac
+        // connects with that Mac's credential, so removing it sends nothing.
+        if let record = macs.first(where: { $0.localId == id }), record.via == nil,
+           let credential = Keychain.load(for: id) {
+            MacUnpair.send(hosts: record.hosts, port: Int(record.port), credential: credential,
+                           pin: Keychain.loadPin(for: id))
+        }
         endVisit()
         // The machines opened through this Mac go with it: they connect as it.
         let gone = Set([id] + macs.filter { $0.via?.macId == id }.map(\.localId))

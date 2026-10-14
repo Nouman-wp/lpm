@@ -37,6 +37,10 @@ enum Wire {
     static func relay(deviceId: String, token: String, slug: String) -> String {
         json(["t": "relay", "deviceId": deviceId, "token": token, "slug": slug])
     }
+    /// Ask the Mac to forget this phone: the user removed it here.
+    static func unpair(deviceId: String, token: String) -> String {
+        json(["t": "unpair", "deviceId": deviceId, "token": token])
+    }
     static func projects() -> String { json(["t": "projects"]) }
     static func sidebar() -> String { json(["t": "sidebar"]) }
     static func stats(days: Int) -> String { json(["t": "stats", "days": days]) }

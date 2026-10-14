@@ -268,6 +268,25 @@ off — that doesn't end a relayed connection. A Mac that predates `relay` close
 the connection without a reply; the phone only relays to a machine marked
 `relay: true`.
 
+**Unpair** (instead of `auth`, when the user removes this Mac from the phone):
+```json
+{ "t": "unpair", "deviceId": "<uuid>", "token": "<base64 bearer token>" }
+```
+The credential is checked exactly as for `auth`. On a match the Mac deletes the
+device's record — as Revoke in desktop Settings does, dropping any live
+connection for it and its push registration — replies `{ "t": "unpaired" }` and
+closes; an open Settings pane refreshes its device list. A credential with no
+record gets `{ "t": "error", "error": "unauthorized" }`, and a Mac that can't
+save the removal (`remote.json` unreadable or held by another writer) answers
+`{ "t": "error", "error": "unpair unavailable" }` and keeps the record.
+
+The phone sends it on a short-lived connection of its own, on the pinned
+certificate only, and drops its own credential either way: removal never waits
+for the Mac, so a Mac that is off or unreachable — or predates `unpair`, closing
+the connection without a reply — keeps the record until it is revoked there by
+hand. A machine opened [through another Mac](#machines-this-mac-connects-to)
+holds no credential of its own, so removing it sends nothing.
+
 ## Requests (phone → desktop) and their replies
 
 | Request | Reply |

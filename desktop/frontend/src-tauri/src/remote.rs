@@ -1053,6 +1053,12 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
             let _ = ws.flush();
             return;
         }
+        FirstFrame::Unpaired => {
+            let _ = app.emit("remote-devices-changed", ());
+            let _ = ws.close(None);
+            let _ = ws.flush();
+            return;
+        }
     };
     let device_id = match outcome {
         Some(outcome) => {
@@ -1268,6 +1274,9 @@ enum FirstFrame {
         device_id: String,
         slug: String,
     },
+    /// A paired phone that removed this machine from its own list. Its record is
+    /// already gone; only an open Settings pane is left to tell.
+    Unpaired,
 }
 
 /// The optional `replaces` field of a pair frame: the device id this phone was
@@ -1369,6 +1378,27 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
                 ));
                 FirstFrame::Done(None)
             }
+        }
+        Some("unpair") => {
+            let id = v
+                .get("deviceId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let token = v.get("token").and_then(Value::as_str).unwrap_or_default();
+            hub.refresh_devices();
+            let (reply, outcome) = match unpair_device(hub, id, token) {
+                Ok(true) => (json!({ "t": "unpaired" }), FirstFrame::Unpaired),
+                Ok(false) => (
+                    json!({ "t": "error", "error": "unauthorized" }),
+                    FirstFrame::Done(None),
+                ),
+                Err(_) => (
+                    json!({ "t": "error", "error": "unpair unavailable" }),
+                    FirstFrame::Done(None),
+                ),
+            };
+            let _ = ws.send(Message::text(reply.to_string()));
+            outcome
         }
         Some("relay") => {
             let id = v
@@ -6000,6 +6030,11 @@ pub fn remote_start_pairing(app: AppHandle, hub: State<'_, RemoteHub>) -> Result
 
 #[tauri::command(async)]
 pub fn remote_revoke_device(hub: State<'_, RemoteHub>, id: String) -> Result<Value, String> {
+    revoke_device(&hub, &id)?;
+    Ok(state_value(&hub))
+}
+
+fn revoke_device(hub: &RemoteHub, id: &str) -> Result<(), String> {
     hub.try_update_config(|cfg| cfg.devices.retain(|d| d.id != id))?;
     // Drop any live connection for the revoked device (the poll loop also self-
     // exits on its next tick via device_exists).
@@ -6008,7 +6043,19 @@ pub fn remote_revoke_device(hub: State<'_, RemoteHub>, id: String) -> Result<Val
         .lock()
         .unwrap()
         .retain(|_, c| c.device_id != id);
-    Ok(state_value(&hub))
+    Ok(())
+}
+
+/// A phone removing this machine from its list revokes itself, as Revoke in
+/// Settings would, so the record doesn't stay trusted (and pushed to) after the
+/// phone dropped its credential. Only the token it revokes can ask: `false` when
+/// it doesn't match.
+fn unpair_device(hub: &RemoteHub, id: &str, token: &str) -> Result<bool, String> {
+    if !check_device(hub, id, token) {
+        return Ok(false);
+    }
+    revoke_device(hub, id)?;
+    Ok(true)
 }
 
 /// Name a phone on this Mac; an empty name goes back to the phone's own.
@@ -6319,6 +6366,45 @@ mod tests {
             ready.get("platform").and_then(Value::as_str),
             Some(std::env::consts::OS),
             "ready must name the platform too — a phone that resumes never sees `paired`: {ready}"
+        );
+    }
+
+    // A phone that removes this machine takes its record with it, but only with its
+    // own token: a wrong one changes nothing, and the right one leaves the other
+    // phones paired.
+    #[test]
+    fn a_phone_unpairs_itself_with_its_own_token_only() {
+        let _cfg = TestConfig::new();
+        let hub = loaded_hub();
+        let (id, token) = mint_device_persisted(&hub, "phone", None).expect("mint");
+        let (other, _) = mint_device_persisted(&hub, "other", None).expect("mint");
+
+        let refused = first_frame_reply(
+            &hub,
+            json!({ "t": "unpair", "deviceId": id, "token": "not-the-token" }),
+        );
+        assert_eq!(
+            refused.get("error").and_then(Value::as_str),
+            Some("unauthorized")
+        );
+        assert_eq!(device_ids(&hub), vec![id.clone(), other.clone()]);
+
+        let done = first_frame_reply(
+            &hub,
+            json!({ "t": "unpair", "deviceId": id, "token": token }),
+        );
+        assert_eq!(
+            done.get("t").and_then(Value::as_str),
+            Some("unpaired"),
+            "{done}"
+        );
+        assert_eq!(device_ids(&hub), vec![other]);
+        assert_eq!(load_config().devices.len(), 1, "the removal is saved");
+
+        let after = first_frame_reply(&hub, json!({ "t": "auth", "deviceId": id, "token": token }));
+        assert_eq!(
+            after.get("error").and_then(Value::as_str),
+            Some("unauthorized")
         );
     }
 
