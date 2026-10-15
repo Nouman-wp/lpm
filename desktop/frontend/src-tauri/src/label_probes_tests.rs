@@ -10,6 +10,20 @@ fn first_line_skips_blank_lines_and_colors() {
 }
 
 #[test]
+fn first_line_drops_what_a_login_shell_prints_before_the_command() {
+    assert_eq!(
+        first_line(
+            "\u{1b}]1337;RemoteHost=u@mac.local\u{7}\u{1b}]1337;CurrentDir=/x\u{7}154\n"
+        ),
+        "154"
+    );
+    assert_eq!(
+        first_line("\u{1b}]8;;https://x.dev\u{1b}\\v1.2\u{1b}]8;;\u{1b}\\\n"),
+        "v1.2"
+    );
+}
+
+#[test]
 fn first_line_cuts_long_output() {
     let long = "x".repeat(100);
     let line = first_line(&long);

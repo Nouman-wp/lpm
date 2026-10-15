@@ -306,7 +306,8 @@ fn run_with_timeout(mut cmd: Command) -> Option<Vec<u8>> {
     }
 }
 
-/// The first line with text, without terminal colors or control characters,
+/// The first line with text, without terminal escapes (colors, links, the
+/// marks iTerm2's shell integration prints at startup) or control characters,
 /// cut to fit a button.
 pub(crate) fn first_line(out: &str) -> String {
     let line = out
@@ -325,21 +326,32 @@ fn strip_ansi(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {
-        if c == '\u{1b}' {
-            if chars.peek() == Some(&'[') {
-                chars.next();
+        if c != '\u{1b}' {
+            if !c.is_control() {
+                out.push(c);
+            }
+            continue;
+        }
+        match chars.next() {
+            Some('[') => {
                 for c in chars.by_ref() {
                     if ('@'..='~').contains(&c) {
                         break;
                     }
                 }
-            } else {
-                chars.next();
             }
-            continue;
-        }
-        if !c.is_control() {
-            out.push(c);
+            Some(']' | 'P' | 'X' | '^' | '_') => {
+                while let Some(c) = chars.next() {
+                    if c == '\u{7}' {
+                        break;
+                    }
+                    if c == '\u{1b}' {
+                        chars.next_if_eq(&'\\');
+                        break;
+                    }
+                }
+            }
+            _ => {}
         }
     }
     out
