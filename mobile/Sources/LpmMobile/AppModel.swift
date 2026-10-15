@@ -562,16 +562,21 @@ final class AppModel {
     /// `repickHostIfStale` reacts to). If the active Mac has a known identity,
     /// browse the local network for it: a Mac whose LAN address changed (new DHCP
     /// lease, moved networks) re-appears here under the same identity, and we
-    /// migrate the connection to its fresh address. Bounded to a short window and
-    /// re-armed on each slow retry's hint, so it never browses in the background.
+    /// migrate the connection to its fresh address — or reconnect the moment a
+    /// restarted lpm advertises again. Each slow retry's hint extends a short
+    /// window, so the browse spans the wait between retries but never outlives
+    /// them (and stops when the app backgrounds).
     private func startRecoveryIfStale(_ s: LpmClient.State, from c: LpmClient) {
         guard case .failed(let hint) = s, LpmClient.isOfflineHint(hint),
-              c === client, !recovering, !isVisit,
+              c === client, !isVisit,
               let sid = linkRecord?.serverId, !sid.isEmpty else { return }
-        recovering = true
-        recoveryHandled = []
-        discovery.onChange = { [weak self] found in self?.handleDiscovered(found) }
-        discovery.start()
+        if !recovering {
+            recovering = true
+            recoveryHandled = []
+            discovery.onChange = { [weak self] found in self?.handleDiscovered(found) }
+            discovery.start()
+        }
+        recoveryWindow?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.stopBrowsing()

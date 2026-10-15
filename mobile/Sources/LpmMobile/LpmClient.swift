@@ -272,6 +272,10 @@ final class LpmClient: NSObject {
     private let probeTimeout: TimeInterval = 4
     private let baseBackoff: TimeInterval = 1.5
     private let maxBackoff: TimeInterval = 20
+    // A refusal means the Mac answered and only lpm isn't listening (restarting
+    // for an update, or quit), so a retry costs one local round trip and lpm
+    // should be picked up within seconds of coming back.
+    private let refusedMaxBackoff: TimeInterval = 4
     // After a quick retry fails, stop pretending and surface an honest error
     // (while still retrying underneath), so the UI never spins forever. The
     // status bar already says "connecting" after a couple of seconds.
@@ -696,7 +700,8 @@ final class LpmClient: NSObject {
     private func scheduleReconnect(_ reason: String) {
         guard wantConnected, reconnectWork == nil else { return }
         retryAttempt += 1
-        let capped = min(baseBackoff * pow(2, Double(retryAttempt - 1)), maxBackoff)
+        let cap = failureHint == Self.refusedError ? refusedMaxBackoff : maxBackoff
+        let capped = min(baseBackoff * pow(2, Double(retryAttempt - 1)), cap)
         let delay = capped * Double.random(in: 0.85...1.15)
         // Stay hopeful ("connecting") for the first few fast retries; after that,
         // show the honest offline hint while the slow retries continue underneath.
