@@ -2184,6 +2184,14 @@ final class AppModel {
     func fetchServiceLogs(_ project: String, paneIndex: Int, lines: Int = 200) {
         client?.requestServiceLogs(project: project, paneIndex: paneIndex, lines: lines)
     }
+    /// The Mac pushes a watched service's output as it changes; an older one only
+    /// answers `serviceLogs` polls.
+    var canWatchServiceLogs: Bool {
+        client?.hostFeatures.contains(LpmClient.serviceLogsWatchFeature) == true
+    }
+    func watchServiceLogs(_ project: String, paneIndex: Int, _ watch: Bool) {
+        client?.setServiceLogsWatch(project: project, paneIndex: paneIndex, watch: watch)
+    }
     func consumeServiceLogs(_ key: String) {
         serviceLogsResult[key] = nil
         serviceLogsError[key] = nil
@@ -2601,6 +2609,9 @@ final class AppModel {
         c.onStats = { [weak self] stats, error in
             guard let self else { return }
             if let stats {
+                // The usage rows ask for today alone; the echoed period tells their
+                // answer apart from the Stats screen's.
+                if stats.days == 1 { self.usage.applyToday(stats) }
                 // Drop a stale reply from a superseded period — the payload echoes the
                 // period it was scanned for, and only the current one may land.
                 guard stats.days == self.statsDays else { return }
@@ -2608,7 +2619,8 @@ final class AppModel {
                 self.stats = stats
                 self.statsError = nil
                 self.statsLoading = false
-            } else {
+            } else if self.statsLoading {
+                // A failure echoes no period; only a screen waiting on one claims it.
                 self.statsTimeout.cancel("stats")
                 self.statsLoading = false
                 self.statsError = error ?? "Couldn't load stats."

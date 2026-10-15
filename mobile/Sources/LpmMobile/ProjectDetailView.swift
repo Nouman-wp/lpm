@@ -13,6 +13,7 @@ struct ProjectDetail: View {
     @State private var openTerminal: TerminalInfo?
     @State private var activeBgRun: BackgroundRunInfo?
     @State private var logsForService: Service?
+    @State private var usageGap: CGFloat = 0
 
     // Current project object (fresh status/actions) from the store; falls back to
     // the one we were pushed with.
@@ -157,9 +158,17 @@ struct ProjectDetail: View {
                     SectionTitle(text: "Background runs")
                 }
             }
+
+            // Behind the "No Terminals" prompt and the config error there is no
+            // list for the rows to follow.
+            if !isEmpty && live.configError == nil {
+                UsageRowsSection(project: live, topGap: usageGap)
+            }
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(.compact)
+        .restsAtBottom(gap: $usageGap)
+        .feedsUsageRows()
         // Full-space overlay (not a list row): ContentUnavailableView is greedy
         // and inside a row it stretches the row — and its action button — to
         // fill the expanse.

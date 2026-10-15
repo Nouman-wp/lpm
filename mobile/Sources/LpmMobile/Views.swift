@@ -133,6 +133,7 @@ struct ProjectsView: View {
     @State private var openTerminal: TerminalTarget?
     @State private var visiting: MachineVisit?
     @State private var screenWidth: CGFloat = 0
+    @State private var usageGap: CGFloat = 0
 
     private func isExpanded(_ g: ProjectFolder) -> Bool { expandedOverride[g.id] ?? !g.collapsed }
 
@@ -270,7 +271,12 @@ struct ProjectsView: View {
                     Text("Projects open read-only until your Mac is back. Start and Stop wait for it, for up to 2 minutes.")
                 }
             }
+            if !listIsEmpty {
+                UsageRowsSection(topGap: usageGap)
+            }
         }
+        .restsAtBottom(gap: $usageGap)
+        .feedsUsageRows()
         .refreshable { await model.refreshProjects() }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { screenWidth = $0 }
         .task(id: model.macs.count) {

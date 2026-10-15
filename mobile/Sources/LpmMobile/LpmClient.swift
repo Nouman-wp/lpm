@@ -234,6 +234,7 @@ final class LpmClient: NSObject {
     private(set) var lastHeard: Date?
     /// What the Mac said it answers in its `paired`/`ready` frame.
     private(set) var hostFeatures = Set<String>()
+    static let serviceLogsWatchFeature = "serviceLogsWatch"
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -465,7 +466,7 @@ final class LpmClient: NSObject {
             if case .ready = self.state { return }
             self.injectInbound(Wire.json([
                 "t": "ready", "serverId": DemoServer.serverId, "serverName": DemoServer.serverName,
-                "features": [ChunkedUpload.feature],
+                "features": [ChunkedUpload.feature, Self.serviceLogsWatchFeature],
             ]))
         }
     }
@@ -1097,6 +1098,11 @@ final class LpmClient: NSObject {
     func requestServices(project: String) { send(Wire.services(project: project)) }
     func requestServiceLogs(project: String, paneIndex: Int, lines: Int) {
         send(Wire.serviceLogs(project: project, paneIndex: paneIndex, lines: lines))
+    }
+    /// Live like a terminal `sub`: dropped on a dead link rather than replayed,
+    /// since the Mac forgets a connection's watches and the sheet re-watches on ready.
+    func setServiceLogsWatch(project: String, paneIndex: Int, watch: Bool) {
+        sendLive(Wire.serviceLogsWatch(project: project, paneIndex: paneIndex, watch: watch))
     }
     func requestHistoryQuery(project: String?, search: String?, favoritesOnly: Bool,
                              folder: String?, before: (at: Int, seq: Int)?) {
