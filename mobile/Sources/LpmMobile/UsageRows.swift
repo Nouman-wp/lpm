@@ -12,7 +12,7 @@ struct UsageRow: Identifiable {
     /// The account's signed-in email, for the expanded card.
     let subtitle: String?
     let color: Color
-    /// The limit palette when a window is known, the tool's own color when the
+    /// The calm limit tint when a window is known, the tool's own color when the
     /// row only reports what it spent today.
     let fill: Color
     let fraction: Double
@@ -22,6 +22,13 @@ struct UsageRow: Identifiable {
     let detail: String
     let percentText: String
     let windowLabel: String
+    /// "7d" or "5h" beside the reset, naming the window the numbers are about.
+    let windowShort: String
+    /// The other window, drawn as the thin lane under the row's own; nil for a
+    /// row that only reports today's spend and draws a single bar.
+    let lane: UsageLane?
+    /// The other window's name and use, read out in place of its lane.
+    let laneText: String
     let tokens: Int
     let sessions: Int
     let data: ProviderLimits?
@@ -38,6 +45,14 @@ struct UsageRow: Identifiable {
         let count = sessions == 1 ? "1 session" : "\(sessions) sessions"
         return "\(formatTokenCount(tokens)) spent today · \(count)"
     }
+}
+
+/// One window as a lane of a usage row's track.
+struct UsageLane {
+    let fraction: Double
+    let fill: Color
+
+    static let empty = UsageLane(fraction: 0, fill: .clear)
 }
 
 private let usageTools = ["claude", "codex"]
@@ -63,11 +78,12 @@ func usageRows(_ snapshot: LimitsSnapshot?, today: AgentStats?, accounts: [Claud
         let provider: String
         let identity: UsageIdentity
         let split: Bool
-        let win: LimitWindow?
-        let windowLabel: String
-        let windowMs: Double
+        let picked: PickedWindow
+        let other: PickedWindow
         let tokens: Int
         let sessions: Int
+
+        var win: LimitWindow? { picked.win }
     }
 
     var candidates: [Candidate] = []
@@ -80,7 +96,7 @@ func usageRows(_ snapshot: LimitsSnapshot?, today: AgentStats?, accounts: [Claud
         for identity in identities {
             let picked = pickWindow(identity.data, now: now)
             let candidate = Candidate(provider: provider, identity: identity, split: split,
-                                      win: picked.win, windowLabel: picked.label, windowMs: picked.windowMs,
+                                      picked: picked.main, other: picked.other,
                                       tokens: spent?.tokens.totalTokens ?? 0, sessions: spent?.sessions ?? 0)
             // An account row stays even with nothing to show — a row that vanished
             // when an account went idle would read as the account being gone.
@@ -107,20 +123,24 @@ func usageRows(_ snapshot: LimitsSnapshot?, today: AgentStats?, accounts: [Claud
         } else {
             detail = c.tokens > 0 ? "\(formatTokenCount(c.tokens)) today" : "—"
         }
-        let pace = computePace(c.win, windowMs: c.windowMs, now: now).map { $0.elapsedPercent / 100 }
+        let pace = computePace(c.win, windowMs: c.picked.windowMs, now: now).map { $0.elapsedPercent / 100 }
         let data = c.identity.data
+        let otherUsed = c.other.win.map { $0.usedPercent.isFinite ? $0.usedPercent : 0 }
         return UsageRow(
             id: c.identity.id,
             provider: c.provider,
             label: c.split ? c.identity.name : meta.short,
             subtitle: c.split ? c.identity.subtitle : nil,
             color: meta.color,
-            fill: used.map { barTint(max(0, min(100, $0))) } ?? meta.color,
+            fill: c.win == nil ? meta.color : laneTint,
             fraction: fraction,
             pace: c.win == nil ? nil : pace,
             detail: detail,
             percentText: used.map { "\(Int($0.rounded()))%" } ?? "",
-            windowLabel: c.win == nil ? "" : c.windowLabel,
+            windowLabel: c.win == nil ? "" : c.picked.label,
+            windowShort: c.win == nil ? "" : c.picked.short,
+            lane: c.win != nil || c.tokens == 0 ? laneFor(c.other.win) : nil,
+            laneText: otherUsed.map { "\(c.other.label) \(Int($0.rounded()))% used" } ?? "",
             tokens: c.tokens,
             sessions: c.sessions,
             data: data,
@@ -167,13 +187,32 @@ private func claudeIdentities(_ entries: [ProviderLimits], accounts: [ClaudeAcco
     }
 }
 
+private struct PickedWindow {
+    let win: LimitWindow?
+    let label: String
+    let short: String
+    let windowMs: Double
+}
+
 /// The weekly window — the one that actually runs out on people, and the
-/// desktop sidebar's default — falling back to the 5-hour one. A window past its
-/// reset describes one that no longer exists and is left out.
-private func pickWindow(_ data: ProviderLimits?, now: Double) -> (win: LimitWindow?, label: String, windowMs: Double) {
-    guard let data else { return (nil, "", 0) }
-    if let weekly = liveWindow(data.weekly, now: now) { return (weekly, "weekly", weeklyMs) }
-    return (liveWindow(data.fiveHour, now: now), "5-hour", fiveHourMs)
+/// desktop sidebar's default — falling back to the 5-hour one, and the other
+/// one for the row's lower lane. A window past its reset describes one that no
+/// longer exists and is left out.
+private func pickWindow(_ data: ProviderLimits?, now: Double) -> (main: PickedWindow, other: PickedWindow) {
+    let weekly = PickedWindow(win: liveWindow(data?.weekly, now: now), label: "weekly", short: "7d", windowMs: weeklyMs)
+    let fiveHour = PickedWindow(win: liveWindow(data?.fiveHour, now: now), label: "5-hour", short: "5h",
+                                windowMs: fiveHourMs)
+    return weekly.win != nil ? (weekly, fiveHour) : (fiveHour, weekly)
+}
+
+/// Usage lanes keep one calm tint however full they get; the percent and the
+/// expanded card say how close a window is to its limit.
+private let laneTint = barTint(0)
+
+private func laneFor(_ win: LimitWindow?) -> UsageLane {
+    guard let win else { return .empty }
+    let used = max(0, min(100, win.usedPercent.isFinite ? win.usedPercent : 0))
+    return UsageLane(fraction: used / 100, fill: laneTint)
 }
 
 private func liveWindow(_ win: LimitWindow?, now: Double) -> LimitWindow? {

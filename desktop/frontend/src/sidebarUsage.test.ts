@@ -69,10 +69,10 @@ describe("usageRows", () => {
     expect(claude.detail).toBe("1d 2h");
   });
 
-  it("colours the bar by how much of the window is gone", () => {
+  it("keeps the bar one calm colour however full the window is", () => {
     const [claude, codex] = usageRows(limits, null, NOW, { window: "fiveHour" });
     expect(claude.fill).toBe("var(--accent-cyan)");
-    expect(codex.fill).toBe("var(--accent-red)");
+    expect(codex.fill).toBe("var(--accent-cyan)");
   });
 
   it("marks where even use would put the window by now", () => {
@@ -122,6 +122,51 @@ describe("usageRows", () => {
 
     const [higher] = usageRows(limits, null, NOW, { window: "higher" });
     expect(higher.percent).toBe(88);
+  });
+
+  it("draws the other window in the lower lane", () => {
+    const [weekly] = usageRows(limits, null, NOW);
+    expect(weekly.windowShort).toBe("7d");
+    expect(weekly.lane).toEqual({ fraction: 0.34, fill: "var(--accent-cyan)" });
+    expect(weekly.laneText).toBe("5-hour 34% used");
+
+    const [fiveHour] = usageRows(limits, null, NOW, { window: "fiveHour" });
+    expect(fiveHour.windowShort).toBe("5h");
+    expect(fiveHour.lane?.fraction).toBeCloseTo(0.88);
+    expect(fiveHour.lane?.fill).toBe("var(--accent-cyan)");
+    expect(fiveHour.laneText).toBe("weekly 88% used");
+  });
+
+  it("keeps both lanes calm however full their windows are", () => {
+    const [weekly, fiveHour] = usageRows(
+      {
+        claude: {
+          provider: "claude",
+          fiveHour: { usedPercent: 99, resetsAt: IN_TWO_HOURS },
+          weekly: { usedPercent: 96, resetsAt: IN_TWO_HOURS + 86_400 },
+          updatedAt: NOW,
+        },
+        codex: {
+          provider: "codex",
+          fiveHour: { usedPercent: 85, resetsAt: IN_TWO_HOURS },
+          weekly: { usedPercent: 98, resetsAt: IN_TWO_HOURS + 86_400 },
+          updatedAt: NOW,
+        },
+      },
+      null,
+      NOW,
+    );
+    expect(weekly.fill).toBe("var(--accent-cyan)");
+    expect(weekly.lane?.fill).toBe("var(--accent-cyan)");
+    expect(fiveHour.fill).toBe("var(--accent-cyan)");
+    expect(fiveHour.lane?.fill).toBe("var(--accent-cyan)");
+  });
+
+  it("leaves the lower lane empty when the other window is missing", () => {
+    const codex = usageRows(limits, null, NOW)[1];
+    expect(codex.windowShort).toBe("5h");
+    expect(codex.lane).toEqual({ fraction: 0, fill: "" });
+    expect(codex.laneText).toBe("");
   });
 
   it("falls back to the other window when the chosen one is missing", () => {
@@ -201,6 +246,8 @@ describe("usageRows", () => {
     const [row] = usageRows({}, stats([["claude", 2_000_000]]), NOW);
     expect(row.percentText).toBe("");
     expect(row.detail).toBe("2.0M today");
+    expect(row.windowShort).toBe("");
+    expect(row.lane).toBeNull();
   });
 
   it("drops a window that is already past its reset", () => {

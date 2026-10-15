@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// One tool's usage card: who it is, when it last reported, and its 5-hour and
-/// weekly meters. A card whose numbers have gone stale keeps showing them, just
+/// One tool's usage card: who it is, when it last reported, and its weekly and
+/// 5-hour meters. A card whose numbers have gone stale keeps showing them, just
 /// dimmed, so the reading is never silently replaced by nothing.
 struct UsageProviderCardView: View {
     let data: ProviderLimits
@@ -26,16 +26,16 @@ struct UsageProviderCardView: View {
 
             VStack(spacing: 18) {
                 UsageMeterView(
-                    label: "5-hour",
-                    win: data.fiveHour,
-                    windowMs: fiveHourMs,
+                    label: "Weekly",
+                    win: data.weekly,
+                    windowMs: weeklyMs,
                     now: now,
                     stale: stale
                 )
                 UsageMeterView(
-                    label: "Weekly",
-                    win: data.weekly,
-                    windowMs: weeklyMs,
+                    label: "5-hour",
+                    win: data.fiveHour,
+                    windowMs: fiveHourMs,
                     now: now,
                     stale: stale
                 )

@@ -17,15 +17,19 @@ interface UsageProviderCardProps {
   /** Extra line under the meters — the sidebar's popover adds the day's spend,
    *  which the windows themselves do not carry. */
   footer?: ReactNode;
+  /** One meter under the other, for the sidebar's narrow hover card. */
+  stacked?: boolean;
 }
 
-export function UsageProviderCard({ data, now, title, subtitle, footer }: UsageProviderCardProps) {
+export function UsageProviderCard({ data, now, title, subtitle, footer, stacked = false }: UsageProviderCardProps) {
   const meta = providerMeta(data.provider);
   const stale = now - data.updatedAt > STALE_MS;
 
   return (
     <section className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-      <header className="flex items-center gap-2 border-b border-[var(--border)]/50 pb-3">
+      <header
+        className={`flex items-center gap-2 border-b border-[var(--border)]/50 pb-3 ${stacked ? "flex-wrap gap-y-1" : ""}`}
+      >
         <span
           aria-hidden="true"
           className="h-2 w-2 shrink-0 rounded-full"
@@ -35,7 +39,11 @@ export function UsageProviderCard({ data, now, title, subtitle, footer }: UsageP
           {title}
         </span>
         {subtitle && (
-          <span className="min-w-0 truncate text-[11px] text-[var(--text-muted)]">{subtitle}</span>
+          <span
+            className={`min-w-0 truncate text-[11px] text-[var(--text-muted)] ${stacked ? "order-last basis-full pl-4" : ""}`}
+          >
+            {subtitle}
+          </span>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {data.label && (
@@ -52,18 +60,18 @@ export function UsageProviderCard({ data, now, title, subtitle, footer }: UsageP
         </div>
       </header>
 
-      <div className="grid grid-cols-2 gap-x-6 gap-y-5 pt-4">
-        <UsageMeter
-          label="5-hour"
-          win={data.fiveHour}
-          windowMs={FIVE_HOUR_MS}
-          now={now}
-          stale={stale}
-        />
+      <div className={`grid gap-x-6 gap-y-5 pt-4 ${stacked ? "grid-cols-1" : "grid-cols-2"}`}>
         <UsageMeter
           label="Weekly"
           win={data.weekly}
           windowMs={WEEKLY_MS}
+          now={now}
+          stale={stale}
+        />
+        <UsageMeter
+          label="5-hour"
+          win={data.fiveHour}
+          windowMs={FIVE_HOUR_MS}
           now={now}
           stale={stale}
         />

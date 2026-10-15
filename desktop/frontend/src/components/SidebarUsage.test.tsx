@@ -126,6 +126,14 @@ describe("SidebarUsage", () => {
     expect(rows[1].textContent).toContain("12%");
   });
 
+  it("names the window it reads and the 5-hour use under it", async () => {
+    await render();
+
+    const [claude] = [...container.querySelectorAll("button")];
+    expect(claude.textContent).toContain("7d");
+    expect(claude.querySelector(".sr-only")?.textContent).toBe("5-hour 34% used");
+  });
+
   it("switches to the 5-hour window when that is the setting", async () => {
     useSettingsStore.setState({ usageSidebarWindow: "fiveHour" });
     await render();

@@ -31,6 +31,12 @@ export interface UsageAccount {
   email?: string;
 }
 
+/** One window as a lane of a row's track. */
+export interface UsageLane {
+  fraction: number;
+  fill: string;
+}
+
 export interface UsageRow {
   /** Row identity — the account for a Claude row, the tool otherwise. Rows are
    *  keyed and hovered by this, so it is unique within a render. */
@@ -41,7 +47,7 @@ export interface UsageRow {
   subtitle?: string;
   /** Dot colour — the tool's own, so a row is identifiable before it is read. */
   color: string;
-  /** Bar colour: the limit palette when a window is known, the tool's own
+  /** Bar colour: the calm limit tint when a window is known, the tool's own
    *  colour when the row is only reporting what it spent. */
   fill: string;
   fraction: number;
@@ -54,6 +60,13 @@ export interface UsageRow {
   /** How much of the window is gone, empty for a row with no window. */
   percentText: string;
   windowLabel: string;
+  /** "7d" or "5h" beside the reset, naming the window the numbers are about. */
+  windowShort: string;
+  /** The other window, drawn as the thin lane under the row's own; null for a
+   *  row that only reports the day's spend and draws a single bar. */
+  lane: UsageLane | null;
+  /** The other window's name and use, read out in place of its lane. */
+  laneText: string;
   percent: number | null;
   tokens: number;
   sessions: number;
@@ -152,22 +165,49 @@ function paceTick(win: LimitWindow | undefined, windowMs: number, now: number): 
   return pace ? pace.elapsedPercent / 100 : null;
 }
 
+interface PickedWindow {
+  win?: LimitWindow;
+  windowLabel: string;
+  windowShort: string;
+  windowMs: number;
+}
+
+/** The window the row's numbers are about, and the other one for its lower lane. */
 function pickWindow(
   data: ProviderLimits | undefined,
   choice: UsageWindowChoice,
   now: number,
-): { win?: LimitWindow; windowLabel: string; windowMs: number } {
-  if (!data) return { win: undefined, windowLabel: "", windowMs: 0 };
-  const fiveHour = live(data.fiveHour, now);
-  const weekly = live(data.weekly, now);
-  const five = { win: fiveHour, windowLabel: "5-hour", windowMs: FIVE_HOUR_MS };
-  const week = { win: weekly, windowLabel: "weekly", windowMs: WEEKLY_MS };
-  if (choice === "weekly") return weekly ? week : five;
-  if (choice === "higher") {
-    if (fiveHour && weekly) return weekly.usedPercent > fiveHour.usedPercent ? week : five;
-    return fiveHour ? five : week;
+): PickedWindow & { other: PickedWindow } {
+  const five: PickedWindow = {
+    win: live(data?.fiveHour, now),
+    windowLabel: "5-hour",
+    windowShort: "5h",
+    windowMs: FIVE_HOUR_MS,
+  };
+  const week: PickedWindow = {
+    win: live(data?.weekly, now),
+    windowLabel: "weekly",
+    windowShort: "7d",
+    windowMs: WEEKLY_MS,
+  };
+  const lead = (main: PickedWindow, other: PickedWindow) => ({ ...main, other });
+  if (choice === "weekly") return week.win ? lead(week, five) : lead(five, week);
+  if (choice === "higher" && five.win && week.win) {
+    return week.win.usedPercent > five.win.usedPercent ? lead(week, five) : lead(five, week);
   }
-  return fiveHour ? five : week;
+  return five.win ? lead(five, week) : lead(week, five);
+}
+
+/** Sidebar lanes keep one calm tint however full they get; the percent and the
+ *  hover card say how close a window is to its limit. */
+const LANE_FILL = barColor(0);
+
+function laneFor(win: LimitWindow | undefined): UsageLane {
+  return win ? { fraction: usedFraction(win), fill: LANE_FILL } : { fraction: 0, fill: "" };
+}
+
+function usedFraction(win: LimitWindow): number {
+  return Math.max(0, Math.min(100, win.usedPercent)) / 100;
 }
 
 function spend(stats: AgentUsageStats | null | undefined, provider: string) {
@@ -227,18 +267,15 @@ export function usageRows(
   return candidates.map((row) => {
     const meta = providerMeta(row.provider);
     const win = row.win;
+    const other = row.other.win;
     return {
       id: row.id,
       provider: row.provider,
       label: row.label,
       subtitle: row.subtitle,
       color: meta.color,
-      fill: win ? barColor(win.usedPercent) : meta.color,
-      fraction: win
-        ? Math.max(0, Math.min(100, win.usedPercent)) / 100
-        : peak > 0
-          ? row.tokens / peak
-          : 0,
+      fill: win ? LANE_FILL : meta.color,
+      fraction: win ? usedFraction(win) : peak > 0 ? row.tokens / peak : 0,
       pace: paceTick(win, row.windowMs, now),
       // Just the duration — "resets in" costs half the row and the hover card
       // spells it out anyway. The day's spend keeps its unit, which is the word
@@ -250,6 +287,9 @@ export function usageRows(
           : "—",
       percentText: win ? fmtPct(win.usedPercent) : "",
       windowLabel: win ? row.windowLabel : "",
+      windowShort: win ? row.windowShort : "",
+      lane: win || row.tokens === 0 ? laneFor(other) : null,
+      laneText: other ? `${row.other.windowLabel} ${fmtPct(other.usedPercent)} used` : "",
       percent: win ? win.usedPercent : null,
       tokens: row.tokens,
       sessions: row.sessions,
@@ -286,7 +326,7 @@ export function accountMeters(limits: AgentLimitsMap, accountId: string, now: nu
       ? [
           {
             label,
-            fraction: Math.max(0, Math.min(100, win.usedPercent)) / 100,
+            fraction: usedFraction(win),
             fill: barColor(win.usedPercent),
             pace: paceTick(win, windowMs, now),
             percent: win.usedPercent,

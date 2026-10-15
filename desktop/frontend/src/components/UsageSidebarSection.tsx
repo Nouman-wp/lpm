@@ -120,7 +120,7 @@ export function UsageSidebarSection({ tokensToday }: { tokensToday: number }) {
       </OptionRow>
       <OptionRow
         title="Which window"
-        description="Each line shows a single number; pick which one it is."
+        description="Each line's numbers and its upper bar follow this window; the other one is the thin bar under it."
         disabled={!enabled}
       >
         <SegmentedControl

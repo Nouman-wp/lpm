@@ -10,9 +10,9 @@ import { useAppStore } from "../store/app";
 import { useSettingsStore } from "../store/settings";
 import { usageSidebarTools, usageSidebarWindow } from "./usageSidebarSettings";
 import { displayNameForProjectName } from "./ProjectNameDisplay";
-import { PaceTick } from "./PaceTick";
 import { SidebarUsageAccountMenu } from "./SidebarUsageAccountMenu";
 import { SidebarUsagePopover } from "./SidebarUsagePopover";
+import { UsageLanes } from "./UsageLanes";
 import { UsageProviderCard } from "./UsageProviderCard";
 import { Tooltip } from "./ui/Tooltip";
 
@@ -69,7 +69,12 @@ function RowBody({ row, note }: { row: UsageRow; note?: AccountNote }) {
             <span className="sr-only">{note.text}</span>
           </>
         )}
-        <span className="ml-auto min-w-0 truncate text-[10px] tabular-nums text-[var(--text-muted)]">
+        {row.windowShort && (
+          <span className="ml-auto shrink-0 text-[10px] text-[var(--text-muted)]">{row.windowShort}</span>
+        )}
+        <span
+          className={`${row.windowShort ? "" : "ml-auto "}min-w-0 truncate text-[10px] tabular-nums text-[var(--text-muted)]`}
+        >
           {row.detail}
         </span>
         {row.percentText && (
@@ -81,27 +86,26 @@ function RowBody({ row, note }: { row: UsageRow; note?: AccountNote }) {
             {row.percentText}
           </span>
         )}
+        {row.laneText && <span className="sr-only">{row.laneText}</span>}
       </span>
-      <span className="relative block">
+      {row.lane ? (
+        <UsageLanes upper={row} pace={row.pace} lower={row.lane} dim={row.stale} />
+      ) : (
         <span className="block h-[3px] w-full overflow-hidden rounded-full bg-[var(--bg-active)]">
           <span
             className="block h-full rounded-full transition-[width] duration-500"
-            style={{
-              width: `${width}%`,
-              backgroundColor: row.fill,
-              opacity: row.stale ? 0.4 : 1,
-            }}
+            style={{ width: `${width}%`, backgroundColor: row.fill, opacity: row.stale ? 0.4 : 1 }}
           />
         </span>
-        {row.pace !== null && <PaceTick at={row.pace} dim={row.stale} />}
-      </span>
+      )}
     </>
   );
 }
 
 // Live plan usage in the sidebar footer: one line per agent CLI — or per Claude
 // account, since each carries its own plan — with when its window comes back,
-// over a bar of how much of it is gone. A tool that has no window yet falls back
+// over a two-lane bar of how much of that window and the other one is gone (the
+// thin lower lane). A tool that has no window yet falls back
 // to what it spent today, so a row never goes blank. Hovering a row opens the
 // same card the Usage window shows. With more than one Claude account listed,
 // the selected project's account carries an "in use" tag and the rest of its
@@ -229,6 +233,7 @@ export function SidebarUsage({ onOpen }: { onOpen: () => void }) {
                   now={now}
                   title={row.label}
                   subtitle={row.subtitle}
+                  stacked
                   footer={
                     note || spent ? (
                       <span className="flex flex-col gap-1">

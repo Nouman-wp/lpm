@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 
 const GAP = 8;
 const MARGIN = 8;
-export const USAGE_POPOVER_WIDTH = 460;
+export const USAGE_POPOVER_WIDTH = 360;
 
 /** Floats the full usage card beside a sidebar row. Portaled so the sidebar's
  *  own scrolling and stacking cannot clip it, and measured before it is shown

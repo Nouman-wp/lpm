@@ -2,7 +2,8 @@ import SwiftUI
 
 /// One usage row, as the desktop sidebar draws it: the tool's dot, the account's
 /// name and tag, when its window comes back and how much of it is gone, over a
-/// bar with its pace tick. Tapping opens what the desktop shows on hover — both
+/// two-lane bar: that window above with its pace tick, the other one below.
+/// Tapping opens what the desktop shows on hover — both
 /// windows, the plan, who uses the account and the day's spend — and, on a
 /// project's screen, switching that project to the account.
 struct UsageRowView: View {
@@ -21,7 +22,12 @@ struct UsageRowView: View {
             Button(action: toggle) {
                 VStack(alignment: .leading, spacing: 9) {
                     header
-                    UsagePaceBar(fraction: row.fraction, fill: row.fill, pace: row.pace, dim: row.stale)
+                    if let lane = row.lane {
+                        UsageLanesView(upper: UsageLane(fraction: row.fraction, fill: row.fill), pace: row.pace,
+                                       lower: lane, dim: row.stale)
+                    } else {
+                        UsagePaceBar(fraction: row.fraction, fill: row.fill, pace: row.pace, dim: row.stale)
+                    }
                 }
                 .padding(.vertical, 6)
                 .contentShape(Rectangle())
@@ -69,6 +75,11 @@ struct UsageRowView: View {
                 UsageAccountTag(mark: mark)
             }
             Spacer(minLength: 4)
+            if !row.windowShort.isEmpty {
+                Text(row.windowShort)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
             Text(row.detail)
                 .font(.footnote)
                 .monospacedDigit()
@@ -110,6 +121,7 @@ struct UsageRowView: View {
 
     private var accessibilityValue: String {
         guard !row.percentText.isEmpty else { return row.detail }
-        return "\(row.percentText) of the \(row.windowLabel) window used, resets in \(row.detail)"
+        let main = "\(row.percentText) of the \(row.windowLabel) window used, resets in \(row.detail)"
+        return row.laneText.isEmpty ? main : "\(main); \(row.laneText)"
     }
 }
