@@ -1,8 +1,8 @@
 import type { LimitWindow } from "../hooks/useAgentLimits";
 import {
-  barColor,
   computePace,
   durationShort,
+  paceFill,
   paceLabel,
   resetAbsolute,
   resetText,
@@ -103,7 +103,7 @@ export function UsageMeter({ label, win, windowMs, now, stale }: UsageMeterProps
             className="h-full rounded-full"
             style={{
               width: `${hasData ? barPct : 0}%`,
-              backgroundColor: barColor(barPct),
+              background: paceFill(hasData ? barPct : 0, showTick ? pace.elapsedPercent : null),
               opacity: stale ? 0.4 : 1,
               transition: reducedMotion ? "none" : "width 700ms ease-out",
             }}

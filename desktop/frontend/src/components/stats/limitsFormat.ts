@@ -92,6 +92,19 @@ export function paceLabel(pace: Pace | null): string {
   }
 }
 
+/** The one tint usage bars are drawn in, however full they get. */
+export const USAGE_FILL = "var(--accent-cyan)";
+const AHEAD_FILL = "var(--accent-red)";
+
+/** A usage bar's background: `fill`, turning red from the pace tick on — the
+ *  use that came faster than even pace. `width` and `pace` are percents of the
+ *  whole bar; `pace` is null for a bar without a tick. */
+export function paceFill(width: number, pace: number | null, fill = USAGE_FILL): string {
+  if (pace === null || width <= 0 || pace >= width) return fill;
+  const at = ((pace / width) * 100).toFixed(2);
+  return `linear-gradient(to right, ${fill} 0 ${at}%, ${AHEAD_FILL} ${at}%)`;
+}
+
 export function barColor(pct: number): string {
   if (pct >= 95) return "var(--accent-red)";
   if (pct >= 80) return "var(--accent-amber)";

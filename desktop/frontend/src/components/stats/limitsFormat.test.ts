@@ -6,6 +6,7 @@ import {
   asOfText,
   computePace,
   durationShort,
+  paceFill,
   paceLabel,
   providerMeta,
   resetDurationShort,
@@ -371,5 +372,23 @@ describe("providerMeta", () => {
 
   it("falls back for an unknown provider", () => {
     expect(providerMeta("aider")).toEqual({ label: "aider", dot: "var(--text-muted)" });
+  });
+});
+
+describe("paceFill", () => {
+  it("stays one tint while the bar is behind its pace tick", () => {
+    expect(paceFill(20, 39)).toBe("var(--accent-cyan)");
+    expect(paceFill(50, 50)).toBe("var(--accent-cyan)");
+  });
+
+  it("turns red from the tick on when the bar runs past it", () => {
+    expect(paceFill(80, 60)).toBe(
+      "linear-gradient(to right, var(--accent-cyan) 0 75.00%, var(--accent-red) 75.00%)",
+    );
+  });
+
+  it("keeps a bar without a tick in one tint", () => {
+    expect(paceFill(98, null)).toBe("var(--accent-cyan)");
+    expect(paceFill(0, 40)).toBe("var(--accent-cyan)");
   });
 });

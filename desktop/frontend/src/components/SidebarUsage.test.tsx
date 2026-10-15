@@ -126,6 +126,51 @@ describe("SidebarUsage", () => {
     expect(rows[1].textContent).toContain("12%");
   });
 
+  it("lists the card's windows in the row's order", async () => {
+    const labels = async () => {
+      const [claude] = [...container.querySelectorAll("button")];
+      await act(async () => {
+        claude.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+        vi.advanceTimersByTime(300);
+      });
+      const text = document.body.querySelector('[role="tooltip"]')!.textContent ?? "";
+      await act(async () => {
+        claude.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+      });
+      return [text.indexOf("Weekly"), text.indexOf("5-hour")];
+    };
+
+    await render();
+    const [weekly, fiveHour] = await labels();
+    expect(weekly).toBeLessThan(fiveHour);
+
+    useSettingsStore.setState({ usageSidebarWindow: "fiveHour" });
+    await render();
+    const [weeklyAfter, fiveHourAfter] = await labels();
+    expect(fiveHourAfter).toBeLessThan(weeklyAfter);
+  });
+
+  it("draws the use past the pace tick in red", async () => {
+    const nowS = Math.floor(Date.now() / 1000);
+    mocks.agentLimits.mockResolvedValue({
+      claude: {
+        provider: "claude",
+        weekly: { usedPercent: 98, resetsAt: nowS + 15 * 60 * 60 },
+        updatedAt: Date.now(),
+      },
+      codex: {
+        provider: "codex",
+        weekly: { usedPercent: 20, resetsAt: nowS + 102 * 60 * 60 },
+        updatedAt: Date.now(),
+      },
+    });
+    await render();
+
+    const [ahead, behind] = [...container.querySelectorAll<HTMLElement>('[data-lane="upper"]')];
+    expect(ahead.style.background).toContain("var(--accent-red)");
+    expect(behind.style.background).not.toContain("var(--accent-red)");
+  });
+
   it("names the window it reads and the 5-hour use under it", async () => {
     await render();
 

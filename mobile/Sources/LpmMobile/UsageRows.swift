@@ -132,7 +132,7 @@ func usageRows(_ snapshot: LimitsSnapshot?, today: AgentStats?, accounts: [Claud
             label: c.split ? c.identity.name : meta.short,
             subtitle: c.split ? c.identity.subtitle : nil,
             color: meta.color,
-            fill: c.win == nil ? meta.color : laneTint,
+            fill: c.win == nil ? meta.color : usageTint,
             fraction: fraction,
             pace: c.win == nil ? nil : pace,
             detail: detail,
@@ -205,14 +205,10 @@ private func pickWindow(_ data: ProviderLimits?, now: Double) -> (main: PickedWi
     return weekly.win != nil ? (weekly, fiveHour) : (fiveHour, weekly)
 }
 
-/// Usage lanes keep one calm tint however full they get; the percent and the
-/// expanded card say how close a window is to its limit.
-private let laneTint = barTint(0)
-
 private func laneFor(_ win: LimitWindow?) -> UsageLane {
     guard let win else { return .empty }
     let used = max(0, min(100, win.usedPercent.isFinite ? win.usedPercent : 0))
-    return UsageLane(fraction: used / 100, fill: laneTint)
+    return UsageLane(fraction: used / 100, fill: usageTint)
 }
 
 private func liveWindow(_ win: LimitWindow?, now: Double) -> LimitWindow? {

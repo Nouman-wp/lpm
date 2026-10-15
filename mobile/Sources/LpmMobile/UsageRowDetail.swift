@@ -23,7 +23,8 @@ struct UsageRowDetail: View {
             if let data = row.data {
                 UsageProviderCardView(data: data, now: now, macNow: macNow,
                                       title: row.label, subtitle: row.subtitle,
-                                      footer: footer, fill: Color(.tertiarySystemGroupedBackground))
+                                      footer: footer, fill: Color(.tertiarySystemGroupedBackground),
+                                      fiveHourFirst: row.windowShort == "5h")
             } else {
                 waiting
             }

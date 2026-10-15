@@ -96,9 +96,9 @@ struct UsageMeterView: View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule().fill(Color(.tertiarySystemFill))
-                Capsule()
-                    .fill(meter.barColor)
-                    .frame(width: meter.barFraction * geo.size.width)
+                UsageFill(width: meter.barFraction * geo.size.width,
+                          aheadFrom: meter.showTick ? meter.elapsedFraction * geo.size.width : nil,
+                          cornerRadius: 3)
                     .opacity(stale ? 0.4 : 1)
                 if meter.showTick {
                     Rectangle()
@@ -169,7 +169,6 @@ struct UsageMeterView: View {
             verdict: verdict,
             verdictColor: verdictColor(pace?.verdict, expired: expired),
             barFraction: hasData ? clamped / 100 : 0,
-            barColor: barTint(clamped),
             elapsedFraction: elapsedFraction,
             showTick: showTick,
             resetLine: resetLine,
@@ -194,7 +193,6 @@ private struct MeterState {
     let verdict: String
     let verdictColor: Color
     let barFraction: Double
-    let barColor: Color
     let elapsedFraction: Double
     let showTick: Bool
     let resetLine: String

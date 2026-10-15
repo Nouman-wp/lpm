@@ -3,8 +3,8 @@ import { formatTokenCount } from "./agentUsageFormat";
 import {
   FIVE_HOUR_MS,
   STALE_MS,
+  USAGE_FILL,
   WEEKLY_MS,
-  barColor,
   computePace,
   fmtPct,
   resetDurationShort,
@@ -198,12 +198,8 @@ function pickWindow(
   return five.win ? lead(five, week) : lead(week, five);
 }
 
-/** Sidebar lanes keep one calm tint however full they get; the percent and the
- *  hover card say how close a window is to its limit. */
-const LANE_FILL = barColor(0);
-
 function laneFor(win: LimitWindow | undefined): UsageLane {
-  return win ? { fraction: usedFraction(win), fill: LANE_FILL } : { fraction: 0, fill: "" };
+  return win ? { fraction: usedFraction(win), fill: USAGE_FILL } : { fraction: 0, fill: "" };
 }
 
 function usedFraction(win: LimitWindow): number {
@@ -274,7 +270,7 @@ export function usageRows(
       label: row.label,
       subtitle: row.subtitle,
       color: meta.color,
-      fill: win ? LANE_FILL : meta.color,
+      fill: win ? USAGE_FILL : meta.color,
       fraction: win ? usedFraction(win) : peak > 0 ? row.tokens / peak : 0,
       pace: paceTick(win, row.windowMs, now),
       // Just the duration — "resets in" costs half the row and the hover card
@@ -327,7 +323,7 @@ export function accountMeters(limits: AgentLimitsMap, accountId: string, now: nu
           {
             label,
             fraction: usedFraction(win),
-            fill: barColor(win.usedPercent),
+            fill: USAGE_FILL,
             pace: paceTick(win, windowMs, now),
             percent: win.usedPercent,
             percentText: fmtPct(win.usedPercent),

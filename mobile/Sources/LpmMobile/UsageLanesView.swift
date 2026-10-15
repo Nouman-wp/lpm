@@ -20,7 +20,7 @@ struct UsageLanesView: View {
         GeometryReader { geo in
             let width = geo.size.width
             VStack(spacing: gap) {
-                lane(upper, height: upperHeight, width: width)
+                lane(upper, height: upperHeight, width: width, aheadFrom: pace)
                 lane(lower, height: lowerHeight, width: width)
             }
             .clipShape(Capsule())
@@ -39,12 +39,11 @@ struct UsageLanesView: View {
         .frame(height: upperHeight + gap + lowerHeight)
     }
 
-    private func lane(_ lane: UsageLane, height: CGFloat, width: CGFloat) -> some View {
+    private func lane(_ lane: UsageLane, height: CGFloat, width: CGFloat, aheadFrom pace: Double? = nil) -> some View {
         ZStack(alignment: .leading) {
             Rectangle().fill(Color(.tertiarySystemFill))
-            RoundedRectangle(cornerRadius: height / 2)
-                .fill(lane.fill)
-                .frame(width: fillWidth(lane.fraction, width: width))
+            UsageFill(width: fillWidth(lane.fraction, width: width), aheadFrom: pace.map { CGFloat($0) * width },
+                      cornerRadius: height / 2, tint: lane.fill)
                 .opacity(dim ? 0.4 : 1)
         }
         .frame(height: height)

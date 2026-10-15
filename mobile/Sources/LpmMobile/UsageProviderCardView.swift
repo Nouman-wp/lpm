@@ -15,6 +15,8 @@ struct UsageProviderCardView: View {
     /// account and the day's spend, which the windows themselves don't carry.
     var footer: [String] = []
     var fill = Color(.secondarySystemGroupedBackground)
+    /// Leads with the 5-hour meter, for a usage row whose own window is it.
+    var fiveHourFirst = false
 
     private var stale: Bool { macNow - Double(data.updatedAt) > staleMs }
 
@@ -25,20 +27,13 @@ struct UsageProviderCardView: View {
             Divider().padding(.vertical, 12)
 
             VStack(spacing: 18) {
-                UsageMeterView(
-                    label: "Weekly",
-                    win: data.weekly,
-                    windowMs: weeklyMs,
-                    now: now,
-                    stale: stale
-                )
-                UsageMeterView(
-                    label: "5-hour",
-                    win: data.fiveHour,
-                    windowMs: fiveHourMs,
-                    now: now,
-                    stale: stale
-                )
+                if fiveHourFirst {
+                    fiveHourMeter
+                    weeklyMeter
+                } else {
+                    weeklyMeter
+                    fiveHourMeter
+                }
             }
 
             if !footer.isEmpty {
@@ -56,6 +51,14 @@ struct UsageProviderCardView: View {
         }
         .padding(16)
         .background(fill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private var weeklyMeter: some View {
+        UsageMeterView(label: "Weekly", win: data.weekly, windowMs: weeklyMs, now: now, stale: stale)
+    }
+
+    private var fiveHourMeter: some View {
+        UsageMeterView(label: "5-hour", win: data.fiveHour, windowMs: fiveHourMs, now: now, stale: stale)
     }
 
     /// One row while it fits; then the timestamp drops to its own line, then the

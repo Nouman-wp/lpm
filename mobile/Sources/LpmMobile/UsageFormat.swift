@@ -87,13 +87,12 @@ func paceLabel(_ pace: Pace?) -> String {
     }
 }
 
-/// Bar color for a percentage already clamped to 0…100 — the desktop's
-/// `--accent-red` / `--accent-amber` / `--accent-cyan` in each appearance.
-func barTint(_ pct: Double) -> Color {
-    if pct >= 95 { return Color(light: "#EF4444", dark: "#F87171") }
-    if pct >= 80 { return Color(light: "#F59E0B", dark: "#FBBF24") }
-    return Color(light: "#06B6D4", dark: "#22D3EE")
-}
+/// The one tint usage bars are drawn in, however full they get — the desktop's
+/// `USAGE_FILL` (`--accent-cyan`) in each appearance.
+let usageTint = Color(light: "#06B6D4", dark: "#22D3EE")
+
+/// The use past a bar's pace tick — the desktop's `--accent-red`.
+let usageAheadTint = Color(light: "#EF4444", dark: "#F87171")
 
 extension Color {
     init(light: String, dark: String) {

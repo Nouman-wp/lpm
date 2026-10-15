@@ -234,6 +234,7 @@ export function SidebarUsage({ onOpen }: { onOpen: () => void }) {
                   title={row.label}
                   subtitle={row.subtitle}
                   stacked
+                  fiveHourFirst={row.windowShort === "5h"}
                   footer={
                     note || spent ? (
                       <span className="flex flex-col gap-1">

@@ -19,11 +19,23 @@ interface UsageProviderCardProps {
   footer?: ReactNode;
   /** One meter under the other, for the sidebar's narrow hover card. */
   stacked?: boolean;
+  /** Leads with the 5-hour meter, for a sidebar row whose own window is it. */
+  fiveHourFirst?: boolean;
 }
 
-export function UsageProviderCard({ data, now, title, subtitle, footer, stacked = false }: UsageProviderCardProps) {
+export function UsageProviderCard({
+  data,
+  now,
+  title,
+  subtitle,
+  footer,
+  stacked = false,
+  fiveHourFirst = false,
+}: UsageProviderCardProps) {
   const meta = providerMeta(data.provider);
   const stale = now - data.updatedAt > STALE_MS;
+  const weekly = { label: "Weekly", win: data.weekly, windowMs: WEEKLY_MS };
+  const fiveHour = { label: "5-hour", win: data.fiveHour, windowMs: FIVE_HOUR_MS };
 
   return (
     <section className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
@@ -61,20 +73,16 @@ export function UsageProviderCard({ data, now, title, subtitle, footer, stacked 
       </header>
 
       <div className={`grid gap-x-6 gap-y-5 pt-4 ${stacked ? "grid-cols-1" : "grid-cols-2"}`}>
-        <UsageMeter
-          label="Weekly"
-          win={data.weekly}
-          windowMs={WEEKLY_MS}
-          now={now}
-          stale={stale}
-        />
-        <UsageMeter
-          label="5-hour"
-          win={data.fiveHour}
-          windowMs={FIVE_HOUR_MS}
-          now={now}
-          stale={stale}
-        />
+        {(fiveHourFirst ? [fiveHour, weekly] : [weekly, fiveHour]).map((meter) => (
+          <UsageMeter
+            key={meter.label}
+            label={meter.label}
+            win={meter.win}
+            windowMs={meter.windowMs}
+            now={now}
+            stale={stale}
+          />
+        ))}
       </div>
 
       {footer && (
