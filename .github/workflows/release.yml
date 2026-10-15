@@ -48,7 +48,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: tailnet/go.mod
-          cache-dependency-path: tailnet/go.sum
+          cache-dependency-path: |
+            tailnet/go.mod
+            tailnet/go.sum
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -211,9 +213,22 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: tailnet/go.mod
-          cache-dependency-path: tailnet/go.sum
+          cache-dependency-path: |
+            tailnet/go.mod
+            tailnet/go.sum
 
       - uses: dtolnay/rust-toolchain@stable
+
+      # The dependency build cache-warm.yml warms on main (see `build`). Both
+      # Linux jobs build the same target and profile, so they share one entry.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            desktop/frontend/src-tauri
+            cli
+          shared-key: release-x86_64-unknown-linux-gnu
+          save-if: false
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -295,9 +310,22 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: tailnet/go.mod
-          cache-dependency-path: tailnet/go.sum
+          cache-dependency-path: |
+            tailnet/go.mod
+            tailnet/go.sum
 
       - uses: dtolnay/rust-toolchain@stable
+
+      # The dependency build cache-warm.yml warms on main (see `build`). Both
+      # Linux jobs build the same target and profile, so they share one entry.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            desktop/frontend/src-tauri
+            cli
+          shared-key: release-x86_64-unknown-linux-gnu
+          save-if: false
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -383,9 +411,20 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: tailnet/go.mod
-          cache-dependency-path: tailnet/go.sum
+          cache-dependency-path: |
+            tailnet/go.mod
+            tailnet/go.sum
 
       - uses: dtolnay/rust-toolchain@stable
+
+      # The dependency build cache-warm.yml warms on main (see `build`).
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            desktop/frontend/src-tauri
+            cli
+          shared-key: release-x86_64-pc-windows-msvc
+          save-if: false
 
       - name: Install dependencies
         working-directory: desktop/frontend
