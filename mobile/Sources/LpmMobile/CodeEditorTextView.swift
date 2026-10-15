@@ -23,7 +23,7 @@ struct CodeEditorTextView: UIViewRepresentable {
         tv.smartInsertDeleteType = .no
         tv.spellCheckingType = .no
         tv.backgroundColor = .clear
-        tv.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
+        tv.textContainerInset = UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
         tv.textContainer.lineFragmentPadding = 0
         tv.alwaysBounceVertical = true
         tv.text = text
@@ -66,13 +66,38 @@ struct CodeEditorTextView: UIViewRepresentable {
         func applyHighlight(to tv: UITextView) {
             let selected = tv.selectedRange
             let offset = tv.contentOffset
-            tv.textStorage.setAttributedString(DiffHighlighter.attributedDocument(tv.text, ext: ext))
+            let document = NSMutableAttributedString(
+                attributedString: DiffHighlighter.attributedDocument(tv.text, ext: ext))
+            Self.indentWrappedLines(document, extra: ext == "md" ? 0 : 2)
+            tv.textStorage.setAttributedString(document)
             // Keep the next typed character on the default color, not the last
             // token's.
             tv.typingAttributes = [.font: DiffTypography.codeFont,
                                    .foregroundColor: UIColor.label]
             tv.selectedRange = selected
             tv.contentOffset = offset
+        }
+
+        /// A long line wraps under its own indentation plus `extra` columns, so in
+        /// YAML a continuation reads as part of its value, not as a new top-level key.
+        private static func indentWrappedLines(_ document: NSMutableAttributedString, extra: Int) {
+            let text = document.string as NSString
+            let column = (" " as NSString).size(withAttributes: [.font: DiffTypography.codeFont]).width
+            var styles: [Int: NSParagraphStyle] = [:]
+            text.enumerateSubstrings(in: NSRange(location: 0, length: text.length),
+                                     options: [.byParagraphs, .substringNotRequired]) { _, line, enclosing, _ in
+                var indent = 0
+                while indent < line.length, text.character(at: line.location + indent) == 0x20 { indent += 1 }
+                let columns = indent + extra
+                guard columns > 0 else { return }
+                let style = styles[columns] ?? {
+                    let style = NSMutableParagraphStyle()
+                    style.headIndent = CGFloat(columns) * column
+                    return style
+                }()
+                styles[columns] = style
+                document.addAttribute(.paragraphStyle, value: style, range: enclosing)
+            }
         }
     }
 }

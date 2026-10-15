@@ -52,6 +52,9 @@ struct ServiceEditorSheet: View {
     @State private var didRequest = false
     @State private var confirmDelete = false
     @State private var pendingToken: Int?
+    @FocusState private var focus: Field?
+
+    private enum Field { case cwd, port }
 
     private var editingKey: String? { context.editingKey }
 
@@ -165,12 +168,24 @@ struct ServiceEditorSheet: View {
 
     @ViewBuilder private var advancedSection: some View {
         Section {
-            TextField("Working directory (optional)", text: $draft.cwd)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-                .font(.system(.callout, design: .monospaced))
-            TextField("Port (optional)", text: $draft.port)
-                .keyboardType(.numberPad)
+            LabeledContent("Working directory") {
+                TextField("Working directory", text: $draft.cwd, prompt: Text("apps/api"))
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .font(.system(.callout, design: .monospaced))
+                    .multilineTextAlignment(.trailing)
+                    .focused($focus, equals: .cwd)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { focus = .cwd }
+            LabeledContent("Port") {
+                TextField("Port", text: $draft.port, prompt: Text("3000"))
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .focused($focus, equals: .port)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { focus = .port }
         } header: {
             Text("Advanced")
         }

@@ -73,7 +73,7 @@ struct DesktopActionButton: View {
             }
             .buttonStyle(.plain)
             Rectangle()
-                .fill(Color(.separator))
+                .fill(Self.divider)
                 .frame(width: 1)
             Menu {
                 ActionMenuItems(actions: action.children, onPick: run)
@@ -89,6 +89,12 @@ struct DesktopActionButton: View {
         }
         .desktopActionFace(ActionTint(primary.color.isEmpty ? action.color : primary.color), compact: compact)
     }
+
+    // The desktop's plain border, but lighter in dark mode, where the system
+    // separator disappears into a dark glass button.
+    private static let divider = Color(UIColor {
+        $0.userInterfaceStyle == .dark ? UIColor(white: 1, alpha: 0.2) : .separator
+    })
 
     private var chevron: some View {
         Image(systemName: "chevron.down")

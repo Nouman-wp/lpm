@@ -62,7 +62,6 @@ struct ActionInputsSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationBackground(Color(.systemBackground))
-        .preferredColorScheme(.dark)
         .onAppear {
             for input in action.inputs where values[input.key] == nil {
                 if input.isSelect && input.defaultValue.isEmpty {

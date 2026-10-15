@@ -25,11 +25,12 @@ enum DiffBlockKind { case hunk, code }
 
 /// One render unit: a hunk separator, or a run of code lines merged into a single
 /// gutter attributed string (line numbers, deeper tint) and a single code
-/// attributed string (leading +/- marker, syntax highlighting, row tint padded to
-/// the run's longest line, word-level emphasis). A long code run is split into
-/// several consecutive blocks of at most `chunkLimit` lines so no single Text has
-/// to lay out thousands of lines at once. The SwiftUI `AttributedString`s are
-/// converted once here, off the main thread, so the view just renders them.
+/// attributed string (leading +/- marker, syntax highlighting, word-level
+/// emphasis), plus each line's kind for the row tint drawn behind it. A long code
+/// run is split into several consecutive blocks of at most `chunkLimit` lines so
+/// no single Text has to lay out thousands of lines at once. The SwiftUI
+/// `AttributedString`s are converted once here, off the main thread, so the view
+/// just renders them.
 struct DiffBlock: Identifiable {
     let id: Int
     let kind: DiffBlockKind
@@ -38,6 +39,7 @@ struct DiffBlock: Identifiable {
     let indentHint: Int
     let gutter: AttributedString
     let code: AttributedString
+    let rows: [DiffLineKind]
     let lineCount: Int
 }
 
@@ -270,14 +272,13 @@ struct ParsedDiff {
             if line.kind == .hunk {
                 blocks.append(DiffBlock(id: id, kind: .hunk, hunkLabel: line.hunkLabel,
                                         hunkContext: line.text, indentHint: line.indentHint,
-                                        gutter: empty, code: empty, lineCount: 0))
+                                        gutter: empty, code: empty, rows: [], lineCount: 0))
                 id += 1; i += 1
                 continue
             }
             var j = i
             while j < n && base[j].kind != .hunk { j += 1 }
-            // Measure the whole run once so every chunk pads to the same width and
-            // the row-tint backgrounds stay uniform across chunks of the same run.
+            // Measure the whole run once so every chunk of it scrolls the same width.
             let runWidth = runCodeWidth(range: i..<j, base: base, fg: fg)
             var c = i
             while c < j {
@@ -286,7 +287,8 @@ struct ParsedDiff {
                 let gutter = buildGutterBlock(range: c..<end, base: base, digits: digits)
                 blocks.append(DiffBlock(id: id, kind: .code, hunkLabel: "", hunkContext: "",
                                         indentHint: 0, gutter: AttributedString(gutter),
-                                        code: AttributedString(code), lineCount: end - c))
+                                        code: AttributedString(code),
+                                        rows: base[c..<end].map(\.kind), lineCount: end - c))
                 id += 1; c = end
             }
             i = j
@@ -306,9 +308,8 @@ struct ParsedDiff {
     }
 
     /// One attributed string for a chunk of code lines: leading +/- marker, the
-    /// syntax-highlighted code, right-padded with spaces to `maxLen` (the run's
-    /// longest line) so the row tint (and deeper emphasis tint over it) span a
-    /// uniform width, joined by newlines. Monospaced, so the padded backgrounds align.
+    /// syntax-highlighted code with its word emphasis tint, right-padded with spaces
+    /// to `maxLen` (the run's longest line), joined by newlines.
     private static func buildCodeBlock(range: Range<Int>, base: [DiffLine], fg: [NSAttributedString?],
                                        emphasis: [Int: [NSRange]], maxLen: Int) -> NSAttributedString {
         let plain: [NSAttributedString.Key: Any] = [.font: DiffTypography.codeFont, .foregroundColor: UIColor.label]
@@ -319,9 +320,6 @@ struct ParsedDiff {
             let padCount = maxLen - line.length
             if padCount > 0 {
                 line.append(NSAttributedString(string: String(repeating: " ", count: padCount), attributes: plain))
-            }
-            if let tint = DiffPalette.rowUI(base[idx].kind) {
-                line.addAttribute(.backgroundColor, value: tint, range: NSRange(location: 0, length: line.length))
             }
             let emColor = base[idx].kind == .added ? DiffPalette.addWord : DiffPalette.delWord
             for r in emphasis[idx] ?? [] {
@@ -364,12 +362,36 @@ struct DiffCodeBlock: View {
             Text(block.gutter)
                 .fixedSize()
             ScrollView(.horizontal, showsIndicators: false) {
-                Text(block.code)
-                    .fixedSize()
-                    .padding(.trailing, 12)
+                ZStack(alignment: .topLeading) {
+                    // At least the visible width, so a row's tint reaches the edge
+                    // of the screen when every line is shorter than it.
+                    Color.clear.frame(height: 0).containerRelativeFrame(.horizontal)
+                    Text(block.code)
+                        .fixedSize()
+                        .padding(.trailing, 12)
+                }
+                .background { DiffRowTints(rows: block.rows) }
             }
         }
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// The added/removed row bands behind a code block. Every line has the same
+/// monospaced height, so each row is an equal slice of the block.
+private struct DiffRowTints: View {
+    let rows: [DiffLineKind]
+
+    var body: some View {
+        Canvas { context, size in
+            guard !rows.isEmpty else { return }
+            let height = size.height / CGFloat(rows.count)
+            for (index, kind) in rows.enumerated() {
+                guard let tint = DiffPalette.rowUI(kind) else { continue }
+                let rect = CGRect(x: 0, y: CGFloat(index) * height, width: size.width, height: height)
+                context.fill(Path(rect), with: .color(Color(uiColor: tint)))
+            }
+        }
     }
 }
 

@@ -133,6 +133,7 @@ struct ActionEditorSheet: View {
     @State private var didRequest = false
     @State private var confirmDelete = false
     @State private var pendingToken: Int?
+    @FocusState private var cwdFocused: Bool
 
     private var editingKey: String? { context.editingKey }
 
@@ -274,10 +275,16 @@ struct ActionEditorSheet: View {
         }
 
         Section {
-            TextField("Working directory (optional)", text: $draft.cwd)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-                .font(.system(.callout, design: .monospaced))
+            LabeledContent("Working directory") {
+                TextField("Working directory", text: $draft.cwd, prompt: Text("./backend"))
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .font(.system(.callout, design: .monospaced))
+                    .multilineTextAlignment(.trailing)
+                    .focused($cwdFocused)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { cwdFocused = true }
             Picker("Runs in", selection: $draft.runIn) {
                 ForEach(ActionRunIn.allCases) { Text($0.title).tag($0) }
             }
