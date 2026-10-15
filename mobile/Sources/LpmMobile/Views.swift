@@ -133,7 +133,7 @@ struct ProjectsView: View {
     @State private var openTerminal: TerminalTarget?
     @State private var visiting: MachineVisit?
     @State private var screenWidth: CGFloat = 0
-    @State private var usageGap: CGFloat = 0
+    @State private var usageRest = UsageRest()
 
     private func isExpanded(_ g: ProjectFolder) -> Bool { expandedOverride[g.id] ?? !g.collapsed }
 
@@ -272,12 +272,12 @@ struct ProjectsView: View {
                 }
             }
             if !listIsEmpty {
-                UsageRowsSection(topGap: usageGap)
+                UsageRowsSection(rest: usageRest)
             }
         }
-        .restsAtBottom(gap: $usageGap)
+        .restsAtBottom($usageRest, present: !listIsEmpty && !model.currentUsageRows(at: .now).isEmpty,
+                       ready: model.projectsLoaded) { await model.refreshProjects() }
         .feedsUsageRows()
-        .refreshable { await model.refreshProjects() }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { screenWidth = $0 }
         .task(id: model.macs.count) {
             while model.macs.count > 1 && !Task.isCancelled {

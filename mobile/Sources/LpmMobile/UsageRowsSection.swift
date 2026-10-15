@@ -2,7 +2,8 @@ import SwiftUI
 
 /// The usage rows as a list section, after the projects on the projects list
 /// and after a project's own sections on its screen. It scrolls with the list;
-/// `topGap` pushes it down to rest at the bottom while the list above is short.
+/// `rest` pushes it down to rest at the bottom while the list above is short,
+/// and keeps it hidden until that spot is known.
 ///
 /// On the projects list the tags speak for the main accounts, since nothing is
 /// selected; on a project's screen they speak for that project, and an expanded
@@ -10,15 +11,13 @@ import SwiftUI
 struct UsageRowsSection: View {
     @Environment(AppModel.self) private var model
     var project: Project?
-    var topGap: CGFloat = 0
+    var rest = UsageRest(shown: true)
     @State private var expanded: Set<String> = []
     @State private var clock = Date()
 
     var body: some View {
         let now = clock.timeIntervalSince1970 * 1000
-        let rows = usageRows(model.usage.snapshot, today: model.usage.today,
-                             accounts: model.claudeAccounts?.accounts ?? [],
-                             now: now, macNow: model.usage.macMillis(clock))
+        let rows = model.currentUsageRows(at: clock)
         let inUse = model.claudeAccounts?.inUse(project, parent: project.flatMap { model.parentProject(of: $0) })
         // Switching needs an account beyond the main login, as the Claude Account menu does.
         let switches = project != nil && model.claudeAccounts?.hasAdded == true
@@ -40,16 +39,22 @@ struct UsageRowsSection: View {
                     )
                     // Rules span the row, as its bar does.
                     .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                    .opacity(rest.shown ? 1 : 0)
+                    .listRowBackground(rest.shown ? nil : Color.clear)
+                    .listRowSeparator(rest.shown ? .automatic : .hidden)
+                    .accessibilityHidden(!rest.shown)
                 }
             } header: {
                 header
+                    .opacity(rest.shown ? 1 : 0)
+                    .accessibilityHidden(!rest.shown)
             }
         }
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Color.clear.frame(height: topGap)
+            Color.clear.frame(height: rest.gap)
             HStack {
                 Text("Usage")
                     .font(.footnote)
@@ -91,5 +96,14 @@ struct UsageRowsSection: View {
     private func switchTo(_ account: String) {
         guard let project else { return }
         model.setClaudeAccount(project, .pin(account == claudeMainLogin ? "" : account))
+    }
+}
+
+extension AppModel {
+    /// The usage rows as of `date`, as the projects list and a project's screen
+    /// show them.
+    func currentUsageRows(at date: Date) -> [UsageRow] {
+        usageRows(usage.snapshot, today: usage.today, accounts: claudeAccounts?.accounts ?? [],
+                  now: date.timeIntervalSince1970 * 1000, macNow: usage.macMillis(date))
     }
 }

@@ -13,7 +13,7 @@ struct ProjectDetail: View {
     @State private var openTerminal: TerminalInfo?
     @State private var activeBgRun: BackgroundRunInfo?
     @State private var logsForService: Service?
-    @State private var usageGap: CGFloat = 0
+    @State private var usageRest = UsageRest()
 
     // Current project object (fresh status/actions) from the store; falls back to
     // the one we were pushed with.
@@ -41,6 +41,10 @@ struct ProjectDetail: View {
     private var isEmpty: Bool {
         terminalsLoaded && terminals.isEmpty && !creating && live.allServices.isEmpty && bgRuns.isEmpty
     }
+
+    // Behind the "No Terminals" prompt and the config error there is no list
+    // for the usage rows to follow.
+    private var showsUsage: Bool { !isEmpty && live.configError == nil }
 
     var body: some View {
         // One inset-grouped list, so tabs, services and runs read alike and keep
@@ -159,15 +163,14 @@ struct ProjectDetail: View {
                 }
             }
 
-            // Behind the "No Terminals" prompt and the config error there is no
-            // list for the rows to follow.
-            if !isEmpty && live.configError == nil {
-                UsageRowsSection(project: live, topGap: usageGap)
+            if showsUsage {
+                UsageRowsSection(project: live, rest: usageRest)
             }
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(.compact)
-        .restsAtBottom(gap: $usageGap)
+        .restsAtBottom($usageRest, present: showsUsage && !model.currentUsageRows(at: .now).isEmpty,
+                       ready: terminalsLoaded) { model.loadTerminals(project.name) }
         .feedsUsageRows()
         // Full-space overlay (not a list row): ContentUnavailableView is greedy
         // and inside a row it stretches the row — and its action button — to
@@ -181,9 +184,6 @@ struct ProjectDetail: View {
         }
         .animation(.default, value: terminalsLoaded)
         .animation(.default, value: creating)
-        .refreshable {
-            model.loadTerminals(project.name)
-        }
         .connectionTitle(title, otherwise: live.configError != nil ? "Invalid configuration"
                          : live.running ? "Running" : "Stopped")
         .navigationBarTitleDisplayMode(.inline)
