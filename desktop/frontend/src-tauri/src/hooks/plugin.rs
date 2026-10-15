@@ -21,8 +21,9 @@ pub(super) struct Plugin {
     pub kind: AgentKind,
     /// The agent's half of the plugin.
     pub source: &'static str,
-    /// Where the plugin goes in the agent's folder.
-    pub path: [&'static str; 2],
+    /// Where the plugin goes in the agent's folder. Past two parts it sits in a
+    /// folder of its own, which uninstalling removes once it's empty.
+    pub path: &'static [&'static str],
     /// The agent's folder on an SSH host, as its login shell expands it.
     pub remote_dir: &'static str,
 }
@@ -72,7 +73,15 @@ impl Plugin {
     }
 
     pub fn uninstall(&self, dir: Option<&Path>) -> Result<(), String> {
-        dir.map_or(Ok(()), |dir| remove_owned_file(&self.path_in(dir)))
+        let Some(dir) = dir else { return Ok(()) };
+        let path = self.path_in(dir);
+        remove_owned_file(&path)?;
+        if self.path.len() > 2 {
+            if let Some(own) = path.parent() {
+                let _ = std::fs::remove_dir(own);
+            }
+        }
+        Ok(())
     }
 }
 

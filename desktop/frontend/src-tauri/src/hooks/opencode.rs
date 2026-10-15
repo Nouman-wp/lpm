@@ -1,5 +1,7 @@
 // OpenCode: lpm's status plugin (plugin.rs) in its global plugins folder, which
-// it loads every script from.
+// it loads every script from. OpenCode 1 reports from that script; OpenCode 2
+// runs it in a background service every terminal shares and reports from the
+// terminal plugin it finds in the folder beside it.
 use super::plugin::Plugin;
 use super::Agent;
 use crate::agentkind::AgentKind;
@@ -11,23 +13,40 @@ pub(super) const AGENT: Agent = Agent {
     uninstall,
 };
 
-const PLUGIN: Plugin = Plugin {
+const REMOTE_DIR: &str = "${XDG_CONFIG_HOME:-$HOME/.config}/opencode";
+
+const SERVER: Plugin = Plugin {
     kind: AgentKind::OpenCode,
     source: include_str!("opencode_plugin.js"),
-    path: ["plugins", "lpm-status.js"],
-    remote_dir: "${XDG_CONFIG_HOME:-$HOME/.config}/opencode",
+    path: &["plugins", "lpm-status.js"],
+    remote_dir: REMOTE_DIR,
 };
 
+const TUI: Plugin = Plugin {
+    kind: AgentKind::OpenCode,
+    source: include_str!("opencode_tui_plugin.js"),
+    path: &["plugins", "lpm-status", "tui.js"],
+    remote_dir: REMOTE_DIR,
+};
+
+const PLUGINS: [Plugin; 2] = [SERVER, TUI];
+
 fn install() {
-    PLUGIN.install(crate::agentdirs::opencode_dir());
+    for plugin in &PLUGINS {
+        plugin.install(crate::agentdirs::opencode_dir());
+    }
 }
 
 fn install_remote(ssh: &crate::config::SshSettings) -> bool {
-    PLUGIN.install_remote(ssh)
+    PLUGINS
+        .iter()
+        .fold(true, |installed, plugin| plugin.install_remote(ssh) && installed)
 }
 
 fn uninstall() -> Result<(), String> {
-    PLUGIN.uninstall(crate::agentdirs::opencode_dir())
+    PLUGINS.iter().fold(Ok(()), |first, plugin| {
+        first.and(plugin.uninstall(crate::agentdirs::opencode_dir()))
+    })
 }
 
 #[cfg(test)]

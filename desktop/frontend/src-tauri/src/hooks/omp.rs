@@ -14,7 +14,7 @@ pub(super) const AGENT: Agent = Agent {
 const PLUGIN: Plugin = Plugin {
     kind: AgentKind::Omp,
     source: include_str!("omp_plugin.js"),
-    path: ["extensions", "lpm-status.js"],
+    path: &["extensions", "lpm-status.js"],
     remote_dir: "${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}",
 };
 

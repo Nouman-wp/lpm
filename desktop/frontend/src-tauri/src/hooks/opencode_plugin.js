@@ -2,11 +2,21 @@
 // terminal tab it runs in. lpm writes this file and rewrites it when it
 // changes. # lpm-hook
 
+// OpenCode 1 runs `server` in the terminal's own process. OpenCode 2 runs
+// `setup` in a background service every terminal shares, which can't tell whose
+// tab a session is in: there lpm-status/tui.js beside this file reports from
+// each terminal instead.
+export default {
+  id: "lpm.status",
+  server: lpmStatus,
+  setup: () => {},
+}
+
 // A top-level session's turn, from OpenCode's events. A sub-agent's session
 // works inside its parent's turn, so its questions and approvals are the
 // parent's and its own start and finish are not reported. A turn's error comes
 // just before its idle, which is where the turn is reported as ended.
-export const LpmStatus = async () => {
+async function lpmStatus() {
   const turns = lpmTurns()
   const parents = new Map()
   const asks = new Map()

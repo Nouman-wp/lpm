@@ -97,7 +97,7 @@ pub(in crate::hooks) fn reported(plugin: &Plugin, harness: &str, events: Vec<Val
 const PLUGIN: Plugin = Plugin {
     kind: AgentKind::OpenCode,
     source: "// lpm status plugin # lpm-hook",
-    path: ["plugins", "lpm-status.js"],
+    path: &["plugins", "lpm-status.js"],
     remote_dir: "${XDG_CONFIG_HOME:-$HOME/.config}/opencode",
 };
 
@@ -141,4 +141,28 @@ fn a_host_gets_the_plugin_at_the_same_place_in_the_agents_folder() {
         PLUGIN.path_in(Path::new("oc")),
         Path::new("oc").join("plugins").join("lpm-status.js")
     );
+}
+
+const IN_A_FOLDER: Plugin = Plugin {
+    path: &["plugins", "lpm-status", "tui.js"],
+    ..PLUGIN
+};
+
+#[test]
+fn a_plugin_in_a_folder_of_its_own_takes_the_folder_with_it_once_empty() {
+    let td = tempfile::tempdir().unwrap();
+    let dir = td.path();
+    let path = IN_A_FOLDER.path_in(dir);
+    IN_A_FOLDER.install(Some(dir));
+    assert!(path.is_file());
+    IN_A_FOLDER.uninstall(Some(dir)).unwrap();
+    assert!(!path.parent().unwrap().exists());
+    assert!(dir.join("plugins").is_dir(), "the agent's own folder stays");
+
+    IN_A_FOLDER.install(Some(dir));
+    let other = path.with_file_name("notes.txt");
+    std::fs::write(&other, "the user's own").unwrap();
+    IN_A_FOLDER.uninstall(Some(dir)).unwrap();
+    assert!(!path.exists());
+    assert!(other.exists());
 }
