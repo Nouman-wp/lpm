@@ -16,9 +16,9 @@
 // Node rather than bash: npm runs scripts through cmd.exe on Windows, where
 // `bash` is missing or WSL's.
 import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stageSidecar } from "./stage-sidecar.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const cliDir = join(repoRoot, "cli");
@@ -91,11 +91,5 @@ for (const line of build.stdout.split("\n")) {
 if (!source) fail("cargo reported no `lpm` executable");
 
 const dest = join(binDir, `lpm-cli-${target}${exeSuffix}`);
-mkdirSync(binDir, { recursive: true });
-// A fresh inode: macOS caches code signatures per vnode, so rewriting a binary
-// that has already run in place can get the next exec SIGKILLed.
-rmSync(dest, { force: true });
-copyFileSync(source, dest);
-if (process.platform !== "win32") chmodSync(dest, 0o755);
-
-console.log(`build-cli: staged ${dest}`);
+const staged = stageSidecar(source, dest);
+console.log(`build-cli: ${staged ? "staged" : "unchanged"} ${dest}`);

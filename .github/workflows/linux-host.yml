@@ -20,6 +20,7 @@ on:
       - "cli/**"
       - "scripts/build-cli.*"
       - "scripts/build-tailnet.*"
+      - "scripts/stage-sidecar.mjs"
       - "tailnet/**"
       - "desktop/linux/**"
       - ".github/workflows/linux-host.yml"
@@ -29,6 +30,7 @@ on:
       - "cli/**"
       - "scripts/build-cli.*"
       - "scripts/build-tailnet.*"
+      - "scripts/stage-sidecar.mjs"
       - "tailnet/**"
       # The install scripts and the supervisor that stands in for systemd on a
       # container host. Shell is the one part of a host nothing else here

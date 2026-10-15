@@ -8,13 +8,15 @@
 // per-arch by CI), the host triple. Pure Go (CGO_ENABLED=0), so any target
 // cross-builds from any host. Needs Go: https://go.dev/dl or `brew install go`.
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stageSidecar } from "./stage-sidecar.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const moduleDir = join(repoRoot, "tailnet");
-const binDir = join(repoRoot, "desktop", "frontend", "src-tauri", "binaries");
+const tauriDir = join(repoRoot, "desktop", "frontend", "src-tauri");
+const binDir = join(tauriDir, "binaries");
+const cacheDir = join(tauriDir, "target", "sidecars");
 
 function fail(message) {
   console.error(`build-tailnet: ${message}`);
@@ -48,7 +50,13 @@ function goTarget(triple) {
 const target = process.argv[2] || process.env.LPM_CLI_TARGET || hostTriple();
 const { os, arch } = goTarget(target);
 const exeSuffix = os === "windows" ? ".exe" : "";
-const dest = join(binDir, `lpm-tailnet-${target}${exeSuffix}`);
+const name = `lpm-tailnet-${target}${exeSuffix}`;
+// Go skips the link when this output is already up to date, but touches it
+// either way, so it's built outside binaries/ and staged only when it changed.
+// -buildvcs=false keeps the commit and dirty flag out of the binary, or every
+// commit would change it and recompile the app.
+const output = join(cacheDir, name);
+const dest = join(binDir, name);
 
 if (spawnSync("go", ["version"], { stdio: "ignore" }).status !== 0) {
   fail("Go is required to build lpm's built-in Tailscale — install it from https://go.dev/dl (macOS: brew install go)");
@@ -56,13 +64,9 @@ if (spawnSync("go", ["version"], { stdio: "ignore" }).status !== 0) {
 
 console.log(`build-tailnet: target=${target} (${os}/${arch})`);
 
-mkdirSync(binDir, { recursive: true });
-// A fresh inode: macOS caches code signatures per vnode, so rewriting a binary
-// that has already run in place can get the next exec SIGKILLed.
-rmSync(dest, { force: true });
 const build = spawnSync(
   "go",
-  ["build", "-trimpath", "-ldflags=-s -w", "-o", dest, "./cmd/lpm-tailnet"],
+  ["build", "-trimpath", "-buildvcs=false", "-ldflags=-s -w", "-o", output, "./cmd/lpm-tailnet"],
   {
     cwd: moduleDir,
     env: { ...process.env, GOOS: os, GOARCH: arch, CGO_ENABLED: "0" },
@@ -71,6 +75,6 @@ const build = spawnSync(
 );
 if (build.error) fail(`could not run go: ${build.error.message}`);
 if (build.status !== 0) process.exit(build.status ?? 1);
-if (process.platform !== "win32") chmodSync(dest, 0o755);
 
-console.log(`build-tailnet: staged ${dest}`);
+const staged = stageSidecar(output, dest);
+console.log(`build-tailnet: ${staged ? "staged" : "unchanged"} ${dest}`);

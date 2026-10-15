@@ -16,6 +16,7 @@ on:
       - "cli/**"
       - "scripts/build-cli.*"
       - "scripts/build-tailnet.*"
+      - "scripts/stage-sidecar.mjs"
       - "tailnet/**"
       - ".github/workflows/desktop-ci.yml"
   pull_request:
@@ -24,6 +25,7 @@ on:
       - "cli/**"
       - "scripts/build-cli.*"
       - "scripts/build-tailnet.*"
+      - "scripts/stage-sidecar.mjs"
       - "tailnet/**"
       - ".github/workflows/desktop-ci.yml"
   workflow_dispatch:
