@@ -64,6 +64,7 @@ function updatedTerminal(
       sessionId: event.sessionId,
     },
     resumeCmd,
+    agentEnded: undefined,
     ...(changedSession && followsAgentTitle(tab)
       ? {
           sessionTitle: undefined,
@@ -95,6 +96,51 @@ export function applyAgentSessionEvent(
   }));
 }
 
+export interface AgentSessionEndedEvent {
+  project: string;
+  paneId: string;
+  sessionId: string;
+}
+
+function isAgentSessionEndedEvent(payload: unknown): payload is AgentSessionEndedEvent {
+  if (!payload || typeof payload !== "object") return false;
+  const event = payload as Partial<AgentSessionEndedEvent>;
+  return (
+    typeof event.project === "string" &&
+    typeof event.paneId === "string" &&
+    typeof event.sessionId === "string"
+  );
+}
+
+// The agent a tab was running has been quit. Only the session the tab still
+// follows counts: one the tab has since moved on from says nothing about it.
+export function applyAgentSessionEnded(
+  tree: PaneNode | null,
+  projectName: string,
+  payload: unknown,
+): PaneNode | null {
+  if (!tree || !isAgentSessionEndedEvent(payload) || payload.project !== projectName) {
+    return tree;
+  }
+  const host = collectPanes(tree).find((pane) =>
+    pane.tabs.some(
+      (tab) =>
+        tab.id === payload.paneId &&
+        isTerminalTab(tab) &&
+        !tab.agentEnded &&
+        agentSessionOf(tab)?.sessionId === payload.sessionId,
+    ),
+  );
+  if (!host) return tree;
+
+  return mapPane(tree, host.id, (pane) => ({
+    ...pane,
+    tabs: pane.tabs.map((tab) =>
+      tab.id === payload.paneId ? { ...tab, agentEnded: true } : tab,
+    ),
+  }));
+}
+
 export function useAgentSessionEvents({
   projectName,
   treeRef,
@@ -106,16 +152,21 @@ export function useAgentSessionEvents({
 }) {
   useEffect(() => {
     if (IS_MIRROR_WINDOW) return;
-    const cancel = EventsOn("agent-session", (payload: unknown) => {
+    const apply = (
+      update: (tree: PaneNode | null, project: string, payload: unknown) => PaneNode | null,
+    ) => (payload: unknown) => {
       const current = treeRef.current;
-      const next = applyAgentSessionEvent(current, projectName, payload);
+      const next = update(current, projectName, payload);
       if (next !== current) {
         treeRef.current = next;
         applyTree(next);
       }
-    });
+    };
+    const cancelStart = EventsOn("agent-session", apply(applyAgentSessionEvent));
+    const cancelEnd = EventsOn("agent-session-ended", apply(applyAgentSessionEnded));
     return () => {
-      cancel();
+      cancelStart();
+      cancelEnd();
     };
   }, [projectName, treeRef, applyTree]);
 }

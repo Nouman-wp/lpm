@@ -315,6 +315,29 @@ describe("reifyTreeWithFreshPtys", () => {
     expect(h.startForRestore).toHaveBeenCalledWith("demo", "agent", sid);
   });
 
+  // A quit agent's tab comes back as the shell it was left as: no account pinned
+  // for a conversation it no longer continues, and the mark survives.
+  it("restarts a tab whose agent was quit as a plain shell that stays marked", async () => {
+    h.startTerminal.mockResolvedValue("pty-a");
+    h.startForRestore.mockResolvedValue("pty-b");
+    const sid = "0f8c2a51-6a8e-4c43-9a1e-2b7f3f5d9c10";
+    const restored = await reifyTreeWithFreshPtys(
+      leaf([
+        { label: "Claude", resumeCmd: `claude --resume ${sid}`, agentEnded: true },
+        { label: "Agent", actionName: "agent", resumeCmd: `claude --resume ${sid}`, agentEnded: true },
+      ]),
+      "demo",
+      [],
+      [],
+      [],
+    );
+    expect(h.startTerminal).toHaveBeenCalledWith("demo", undefined);
+    expect(h.startForRestore).toHaveBeenCalledWith("demo", "agent", undefined);
+    const tabs = asLeaf(restored).tabs;
+    expect(tabs.map((t) => t.agentEnded)).toEqual([true, true]);
+    expect(tabs[0].resumeCmd).toBe(`claude --resume ${sid}`);
+  });
+
   // The park is bookkeeping for the peer's pty, not a request for a terminal of
   // our own. Once that pty is gone, launching a shell in its place resurrects the
   // entry as a zombie — the amplifier that turned 6 tabs into 81 on a headless host.
@@ -574,6 +597,20 @@ describe("reifyTreeWithFreshPtys", () => {
       label: "My tab",
       sessionTitleSource: "manual",
     });
+  });
+
+  it("persists that a tab's agent was quit, and only then", () => {
+    const persisted = treeToPersisted({
+      kind: "leaf",
+      id: "pane",
+      activeTabIdx: 0,
+      tabs: [
+        { id: "t1", label: "Quit", resumeCmd: "claude --resume a", agentEnded: true },
+        { id: "t2", label: "Running", resumeCmd: "claude --resume b" },
+      ],
+    });
+    expect(persisted.tabs?.[0]).toMatchObject({ resumeCmd: "claude --resume a", agentEnded: true });
+    expect(persisted.tabs?.[1].agentEnded).toBeUndefined();
   });
 
   // The agent resumes into the same memory session after a restart, so the

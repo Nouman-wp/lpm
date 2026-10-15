@@ -115,6 +115,8 @@ const FORWARDED_EVENTS: &[&str] = &[
     // The session an agent in a terminal reports, which is what lets a Mac's tab
     // resume that conversation after the host restarts and the terminal is gone.
     "agent-session",
+    // ...and that it was quit, so that tab stops resuming it.
+    crate::agentexit::ENDED_EVENT,
     crate::remote::TERMINALS_CHANGED_EVENT,
 ];
 

@@ -4,7 +4,7 @@ vi.mock("../../mirror", () => ({ IS_MIRROR_WINDOW: false }));
 vi.mock("../../../bridge/runtime", () => ({ EventsOn: vi.fn() }));
 
 import { makePaneLeaf, makeTerminal } from "../../paneTree";
-import { applyAgentSessionEvent } from "./useAgentSessionEvents";
+import { applyAgentSessionEnded, applyAgentSessionEvent } from "./useAgentSessionEvents";
 
 const event = (
   provider: "claude" | "codex",
@@ -133,5 +133,52 @@ describe("applyAgentSessionEvent", () => {
         event("claude", "unsafe session"),
       ),
     ).toBe(tree);
+  });
+});
+
+describe("applyAgentSessionEnded", () => {
+  const ended = (sessionId: string, paneId = "term-1", project = "project") => ({
+    project,
+    paneId,
+    sessionId,
+  });
+  const running = () =>
+    makePaneLeaf("pane", [
+      makeTerminal("term-1", "Claude", {
+        agentSession: { provider: "claude", sessionId: "s1" },
+        resumeCmd: "claude --resume s1",
+      }),
+      makeTerminal("term-2", "Shell"),
+    ]);
+  const tabOf = (tree: ReturnType<typeof applyAgentSessionEnded>, i = 0) =>
+    tree?.kind === "leaf" ? tree.tabs[i] : null;
+
+  it("marks the tab whose agent was quit and keeps its resume command", () => {
+    const next = applyAgentSessionEnded(running(), "project", ended("s1"));
+    expect(tabOf(next)?.agentEnded).toBe(true);
+    expect(tabOf(next)?.resumeCmd).toBe("claude --resume s1");
+    expect(tabOf(next, 1)?.agentEnded).toBeUndefined();
+  });
+
+  it("goes by the resume command for a restored tab", () => {
+    const tree = makePaneLeaf("pane", [
+      makeTerminal("term-1", "Claude", { resumeCmd: "claude --resume s1" }),
+    ]);
+    expect(tabOf(applyAgentSessionEnded(tree, "project", ended("s1")))?.agentEnded).toBe(true);
+  });
+
+  it("ignores a session the tab has moved on from, another project, and junk", () => {
+    const tree = running();
+    expect(applyAgentSessionEnded(tree, "project", ended("old"))).toBe(tree);
+    expect(applyAgentSessionEnded(tree, "project", ended("s1", "term-1", "other"))).toBe(tree);
+    expect(applyAgentSessionEnded(tree, "project", ended("s1", "missing"))).toBe(tree);
+    expect(applyAgentSessionEnded(tree, "project", { project: "project" })).toBe(tree);
+  });
+
+  it("is cleared by the next agent the tab starts", () => {
+    const quit = applyAgentSessionEnded(running(), "project", ended("s1"));
+    const restarted = applyAgentSessionEvent(quit, "project", event("claude", "s2"));
+    expect(tabOf(restarted)?.agentEnded).toBeUndefined();
+    expect(tabOf(restarted)?.resumeCmd).toBe("claude --resume s2");
   });
 });

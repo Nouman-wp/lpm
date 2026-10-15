@@ -137,9 +137,10 @@ async function reifyTab(t: PersistedTab, projectName: string): Promise<ReifiedTa
 }
 
 // A tab that continues a Claude conversation restarts on the account holding
-// it, whatever account new sessions in the project use now.
+// it, whatever account new sessions in the project use now. One whose agent was
+// quit continues nothing.
 function startFresh(t: PersistedTab, projectName: string): Promise<string> {
-  const sessionId = claudeResumeSessionId(t.resumeCmd);
+  const sessionId = t.agentEnded ? undefined : claudeResumeSessionId(t.resumeCmd);
   return t.actionName
     ? StartTerminalForRestore(projectName, t.actionName, sessionId)
     : StartTerminal(projectName, sessionId);
@@ -191,6 +192,7 @@ async function reifyTree(
           memory: t.memory,
           startCmd: t.startCmd,
           resumeCmd: t.resumeCmd,
+          agentEnded: t.agentEnded,
           actionName: t.actionName,
           pinned: t.pinned,
           emoji: t.emoji,
@@ -282,6 +284,7 @@ export function treeToPersisted(node: PaneNode): PersistedPaneNode {
           ...(t.memory ? { memory: t.memory } : {}),
           ...(t.startCmd ? { startCmd: t.startCmd } : {}),
           ...(t.resumeCmd ? { resumeCmd: t.resumeCmd } : {}),
+          ...(t.agentEnded ? { agentEnded: true } : {}),
           ...(t.actionName ? { actionName: t.actionName } : {}),
           ...(t.pinned ? { pinned: true } : {}),
           ...(t.emoji ? { emoji: t.emoji } : {}),

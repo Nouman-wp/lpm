@@ -7,6 +7,7 @@ import type { PersistedPaneNode } from "../../terminals";
 const h = vi.hoisted(() => ({
   stopTerminal: vi.fn((_id: string) => Promise.resolve()),
   reify: vi.fn(),
+  inject: vi.fn(),
   saved: null as PersistedPaneNode | null,
 }));
 
@@ -58,7 +59,7 @@ function Harness({ projectName }: { projectName: string }) {
   const focusedRef = useRef<string | null>(null);
   const onCountRef = useRef<((count: number) => void) | undefined>(undefined);
   const restoreSettled = useRef<Promise<void>>(Promise.resolve());
-  const scheduleCmdInject = useRef(vi.fn()).current;
+  const scheduleCmdInject = h.inject;
   useSessionRestore({
     projectName,
     treeRef,
@@ -84,6 +85,7 @@ beforeEach(() => {
   root = createRoot(container);
   h.stopTerminal.mockClear();
   h.reify.mockReset();
+  h.inject.mockClear();
   h.saved = { kind: "leaf", activeTabIdx: 0, tabs: [{ label: "Terminal" }] };
 });
 
@@ -165,5 +167,21 @@ describe("useSessionRestore relaunch notices", () => {
     act(() => root.unmount());
 
     expect(takeRelaunchNotice("peer-a1b2c3d4-demo-7")).toBeUndefined();
+  });
+});
+
+describe("useSessionRestore relaunch commands", () => {
+  it("brings back a running agent but not one the user quit", async () => {
+    restoresAs([
+      makeTerminal("pty-running", "Claude", { resumeCmd: "claude --resume a" }),
+      makeTerminal("pty-quit", "Claude", { resumeCmd: "claude --resume b", agentEnded: true }),
+      makeTerminal("pty-quit-action", "Ask", { startCmd: "claude", agentEnded: true }),
+      makeTerminal("pty-tail", "Tail", { startCmd: "tail -f log" }),
+    ]);
+    await mountAndRestore("demo");
+    expect(h.inject.mock.calls).toEqual([
+      ["pty-running", "claude --resume a"],
+      ["pty-tail", "tail -f log"],
+    ]);
   });
 });

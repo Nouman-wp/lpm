@@ -175,7 +175,8 @@ export function useSessionRestore({
       const launched = new Set(allStartedIds);
       all.forEach((t) => {
         if (!launched.has(t.id)) return;
-        const cmd = t.resumeCmd ?? t.startCmd;
+        // A tab whose agent was quit reopens as the shell it was left as.
+        const cmd = t.agentEnded ? undefined : (t.resumeCmd ?? t.startCmd);
         if (cmd) scheduleCmdInject(t.id, cmd);
       });
       settle();

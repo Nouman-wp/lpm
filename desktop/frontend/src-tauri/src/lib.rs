@@ -12,6 +12,7 @@ mod agent_usage;
 mod agent_usage_claude;
 mod agent_usage_codex;
 mod agent_caps;
+mod agentexit;
 mod agentnest;
 mod agentchildren;
 mod agentdirs;
@@ -641,6 +642,7 @@ pub fn run() {
         .run(|app, event| match event {
             tauri::RunEvent::Exit => {
                 mainwindow::persist_now(app); // capture the final window bounds before teardown
+                agentexit::stop(); // the agents dying below are not the user quitting them
                 pty::kill_all_trees(&app.state::<pty::PtyState>()); // reap in-app terminal trees (services stay up)
                 tts::stop_on_exit(app); // kill any suspended python TTS child
                 portforward::stop_all_forwards(app); // kill ssh -L tunnels + pollers

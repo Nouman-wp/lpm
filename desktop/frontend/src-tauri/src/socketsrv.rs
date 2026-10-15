@@ -704,6 +704,7 @@ fn cmd_set_resume(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
             if nested_agent_report(app, &a.pane_id, &options) {
                 return "OK".into();
             }
+            watch_reporting_agent(app, &a, &options);
             let _ = app.emit(
                 "agent-session",
                 serde_json::json!({
@@ -1019,6 +1020,25 @@ fn key_names_the_pane(key: &str, pane_id: &str) -> bool {
 /// Every hook reports `--reporter-pid`, so a frame without one is an older
 /// install or a hand-rolled caller and is taken at its word, as is any pane whose
 /// shell pid is not knowable here (a remote pane, a pane already gone).
+/// Follows the agent behind a tab's session report, so the tab stops resuming
+/// it once the user has quit it (agentexit.rs). Local panes only: a remote
+/// agent's pid means nothing here.
+fn watch_reporting_agent(app: &AppHandle, a: &ResumeArgs, options: &HashMap<String, String>) {
+    let Some(reporter) = options
+        .get("reporter-pid")
+        .and_then(|p| p.parse::<i32>().ok())
+    else {
+        return;
+    };
+    let state = app.state::<crate::pty::PtyState>();
+    let Some(shell) = crate::pty::local_session_pid(&state, &a.pane_id) else {
+        return;
+    };
+    if let Some(agent) = crate::agentnest::pane_agent_pid(reporter, shell) {
+        crate::agentexit::watch(app, &a.project, &a.pane_id, &a.session_id, agent as u32);
+    }
+}
+
 fn nested_agent_report(app: &AppHandle, pane_id: &str, options: &HashMap<String, String>) -> bool {
     if pane_id.is_empty() {
         return false;

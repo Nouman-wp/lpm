@@ -15,6 +15,8 @@ export interface PersistedTab {
   memory?: TerminalMemoryRef;
   startCmd?: string;
   resumeCmd?: string;
+  // Its agent was quit: restore opens a plain shell (see TerminalInstance).
+  agentEnded?: boolean;
   actionName?: string;
   pinned?: boolean;
   emoji?: string;

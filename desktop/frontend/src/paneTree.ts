@@ -33,6 +33,10 @@ export interface TerminalInstance {
   memory?: TerminalMemoryRef;
   startCmd?: string;
   resumeCmd?: string;
+  // The agent behind resumeCmd was quit and the tab is a plain shell again, so
+  // a restart opens the shell instead of bringing the agent back. resumeCmd is
+  // kept so a closed tab still files the conversation under past sessions.
+  agentEnded?: boolean;
   actionName?: string;
   pinned?: boolean;
   // Custom emoji shown as the tab icon (in place of the terminal icon).
@@ -95,6 +99,7 @@ export function makeTerminal(
     agentSession?: AgentSessionRef;
     startCmd?: string;
     resumeCmd?: string;
+    agentEnded?: boolean;
     actionName?: string;
     pinned?: boolean;
     emoji?: string;
@@ -116,6 +121,7 @@ export function makeTerminal(
     ...(opts?.memory ? { memory: opts.memory } : {}),
     ...(opts?.startCmd ? { startCmd: opts.startCmd } : {}),
     ...(opts?.resumeCmd ? { resumeCmd: opts.resumeCmd } : {}),
+    ...(opts?.agentEnded ? { agentEnded: true } : {}),
     ...(opts?.actionName ? { actionName: opts.actionName } : {}),
     ...(opts?.pinned ? { pinned: true } : {}),
     ...(opts?.emoji ? { emoji: opts.emoji } : {}),
