@@ -160,7 +160,7 @@ private func claudeIdentities(_ entries: [ProviderLimits], accounts: [ClaudeAcco
         let account = registered.first { $0.id == id }
         return UsageIdentity(
             id: "claude:\(id)",
-            name: id == claudeMainLogin ? providerMeta("claude").short : account?.label ?? id,
+            name: id == claudeMainLogin ? providerMeta("claude").short : account?.name ?? id,
             subtitle: account.flatMap { $0.email.isEmpty ? nil : $0.email },
             data: reported[id]
         )

@@ -71,7 +71,12 @@ final class UsageStore {
 
     // MARK: screen lifecycle
 
-    func screenDidOpen() { load() }
+    /// The cards are titled by the names accounts were given on the Mac, so the
+    /// accounts are read too when nothing else has read them yet.
+    func screenDidOpen() {
+        load()
+        if model?.claudeAccounts == nil { client?.requestClaudeAccounts() }
+    }
     func screenDidClose() { active = false }
 
     /// Pull-to-refresh: re-request when live, else nudge the link back up.

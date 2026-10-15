@@ -8,6 +8,8 @@ let claudeMainLogin = "default"
 struct ClaudeAccountInfo: Identifiable {
     let id: String
     let label: String
+    /// The name given on the Mac, which usage cards and rows are titled by.
+    let name: String?
     let signedIn: Bool
     let email: String
     /// "max", "pro", "team", "enterprise", or "" when unknown.
@@ -23,6 +25,7 @@ struct ClaudeAccountInfo: Identifiable {
         plan = o["plan"] as? String ?? ""
         confirmed = o["confirmed"] as? Bool ?? false
         let named = (o["label"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        name = named
         if id == claudeMainLogin {
             label = "Main login"
         } else {
