@@ -73,14 +73,18 @@ struct ServiceLogsSheet: View {
         .preferredColorScheme(.dark)
         .task(id: running) {
             guard running else { return }
-            model.loadServices(project)
             while !Task.isCancelled {
                 if let paneIndex {
                     model.fetchServiceLogs(project, paneIndex: paneIndex)
+                    try? await Task.sleep(nanoseconds: 3_000_000_000)
                 } else {
+                    // Fetch the moment discovery answers rather than a whole poll
+                    // later, so a first open isn't three seconds of nothing.
                     model.loadServices(project)
+                    for _ in 0..<12 where paneIndex == nil && !Task.isCancelled {
+                        try? await Task.sleep(nanoseconds: 250_000_000)
+                    }
                 }
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
             }
         }
         .onDisappear {

@@ -238,13 +238,19 @@ struct AutomationDetailView: View {
     private func runBar(_ job: AutomationJob) -> some View {
         Button {
             Haptics.tap()
-            if job.running { model.stopAutomation(job) } else { model.runAutomation(job) }
+            if job.running {
+                model.stopAutomation(job)
+            } else if job.enabled {
+                model.runAutomation(job)
+            } else {
+                model.setAutomationEnabled(job, enabled: true)
+            }
         } label: {
             HStack(spacing: 8) {
                 if pending {
                     ProgressView().controlSize(.small).tint(.white)
                 } else {
-                    Image(systemName: job.running ? "stop.fill" : "play.fill")
+                    Image(systemName: job.running ? "stop.fill" : job.enabled ? "play.fill" : "power")
                 }
                 Text(runTitle(job)).fontWeight(.semibold)
             }
@@ -253,7 +259,7 @@ struct AutomationDetailView: View {
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
         .tint(job.running ? .red : .accentColor)
-        .disabled(!job.valid || pending || (!job.running && !job.enabled))
+        .disabled(pending || (job.enabled && !job.valid))
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 6)
@@ -264,7 +270,7 @@ struct AutomationDetailView: View {
         if job.running {
             return job.runningCount > 1 ? "Stop \(job.runningCount) runs" : "Stop run"
         }
-        if !job.enabled { return "Turned off" }
+        if !job.enabled { return "Turn on" }
         return job.runsIn.count > 1 ? "Run in \(job.runsIn.count) projects" : "Run now"
     }
 

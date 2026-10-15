@@ -104,6 +104,12 @@ struct AutomationsView: View {
                     Label("Mark read", systemImage: "envelope.open")
                 }
             }
+            Button {
+                model.setAutomationEnabled(job, enabled: !job.enabled)
+            } label: {
+                Label(job.enabled ? "Turn off" : "Turn on",
+                      systemImage: job.enabled ? "pause.fill" : "power")
+            }
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             if job.running {

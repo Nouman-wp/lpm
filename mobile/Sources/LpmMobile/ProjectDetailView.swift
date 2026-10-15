@@ -164,7 +164,9 @@ struct ProjectDetail: View {
         // and inside a row it stretches the row — and its action button — to
         // fill the expanse.
         .overlay {
-            if isEmpty {
+            if let error = live.configError {
+                ProjectConfigErrorView(project: live, message: error)
+            } else if isEmpty {
                 EmptyTerminalsView(onNew: { model.newTerminal(project.name) })
             }
         }
@@ -173,7 +175,8 @@ struct ProjectDetail: View {
         .refreshable {
             model.loadTerminals(project.name)
         }
-        .connectionTitle(title, otherwise: live.running ? "Running" : "Stopped")
+        .connectionTitle(title, otherwise: live.configError != nil ? "Invalid configuration"
+                         : live.running ? "Running" : "Stopped")
         .navigationBarTitleDisplayMode(.inline)
         .topBar { ConnectionStatusBar() }
         .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0, project: live) }

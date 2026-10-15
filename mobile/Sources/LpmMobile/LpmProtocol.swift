@@ -1415,6 +1415,9 @@ struct Project: Identifiable {
     let activeProfile: String
     let actions: [Action]
     let zones: [Zone]
+    /// Why the Mac couldn't read the project's YAML; nil while it parses. The rest
+    /// of the entry is then empty, so the phone shows the error instead.
+    let configError: String?
 
     var id: String { name }
     var isDuplicate: Bool { !parentName.isEmpty }
@@ -1438,18 +1441,21 @@ struct Project: Identifiable {
         activeProfile = o["activeProfile"] as? String ?? ""
         actions = (o["actions"] as? [[String: Any]] ?? []).map(Action.init)
         zones = (o["zones"] as? [[String: Any]] ?? []).map(Zone.init)
+        configError = (o["configError"] as? String).flatMap { $0.isEmpty ? nil : $0 }
     }
 
     private init(name: String, label: String, running: Bool, isRemote: Bool, parentName: String,
                  worktree: Bool, workStatus: WorkStatus?, autoPull: Bool?, claude: ClaudeOwnChoice,
                  statusEntries: [StatusEntry], services: [Service], allServices: [Service],
-                 profiles: [Profile], activeProfile: String, actions: [Action], zones: [Zone]) {
+                 profiles: [Profile], activeProfile: String, actions: [Action], zones: [Zone],
+                 configError: String?) {
         self.name = name; self.label = label; self.running = running; self.isRemote = isRemote
         self.parentName = parentName; self.worktree = worktree; self.workStatus = workStatus
         self.autoPull = autoPull; self.claude = claude
         self.statusEntries = statusEntries; self.services = services; self.allServices = allServices
         self.profiles = profiles; self.activeProfile = activeProfile; self.actions = actions
         self.zones = zones
+        self.configError = configError
     }
 
     /// A copy with fresh status — used by the status-changed push, which must not
@@ -1458,7 +1464,8 @@ struct Project: Identifiable {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
                 worktree: worktree, workStatus: workStatus, autoPull: autoPull, claude: claude,
                 statusEntries: entries, services: services, allServices: allServices, profiles: profiles,
-                activeProfile: activeProfile, actions: actions, zones: zones)
+                activeProfile: activeProfile, actions: actions, zones: zones,
+                configError: configError)
     }
 
     /// A copy wearing a status the phone has asked for but the Mac hasn't
@@ -1468,7 +1475,8 @@ struct Project: Identifiable {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
                 worktree: worktree, workStatus: status, autoPull: autoPull, claude: claude,
                 statusEntries: statusEntries, services: services, allServices: allServices, profiles: profiles,
-                activeProfile: activeProfile, actions: actions, zones: zones)
+                activeProfile: activeProfile, actions: actions, zones: zones,
+                configError: configError)
     }
 
     /// A copy wearing the auto pull choice the phone just made, until the
@@ -1477,7 +1485,8 @@ struct Project: Identifiable {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
                 worktree: worktree, workStatus: workStatus, autoPull: value, claude: claude,
                 statusEntries: statusEntries, services: services, allServices: allServices,
-                profiles: profiles, activeProfile: activeProfile, actions: actions, zones: zones)
+                profiles: profiles, activeProfile: activeProfile, actions: actions, zones: zones,
+                configError: configError)
     }
 
     /// A copy wearing the Claude account keys the phone just chose, until the
@@ -1486,7 +1495,8 @@ struct Project: Identifiable {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
                 worktree: worktree, workStatus: workStatus, autoPull: autoPull, claude: own,
                 statusEntries: statusEntries, services: services, allServices: allServices,
-                profiles: profiles, activeProfile: activeProfile, actions: actions, zones: zones)
+                profiles: profiles, activeProfile: activeProfile, actions: actions, zones: zones,
+                configError: configError)
     }
 }
 

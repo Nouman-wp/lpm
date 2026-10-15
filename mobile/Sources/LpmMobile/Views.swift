@@ -198,7 +198,7 @@ struct ProjectsView: View {
             .foregroundStyle(section.canOpen ? Color.primary : Color.secondary)
         }
         .disabled(!section.canOpen)
-        .listRowSeparator(agents.isEmpty ? .visible : .hidden, edges: .bottom)
+        .listRowSeparator(agents.isEmpty ? .automatic : .hidden, edges: .bottom)
 
         if !agents.isEmpty {
             ProjectTerminalDeck(rows: agents) { agent in
@@ -227,7 +227,7 @@ struct ProjectsView: View {
                            newFolderForProject: $newFolderForProject)
         // A project holding a deck runs into it with no rule between them: the two
         // rows are one cell, and the deck's own separator closes it.
-        .listRowSeparator(agents.isEmpty ? .visible : .hidden, edges: .bottom)
+        .listRowSeparator(agents.isEmpty ? .automatic : .hidden, edges: .bottom)
 
         if !agents.isEmpty {
             ProjectTerminalDeck(rows: agents) { agent in
@@ -747,6 +747,9 @@ struct ProjectRow: View {
             Group {
                 if pending {
                     ProgressView().controlSize(.mini)
+                } else if project.configError != nil {
+                    Circle().fill(.red).frame(width: 8, height: 8)
+                        .accessibilityLabel("Config error")
                 } else {
                     RunningDot(running: project.running, stale: stale)
                 }
@@ -757,6 +760,7 @@ struct ProjectRow: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(project.label)
+                    .foregroundStyle(project.configError == nil ? .primary : .secondary)
                 if let status = project.workStatus, let note = status.note {
                     WorkStatusNoteLine(status: status, note: note)
                 }

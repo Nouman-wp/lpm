@@ -10,7 +10,7 @@ struct EnterCodeView: View {
     @State private var showDetails = false
     @FocusState private var focus: Field?
 
-    private enum Field { case code, host }
+    private enum Field { case code, host, port }
 
     init(host: String = "", port: Int = Int(MacStore.defaultPort)) {
         _host = State(initialValue: host)
@@ -25,6 +25,13 @@ struct EnterCodeView: View {
             return (String(parts[0]), p)
         }
         return (typed, Int(port) ?? Int(MacStore.defaultPort))
+    }
+
+    /// The port field only counts when the address doesn't carry its own port.
+    private var portIsValid: Bool {
+        let parts = host.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ":")
+        if parts.count == 2 { return true }
+        return Int(port).map { (1...65535).contains($0) } ?? false
     }
 
     private var cleanCode: String {
@@ -64,13 +71,20 @@ struct EnterCodeView: View {
                     TextField("8765", text: $port)
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.trailing)
+                        .focused($focus, equals: .port)
                 }
+                .contentShape(Rectangle())
+                .onTapGesture { focus = .port }
             } header: {
                 Text("Mac address")
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Shown under the code in lpm → Settings → Mobile devices.")
-                    if let hint = addressHint { Text(hint).foregroundStyle(hintTint) }
+                    if !portIsValid {
+                        Text("Port must be a number from 1 to 65535.").foregroundStyle(.red)
+                    } else if let hint = addressHint {
+                        Text(hint).foregroundStyle(hintTint)
+                    }
                 }
             }
 
@@ -82,7 +96,7 @@ struct EnterCodeView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 32)
                 }
-                .disabled(cleanCode.isEmpty || target.host.isEmpty || pairing)
+                .disabled(cleanCode.isEmpty || target.host.isEmpty || !portIsValid || pairing)
             }
 
             if let issue {
@@ -128,7 +142,7 @@ struct EnterCodeView: View {
     }
 
     private func pair() {
-        guard !cleanCode.isEmpty, !target.host.isEmpty else { return }
+        guard !cleanCode.isEmpty, !target.host.isEmpty, portIsValid else { return }
         focus = nil
         showDetails = false
         model.pair(hosts: [target.host], port: target.port, code: cleanCode)

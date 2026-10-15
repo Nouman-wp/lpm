@@ -495,6 +495,7 @@ struct TerminalComposer: View {
                 .hardwareReturnSends(focus: $focused, send: send)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .plainPunctuation(focused: focused)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 8)
                 .disabled(store.transforming || disabled)

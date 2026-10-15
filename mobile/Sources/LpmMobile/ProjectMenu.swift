@@ -43,11 +43,14 @@ struct ProjectRunControl: View {
 
     var body: some View {
         Menu {
-            Button {
-                running ? onStop() : onStart(project.activeProfile)
-            } label: {
-                Label(running ? "Stop" : "Start",
-                      systemImage: running ? "stop.fill" : "play.fill")
+            // A YAML the Mac can't read has nothing to start, as on the desktop.
+            if running || project.configError == nil {
+                Button {
+                    running ? onStop() : onStart(project.activeProfile)
+                } label: {
+                    Label(running ? "Stop" : "Start",
+                          systemImage: running ? "stop.fill" : "play.fill")
+                }
             }
 
             Button(action: onReviewChanges) {

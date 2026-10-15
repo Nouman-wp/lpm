@@ -793,6 +793,9 @@ zones: [ZoneInfo]         // framed groups of buttons in the header or footer ro
                           // action joins one with `display: <name>`. `rows` is the zone's height in buttons, filled
                           // top to bottom and then across. With `layers`, the zone shows one layer at a time;
                           // `collapsed` folds it into one button. `source` is the file that declares it
+configError?: string      // why the Mac couldn't parse the project's YAML (the desktop's "Invalid configuration");
+                          // services, actions and profiles are then empty. The phone marks the row red, shows the
+                          // error with the raw-file editor in place of the project, and offers no Start
 ```
 
 **ClaudeAccount** (from `claudeAccounts`):
