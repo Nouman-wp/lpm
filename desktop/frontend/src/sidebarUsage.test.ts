@@ -126,7 +126,7 @@ describe("usageRows", () => {
 
   it("draws the other window in the lower lane", () => {
     const [weekly] = usageRows(limits, null, NOW);
-    expect(weekly.windowShort).toBe("7d");
+    expect(weekly.windowShort).toBe("");
     expect(weekly.lane).toEqual({ fraction: 0.34, fill: "var(--accent-cyan)" });
     expect(weekly.laneText).toBe("5-hour 34% used");
 

@@ -22,7 +22,8 @@ struct UsageRow: Identifiable {
     let detail: String
     let percentText: String
     let windowLabel: String
-    /// "7d" or "5h" beside the reset, naming the window the numbers are about.
+    /// "5h" beside the reset when the numbers are about the 5-hour window;
+    /// empty for the weekly one, which needs no label.
     let windowShort: String
     /// The other window, drawn as the thin lane under the row's own; nil for a
     /// row that only reports today's spend and draws a single bar.
@@ -199,7 +200,7 @@ private struct PickedWindow {
 /// one for the row's lower lane. A window past its reset describes one that no
 /// longer exists and is left out.
 private func pickWindow(_ data: ProviderLimits?, now: Double) -> (main: PickedWindow, other: PickedWindow) {
-    let weekly = PickedWindow(win: liveWindow(data?.weekly, now: now), label: "weekly", short: "7d", windowMs: weeklyMs)
+    let weekly = PickedWindow(win: liveWindow(data?.weekly, now: now), label: "weekly", short: "", windowMs: weeklyMs)
     let fiveHour = PickedWindow(win: liveWindow(data?.fiveHour, now: now), label: "5-hour", short: "5h",
                                 windowMs: fiveHourMs)
     return weekly.win != nil ? (weekly, fiveHour) : (fiveHour, weekly)

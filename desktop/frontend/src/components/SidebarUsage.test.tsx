@@ -171,11 +171,12 @@ describe("SidebarUsage", () => {
     expect(behind.style.background).not.toContain("var(--accent-red)");
   });
 
-  it("names the window it reads and the 5-hour use under it", async () => {
+  it("labels only a 5-hour reading and reads out the other window", async () => {
     await render();
 
-    const [claude] = [...container.querySelectorAll("button")];
-    expect(claude.textContent).toContain("7d");
+    const [claude, codex] = [...container.querySelectorAll("button")];
+    expect(claude.textContent).not.toContain("7d");
+    expect(codex.textContent).toContain("5h");
     expect(claude.querySelector(".sr-only")?.textContent).toBe("5-hour 34% used");
   });
 

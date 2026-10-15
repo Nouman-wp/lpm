@@ -60,7 +60,8 @@ export interface UsageRow {
   /** How much of the window is gone, empty for a row with no window. */
   percentText: string;
   windowLabel: string;
-  /** "7d" or "5h" beside the reset, naming the window the numbers are about. */
+  /** "5h" beside the reset when the numbers are about the 5-hour window;
+   *  empty for the weekly one, which needs no label. */
   windowShort: string;
   /** The other window, drawn as the thin lane under the row's own; null for a
    *  row that only reports the day's spend and draws a single bar. */
@@ -187,7 +188,7 @@ function pickWindow(
   const week: PickedWindow = {
     win: live(data?.weekly, now),
     windowLabel: "weekly",
-    windowShort: "7d",
+    windowShort: "",
     windowMs: WEEKLY_MS,
   };
   const lead = (main: PickedWindow, other: PickedWindow) => ({ ...main, other });
