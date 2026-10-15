@@ -38,6 +38,8 @@ struct UsageRowsSection: View {
                         toggle: { toggle(row.id) },
                         onSwitch: switches ? { switchTo($0) } : nil
                     )
+                    // Rules span the row, as its bar does.
+                    .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                 }
             } header: {
                 header
