@@ -83,11 +83,11 @@ export function SidebarAgentRows({
           </span>
           {agent.status === "waiting" ? (
             <span className={`${MARK_SLOT} sidebar-waiting`}>
-              <Bell className="h-3.5 w-3.5" strokeWidth={2.25} />
+              <Bell className="h-3.5 w-3.5" strokeWidth={2} />
             </span>
           ) : agent.status === "done" ? (
             <span className={`${MARK_SLOT} text-[#60a5fa]`}>
-              <Check className="h-3.5 w-3.5" strokeWidth={2} />
+              <Check className="h-3 w-3" strokeWidth={2} />
             </span>
           ) : agent.status === "error" ? (
             <span className={`${MARK_SLOT} text-[#f87171]`}>

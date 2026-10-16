@@ -117,17 +117,39 @@ export function usageBarColor(usedPercent: number): string {
   return "#22d3ee";
 }
 
+type PickedWindow = {
+  win: UsageWindowData;
+  label: string;
+  /** "5h" beside the reset; the weekly window goes unlabelled. */
+  short: string;
+};
+
+/** The window a sidebar row's numbers are about, and the other one for the
+ *  thin lane under its bar. */
 export function pickUsageWindow(
   provider: UsageProviderData,
   choice: UsageWindowChoice,
-): { win: UsageWindowData; label: string } {
-  if (choice === "fiveHour") return { win: provider.fiveHour, label: "5-hour" };
-  if (choice === "higher") {
-    return provider.weekly.usedPercent > provider.fiveHour.usedPercent
-      ? { win: provider.weekly, label: "weekly" }
-      : { win: provider.fiveHour, label: "5-hour" };
+): PickedWindow & { other: PickedWindow } {
+  const five = { win: provider.fiveHour, label: "5-hour", short: "5h" };
+  const week = { win: provider.weekly, label: "weekly", short: "" };
+  const lead = (main: PickedWindow, other: PickedWindow) => ({ ...main, other });
+  if (choice === "fiveHour") return lead(five, week);
+  if (choice === "higher" && five.win.usedPercent >= week.win.usedPercent) {
+    return lead(five, week);
   }
-  return { win: provider.weekly, label: "weekly" };
+  return lead(week, five);
+}
+
+export const USAGE_FILL = "#22d3ee";
+const AHEAD_FILL = "#f87171";
+
+/** A usage bar's background: `fill`, turning red from the pace tick on — the
+ *  use that came faster than even pace. Both arguments are percents of the
+ *  whole bar. */
+export function paceFill(width: number, pace: number, fill = USAGE_FILL): string {
+  if (width <= 0 || pace >= width) return fill;
+  const at = ((pace / width) * 100).toFixed(2);
+  return `linear-gradient(to right, ${fill} 0 ${at}%, ${AHEAD_FILL} ${at}%)`;
 }
 
 // A raw "65% used" says nothing until it is read against how much of the window
@@ -151,28 +173,40 @@ export type SidebarUsageRow = {
   key: UsageToolKey;
   label: string;
   color: string;
-  fill: string;
   detail: string;
   percentText: string;
   fraction: number;
+  /** How far through its window the clock is (0–1), where the pace tick sits. */
+  pace: number;
   windowLabel: string;
+  windowShort: string;
+  /** The other window's share used, drawn as the hairline lane under the bar. */
+  laneFraction: number;
+  laneText: string;
 };
+
+function usedFraction(win: UsageWindowData): number {
+  return Math.max(0, Math.min(100, win.usedPercent)) / 100;
+}
 
 /** One row per tool, in a fixed order so rows never swap under the pointer. */
 export function sidebarUsageRows(settings: UsageSidebarSettings): SidebarUsageRow[] {
   if (!settings.enabled) return [];
   return USAGE_PROVIDERS.filter((provider) => settings.tools.includes(provider.key)).map(
     (provider) => {
-      const { win, label } = pickUsageWindow(provider, settings.window);
+      const { win, label, short, other } = pickUsageWindow(provider, settings.window);
       return {
         key: provider.key,
         label: provider.label,
         color: provider.color,
-        fill: usageBarColor(win.usedPercent),
         detail: resetDurationShort(win.resetInMs),
         percentText: `${Math.round(win.usedPercent)}%`,
-        fraction: Math.max(0, Math.min(100, win.usedPercent)) / 100,
+        fraction: usedFraction(win),
+        pace: Math.max(0, Math.min(100, win.elapsedPercent)) / 100,
         windowLabel: label,
+        windowShort: short,
+        laneFraction: usedFraction(other.win),
+        laneText: `${other.label} ${Math.round(other.win.usedPercent)}% used`,
       };
     },
   );

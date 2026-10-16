@@ -11,12 +11,21 @@ import { FOCUS_RING, PRESS } from "./ui";
 const ROW_BASE =
   "flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm outline-none transition-colors";
 
-const NAME_TONE: Record<AiStatus, string> = {
-  running: "sidebar-shimmer",
-  waiting: "sidebar-waiting",
-  error: "text-[#f87171]",
-  done: "text-[#60a5fa]",
-};
+// The name reads the most pressing of the project's agents, as the app's row
+// does: amber while one waits, red for a problem, and a shimmer while one works
+// — but only with its rows folded, since the rows listed under it already
+// shimmer. A landed turn tints the name blue under whichever of those applies.
+function nameTone(statuses: AiStatus[], tasksListed: boolean) {
+  const has = (status: AiStatus) => statuses.includes(status);
+  const tone = has("waiting")
+    ? "sidebar-waiting"
+    : has("error")
+      ? "text-[#f87171]"
+      : has("running") && !tasksListed
+        ? "sidebar-shimmer"
+        : null;
+  return { tone, done: has("done"), error: has("error") };
+}
 
 const AI_LABEL: Record<AiStatus, string> = {
   running: "working",
@@ -61,6 +70,10 @@ export function SidebarProjectRow({
   const agents = sidebarAgentRows(agentTabs);
   const canExpand = agents.length > 0;
   const isExpanded = canExpand && expanded;
+  const name = nameTone(
+    canExpand ? agents.map((agent) => agent.status) : aiStatus ? [aiStatus] : [],
+    isExpanded,
+  );
 
   // Room at the row's end for the controls parked there: the ⋮ once the row is
   // hovered or holding the menu, and the chevron whenever there are agents.
@@ -101,8 +114,10 @@ export function SidebarProjectRow({
               running ? "bg-[#4ade80]" : "border border-[#919191] bg-[#1a1a1a]"
             }`}
           />
-          <span className={`truncate ${aiStatus ? NAME_TONE[aiStatus] : ""}`}>{label}</span>
-          {aiStatus === "error" && (
+          <span className={`truncate ${name.done ? "text-[#60a5fa]" : ""}`}>
+            {name.tone ? <span className={name.tone}>{label}</span> : label}
+          </span>
+          {name.error && (
             <span className="shrink-0 text-[11px] font-medium text-[#f87171]">Problem</span>
           )}
         </button>

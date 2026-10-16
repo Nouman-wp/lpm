@@ -12,7 +12,9 @@ import {
   Zap,
 } from "lucide-react";
 import { TELEGRAM_URL } from "@/lib/links";
+import { YOUTUBE_PLAYLIST_URL } from "@/lib/youtube-lessons";
 import { FOCUS_RING, PRESS } from "./ui";
+import { YoutubeGlyph } from "./youtube-glyph";
 import type { DemoView } from "./views";
 
 type MoreMenuProps = {
@@ -66,12 +68,21 @@ export function SidebarMoreMenu({
   };
 
   const inMenu = MENU_VIEWS.includes(activeView);
+  const hints = [
+    needsYou > 0 ? `${needsYou} agent${needsYou === 1 ? "" : "s"} waiting on you` : "",
+    hasError ? "an agent hit an error" : "",
+    runningAutomations > 0 ? "a scheduled job is running" : "",
+    unreadAutomations > 0
+      ? `${unreadAutomations} automation${unreadAutomations === 1 ? "" : "s"} with new messages`
+      : "",
+  ].filter(Boolean);
 
   return (
     <div ref={ref} className="relative shrink-0">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        title={hints.length > 0 ? `More — ${hints.join(", ")}` : "Activity, settings, and more views"}
         aria-label="More"
         aria-expanded={open}
         aria-haspopup="menu"
@@ -161,6 +172,20 @@ export function SidebarMoreMenu({
             </span>
             <span className="truncate">Support &amp; Feedback</span>
           </a>
+          <a
+            role="menuitem"
+            href={YOUTUBE_PLAYLIST_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setOpen(false)}
+            title="Short video lessons on lpm, opened in your browser."
+            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] ${FOCUS_RING}`}
+          >
+            <span className="shrink-0">
+              <YoutubeGlyph />
+            </span>
+            <span className="truncate">Tutorial (YouTube)</span>
+          </a>
         </div>
       )}
     </div>
@@ -210,11 +235,11 @@ function NavSignals({
 }) {
   if (needsYou <= 0 && !hasError) return null;
   return (
-    <>
+    <span className="flex items-center gap-1.5">
       {needsYou > 0 && (
         <span
           aria-label={`${needsYou} agent${needsYou === 1 ? "" : "s"} waiting on you`}
-          className="inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold tabular-nums text-[#fbbf24]"
+          className="flex shrink-0 items-center gap-1 text-[10px] font-medium tabular-nums text-[#fbbf24]"
         >
           <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#fbbf24]" />
           {needsYou}
@@ -226,7 +251,7 @@ function NavSignals({
           className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#f87171]"
         />
       )}
-    </>
+    </span>
   );
 }
 
@@ -235,7 +260,7 @@ function CountBadge({ count, label }: { count: number; label: string }) {
   return (
     <span
       aria-label={`${count} ${label}`}
-      className="inline-flex h-[15px] min-w-[15px] shrink-0 items-center justify-center rounded-full bg-[#60a5fa] px-1 text-[10px] font-semibold leading-none tabular-nums text-[#1a1a1a]"
+      className="inline-flex h-[17px] min-w-[17px] shrink-0 items-center justify-center rounded-full bg-[#60a5fa] px-1.5 text-[10px] font-semibold leading-none tabular-nums tracking-tight text-[#1a1a1a]"
     >
       {count > 99 ? "99+" : count}
     </span>

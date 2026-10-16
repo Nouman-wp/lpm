@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Terminal } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { AgentTabState } from "./project-view";
 import type { AiStatus, DemoProject } from "./projects";
 import { SidebarMoreMenu } from "./sidebar-more-menu";
 import { SidebarProjectRow } from "./sidebar-project-row";
 import { SidebarUsage } from "./sidebar-usage";
+import { TerminalGlyph } from "./terminal-glyph";
 import { FOCUS_RING, PRESS } from "./ui";
 import type { UsageSidebarSettings } from "./usage-data";
 import type { DemoView } from "./views";
@@ -137,9 +138,9 @@ export function DemoSidebar({
         ))}
       </nav>
       <SidebarUsage settings={usageSettings} onOpen={() => onOpenView("usage")} />
-      <div className="flex flex-col gap-0.5 p-2">
+      <div className="flex flex-col p-2">
         <FooterRow
-          icon={<Terminal className="h-3.5 w-3.5" strokeWidth={1.5} />}
+          icon={<TerminalGlyph />}
           label="Terminals"
           active={activeView === "terminals"}
           onClick={() => onOpenView("terminals")}
