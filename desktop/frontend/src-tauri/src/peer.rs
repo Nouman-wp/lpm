@@ -84,6 +84,7 @@ const HOST_FEATURES: &[&str] = &[
     REMOTE_PAIR_FEATURE,
     crate::peersettings::HOST_SETTINGS_FEATURE,
     crate::remote::relayed::PHONE_RELAY_FEATURE,
+    crate::agent_limits_share::LIMITS_FEATURE,
 ];
 
 /// HOST_FEATURES plus those this build offers only on some platforms.
@@ -995,6 +996,7 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
     }
 
     hub.inner.clients.lock().unwrap().remove(&conn_id);
+    crate::agent_limits_share::drop_conn(conn_id); // stop sending it usage limits
     crate::gitwatchhost::drop_conn(conn_id); // stop watching folders for a gone follower
     crate::remote::relayed::drop_conn(conn_id); // end the phones it was carrying here
                                              // Release any terminal control this peer held so ownership transfers back to a
@@ -1464,6 +1466,9 @@ fn handle_msg(
         // machine's own. Settings are on the invoke denylist; these frames reach
         // only those fields (peersettings.rs).
         "settingsGet" | "settingsSet" => crate::peersettings::handle(app, out, t, &v),
+        // A client's Claude usage limits, and from its first one on, this
+        // machine's own in return (agent_limits_share.rs).
+        "limits" => crate::agent_limits_share::from_client(app, conn_id, out, &v),
         // A phone the client Mac is carrying here: it opens this machine's
         // projects without pairing with it (remote/relayed.rs).
         "phoneOpen" | "phoneIn" | "phoneClose" => {

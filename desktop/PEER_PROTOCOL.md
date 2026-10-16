@@ -165,7 +165,8 @@ the host will hand back its own phone-pairing QR (see **Commands**); `mediaRange
 the host serves a video's byte ranges for preview (see **Commands**); `selfUpdate` =
 the client can have the host install the latest lpm (see **Commands**);
 `hostSettings` = the host shares the few settings that are its own (see
-**Commands**). A host
+**Commands**); `agentLimits` = the host trades Claude usage limits (see **Usage
+limits**). A host
 missing a feature simply never receives frames that depend on it. The full list
 is `host_features()` in `peer.rs`.
 
@@ -535,6 +536,34 @@ newer change, backup saved) or an error (throttled per peer); clean runs are sil
 the conflict resolver is symmetric (both pick the same winner) and digests converge,
 so runs are idempotent — once a change has propagated, the follow-up runs on both
 sides compute empty plans and stop.
+
+## Usage limits
+
+A Claude login's plan limits belong to the account, so both ends of a link trade
+the readings their own sessions reported (`agent_limits_share.rs`). One frame, in
+both directions:
+
+```
+{ "t": "limits", "claude": [ { "identity", "label"?, "fiveHour"?, "weekly"?,
+                               "updatedAt", "noLimits"? } ] }
+```
+
+Each window is `{ "usedPercent", "resetsAt", "observedAt"? }`. `identity` is
+`accountUuid:organizationUuid` from the login's `.claude.json` (account ids are
+each machine's own); a reading lands on every login on the receiving side signed
+in as that identity, and on none when there is no such login. `observedAt` (unix
+secs) is when a session observed the window, absent for a replayed or relaunched
+reading. The receiver folds readings in with the rules that settle two local
+sessions: the later observation wins (ties go to the later `resetsAt`, then the
+higher percent, so both ends settle on the same one), an observed reading beats a
+replay until its window runs out, and two replays go by `resetsAt` then percent.
+`observedAt` is capped at the receiver's own clock and windows that have already
+reset are dropped.
+
+The client sends `limits` after `ready` when the host advertises `agentLimits`,
+and on every change after. The host answers a connection's first `limits` with
+its own and from then on sends that client its changes. A change that came from
+the peer goes back to it and changes nothing there, which ends the exchange.
 
 ## Keepalive
 

@@ -4,6 +4,7 @@ mod adopt;
 mod agent_last_answer;
 mod agent_last_answer_codex;
 mod agent_limits;
+mod agent_limits_share;
 mod agent_session_titles;
 mod agent_sessions;
 mod agent_sessions_claude;
@@ -544,6 +545,7 @@ pub fn run() {
             // ~/.codex/sessions; Claude limits arrive via the statusline
             // forwarder over the status socket once the user opts in.
             agent_limits::start(handle.clone());
+            agent_limits_share::start(&handle);
             claude_pool::init(&handle);
 
             // Built-in Tailscale node, when it is switched on: the mobile and

@@ -107,6 +107,7 @@ struct PeerConn {
     beta_updates: AtomicBool, // the host follows the Beta update channel (updatechannel.rs)
     supports_host_settings: AtomicBool, // host shares its own settings (peersettings.rs)
     supports_phone_relay: AtomicBool, // host runs phones this Mac relays to it (peerclient/phone.rs)
+    supports_limits: AtomicBool, // host trades Claude usage limits (agent_limits_share.rs)
     // The phones this Mac is relaying to the host, by channel: where the frames
     // the host sends each one go.
     phones: Mutex<HashMap<u64, SyncSender<String>>>,
@@ -170,6 +171,7 @@ impl PeerConn {
             beta_updates: AtomicBool::new(false),
             supports_host_settings: AtomicBool::new(false),
             supports_phone_relay: AtomicBool::new(false),
+            supports_limits: AtomicBool::new(false),
             phones: Mutex::new(HashMap::new()),
             in_run: AtomicBool::new(false),
             generation: AtomicU64::new(0),
@@ -975,6 +977,31 @@ impl PeerClientHub {
             .cloned()
             .ok_or_else(|| "unknown peer".to_string())?;
         conn.send(frame.to_string())
+    }
+
+    fn limits_conns(&self) -> Vec<Arc<PeerConn>> {
+        self.inner
+            .conns
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|c| {
+                c.connected.load(Ordering::Relaxed) && c.supports_limits.load(Ordering::Relaxed)
+            })
+            .cloned()
+            .collect()
+    }
+
+    /// Whether any connected peer trades usage limits with this Mac.
+    pub(crate) fn trades_limits(&self) -> bool {
+        !self.limits_conns().is_empty()
+    }
+
+    /// Send this Mac's usage limits to every connected peer that trades them.
+    pub(crate) fn send_limits(&self, frame: &str) {
+        for conn in self.limits_conns() {
+            let _ = conn.send(frame.to_string());
+        }
     }
 
     fn require_feature(&self, slug: &str, has: impl Fn(&PeerConn) -> bool) -> Result<(), String> {
@@ -2045,6 +2072,10 @@ fn connect_session(
         has_feature(crate::remote::relayed::PHONE_RELAY_FEATURE),
         Ordering::Relaxed,
     );
+    conn.supports_limits.store(
+        has_feature(crate::agent_limits_share::LIMITS_FEATURE),
+        Ordering::Relaxed,
+    );
 
     let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
     *conn.out.lock().unwrap() = Some(tx);
@@ -2059,6 +2090,13 @@ fn connect_session(
         let _ = ws.write(Message::text(conn.sub_frame(id)));
     }
     let app = hub.app();
+    // This Mac's usage limits, which the host answers with its own.
+    if let Some(app) = app
+        .as_ref()
+        .filter(|_| conn.supports_limits.load(Ordering::Relaxed))
+    {
+        let _ = ws.write(Message::text(crate::agent_limits_share::frame(app)));
+    }
     // The host let go of this Mac's control when the link dropped. Presenting
     // again restores its place without taking a terminal from a host window.
     if let Some(control) = app
@@ -2203,6 +2241,11 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
             }
         }
         "phoneOut" | "phoneClose" => phone::route(conn, &v),
+        "limits" => {
+            if let Some(app) = app {
+                crate::agent_limits_share::from_host(app, &v);
+            }
+        }
         "result" => {
             let Some(req) = v.get("reqId").and_then(Value::as_u64) else {
                 return;

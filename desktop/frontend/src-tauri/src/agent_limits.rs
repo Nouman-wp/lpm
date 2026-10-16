@@ -9,7 +9,9 @@
 //     forwarder is consent-gated (claude_statusline/), so this only populates once enabled.
 //
 // A change to any provider emits `agent-limits-changed` with the full snapshot,
-// suppressing no-op re-emits like status.rs's should_replace.
+// suppressing no-op re-emits like status.rs's should_replace. Claude readings
+// are also traded with connected computers (agent_limits_share.rs), since an
+// account's limits move wherever it is used.
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -30,11 +32,12 @@ const SESSION_MARK_TTL_SECS: i64 = 24 * 3600;
 pub struct LimitWindow {
     pub used_percent: f64,
     pub resets_at: i64,
-    /// Taken from a Claude session right after it observed its limits (a reply
-    /// or its startup check), as opposed to a replay of an older reading.
-    /// Process-local: never sent or persisted.
+    /// When (unix secs) a Claude session observed this reading (a reply or its
+    /// startup check), as opposed to replaying an older one. Lives in memory
+    /// and travels to connected computers (agent_limits_share.rs), but is never
+    /// persisted or shown.
     #[serde(skip)]
-    pub from_response: bool,
+    pub observed_at: Option<i64>,
 }
 
 /// One provider's latest limits. `provider` is "claude" or "codex"; `account_id`
@@ -64,18 +67,18 @@ pub struct ProviderLimits {
 /// reading hours older than what we already have; taking it verbatim makes the
 /// meter oscillate.
 ///
-/// A `fresh` reading came straight from a session's new observation, so it wins
-/// outright — the only way to see the provider reset usage mid-window (back to
-/// 0, often with the same `resets_at`). Once a window holds such a reading,
-/// replays can't contradict it until it runs out. Without one (after a
-/// relaunch, or from Codex) the guess is that usage only grows inside a window:
-/// the later `resets_at` wins, then the higher percent. The bool is true only
-/// when `next` won.
+/// An observed reading came straight from a session's new observation, so it
+/// wins outright — the only way to see the provider reset usage mid-window
+/// (back to 0, often with the same `resets_at`) — unless the stored one was
+/// observed later, here or on a connected computer. Once a window holds an
+/// observed reading, replays can't contradict it until it runs out. Without one
+/// (after a relaunch, or from Codex) the guess is that usage only grows inside
+/// a window: the later `resets_at` wins, then the higher percent. The bool is
+/// true only when `next` won.
 fn pick_window(
     prev: Option<&LimitWindow>,
     next: Option<LimitWindow>,
     now: i64,
-    fresh: bool,
 ) -> (Option<LimitWindow>, bool) {
     match (prev, next) {
         (_, None) => (
@@ -85,30 +88,22 @@ fn pick_window(
                 .cloned(),
             false,
         ),
-        (None, Some(n)) => (
-            Some(LimitWindow {
-                from_response: fresh,
-                ..n
-            }),
-            true,
-        ),
+        (None, Some(n)) => (Some(n), true),
         (Some(p), Some(n)) => {
-            let newer = if fresh {
-                true
-            } else if p.from_response {
-                p.resets_at != 0 && p.resets_at <= now && n.resets_at > p.resets_at
-            } else {
-                n.resets_at > p.resets_at
-                    || (n.resets_at == p.resets_at && n.used_percent > p.used_percent)
+            let grew = n.resets_at > p.resets_at
+                || (n.resets_at == p.resets_at && n.used_percent > p.used_percent);
+            let newer = match (n.observed_at, p.observed_at) {
+                // Two computers can observe in the same second; the tie is
+                // broken the same way on both, or they would trade it forever.
+                (Some(n_at), Some(p_at)) => n_at > p_at || (n_at == p_at && grew),
+                (Some(_), None) => true,
+                (None, Some(_)) => {
+                    p.resets_at != 0 && p.resets_at <= now && n.resets_at > p.resets_at
+                }
+                (None, None) => grew,
             };
             if newer {
-                (
-                    Some(LimitWindow {
-                        from_response: fresh,
-                        ..n
-                    }),
-                    true,
-                )
+                (Some(n), true)
             } else {
                 (Some(p.clone()), false)
             }
@@ -117,16 +112,11 @@ fn pick_window(
 }
 
 /// Fold an incoming reading into the stored one, keeping the freshest value per
-/// window. `updated_at` always takes the incoming value — it tracks when we last
+/// window. `updated_at` takes the later of the two — it tracks when we last
 /// heard from the provider, not which reading won.
-fn merge_limits(
-    prev: &ProviderLimits,
-    next: ProviderLimits,
-    now: i64,
-    fresh: bool,
-) -> ProviderLimits {
-    let (five_hour, five_fresh) = pick_window(prev.five_hour.as_ref(), next.five_hour, now, fresh);
-    let (weekly, weekly_fresh) = pick_window(prev.weekly.as_ref(), next.weekly, now, fresh);
+fn merge_limits(prev: &ProviderLimits, next: ProviderLimits, now: i64) -> ProviderLimits {
+    let (five_hour, five_fresh) = pick_window(prev.five_hour.as_ref(), next.five_hour, now);
+    let (weekly, weekly_fresh) = pick_window(prev.weekly.as_ref(), next.weekly, now);
     let stale_report = !five_fresh && !weekly_fresh;
     let label = if stale_report {
         prev.label.clone().or(next.label)
@@ -140,7 +130,7 @@ fn merge_limits(
         label,
         five_hour,
         weekly,
-        updated_at: next.updated_at,
+        updated_at: next.updated_at.max(prev.updated_at),
         no_limits,
     }
 }
@@ -150,9 +140,23 @@ fn meaningful_eq(a: &ProviderLimits, b: &ProviderLimits) -> bool {
     a.provider == b.provider
         && a.account_id == b.account_id
         && a.label == b.label
-        && a.five_hour == b.five_hour
-        && a.weekly == b.weekly
+        && same_reading(&a.five_hour, &b.five_hour)
+        && same_reading(&a.weekly, &b.weekly)
         && a.no_limits == b.no_limits
+}
+
+/// Same values, both observed or both not. When a reading was observed moves on
+/// every reply, which is nothing to show for on its own.
+fn same_reading(a: &Option<LimitWindow>, b: &Option<LimitWindow>) -> bool {
+    match (a, b) {
+        (Some(a), Some(b)) => {
+            a.used_percent == b.used_percent
+                && a.resets_at == b.resets_at
+                && a.observed_at.is_some() == b.observed_at.is_some()
+        }
+        (None, None) => true,
+        _ => false,
+    }
 }
 
 /// What a Claude session showed at its previous report: cumulative API ms, its
@@ -180,14 +184,23 @@ impl AgentLimitsStore {
     /// Fold `limits` into whatever is stored under `key`; returns whether
     /// meaningful fields changed (the caller emits only then). The stored
     /// `updated_at` always advances so a later fetch reports fresh data even on a
-    /// no-op re-report. `now` is unix seconds, injected for testability.
-    pub fn set(&self, key: &str, limits: ProviderLimits, now: i64, fresh: bool) -> bool {
+    /// no-op re-report. `fresh` marks the windows as observed `now`; a reading
+    /// from a connected computer arrives already carrying when it was observed.
+    /// `now` is unix seconds, injected for testability.
+    pub fn set(&self, key: &str, mut limits: ProviderLimits, now: i64, fresh: bool) -> bool {
+        if fresh {
+            for w in [&mut limits.five_hour, &mut limits.weekly]
+                .into_iter()
+                .flatten()
+            {
+                w.observed_at = Some(now);
+            }
+        }
         let mut m = self.entries.write().unwrap();
         let merged = merge_limits(
             m.get(key).unwrap_or(&ProviderLimits::default()),
             limits,
             now,
-            fresh,
         );
         let changed = m
             .get(key)
@@ -292,7 +305,7 @@ pub fn now_millis() -> i64 {
         .unwrap_or(0)
 }
 
-fn now_secs() -> i64 {
+pub(crate) fn now_secs() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
@@ -311,8 +324,26 @@ pub fn claude_limits_account(project: String) -> String {
     crate::config::claude_limits_account(&project)
 }
 
+pub const CHANGED_EVENT: &str = "agent-limits-changed";
+
 fn emit_snapshot(app: &AppHandle, store: &AgentLimitsStore) {
-    let _ = app.emit("agent-limits-changed", store.snapshot());
+    let _ = app.emit(CHANGED_EVENT, store.snapshot());
+}
+
+/// Fold in Claude readings a connected computer took of accounts signed in
+/// here too, each already under its local store key.
+pub(crate) fn fold_shared(app: &AppHandle, readings: Vec<(String, ProviderLimits)>) {
+    let store = app.state::<Arc<AgentLimitsStore>>();
+    let now = now_secs();
+    let mut changed = false;
+    for (key, limits) in readings {
+        changed |= store.set(&key, limits, now, false);
+    }
+    if changed {
+        emit_snapshot(app, &store);
+        crate::claude_pool::refresh();
+        persist_claude(&store);
+    }
 }
 
 // ---- Codex ------------------------------------------------------------------
@@ -1225,5 +1256,138 @@ mod tests {
             "a first real reading clears the flag"
         );
         assert!(!s.snapshot()["claude:api"].no_limits);
+    }
+
+    fn observed(mut l: ProviderLimits, at: i64) -> ProviderLimits {
+        for w in [&mut l.five_hour, &mut l.weekly].into_iter().flatten() {
+            w.observed_at = Some(at);
+        }
+        l
+    }
+
+    fn weekly_pct(s: &AgentLimitsStore) -> f64 {
+        s.snapshot()["claude:default"]
+            .weekly
+            .as_ref()
+            .unwrap()
+            .used_percent
+    }
+
+    #[test]
+    fn reading_observed_on_another_computer_beats_a_local_replay() {
+        // The idle Mac replays what it saw last; the one in use saw the account
+        // move since. Its reading wins, and the idle Mac's replays can't undo it.
+        let s = AgentLimitsStore::new();
+        s.set(
+            "claude:default",
+            claude_limits(None, Some(1.0), 9_000),
+            0,
+            false,
+        );
+        assert!(s.set(
+            "claude:default",
+            observed(claude_limits(None, Some(62.0), 9_000), 50),
+            60,
+            false
+        ));
+        assert_eq!(weekly_pct(&s), 62.0);
+        assert!(!s.set(
+            "claude:default",
+            claude_limits(None, Some(1.0), 9_000),
+            70,
+            false
+        ));
+        assert_eq!(weekly_pct(&s), 62.0);
+    }
+
+    #[test]
+    fn the_later_observation_wins_wherever_it_was_made() {
+        let s = AgentLimitsStore::new();
+        s.set(
+            "claude:default",
+            claude_limits(None, Some(40.0), 9_000),
+            100,
+            true,
+        );
+        assert!(
+            !s.set(
+                "claude:default",
+                observed(claude_limits(None, Some(45.0), 9_000), 90),
+                101,
+                false
+            ),
+            "observed elsewhere before this Mac's own reading"
+        );
+        assert_eq!(weekly_pct(&s), 40.0);
+        assert!(
+            s.set(
+                "claude:default",
+                observed(claude_limits(None, Some(0.0), 9_000), 120),
+                121,
+                false
+            ),
+            "a mid-window reset seen elsewhere walks the meter back here too"
+        );
+        assert_eq!(weekly_pct(&s), 0.0);
+        assert!(s.set(
+            "claude:default",
+            claude_limits(None, Some(3.0), 9_000),
+            130,
+            true
+        ));
+        assert_eq!(weekly_pct(&s), 3.0);
+    }
+
+    #[test]
+    fn two_computers_observing_in_the_same_second_settle_on_one_reading() {
+        let a = AgentLimitsStore::new();
+        let b = AgentLimitsStore::new();
+        a.set(
+            "claude:default",
+            claude_limits(None, Some(40.0), 9_000),
+            100,
+            true,
+        );
+        b.set(
+            "claude:default",
+            claude_limits(None, Some(41.0), 9_000),
+            100,
+            true,
+        );
+        let from = |s: &AgentLimitsStore| s.snapshot()["claude:default"].clone();
+        let (from_a, from_b) = (from(&a), from(&b));
+        assert!(a.set("claude:default", from_b, 101, false));
+        assert!(!b.set("claude:default", from_a, 101, false));
+        assert_eq!(weekly_pct(&a), 41.0);
+        assert_eq!(weekly_pct(&b), 41.0);
+        assert!(
+            !b.set("claude:default", from(&a), 102, false),
+            "the echo stops"
+        );
+    }
+
+    #[test]
+    fn a_new_observation_of_the_same_reading_is_not_a_change() {
+        let s = AgentLimitsStore::new();
+        s.set(
+            "claude:default",
+            claude_limits(None, Some(40.0), 9_000),
+            100,
+            true,
+        );
+        assert!(!s.set(
+            "claude:default",
+            claude_limits(None, Some(40.0), 9_000),
+            200,
+            true
+        ));
+        assert_eq!(
+            s.snapshot()["claude:default"]
+                .weekly
+                .as_ref()
+                .unwrap()
+                .observed_at,
+            Some(200)
+        );
     }
 }
