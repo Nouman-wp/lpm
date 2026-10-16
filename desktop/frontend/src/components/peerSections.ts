@@ -73,7 +73,9 @@ export function buildPeerSections(
   }
 
   // A connected peer always gets a section, even with no projects yet, so its
-  // header (and the add-project button in it) is reachable on a fresh host.
+  // header (and the add-project button in it) is reachable on a fresh host. So
+  // does one that's away, so it says so and offers to reconnect; only one turned
+  // off here goes, unless copies of its projects are here.
   const sections: PeerSection[] = peers.map((peer) => ({
     slug: peer.slug,
     alias: peer.alias || peer.host,
@@ -105,8 +107,11 @@ export function buildPeerSections(
     else section.strays.push({ project, label: folderName(follow.sourceRoot), follow });
   }
 
+  const turnedOff = new Set(peers.filter((peer) => peer.enabled === false).map((peer) => peer.slug));
   return {
-    sections: sections.filter((section) => section.connected || section.strays.length > 0),
+    sections: sections.filter(
+      (section) => section.connected || section.strays.length > 0 || !turnedOff.has(section.slug),
+    ),
     hostedRemotely,
   };
 }

@@ -6,6 +6,7 @@ import {
   type SplitDirection,
   type TerminalInstance,
   applyManualTerminalRename,
+  collectTerminals,
   clearManualTerminalTitle,
   makePaneLeaf,
   makeTerminal,
@@ -19,6 +20,7 @@ import {
 } from "../../paneTree";
 import { pickTerminalLabel } from "../../terminalLabels";
 import { IS_MIRROR_WINDOW } from "../../mirror";
+import { tellHost } from "../../peer/tellHost";
 import { nextId, resolveActiveAfterClose } from "./util";
 
 interface UsePaneOpsProps {
@@ -126,8 +128,10 @@ export function usePaneOps({
         }),
       }));
       applyTree(next);
+      const id = findPane(current, paneId)?.tabs[tabIdx]?.id;
+      if (id) tellHost(projectName, "rename", { id, label, emoji });
     },
-    [applyTree, forward],
+    [applyTree, forward, projectName],
   );
 
   const restoreSessionTitle = useCallback(
@@ -142,8 +146,10 @@ export function usePaneOps({
         ),
       }));
       applyTree(next);
+      const id = findPane(current, paneId)?.tabs[tabIdx]?.id;
+      if (id) tellHost(projectName, "title", { id });
     },
-    [applyTree, forward],
+    [applyTree, forward, projectName],
   );
 
   const toggleTabPinned = useCallback(
@@ -160,8 +166,9 @@ export function usePaneOps({
         ),
       }));
       applyTree(next);
+      tellHost(projectName, "pin", { id: pane.tabs[tabIdx].id });
     },
-    [applyTree, forward],
+    [applyTree, forward, projectName],
   );
 
   // Reorder follows the active terminal by id rather than by index so the
@@ -196,8 +203,9 @@ export function usePaneOps({
         activeTabIdx: newActive,
       }));
       applyTree(next);
+      tellHost(projectName, "reorder", { order: collectTerminals(next).map((t) => t.id) });
     },
-    [applyTree, forward],
+    [applyTree, forward, projectName],
   );
 
   // Collapses the source pane when the move empties it, matching the

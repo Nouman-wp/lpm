@@ -17,6 +17,7 @@ export const STATUS_DISPLAY: Record<
   deleted: { label: "D", color: "text-[var(--accent-red-text)]", dot: "bg-[var(--accent-red)]" },
   renamed: { label: "R", color: "text-[var(--accent-cyan-text)]", dot: "bg-[var(--accent-cyan)]" },
   modified: { label: "M", color: "text-[var(--accent-blue-text)]", dot: "bg-[var(--accent-blue)]" },
+  conflicted: { label: "!", color: "text-[var(--accent-red-text)]", dot: "bg-[var(--accent-red)]" },
 };
 export const DEFAULT_STATUS = STATUS_DISPLAY.modified;
 

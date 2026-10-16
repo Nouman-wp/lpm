@@ -11,6 +11,11 @@ export interface ServiceInfo {
   portConflict?: ActionPortConflict;
   env?: Record<string, string>;
   dependsOn?: string[];
+  // Set on a started service whose command has ended (crashed, exited, or was
+  // stopped in its pane) while its tab stays. `exitCode` is null when the shell
+  // gave none.
+  exited?: boolean;
+  exitCode?: number | null;
 }
 
 export interface ProfileInfo {
@@ -221,6 +226,8 @@ export interface ProjectInfo {
   activeProfile: string;
   statusEntries: StatusEntry[];
   configError?: string;
+  // Actions left out because they don't parse, each naming where and why.
+  actionErrors?: string[];
   parentName?: string;
   worktree?: boolean;
   isRemote: boolean;

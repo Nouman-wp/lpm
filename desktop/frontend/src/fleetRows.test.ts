@@ -555,6 +555,36 @@ describe("automations", () => {
     expect(fleetElapsedLabel(fleet.rows[0], T0)).toBe("working 5m");
   });
 
+  it("lists a finished run nobody has read, failed runs as problems", () => {
+    const fleet = build({
+      now: T0,
+      projects: [project({ name: "app" })],
+      jobs: [
+        job({
+          id: "failing",
+          running: false,
+          unread: 1,
+          lastResult: "error",
+          lastRunAt: Math.floor(T0 / 1000) - 60,
+          project: "app",
+          targets: ["app"],
+        }),
+        job({ id: "fine", running: false, unread: 2, lastResult: "completed", project: "app", targets: ["app"] }),
+        job({ id: "read", running: false, unread: 0, lastResult: "error", project: "app", targets: ["app"] }),
+      ],
+    });
+    const failing = fleet.rows.find((r) => r.jobId === "failing")!;
+    expect(failing.state).toBe("error");
+    expect(failing.holdsError).toBe(true);
+    expect(failing.detail).toBe("Problem during the run");
+    expect(failing.stateSince).toBe(T0 - 60_000);
+    expect(fleet.rows.find((r) => r.jobId === "fine")!.state).toBe("done");
+    expect(fleet.rows.some((r) => r.jobId === "read")).toBe(false);
+    expect(fleet.counts.error).toBe(1);
+    // A finished job doesn't keep its project busy.
+    expect(fleet.quietProjectCount).toBe(1);
+  });
+
   it("headlines the stamped project of a job that carries no targets", () => {
     const fleet = build({
       now: T0,
@@ -902,6 +932,28 @@ describe("services", () => {
     });
     expect(fleet.services[0].chips).toEqual([
       { kind: "service", name: "web", running: true },
+    ]);
+  });
+
+  it("counts a crashed service as not running and flags its chip", () => {
+    const fleet = build({
+      now: T0,
+      projects: [
+        project({
+          name: "app",
+          running: true,
+          services: [service("web"), { ...service("crashy"), exited: true, exitCode: 1 }],
+          allServices: [service("web"), service("crashy")],
+          profiles: [{ name: "all", services: ["web", "crashy"] }],
+          activeProfile: "all",
+        }),
+      ],
+    });
+    expect(fleet.services[0].running).toEqual(["web"]);
+    expect(fleet.services[0].declared).toEqual(["crashy"]);
+    expect(fleet.services[0].chips).toEqual([
+      { kind: "service", name: "web", running: true },
+      { kind: "service", name: "crashy", running: false, crashed: true },
     ]);
   });
 

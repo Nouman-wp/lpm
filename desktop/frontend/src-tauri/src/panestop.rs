@@ -84,7 +84,7 @@ pub fn interrupt_and_wait(panes: &[std::sync::Arc<crate::sessionpane::Pane>]) {
     let targets: Vec<&crate::sessionpane::Pane> = panes
         .iter()
         .map(|pane| pane.as_ref())
-        .filter(|pane| pane.pid > 0)
+        .filter(|pane| pane.pid > 0 && pane.alive())
         .collect();
     interrupt_until_idle(
         targets,

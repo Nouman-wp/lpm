@@ -24,12 +24,13 @@ pub(super) fn run(
     ws: &mut ClientWs,
     app: &AppHandle,
     device_id: &str,
+    phone_id: &str,
     name: &str,
     slug: &str,
     alive: impl Fn() -> bool,
 ) {
     let opened = match app.try_state::<PeerClientHub>() {
-        Some(hub) => hub.open_phone_channel(slug, device_id, name),
+        Some(hub) => hub.open_phone_channel(slug, device_id, phone_id, name),
         None => Err(PhoneChannelError::Offline),
     };
     let channel = match opened {

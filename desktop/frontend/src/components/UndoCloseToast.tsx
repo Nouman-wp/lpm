@@ -20,7 +20,7 @@ export function UndoCloseToast({ toastId, label, durationMs, onUndo }: UndoClose
 
   return (
     <div
-      className="group relative flex w-[300px] items-center gap-2 overflow-hidden rounded-[11px] border border-[var(--border)] py-2.5 pl-3.5 pr-2 shadow-lg backdrop-blur-md"
+      className="group relative flex w-[300px] items-center gap-2 overflow-hidden rounded-[11px] border border-[var(--border)] py-1.5 pl-3.5 pr-2 shadow-lg backdrop-blur-md"
       style={{ backgroundColor: "color-mix(in srgb, var(--bg-primary) 88%, transparent)" }}
     >
       <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-primary)]">
@@ -73,7 +73,9 @@ export function showUndoCloseToast(opts: {
     {
       id: opts.toastId,
       duration: opts.durationMs,
-      position: "bottom-right",
+      // Bottom-left keeps to the footer row (TOASTER_OFFSET), clear of every
+      // pane's composer and its Send button.
+      position: "bottom-left",
       onAutoClose: opts.onFinalize,
       onDismiss: opts.onFinalize,
     },

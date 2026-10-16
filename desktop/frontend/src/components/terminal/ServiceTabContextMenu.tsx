@@ -1,4 +1,4 @@
-import { GlobeIcon, StopIcon } from "../icons";
+import { GlobeIcon, RefreshIcon, StopIcon } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { ContextMenuSubmenu } from "../ui/ContextMenuSubmenu";
@@ -10,6 +10,9 @@ interface ServiceTabContextMenuProps {
   // Live ports the service is listening on; empty until it binds (or always,
   // for remote projects) — drives whether "Open in browser" is actionable.
   ports: number[];
+  // The service runs on another Mac, whose localhost isn't this one's.
+  remote?: boolean;
+  onRestart: () => void;
   onStop: () => void;
   onClose: () => void;
 }
@@ -18,14 +21,22 @@ const portLabel = (port: number) => (
   <span className="font-mono text-[10px] tabular-nums">{`:${port}`}</span>
 );
 
-export function ServiceTabContextMenu({ x, y, ports, onStop, onClose }: ServiceTabContextMenuProps) {
+export function ServiceTabContextMenu({ x, y, ports, remote, onRestart, onStop, onClose }: ServiceTabContextMenuProps) {
   const open = (port: number) => {
     BrowserOpenURL(`http://localhost:${port}`);
     onClose();
   };
   return (
     <ContextMenuShell x={x} y={y} onClose={onClose}>
-      {ports.length > 1 ? (
+      {remote ? (
+        <ContextMenuItem
+          label="Open in browser"
+          icon={<GlobeIcon />}
+          disabled
+          title="It runs on another Mac — open it there"
+          onClick={() => {}}
+        />
+      ) : ports.length > 1 ? (
         <ContextMenuSubmenu label="Open in browser" icon={<GlobeIcon />}>
           {ports.map((port) => (
             <ContextMenuItem
@@ -45,6 +56,14 @@ export function ServiceTabContextMenu({ x, y, ports, onStop, onClose }: ServiceT
           onClick={() => open(ports[0])}
         />
       )}
+      <ContextMenuItem
+        label="Restart service"
+        icon={<RefreshIcon />}
+        onClick={() => {
+          onRestart();
+          onClose();
+        }}
+      />
       <ContextMenuItem
         label="Stop service"
         icon={<StopIcon />}

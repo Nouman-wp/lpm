@@ -385,6 +385,9 @@ export function TerminalExists(id) {
 export function ListProjectTerminals(projectName, withTabs) {
   return invoke("list_project_terminals", { projectName, withTabs });
 }
+export function TerminalTabOp(projectName, op, id, label, emoji, order) {
+  return invoke("terminal_tab_op", { projectName, op, id, label, emoji, order });
+}
 export function ListBranches(cwd) {
   return invoke("list_branches", { cwd });
 }
@@ -589,6 +592,9 @@ export function RemoteSetKeepAwake(enabled) {
 export function RemoteRespondPairRequest(requestId, allow) {
   return invoke("remote_respond_pair_request", { requestId, allow });
 }
+export function RemoteTakeRestoreRequests() {
+  return invoke("remote_take_restore_requests");
+}
 export function RemoteSetTerminalLabels(project, labels) {
   return invoke("remote_set_terminal_labels", { project, labels });
 }
@@ -781,8 +787,12 @@ export function ResizeTerminal(id, cols, rows) {
 export function ResolveMergeConflictsWithAI(projectName, cwd, cli, model, effort, fast, genId = "") {
   return invoke("resolve_merge_conflicts_with_ai", { projectName, cwd, cli, model, effort, fast, genId });
 }
-export function ResolvePortConflict(c) {
-  return invoke("resolve_port_conflict", { c });
+// `projectName` only routes the call: another Mac's project frees the port there.
+export function ResolvePortConflict(c, projectName) {
+  return invoke("resolve_port_conflict", { c, projectName });
+}
+export function RestartProjectService(name, serviceName) {
+  return invoke("restart_project_service", { name, serviceName });
 }
 export function RestoreDetachedWindows() {
   return invoke("restore_detached_windows");
@@ -892,17 +902,19 @@ export function StartProjectWithServices(name, services) {
 export function StartService(projectName, paneIndex) {
   return invoke("start_service", { projectName, paneIndex });
 }
-export function StartTerminal(projectName, sessionId, fixedAccount) {
-  return invoke("start_terminal", { projectName, sessionId, fixedAccount });
+// `tab` ({ label, emoji, color, actionName }) names the tab for another Mac that
+// runs the terminal, which adopts it as a tab of its own; locally it's unused.
+export function StartTerminal(projectName, sessionId, fixedAccount, tab) {
+  return invoke("start_terminal", { projectName, sessionId, fixedAccount, tab });
 }
-export function StartTerminalForConfig(projectName, terminalName, fixedAccount) {
-  return invoke("start_terminal_for_config", { projectName, terminalName, fixedAccount });
+export function StartTerminalForConfig(projectName, terminalName, fixedAccount, tab) {
+  return invoke("start_terminal_for_config", { projectName, terminalName, fixedAccount, tab });
 }
 export function StartTerminalForRestore(projectName, terminalName, sessionId) {
   return invoke("start_terminal_for_restore", { projectName, terminalName, sessionId });
 }
-export function StartTerminalWithCwdEnv(projectName, cwd, env, sessionId, fixedAccount) {
-  return invoke("start_terminal_with_cwd_env", { projectName, cwd, env, sessionId, fixedAccount });
+export function StartTerminalWithCwdEnv(projectName, cwd, env, sessionId, fixedAccount, tab) {
+  return invoke("start_terminal_with_cwd_env", { projectName, cwd, env, sessionId, fixedAccount, tab });
 }
 export function SetOpenAIKey(key) {
   return invoke("set_openai_key", { key });
@@ -963,6 +975,9 @@ export function StopTTS() {
 }
 export function StopWatchingProject() {
   return invoke("stop_watching_project");
+}
+export function StopProjectService(name, serviceName) {
+  return invoke("stop_project_service", { name, serviceName });
 }
 export function ToggleProjectService(name, serviceName) {
   return invoke("toggle_project_service", { name, serviceName });

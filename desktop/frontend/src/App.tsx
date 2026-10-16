@@ -26,16 +26,19 @@ import { PairRequestDialog } from "./components/connections/PairRequestDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
 import { Toaster } from "sonner";
+import { TOASTER_OFFSET } from "./toasterOffset";
 import { MainTopBar } from "./components/MainTopBar";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import { useIsFullscreen } from "./hooks/useIsFullscreen";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
+import { PROJECT_JUMP_SHORTCUTS } from "./projectJumpShortcuts";
 import { useProjectSwitcher } from "./hooks/useProjectSwitcher";
 import { useProjectsSync } from "./hooks/useProjectsSync";
 import { useGlobalAgentStatusSync } from "./hooks/useGlobalTerminalStatus";
 import { GLOBAL_TERMINALS_KEY } from "./terminals";
 import { useAppEvents } from "./hooks/useAppEvents";
 import { useSshStatusWarnings } from "./hooks/useSshStatusWarnings";
+import { useActionErrorToasts } from "./hooks/useActionErrorToasts";
 import { useProjectWatcher } from "./hooks/useProjectWatcher";
 import { useOriginStatusPoller } from "./hooks/useOriginStatusPoller";
 import { getSettings, saveSettings, useSettingsStore } from "./store/settings";
@@ -48,6 +51,7 @@ import type { BulkDuplicateOptions } from "./components/BulkDuplicateDialog";
 import { usePeerDispatcher } from "./peer/usePeerDispatcher";
 import { usePeerAutoSyncToasts } from "./peer/usePeerAutoSyncToasts";
 import { usePeerState } from "./peer/usePeerState";
+import { peerStatus } from "./peer/peerStatus";
 import { isPeerName, peerSlugOf } from "./peer/markers";
 import { publishPeerSnapshot } from "./peer/retainedSessions";
 import { PeerDisconnectedBanner } from "./components/PeerDisconnectedBanner";
@@ -142,9 +146,10 @@ export default function App() {
   useAppEvents();
   useEffect(() => startSendLaterRunner(), []);
   usePeerDispatcher();
-  const { state: peerState } = usePeerState();
+  const { state: peerState, loaded: peersLoaded } = usePeerState();
   usePeerAutoSyncToasts(peerState.peers);
   useSshStatusWarnings();
+  useActionErrorToasts();
   const isFullscreen = useIsFullscreen();
 
   // Terminal sessions on a dropped peer are kept alive so the reconnect can resume
@@ -156,15 +161,18 @@ export default function App() {
   }, [peerState.peers]);
 
   // A selected remote project whose peer dropped: keep the selection and show a
-  // banner in its place; both the row and detail return on reconnect.
+  // banner in its place; both the row and detail return on reconnect. A peer no
+  // longer paired here won't return, so it gets no banner.
+  const selectedPeer =
+    selected != null && isPeerName(selected) && !selectedProject
+      ? peerState.peers.find((p) => p.slug === peerSlugOf(selected))
+      : undefined;
   const selectedPeerGone =
-    selected != null && isPeerName(selected) && !selectedProject;
-  const selectedPeerAlias = (() => {
-    if (!selectedPeerGone) return "";
-    const slug = peerSlugOf(selected!);
-    const peer = peerState.peers.find((p) => p.slug === slug);
-    return peer?.alias || peer?.host || "Mac";
-  })();
+    selected != null &&
+    isPeerName(selected) &&
+    !selectedProject &&
+    (!peersLoaded || selectedPeer !== undefined);
+  const selectedPeerAlias = selectedPeer?.alias || selectedPeer?.host || "Mac";
 
   // A mirror (detached) window can trigger run-in-duplicates but can't create
   // the copies itself — they mount and auto-run in this main window's store.
@@ -180,13 +188,10 @@ export default function App() {
     setSidebarCollapsed((v) => !v);
   });
 
-  useKeyboardShortcut(
-    Array.from({ length: 9 }, (_, i) => ({ key: String(i + 1), meta: true, whileTyping: false })),
-    (_e, matched) => {
-      const project = projects[Number(matched.key) - 1];
-      if (project) selectProject(project.name);
-    },
-  );
+  useKeyboardShortcut(PROJECT_JUMP_SHORTCUTS, (_e, matched) => {
+    const project = projects[Number(matched.key) - 1];
+    if (project) selectProject(project.name);
+  });
 
   const localProjectNames = useMemo(
     () => projects.filter((p) => !isPeerName(p.name)).map((p) => p.name),
@@ -250,7 +255,7 @@ export default function App() {
       <Toaster
         position="top-right"
         theme={theme}
-        offset={56}
+        offset={TOASTER_OFFSET}
         closeButton
         richColors
         toastOptions={{ duration: 5000 }}
@@ -374,7 +379,10 @@ export default function App() {
             onRefresh={refreshAfterRename}
           />
           {view === "projects" && selectedPeerGone && (
-            <PeerDisconnectedBanner alias={selectedPeerAlias} />
+            <PeerDisconnectedBanner
+              alias={selectedPeerAlias}
+              status={selectedPeer ? peerStatus(selectedPeer) : null}
+            />
           )}
           {view === "projects" && !selectedProject && !selectedPeerGone && projects.length === 0 && (
             <EmptyStateNoProjects onAdd={addProject} />

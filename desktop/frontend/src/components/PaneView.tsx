@@ -16,6 +16,11 @@ import { HeaderTab } from "./terminal/HeaderTab";
 import { RenameModal } from "./RenameModal";
 import { TabContextMenu } from "./terminal/TabContextMenu";
 import { ServiceTabContextMenu } from "./terminal/ServiceTabContextMenu";
+import { ServiceExitBar } from "./terminal/ServiceExitBar";
+import { TerminalEndedBar } from "./terminal/TerminalEndedBar";
+import { useEndedTerminals } from "../store/endedTerminals";
+import { isPeerName } from "../peer/markers";
+import { serviceCrashed } from "../serviceExit";
 import { IconBtn } from "./terminal/IconBtn";
 import {
   SplitRightIcon,
@@ -63,6 +68,9 @@ import { canForkSession } from "../forkSession";
 import { actionTextColor } from "../actionColors";
 import { SendLaterTabMark } from "./SendLaterTabMark";
 import { chordLabel } from "../keys";
+import { isMac } from "../platform";
+import { useIsFullscreen } from "../hooks/useIsFullscreen";
+import { paneHeaderPadding } from "./terminal/paneHeaderPadding";
 
 export type StatusKind = "Done" | "Waiting" | "Error";
 
@@ -129,6 +137,9 @@ export interface ServiceTabInfo {
   // Live TCP-listen ports the service's process tree owns, shown on its tab.
   // Empty until the service binds (or always, for remote projects).
   ports?: number[];
+  // The service's command has ended; its tab stays with the last output.
+  exited?: boolean;
+  exitCode?: number | null;
 }
 
 export interface PaneViewProps {
@@ -154,6 +165,7 @@ export interface PaneViewProps {
   onFocusTab: (paneId: string, tabIdx: number) => void;
   onFocusService: (paneId: string, serviceName: string) => void;
   onStopService: (serviceName: string) => void;
+  onRestartService: (serviceName: string) => void;
   onAddTerminal: (paneId: string) => void;
   onAddBrowser: (paneId: string) => void;
   onReviewChanges: (paneId: string) => void;
@@ -164,6 +176,7 @@ export interface PaneViewProps {
   onResumeSession?: () => void;
   onCloseTerminal: (paneId: string, tabIdx: number) => void;
   onCloseOtherTerminals: (paneId: string, tabIdx: number) => void;
+  onRestartTerminal: (terminalId: string) => void;
   onForkTerminal: (paneId: string, termId: string) => void;
   // Fork the tab's agent session into a fresh duplicate of the project.
   // Disabled (false) for peer-hosted and SSH-remote projects, whose sessions
@@ -234,6 +247,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onFocusTab,
     onFocusService,
     onStopService,
+    onRestartService,
     onAddTerminal,
     onAddBrowser,
     onReviewChanges,
@@ -243,6 +257,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onResumeSession,
     onCloseTerminal,
     onCloseOtherTerminals,
+    onRestartTerminal,
     onForkTerminal,
     canForkIntoCopy,
     onForkTerminalIntoCopy,
@@ -338,6 +353,9 @@ function PaneViewImpl(props: PaneViewProps) {
       ? activeTerm
       : null;
   const composerStatus = paneAgentStatus(paneStatus, composerTab?.id);
+  const composerEnded = useEndedTerminals((s) =>
+    composerTab && composerTab.id in s.ended ? s.ended[composerTab.id] : undefined,
+  );
   const composerForkable = composerTab !== null && canForkSession(composerTab.resumeCmd);
   // The agent conversation behind the active terminal, when its transcript is
   // readable on this Mac.
@@ -410,11 +428,16 @@ function PaneViewImpl(props: PaneViewProps) {
     );
   }, [scrollTabIntoView, terminalIdx, activeServiceName, pane.tabs.length, scrollNonce]);
 
+  const windowFullscreen = useIsFullscreen();
   const containerClass = fullscreen
     ? "fixed inset-0 z-50 flex flex-col overflow-hidden bg-[var(--terminal-bg)]"
     : "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-t border-x border-[var(--border)]";
 
-  const headerClass = `flex items-center gap-0.5 bg-[var(--terminal-header)] px-2 py-1 border-b-1 ${
+  const headerClass = `flex items-center gap-0.5 bg-[var(--terminal-header)] ${paneHeaderPadding(
+    fullscreen,
+    isMac,
+    windowFullscreen,
+  )} py-1 border-b-1 ${
     focused && canClose
       ? "border-b-[var(--accent-cyan)]"
       : "border-b-[var(--terminal-header-hover)]"
@@ -452,10 +475,18 @@ function PaneViewImpl(props: PaneViewProps) {
                 icon={<ZapIcon />}
                 active={isActive}
                 trailing={
-                  ports.length > 0 && (
-                    <span className="shrink-0 font-mono text-[10px] tabular-nums opacity-60">
-                      {ports.map((p) => `:${p}`).join(" ")}
-                    </span>
+                  svc.exited ? (
+                    <span
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                        serviceCrashed(svc) ? "bg-[var(--accent-red)]" : "bg-[var(--text-muted)]"
+                      }`}
+                    />
+                  ) : (
+                    ports.length > 0 && (
+                      <span className="shrink-0 font-mono text-[10px] tabular-nums opacity-60">
+                        {ports.map((p) => `:${p}`).join(" ")}
+                      </span>
+                    )
                   )
                 }
                 onClick={(e) => {
@@ -632,6 +663,13 @@ function PaneViewImpl(props: PaneViewProps) {
                     : undefined
                 }
               />
+              {svc.exited && (
+                <ServiceExitBar
+                  name={svc.name}
+                  exitCode={svc.exitCode ?? null}
+                  onRestart={() => onRestartService(svc.name)}
+                />
+              )}
             </div>
           );
         })}
@@ -717,7 +755,21 @@ function PaneViewImpl(props: PaneViewProps) {
           />
         </div>
       )}
-      {composerTab &&
+      {composerTab && composerEnded !== undefined ? (
+        <TerminalEndedBar
+          targetLabel={terminalDisplayLabel(composerTab)}
+          exitCode={composerEnded}
+          onRestart={
+            isPeerName(composerTab.id) || IS_MIRROR_WINDOW
+              ? undefined
+              : () => onRestartTerminal(composerTab.id)
+          }
+          onClose={() => {
+            const idx = pane.tabs.findIndex((t) => t.id === composerTab.id);
+            if (idx >= 0) onCloseTerminal(pane.id, idx);
+          }}
+        />
+      ) : composerTab &&
         (composerOpen ? (
           // Keyed by terminal id so each terminal keeps its own draft and the
           // input refocuses when the active terminal changes.
@@ -804,6 +856,8 @@ function PaneViewImpl(props: PaneViewProps) {
             x={serviceMenu.x}
             y={serviceMenu.y}
             ports={svc.ports ?? []}
+            remote={projectPeer !== null}
+            onRestart={() => onRestartService(svc.name)}
             onStop={() => onStopService(svc.name)}
             onClose={() => setServiceMenu(null)}
           />

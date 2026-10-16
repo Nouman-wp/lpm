@@ -55,7 +55,9 @@ const SERVICE_REMOVE_KEYS: &[&str] = &[
 // actionYaml.ts). Everything else (env, hand-authored keys) is unmanaged and
 // rides along untouched through an edit. `prompt` and `inputs` are managed on
 // desktop but deliberately absent here: the phone editor doesn't surface
-// either, so keeping them unmanaged stops a phone edit from clearing them.
+// `prompt`, and it sends `inputs` as a map whenever the action has or had any
+// (empty once every input is removed), so a payload without either, as from an
+// older phone, keeps what the file has.
 // `layer` is managed with `display`: the phone picks both, and a button moved
 // out of a zone drops its layer, as a desktop move does.
 const MANAGED_ACTION_KEYS: &[&str] = &[
@@ -110,12 +112,11 @@ fn read_doc(path: &Path) -> Result<Yaml, String> {
     }
 }
 
-fn write_doc(path: &Path, doc: &Yaml) -> Result<(), String> {
+fn write_text(path: &Path, out: &str) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let out = serde_norway::to_string(doc).map_err(|e| e.to_string())?;
-    config::write_config_file(path, &out)
+    config::write_config_file(path, out)
 }
 
 /// Load the available layers for a project. The repo layer is skipped for
@@ -142,11 +143,18 @@ fn config_layers(project: &str, kinds: &[LayerKind]) -> Result<Vec<Layer>, Strin
     Ok(out)
 }
 
+/// Writes every changed layer, or none when one of them would bring a problem
+/// its file didn't already have (a port that clashes, an action left out).
 fn flush_layers(layers: &[Layer]) -> Result<(), String> {
-    for l in layers {
-        if l.changed {
-            write_doc(&l.path, &l.doc)?;
-        }
+    let mut writes = Vec::new();
+    for l in layers.iter().filter(|l| l.changed) {
+        let out = serde_norway::to_string(&l.doc).map_err(|e| e.to_string())?;
+        let current = std::fs::read_to_string(&l.path).unwrap_or_default();
+        config::check::refuse_new_problems(&current, &out)?;
+        writes.push((&l.path, out));
+    }
+    for (path, out) in writes {
+        write_text(path, &out)?;
     }
     Ok(())
 }
@@ -758,6 +766,26 @@ mod tests {
             cur = cur.get(*p)?;
         }
         Some(cur)
+    }
+
+    #[test]
+    fn a_phone_edit_that_shares_a_port_is_not_written() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("shop.yml");
+        let original = "services:\n  web:\n    cmd: serve\n    port: 4402\n";
+        std::fs::write(&path, original).unwrap();
+        let mut layers = vec![Layer {
+            kind: LayerKind::Project,
+            path: path.clone(),
+            doc: serde_norway::from_str(original).unwrap(),
+            changed: false,
+        }];
+        save_service_in(&mut layers, "api2", &json!({ "cmd": "run", "port": 4402 }), None).unwrap();
+
+        let err = flush_layers(&layers).unwrap_err();
+
+        assert!(err.contains("4402 is also web's port"), "{err}");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
     }
 
     #[test]

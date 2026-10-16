@@ -54,7 +54,7 @@ const TMUX_FN: &str = r#"tmux() {
   command tmux "$@"
 }"#;
 
-const ZSHENV: &str = r#"# lpm terminal: zsh reads its startup files from here and each hands over to
+pub(crate) const ZSHENV: &str = r#"# lpm terminal: zsh reads its startup files from here and each hands over to
 # the user's own (desktop shellwrap.rs).
 _lpm_zdotdir=$ZDOTDIR
 ZDOTDIR=${LPM_USER_ZDOTDIR:-$HOME}
@@ -64,7 +64,7 @@ ZDOTDIR=$_lpm_zdotdir
 unset _lpm_zdotdir
 "#;
 
-const ZPROFILE: &str = r#"_lpm_zdotdir=$ZDOTDIR
+pub(crate) const ZPROFILE: &str = r#"_lpm_zdotdir=$ZDOTDIR
 ZDOTDIR=$LPM_USER_ZDOTDIR
 [[ -f $ZDOTDIR/.zprofile ]] && builtin source $ZDOTDIR/.zprofile
 ZDOTDIR=$_lpm_zdotdir
@@ -101,7 +101,7 @@ pub fn apply(builder: &mut CommandBuilder, shell: &str) {
     }
 }
 
-fn shell_name(shell: &str) -> &str {
+pub(crate) fn shell_name(shell: &str) -> &str {
     let name = Path::new(shell)
         .file_name()
         .and_then(|n| n.to_str())

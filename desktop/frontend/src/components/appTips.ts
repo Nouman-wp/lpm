@@ -53,7 +53,7 @@ const ALL_TIPS: AppTip[] = [
   { id: "sound-alerts", segments: ["Turn on sound alerts for when agents finish or need approval"] },
   { id: "ai-config", segments: ["Let AI scaffold a project's config in the editor"] },
   { id: "config-templates", segments: ["Share setups across projects with config templates"] },
-  { id: "mic-dictate", segments: ["Tap the mic to dictate a message instead of typing"], macOnly: true },
+  { id: "mic-dictate", segments: ["Click the mic to dictate a message instead of typing"], macOnly: true },
 ];
 
 export const APP_TIPS: AppTip[] = ALL_TIPS.filter((tip) => isMac || !tip.macOnly);

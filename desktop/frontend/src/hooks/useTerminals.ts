@@ -7,6 +7,7 @@ import { type UseTerminalsResult } from "./terminals/types";
 import { useTreeCore } from "./terminals/useTreeCore";
 import { useCmdInject } from "./terminals/useCmdInject";
 import { useSshReconnect } from "./terminals/useSshReconnect";
+import { useTerminalRestart } from "./terminals/useTerminalRestart";
 import { useSessionRestore } from "./terminals/useSessionRestore";
 import { usePeerTerminalSync } from "./terminals/usePeerTerminalSync";
 import { useTabCreation } from "./terminals/useTabCreation";
@@ -63,6 +64,7 @@ export function useTerminals(
     applyTree,
     scheduleCmdInject,
   });
+  const restartTerminal = useTerminalRestart({ projectName, treeRef, applyTree, scheduleCmdInject });
 
   useSessionRestore({
     projectName,
@@ -200,12 +202,15 @@ export function useTerminals(
     remoteCloseTerminal,
     removeAdoptedTerminal,
     remoteRenameTerminal,
+    remoteRestoreTitle,
     remoteTogglePin,
     remoteReorderTerminals,
   } = useRemoteTabControls({
     treeRef,
+    restoreSettled,
     closeTerminal,
     renameTerminal,
+    restoreSessionTitle,
     toggleTabPinned,
     reorderTerminals,
   });
@@ -308,6 +313,7 @@ export function useTerminals(
     openAutomationsTab,
     closeTerminal,
     closeOtherTerminals,
+    restartTerminal,
     focusTerminal,
     focusAdjacentPaneItem,
     focusService,
@@ -318,6 +324,7 @@ export function useTerminals(
     remoteCloseTerminal,
     removeAdoptedTerminal,
     remoteRenameTerminal,
+    remoteRestoreTitle,
     remoteTogglePin,
     remoteReorderTerminals,
     moveTerminal,

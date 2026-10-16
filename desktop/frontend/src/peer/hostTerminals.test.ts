@@ -7,6 +7,7 @@ import {
   claimPeerTerminal,
   endPeerStart,
   isPeerStartInFlight,
+  tabsLeftByRestart,
   unclaimedHostTerminals,
 } from "./hostTerminals";
 import { prefixName } from "./markers";
@@ -68,8 +69,14 @@ describe("peer starts in flight", () => {
 });
 
 describe("parseHostListing", () => {
+  it("reads whether the host keeps its tabs for every Mac", () => {
+    expect(parseHostListing({ terminals: [], tabs: [], run: "r", follow: true }).follow).toBe(true);
+    expect(parseHostListing({ terminals: [], tabs: [], run: "r" }).follow).toBe(false);
+    expect(parseHostListing([]).follow).toBe(false);
+  });
+
   it("reads a host that lists terminals only", () => {
-    expect(parseHostListing([{ id: "x" }])).toEqual({ terminals: [{ id: "x" }], tabs: null, run: null });
+    expect(parseHostListing([{ id: "x" }])).toEqual({ terminals: [{ id: "x" }], tabs: null, run: null, follow: false });
   });
 
   it("reads the open tabs and run alongside", () => {
@@ -77,12 +84,13 @@ describe("parseHostListing", () => {
       terminals: [],
       tabs: ["a", "b"],
       run: "r1",
+      follow: false,
     });
   });
 });
 
 describe("hostClosedTabs", () => {
-  const listing = (tabs: string[] | null, run = "r1") => ({ terminals: [], tabs, run });
+  const listing = (tabs: string[] | null, run = "r1") => ({ terminals: [], tabs, run, follow: false });
 
   it("closes a tab the host listed and no longer does", () => {
     const seen = { run: null, ids: new Set<string>() };
@@ -105,6 +113,33 @@ describe("hostClosedTabs", () => {
     hostClosedTabs(seen, listing(["a"], "r1"), ["a"]);
     expect(hostClosedTabs(seen, listing(["fresh"], "r2"), ["a", "fresh"])).toEqual([]);
     expect(hostClosedTabs(seen, listing([], "r2"), ["a", "fresh"])).toEqual(["fresh"]);
+  });
+});
+
+describe("tabsLeftByRestart", () => {
+  const a = prefixName(A, "lpm-1");
+  const fresh = prefixName(A, "lpm-9");
+  const listing = (tabs: string[] | null, run: string, follow = true) => ({ terminals: [], tabs, run, follow });
+
+  it("names the tabs a restarted host no longer has", () => {
+    expect(tabsLeftByRestart("r1", listing([fresh], "r2"), [a, fresh])).toEqual([a]);
+  });
+
+  it("leaves everything alone while the host runs on", () => {
+    expect(tabsLeftByRestart("r1", listing([fresh], "r1"), [a, fresh])).toBeNull();
+  });
+
+  it("waits for the first listing and for a host that reports its tabs", () => {
+    expect(tabsLeftByRestart(null, listing([fresh], "r2"), [a])).toBeNull();
+    expect(tabsLeftByRestart("r1", listing(null, "r2"), [a])).toBeNull();
+  });
+
+  it("keeps the old behaviour with a host that doesn't follow", () => {
+    expect(tabsLeftByRestart("r1", listing([fresh], "r2", false), [a])).toBeNull();
+  });
+
+  it("never touches a local tab", () => {
+    expect(tabsLeftByRestart("r1", listing([], "r2"), ["proj-1"])).toEqual([]);
   });
 });
 

@@ -5,6 +5,9 @@
 // which the UI renders safely.
 use crate::services::RunState;
 use serde::Deserialize;
+
+pub(crate) mod check;
+mod lenient;
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
@@ -19,6 +22,21 @@ pub fn lpm_dir() -> PathBuf {
         std::env::var_os(DIR_ENV),
         dirs::home_dir().unwrap_or_default(),
     )
+}
+
+/// Running on a data directory other than the user's own — a second copy of lpm
+/// (a lesson recording, a test) that must not share the real app's credentials
+/// either.
+pub fn own_data_dir() -> bool {
+    is_own_data_dir(
+        std::env::var_os(DIR_ENV),
+        dirs::home_dir().unwrap_or_default(),
+    )
+}
+
+fn is_own_data_dir(env: Option<std::ffi::OsString>, home: PathBuf) -> bool {
+    let set = env.as_ref().is_some_and(|v| !v.is_empty());
+    set && resolve_lpm_dir(env, home.clone()) != home.join(".lpm")
 }
 
 fn resolve_lpm_dir(env: Option<std::ffi::OsString>, home: PathBuf) -> PathBuf {
@@ -1154,9 +1172,9 @@ struct ActionFull {
     mode: String,
     #[serde(default)]
     position: Option<f64>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient::inputs")]
     inputs: BTreeMap<String, ActionInputDef>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient::actions")]
     actions: BTreeMap<String, ActionDef>, // children
 }
 
@@ -1315,17 +1333,18 @@ fn work_status_json(raw: Option<serde_norway::Value>) -> Option<Value> {
 }
 
 /// Parsed separately from ProjectYaml so a malformed action section can never
-/// regress the sidebar's ListProjects (it only fails the start-terminal call).
+/// regress the sidebar's ListProjects. Entries are read one by one: a malformed
+/// action drops only itself, and `check::dropped_actions` says which.
 #[derive(Deserialize, Default)]
 struct ActionsYaml {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient::strings")]
     extends: Vec<String>,
     /// DEPRECATED: alias for `actions` entries with `type: terminal`. Still
     /// parsed for backward compatibility; new configs should declare terminals
     /// under `actions`.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient::actions")]
     terminals: BTreeMap<String, ActionDef>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient::actions")]
     actions: BTreeMap<String, ActionDef>,
 }
 
@@ -2488,7 +2507,24 @@ fn to_project_info(
 
     // services == the resolved running list (frontend gates display on `running`).
     let running_names = running_service_names(&services, &yaml.profiles, state);
-    let running_services: Vec<Value> = running_names.iter().map(|n| service_info(n)).collect();
+    // A service whose line has ended keeps its pane (and so its place here)
+    // until it is restarted or stopped; `exited` says it is not running.
+    let ended = if running {
+        crate::sessions::ended_services(&session)
+    } else {
+        Default::default()
+    };
+    let running_services: Vec<Value> = running_names
+        .iter()
+        .map(|n| {
+            let mut info = service_info(n);
+            if let Some(code) = ended.get(n) {
+                info["exited"] = json!(true);
+                info["exitCode"] = json!(code);
+            }
+            info
+        })
+        .collect();
 
     let active_profile = if !state.profile.is_empty() {
         state.profile.clone()
@@ -2533,6 +2569,10 @@ fn to_project_info(
         "worktree": yaml.worktree,
         "isRemote": is_remote,
     });
+    let dropped = check::project_dropped_actions(file_name, &expand_home(&yaml.root), is_remote);
+    if !dropped.is_empty() {
+        info["actionErrors"] = json!(dropped);
+    }
     if let Some(ws) = work_status_json(yaml.work_status.take()) {
         info["workStatus"] = ws;
     }
@@ -2566,7 +2606,7 @@ fn read_project(
                 let state = run.get(file_name).cloned().unwrap_or_default();
                 to_project_info(file_name, y, is_running, &state)
             }
-            Err(e) => config_error_info(file_name, &e.to_string()),
+            Err(e) => config_error_info(file_name, &check::explain_load_error(&bytes, &e)),
         },
         Err(e) => config_error_info(file_name, &e.to_string()),
     }
@@ -4017,8 +4057,19 @@ mod seeded_global_tests {
 
 #[cfg(test)]
 mod lpm_dir_tests {
-    use super::resolve_lpm_dir;
+    use super::{is_own_data_dir, resolve_lpm_dir};
     use std::path::PathBuf;
+
+    #[test]
+    fn only_another_directory_is_a_data_dir_of_its_own() {
+        let home = PathBuf::from("/Users/x");
+        assert!(!is_own_data_dir(None, home.clone()));
+        assert!(!is_own_data_dir(Some("".into()), home.clone()));
+        assert!(!is_own_data_dir(Some("~/.lpm".into()), home.clone()));
+        assert!(!is_own_data_dir(Some("/Users/x/.lpm".into()), home.clone()));
+        assert!(is_own_data_dir(Some("~/.lpm-lab".into()), home.clone()));
+        assert!(is_own_data_dir(Some("/tmp/lessons".into()), home));
+    }
 
     #[test]
     fn defaults_to_dot_lpm_under_home() {

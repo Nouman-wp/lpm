@@ -177,9 +177,12 @@ async function dispatchToPeer(
 ): Promise<unknown> {
   const starting = START_TERMINAL_CMDS.has(cmd);
   if (starting) beginPeerStart(slug);
+  // The host brings a tab this Mac opens there back after it restarts, where
+  // the host follows (hostFollows); this Mac then leaves that to it.
+  const args = starting ? { ...strippedArgs, restoreHere: true } : strippedArgs;
   let value: unknown;
   try {
-    value = await invoke("peer_invoke", { slug, cmd, args: strippedArgs });
+    value = await invoke("peer_invoke", { slug, cmd, args });
   } finally {
     if (starting) endPeerStart(slug);
   }

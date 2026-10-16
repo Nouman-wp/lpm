@@ -10,8 +10,9 @@
 use crate::config;
 use crate::sessionclient as client;
 use crate::sessionproto::{PaneInfo, PaneSpec, Request};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ServicePane {
@@ -73,6 +74,20 @@ pub fn list_service_panes(session: &str) -> Option<Vec<ServicePane>> {
             })
             .collect(),
     )
+}
+
+/// The services of a session whose line has ended, with the status each ended
+/// with (None for a stop, or a shell that gave none).
+pub fn ended_services(session: &str) -> HashMap<String, Option<i32>> {
+    panes_of(session)
+        .into_iter()
+        .filter(|pane| pane.ended && !pane.service.is_empty())
+        .map(|pane| (pane.service, pane.code))
+        .collect()
+}
+
+fn pane_ended(pane_id: &str) -> bool {
+    all_panes().iter().any(|pane| pane.id == pane_id && pane.ended)
 }
 
 /// Every pane the daemon holds, with the session it belongs to. The port
@@ -172,7 +187,13 @@ fn send_keys(target: &str, command: &str) -> Result<(), String> {
     .map(|_| ())
 }
 
-/// Re-run a service's command in an existing (stopped) pane.
+/// How long a restart waits for the old run to give its pane back. A shell that
+/// doesn't report its prompts (panehook.rs) waits it out in full.
+const RESTART_WAIT: Duration = Duration::from_secs(3);
+
+/// Run a service's command again in its pane. A run still going is stopped
+/// first, and given until its shell is back at a prompt, so the new line
+/// neither lands in the old process's input nor races it for its port.
 pub fn restart_service_pane(
     pane_id: &str,
     root: &str,
@@ -181,6 +202,13 @@ pub fn restart_service_pane(
     cmd: &str,
     ssh: Option<&config::SshSettings>,
 ) -> Result<(), String> {
+    if !pane_ended(pane_id) {
+        stop_service_pane(pane_id)?;
+        let deadline = Instant::now() + RESTART_WAIT;
+        while !pane_ended(pane_id) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
     send_keys(pane_id, &build_command(root, cwd, env, cmd, ssh))
 }
 
@@ -283,7 +311,7 @@ pub fn split_session_services(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     /// A session name no other test can collide with, torn down on drop. Tests
     /// share one in-process session server (sessiond::serve_in_process), so
@@ -456,6 +484,93 @@ mod tests {
                 .contains("second-run")
         });
         assert_eq!(list_pane_ids(&session.0).len(), 1, "the pane is still there");
+    }
+
+    #[test]
+    fn restarting_a_running_service_stops_it_first() {
+        // Typed into a run that is still going, the line would sit in its input
+        // until `sleep` ended, long after this test gives up.
+        let session = SessionGuard::new("rerun");
+        start_project_services(
+            &session.0,
+            ".",
+            &[service("web", "echo fir''st-run; sleep 30")],
+            None,
+        )
+        .unwrap();
+        let pane = list_pane_ids(&session.0).remove(0);
+        eventually("the first run", || {
+            capture_pane(&pane, 100)
+                .unwrap_or_default()
+                .contains("first-run")
+        });
+
+        restart_service_pane(&pane, ".", "", &BTreeMap::new(), "echo sec''ond-run; sleep 30", None)
+            .unwrap();
+        eventually("the second run", || {
+            capture_pane(&pane, 100)
+                .unwrap_or_default()
+                .contains("second-run")
+        });
+        assert!(!panes_of(&session.0)[0].ended);
+    }
+
+    /// zsh and bash report each finished line (panehook.rs); other shells
+    /// leave a pane looking busy for as long as the shell lives.
+    fn shell_reports_prompts() -> bool {
+        matches!(
+            crate::shellwrap::shell_name(&crate::sys::login_shell()),
+            "zsh" | "bash"
+        )
+    }
+
+    #[test]
+    fn a_service_that_fails_is_reported_ended_with_its_status() {
+        if !shell_reports_prompts() {
+            return;
+        }
+        let session = SessionGuard::new("crash");
+        start_project_services(&session.0, ".", &[service("web", "sh -c 'exit 7'")], None)
+            .unwrap();
+        eventually("the failure to be reported", || {
+            panes_of(&session.0)
+                .first()
+                .is_some_and(|pane| pane.ended && pane.code == Some(7))
+        });
+        assert_eq!(ended_services(&session.0).get("web"), Some(&Some(7)));
+        assert!(panes_of(&session.0)[0].pid > 0, "the shell is still there");
+    }
+
+    #[test]
+    fn a_line_that_exits_its_shell_keeps_the_pane_until_it_runs_again() {
+        let session = SessionGuard::new("exit");
+        start_project_services(
+            &session.0,
+            ".",
+            &[service("web", "echo la''st-words; exit 3")],
+            None,
+        )
+        .unwrap();
+        eventually("the shell's exit to be reported", || {
+            panes_of(&session.0)
+                .first()
+                .is_some_and(|pane| pane.ended && pane.code == Some(3))
+        });
+        let gone = panes_of(&session.0).remove(0);
+        assert_eq!(gone.pid, 0, "a gone shell's pid may name another process");
+        assert!(capture_pane(&gone.id, 100).unwrap().contains("last-words"));
+
+        restart_service_pane(&gone.id, ".", "", &BTreeMap::new(), "echo sec''ond-run; sleep 30", None)
+            .unwrap();
+        let panes = panes_of(&session.0);
+        assert_eq!(panes.len(), 1);
+        assert_ne!(panes[0].id, gone.id, "a new shell took its place");
+        assert!(!panes[0].ended);
+        eventually("the line to run in the new shell", || {
+            capture_pane(&panes[0].id, 100)
+                .unwrap_or_default()
+                .contains("second-run")
+        });
     }
 
     /// Windows stops a pane with ^C before the kill, so a script's INT trap

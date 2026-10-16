@@ -29,6 +29,7 @@ pub(crate) use phone::PhoneChannelError;
 const POLL: Duration = Duration::from_millis(25);
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3); // per-candidate dial cap when pairing
+const FORGET_GRACE: Duration = Duration::from_millis(300); // for a last frame to leave before disconnecting
 const PAIR_REQUEST_WINDOW: Duration = Duration::from_secs(150); // wait for the other Mac to approve
 const INVOKE_TIMEOUT: Duration = Duration::from_secs(35);
 const SYNC_TIMEOUT: Duration = Duration::from_secs(60); // digest / fetch round-trip
@@ -441,6 +442,7 @@ impl PeerClientHub {
                 json!({
                     "slug": p.slug,
                     "alias": p.alias,
+                    "hostId": p.host_id,
                     "host": p.host,
                     "port": p.port,
                     "enabled": p.enabled,
@@ -544,6 +546,75 @@ impl PeerClientHub {
         }
     }
 
+    /// Queue `frame` for the machine `slug` while connected; whether it was.
+    fn send_to(&self, slug: &str, frame: String) -> bool {
+        let conn = self.inner.conns.lock().unwrap().get(slug).cloned();
+        conn.is_some_and(|c| c.connected.load(Ordering::Relaxed) && c.send(frame).is_ok())
+    }
+
+    /// This Mac's device id on the machine about to be paired, when it is one
+    /// already paired here — the same certificate, or the same address — so the
+    /// machine replaces that record instead of adding a second one.
+    fn known_device(&self, hosts: &[String], port: u16, fp: Option<&str>) -> Option<String> {
+        let cfg = self.inner.config.lock().unwrap();
+        cfg.peers
+            .iter()
+            .find(|p| {
+                fp.is_some_and(|f| p.tls_fp.as_deref() == Some(f))
+                    || (p.port == port && hosts.iter().any(|h| *h == p.host))
+            })
+            .map(|p| p.device_id.clone())
+    }
+
+    /// The name this Mac already gave the machine `host_id`, kept over the one
+    /// it reports when it is paired again.
+    fn kept_alias(&self, host_id: &str) -> Option<String> {
+        if host_id.is_empty() {
+            return None;
+        }
+        let cfg = self.inner.config.lock().unwrap();
+        cfg.peers
+            .iter()
+            .find(|p| p.host_id == host_id && !p.alias.trim().is_empty())
+            .map(|p| p.alias.clone())
+    }
+
+    /// After pairing, the entry `slug` is the one for its machine: any other
+    /// for the same machine (paired before, under another slug) goes, so the
+    /// machine and its projects aren't listed twice.
+    fn keep_newest(&self, slug: &str) -> Result<(), String> {
+        let replaced: Vec<String> = {
+            let mut cfg = self.inner.config.lock().unwrap();
+            let drop_at = superseded(&cfg.peers, slug);
+            let replaced = drop_at
+                .iter()
+                .map(|&i| cfg.peers[i].slug.clone())
+                .filter(|s| s != slug)
+                .collect();
+            let mut i = 0;
+            cfg.peers.retain(|_| {
+                i += 1;
+                !drop_at.contains(&(i - 1))
+            });
+            let snapshot = cfg.clone();
+            drop(cfg);
+            peer::save_config(&snapshot)?;
+            replaced
+        };
+        // A machine that predates `replaces` kept the old record: have it drop it.
+        let told: Vec<bool> = replaced
+            .iter()
+            .map(|old| self.send_to(old, json!({ "t": "forget" }).to_string()))
+            .collect();
+        if told.contains(&true) {
+            std::thread::sleep(FORGET_GRACE);
+        }
+        for old in replaced {
+            self.stop_conn(&old, "replaced by a new pairing");
+        }
+        Ok(())
+    }
+
     /// Drive a tap-to-approve pairing request against a discovered Mac: dial the
     /// first reachable candidate, send `pairRequest`, surface the SAS via
     /// `peer-pair-pending`, and wait (staying cancellable) for the host's `paired`.
@@ -576,9 +647,10 @@ impl PeerClientHub {
             }
         };
 
+        let known = self.known_device(&[host.clone()], port, captured_fp.as_deref());
         if let Err(e) = ws.send(Message::text(
             json!({ "t": "pairRequest", "name": local_name(),
-                "platform": peer::platform_id() })
+                "platform": peer::platform_id(), "replaces": known })
             .to_string(),
         )) {
             let e = e.to_string();
@@ -675,7 +747,9 @@ impl PeerClientHub {
         let host_id = s("hostId");
         let host_name = {
             let n = s("hostName");
-            if n.is_empty() {
+            if let Some(kept) = self.kept_alias(&host_id) {
+                kept
+            } else if n.is_empty() {
                 "Mac".to_string()
             } else {
                 n
@@ -688,7 +762,6 @@ impl PeerClientHub {
         }
         {
             let mut cfg = self.inner.config.lock().unwrap();
-            cfg.peers.retain(|p| p.slug != slug);
             cfg.peers.push(PeerEntry {
                 slug: slug.clone(),
                 alias: host_name,
@@ -710,9 +783,10 @@ impl PeerClientHub {
                 phone_server_id: String::new(),
                 ssh: Default::default(),
             });
-            let snapshot = cfg.clone();
-            drop(cfg);
-            peer::save_config(&snapshot)?;
+        }
+        if let Err(e) = self.keep_newest(&slug) {
+            self.emit_pair_failed(&e);
+            return Err(e);
         }
         self.start_conn(&slug);
         emit_state_changed(self);
@@ -2554,16 +2628,17 @@ pub(crate) fn add_peer_blocking(
     invite_fp: Option<String>,
 ) -> Result<Value, String> {
     let port = if port == 0 { 8766 } else { port };
-    let (host, device_id, token, slug, host_name, host_id) =
-        first_successful(&hosts, |h| dial_pair(h, port, &code, invite_fp.as_deref()))?;
+    let known = hub.known_device(&hosts, port, invite_fp.as_deref());
+    let (host, device_id, token, slug, host_name, host_id) = first_successful(&hosts, |h| {
+        dial_pair(h, port, &code, invite_fp.as_deref(), known.as_deref())
+    })?;
     let alias = if alias.trim().is_empty() {
-        host_name
+        hub.kept_alias(&host_id).unwrap_or(host_name)
     } else {
         alias
     };
     {
         let mut cfg = hub.inner.config.lock().unwrap();
-        cfg.peers.retain(|p| p.slug != slug);
         cfg.peers.push(PeerEntry {
             slug: slug.clone(),
             alias,
@@ -2588,25 +2663,58 @@ pub(crate) fn add_peer_blocking(
             phone_server_id: String::new(),
             ssh: Default::default(),
         });
-        let snapshot = cfg.clone();
-        drop(cfg);
-        peer::save_config(&snapshot)?;
     }
+    hub.keep_newest(&slug)?;
     hub.start_conn(&slug);
     emit_state_changed(hub);
     Ok(json!({ "slug": slug }))
 }
 
+/// The entries a fresh pairing under `slug` supersedes: earlier ones under the
+/// same slug, and any for the same machine (host id) under another slug.
+fn superseded(peers: &[PeerEntry], slug: &str) -> Vec<usize> {
+    let Some(newest) = peers.iter().rposition(|p| p.slug == slug) else {
+        return Vec::new();
+    };
+    let host_id = &peers[newest].host_id;
+    (0..peers.len())
+        .filter(|&i| {
+            i != newest
+                && (peers[i].slug == slug || (!host_id.is_empty() && peers[i].host_id == *host_id))
+        })
+        .collect()
+}
+
+/// Why a pairing dial failed: the machine wasn't reached, or it was and said no
+/// — which another of its addresses won't change.
+enum DialFailure {
+    Unreachable(String),
+    Refused(String),
+}
+
+/// What a refusal tells the person pairing. A code that doesn't match is the
+/// usual one: mistyped, used by someone else first, or replaced by a newer invite.
+fn refusal_message(error: &str) -> String {
+    if error == "pairing rejected" {
+        "That invite didn't work: it was already used, or a newer one replaced it. \
+         Create a new invite on that Mac."
+            .to_string()
+    } else {
+        error.to_string()
+    }
+}
+
 /// Try each candidate host in order with `dial`; the first success wins, returning
-/// (workingHost, deviceId, token, slug, hostName, hostId). If all fail, the last
-/// failure is surfaced. Split out from `peer_add` so the ordering/fallback is
-/// unit-testable without real sockets.
+/// (workingHost, deviceId, token, slug, hostName, hostId). A machine that answers
+/// and refuses ends it there; if none answers, the last failure is surfaced.
+/// Split out from `peer_add` so the ordering/fallback is unit-testable without
+/// real sockets.
 fn first_successful<F>(
     hosts: &[String],
     mut dial: F,
 ) -> Result<(String, String, String, String, String, String), String>
 where
-    F: FnMut(&str) -> Result<(String, String, String, String, String), String>,
+    F: FnMut(&str) -> Result<(String, String, String, String, String), DialFailure>,
 {
     let mut last_err = "no candidate addresses".to_string();
     for host in hosts {
@@ -2614,7 +2722,8 @@ where
             Ok((device_id, token, slug, host_name, host_id)) => {
                 return Ok((host.clone(), device_id, token, slug, host_name, host_id))
             }
-            Err(e) => last_err = e,
+            Err(DialFailure::Refused(e)) => return Err(refusal_message(&e)),
+            Err(DialFailure::Unreachable(e)) => last_err = e,
         }
     }
     Err(format!("could not reach that machine: {last_err}"))
@@ -2630,37 +2739,40 @@ fn dial_pair(
     port: u16,
     code: &str,
     invite_fp: Option<&str>,
-) -> Result<(String, String, String, String, String), String> {
+    replaces: Option<&str>,
+) -> Result<(String, String, String, String, String), DialFailure> {
+    let unreachable = |e: String| DialFailure::Unreachable(e);
     let mut ws = match invite_fp {
-        Some(f) => dial_pinned(host, port, f, Some(CONNECT_TIMEOUT), IDENTITY_UNVERIFIED)?,
+        Some(f) => dial_pinned(host, port, f, Some(CONNECT_TIMEOUT), IDENTITY_UNVERIFIED)
+            .map_err(unreachable)?,
         None => match dial_capture(host, port, Some(CONNECT_TIMEOUT)) {
             Ok((ws, _fp)) => ws,
-            Err(_) => dial_plain(host, port, Some(CONNECT_TIMEOUT))?,
+            Err(_) => dial_plain(host, port, Some(CONNECT_TIMEOUT)).map_err(unreachable)?,
         },
     };
     ws.send(Message::text(
         json!({ "t": "pair", "code": code, "name": local_name(),
-            "platform": peer::platform_id() })
+            "platform": peer::platform_id(), "replaces": replaces })
         .to_string(),
     ))
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| unreachable(e.to_string()))?;
     let reply = loop {
         match ws.read() {
             Ok(m) if m.is_text() => break m.to_text().unwrap_or_default().to_string(),
-            Ok(m) if m.is_close() => return Err("host closed the connection".to_string()),
+            Ok(m) if m.is_close() => return Err(unreachable("host closed the connection".into())),
             Ok(_) => continue,
-            Err(e) => return Err(e.to_string()),
+            Err(e) => return Err(unreachable(e.to_string())),
         }
     };
     let _ = ws.close(None);
     let _ = ws.flush();
-    let v: Value = serde_json::from_str(&reply).map_err(|e| e.to_string())?;
+    let v: Value = serde_json::from_str(&reply).map_err(|e| unreachable(e.to_string()))?;
     if v.get("t").and_then(Value::as_str) != Some("paired") {
         let err = v
             .get("error")
             .and_then(Value::as_str)
             .unwrap_or("pairing rejected");
-        return Err(err.to_string());
+        return Err(DialFailure::Refused(err.to_string()));
     }
     let device_id = v
         .get("deviceId")
@@ -2688,13 +2800,20 @@ fn dial_pair(
         .unwrap_or_default()
         .to_string();
     if device_id.is_empty() || token.is_empty() || slug.len() != 8 {
-        return Err("host sent an incomplete pairing reply".to_string());
+        return Err(DialFailure::Refused(
+            "host sent an incomplete pairing reply".into(),
+        ));
     }
     Ok((device_id, token, slug, host_name, host_id))
 }
 
 #[tauri::command]
 pub async fn peer_remove(hub: State<'_, PeerClientHub>, slug: String) -> Result<Value, String> {
+    // Tell the machine first, so it stops listing and trusting this Mac; a
+    // moment lets the frame leave before the connection is torn down.
+    if hub.send_to(&slug, json!({ "t": "forget" }).to_string()) {
+        let _ = tauri::async_runtime::spawn_blocking(|| std::thread::sleep(FORGET_GRACE)).await;
+    }
     hub.stop_conn(&slug, "peer removed");
     {
         let mut cfg = hub.inner.config.lock().unwrap();
@@ -3288,6 +3407,26 @@ mod tests {
     // A build that predates the field is a host if it runs Linux at all, so its
     // silence has to clear a stale "desktop" rather than keep it.
     #[test]
+    fn pairing_a_machine_again_supersedes_its_older_entries() {
+        let entry = |slug: &str, host_id: &str| PeerEntry {
+            slug: slug.into(),
+            host_id: host_id.into(),
+            ..Default::default()
+        };
+        let peers = [
+            entry("aaaaaaaa", "mac-a"),
+            entry("bbbbbbbb", "mac-b"),
+            entry("cccccccc", "mac-a"),
+            entry("aaaaaaaa", "mac-a"),
+        ];
+        assert_eq!(superseded(&peers, "aaaaaaaa"), [0, 2]);
+        assert_eq!(superseded(&peers, "bbbbbbbb"), Vec::<usize>::new());
+        let unknown = [entry("dddddddd", ""), entry("eeeeeeee", "")];
+        assert_eq!(superseded(&unknown, "eeeeeeee"), Vec::<usize>::new());
+        assert_eq!(superseded(&peers, "ffffffff"), Vec::<usize>::new());
+    }
+
+    #[test]
     fn a_host_too_old_to_report_headless_reads_as_unknown() {
         let mut p = PeerEntry {
             platform: "linux".into(),
@@ -3400,7 +3539,7 @@ mod tests {
         assert_eq!(pin_after_auth(None, false, Some("dd")), None);
     }
 
-    fn paired(host_name: &str) -> Result<(String, String, String, String, String), String> {
+    fn paired(host_name: &str) -> Result<(String, String, String, String, String), DialFailure> {
         Ok((
             "dev".into(),
             "tok".into(),
@@ -3423,7 +3562,7 @@ mod tests {
             if h == "10.0.0.3" {
                 paired("Studio")
             } else {
-                Err(format!("dead {h}"))
+                Err(DialFailure::Unreachable(format!("dead {h}")))
             }
         })
         .unwrap();
@@ -3444,10 +3583,30 @@ mod tests {
     fn first_successful_all_fail_surfaces_last_error() {
         let hosts = vec!["a".to_string(), "b".to_string()];
         let err = first_successful(&hosts, |h| {
-            Err::<(String, String, String, String, String), _>(format!("refused {h}"))
+            Err::<(String, String, String, String, String), _>(DialFailure::Unreachable(format!(
+                "refused {h}"
+            )))
         })
         .unwrap_err();
         assert!(err.contains("refused b"), "last failure surfaced: {err}");
+    }
+
+    // A machine that answered and said no isn't one to keep dialing, nor one that
+    // "couldn't be reached".
+    #[test]
+    fn first_successful_stops_at_a_machine_that_refuses() {
+        let hosts = vec!["a".to_string(), "b".to_string()];
+        let mut dialed = Vec::new();
+        let err = first_successful(&hosts, |h| {
+            dialed.push(h.to_string());
+            Err::<(String, String, String, String, String), _>(DialFailure::Refused(
+                "pairing rejected".into(),
+            ))
+        })
+        .unwrap_err();
+        assert_eq!(dialed, ["a"]);
+        assert!(!err.contains("could not reach"), "{err}");
+        assert!(err.contains("invite didn't work"), "{err}");
     }
 
     #[test]

@@ -4,9 +4,10 @@
 // consume it silently rather than print it as garbage.
 //
 // tmux's `capture-pane -p` (no `-e`) returns TEXT — colours and other styling
-// are dropped — so SGR and friends are parsed only to be discarded. The one
-// non-drawing sequence we keep is OSC 0/2, the title a pane reports, which
-// `lpm project` renders as `pane_title`.
+// are dropped — so SGR and friends are parsed only to be discarded. The
+// non-drawing sequences we keep are OSC 0/2, the title a pane reports, which
+// `lpm project` renders as `pane_title`, and the status a pane's shell reports
+// before each prompt (panehook.rs).
 use crate::termgrid::Grid;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -37,6 +38,9 @@ pub struct Parser {
     /// pushing each byte as a char would decode it as Latin-1.
     osc: Vec<u8>,
     utf8: Utf8,
+    /// Exit statuses the shell reported at its prompts, oldest first, until
+    /// the pane takes them.
+    prompts: Vec<i32>,
 }
 
 /// Incremental UTF-8 decoder: PTY reads split multibyte characters at arbitrary
@@ -57,6 +61,7 @@ impl Default for Parser {
             private: None,
             osc: Vec::new(),
             utf8: Utf8::default(),
+            prompts: Vec::new(),
         }
     }
 }
@@ -66,6 +71,10 @@ impl Parser {
         for &b in bytes {
             self.byte(b, grid);
         }
+    }
+
+    pub fn take_prompts(&mut self) -> Vec<i32> {
+        std::mem::take(&mut self.prompts)
     }
 
     fn byte(&mut self, b: u8, grid: &mut Grid) {
@@ -297,12 +306,17 @@ impl Parser {
     }
 
     /// OSC 0 (icon + title) and OSC 2 (title) are what a shell writes to name
-    /// its pane; everything else here is for someone other than us.
+    /// its pane, and the prompt OSC is how it reports a finished command;
+    /// everything else here is for someone other than us.
     fn finish_osc(&mut self, grid: &mut Grid) {
         let payload = String::from_utf8_lossy(&self.osc);
         if let Some((code, text)) = payload.split_once(';') {
             if code == "0" || code == "2" {
                 grid.title = text.to_string();
+            } else if code == crate::panehook::PROMPT_OSC {
+                if let Ok(status) = text.trim().parse() {
+                    self.prompts.push(status);
+                }
             }
         }
         self.osc.clear();
@@ -472,6 +486,16 @@ mod tests {
         parser.feed(b"\x1b]0;npm run dev\x07ready", &mut grid);
         assert_eq!(grid.title, "npm run dev");
         assert_eq!(grid.capture(10).trim(), "ready");
+    }
+
+    #[test]
+    fn a_prompt_status_is_taken_and_never_printed() {
+        let mut grid = Grid::new(20, 3);
+        let mut parser = Parser::default();
+        parser.feed(b"boom\r\n\x1b]7701;1\x07$ \x1b]7701;0\x1b\\", &mut grid);
+        assert_eq!(parser.take_prompts(), vec![1, 0]);
+        assert!(parser.take_prompts().is_empty());
+        assert_eq!(grid.capture(10).trim(), "boom\n$");
     }
 
     #[test]

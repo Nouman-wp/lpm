@@ -105,6 +105,7 @@ export function FilesPane({
   const [stackPath, setStackPath] = useState<string | null>(null);
   const [cursorRequest, setCursorRequest] = useState<CursorRequest | null>(null);
   const [menu, setMenu] = useState<RowTarget | null>(null);
+  const [splitFits, setSplitFits] = useState(true);
   const rootRef = useRef<HTMLDivElement>(null);
   const shownRef = useRef(buffer.file);
   shownRef.current = buffer.file;
@@ -284,7 +285,8 @@ export function FilesPane({
       className={`relative flex shrink-0 flex-col border-[var(--border)] ${
         treeSide === "left" ? "border-r" : "border-l"
       }`}
-      style={{ width: treeWidth }}
+      // A narrow (split) pane still leaves the editor most of the width.
+      style={{ width: treeWidth, maxWidth: "45%" }}
     >
       <FilesTree
         rows={rows}
@@ -338,6 +340,7 @@ export function FilesPane({
         allChanges={git.allChanges}
         zoom={git.allChanges ? zoom : fileView.previewing ? fileView.zoom : null}
         sideBySide={git.sideBySide}
+        canSplit={splitFits}
         onSideBySide={git.showSideBySide}
         dirty={buffer.draft !== null}
         saving={buffer.saving}
@@ -373,6 +376,7 @@ export function FilesPane({
                 authority={review ? "commit" : "files"}
                 selected={review?.selected}
                 onDirtyPathsChange={commit.onStackDirty}
+                onSplitFitsChange={setSplitFits}
               />
             </div>
           )}

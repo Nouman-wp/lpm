@@ -21,15 +21,26 @@ function adoptPeerTerminal(cmd: string, args: unknown, value: unknown): void {
   if (!projectName || !id) return;
 
   const isConfig = cmd === "start_terminal_for_config";
-  const label = isConfig && typeof a.terminalName === "string" ? a.terminalName : "";
-  const opts =
-    isConfig && typeof launch?.resumeCmd === "string" && launch.resumeCmd
+  // The name, icon and color the Mac that ran it gave the tab; a config
+  // terminal's key when it gave none (an older Mac).
+  const tab = (a.tab ?? {}) as { label?: unknown; emoji?: unknown; color?: unknown; actionName?: unknown };
+  const text = (v: unknown) => (typeof v === "string" && v ? v : undefined);
+  const configName = isConfig ? text(a.terminalName) : undefined;
+  const label = text(tab.label) ?? configName ?? "";
+  const resumable = isConfig && typeof launch?.resumeCmd === "string" && launch.resumeCmd;
+  const opts = {
+    ...(resumable
       ? {
           startCmd: typeof launch.startCmd === "string" ? launch.startCmd : undefined,
-          resumeCmd: launch.resumeCmd,
-          actionName: label || undefined,
+          resumeCmd: launch.resumeCmd as string,
         }
-      : undefined;
+      : {}),
+    actionName: text(tab.actionName) ?? (resumable ? configName : undefined),
+    emoji: text(tab.emoji),
+    color: text(tab.color),
+    // A Mac that leaves bringing the tab back after a restart to this one says so.
+    ...(a.restoreHere === true ? { restoreHere: true } : {}),
+  };
   useAppStore.getState().adoptRemoteTerminal(projectName, id, label, opts);
 }
 

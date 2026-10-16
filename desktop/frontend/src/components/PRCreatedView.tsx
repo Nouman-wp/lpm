@@ -4,6 +4,7 @@ import { CheckoutBranch, PullBranch } from "../../bridge/commands";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { getSettings } from "../store/settings";
 import { DEFAULT_PULL_CONFIG, pullFlags } from "../gitOptions";
+import { pullErrorText } from "../gitPullErrors";
 import { BranchIcon } from "./icons";
 
 interface PRCreatedViewProps {
@@ -42,7 +43,7 @@ export function PRCreatedView({
       await PullBranch(projectPath, cfg.strategy, pullFlags(cfg));
       toast.success(`Switched to ${base} and pulled the latest changes`);
     } catch (err) {
-      toast.error(`Switched to ${base}, but pull failed: ${err}`);
+      toast.error(pullErrorText(err, `Switched to ${base}, but pull failed`));
     } finally {
       setSwitching(false);
       onBusyChange?.(false);

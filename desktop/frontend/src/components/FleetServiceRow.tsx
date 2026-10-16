@@ -1,7 +1,7 @@
 import { BrowserOpenURL } from "../../bridge/runtime";
 import type { FleetChip, FleetServiceGroup } from "../fleetRows";
 import { FleetTags } from "./FleetTags";
-import { PlayIcon, ServerIcon, StopIcon } from "./icons";
+import { PlayIcon, RefreshIcon, ServerIcon, StopIcon } from "./icons";
 
 /** A running service and the port it answers on. */
 export interface FleetServiceLink {
@@ -93,27 +93,35 @@ interface ChipButtonProps {
 
 function ChipButton({ chip, projectLabel, onClick }: ChipButtonProps) {
   const noun = chip.kind === "profile" ? "profile" : "service";
-  const verb = chip.running ? "Stop" : "Start";
+  const verb = chip.running ? "Stop" : chip.crashed ? "Restart" : "Start";
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={`${verb} ${chip.name} ${noun} in ${projectLabel}`}
-      title={`${verb} the ${chip.name} ${noun}`}
+      title={
+        chip.crashed ? `${chip.name} crashed — restart it` : `${verb} the ${chip.name} ${noun}`
+      }
       className={`group/chip flex shrink-0 items-center gap-1.5 rounded-full px-2 py-[3px] text-[11px] leading-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
         chip.running
           ? "text-[var(--accent-green-text)] hover:bg-[color-mix(in_srgb,var(--accent-green)_14%,transparent)]"
-          : "text-[var(--text-muted)] hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)]"
+          : chip.crashed
+            ? "text-[var(--accent-red-text)] hover:bg-[color-mix(in_srgb,var(--accent-red)_14%,transparent)]"
+            : "text-[var(--text-muted)] hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)]"
       }`}
     >
       <span className="relative grid h-2 w-2 shrink-0 place-items-center">
         <span
           className={`h-[5px] w-[5px] rounded-full transition-opacity group-hover/chip:opacity-0 ${
-            chip.running ? "bg-[var(--accent-green)]" : "bg-current opacity-45"
+            chip.running
+              ? "bg-[var(--accent-green)]"
+              : chip.crashed
+                ? "bg-[var(--accent-red)]"
+                : "bg-current opacity-45"
           }`}
         />
         <span className="absolute inset-0 grid place-items-center opacity-0 transition-opacity group-hover/chip:opacity-100 [&>svg]:h-2 [&>svg]:w-2">
-          {chip.running ? <StopIcon /> : <PlayIcon />}
+          {chip.running ? <StopIcon /> : chip.crashed ? <RefreshIcon /> : <PlayIcon />}
         </span>
       </span>
       <span>{chip.name}</span>

@@ -18,12 +18,11 @@ import {
 } from "../../reconnect";
 import {
   type PaneNode,
-  makeTerminal,
   isTerminalTab,
   collectPanes,
   collectTerminals,
-  mapPane,
 } from "../../paneTree";
+import { swapTerminal } from "./swapTerminal";
 import { IS_MIRROR_WINDOW } from "../../mirror";
 
 // Watch a freshly spawned remote PTY long enough to tell a live connection
@@ -163,26 +162,7 @@ export function useSshReconnect({
         return;
       }
 
-      const swapped = mapPane(treeRef.current!, after.id, (p) => ({
-        ...p,
-        tabs: p.tabs.map((t) =>
-          t.id === oldId
-            ? makeTerminal(newId, t.label, {
-                sessionTitle: t.sessionTitle,
-                sessionTitleId: t.sessionTitleId,
-                sessionTitleSource: t.sessionTitleSource,
-                historyKey: t.historyKey,
-                startCmd: t.startCmd,
-                resumeCmd: t.resumeCmd,
-                actionName: t.actionName,
-                pinned: t.pinned,
-                emoji: t.emoji,
-                color: t.color,
-              })
-            : t,
-        ),
-      }));
-      applyTree(swapped);
+      applyTree(swapTerminal(treeRef.current!, after.id, oldId, newId));
       // The tab is the same one the user was watching, so a finish it was already
       // showing moves across with it — a dropped connection is no answer to that.
       // What the dead connection took with it does not move.

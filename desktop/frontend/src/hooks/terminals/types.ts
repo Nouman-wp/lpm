@@ -1,5 +1,5 @@
 import { type RefObject } from "react";
-import { type PaneNode, type PaneLeaf, type SplitDirection } from "../../paneTree";
+import { type AdoptedTabOpts, type PaneNode, type PaneLeaf, type SplitDirection } from "../../paneTree";
 import { type PersistedHistoryEntry } from "../../terminals";
 import { type TerminalMemoryRef } from "../../terminalMemory";
 import type { ModelPick } from "../../agentModelSwitch";
@@ -29,6 +29,8 @@ export interface TerminalStartOpts {
   launchModel?: ModelPick;
   // A scheduled job's terminal: stays on the project's fixed Claude account.
   fixedAccount?: boolean;
+  // Opened for someone else (a phone): added behind the tab in view, which stays.
+  background?: boolean;
 }
 
 export interface UseTerminalsResult {
@@ -36,12 +38,12 @@ export interface UseTerminalsResult {
   focusedPaneId: string | null;
   // Settles once the saved tabs are back; until then `tree` is not the real one.
   restoreSettled: RefObject<Promise<void>>;
-  createTerminal: () => Promise<void>;
+  createTerminal: (background?: boolean) => Promise<void>;
   createTerminalWithCmd: (label: string, cmd: string, opts?: TerminalStartOpts) => Promise<void>;
   adoptTerminal: (
     id: string,
     label?: string,
-    opts?: { startCmd?: string; resumeCmd?: string; actionName?: string },
+    opts?: AdoptedTabOpts,
   ) => Promise<void>;
   resumeFromHistory: (entry: PersistedHistoryEntry) => Promise<void>;
   forkTerminal: (paneId: string, termId: string) => Promise<void>;
@@ -54,6 +56,8 @@ export interface UseTerminalsResult {
   addAutomationsToPane: (paneId?: string) => void;
   openAutomationsTab: () => Promise<void>;
   closeTerminal: (paneId: string, tabIdx: number) => void;
+  // Start a terminal whose process has ended again in its own tab.
+  restartTerminal: (terminalId: string) => Promise<void>;
   closeOtherTerminals: (paneId: string, tabIdx: number) => void;
   focusTerminal: (paneId: string, tabIdx: number) => void;
   focusAdjacentPaneItem: (paneId: string, delta: 1 | -1, serviceNames: string[]) => void;
@@ -69,7 +73,8 @@ export interface UseTerminalsResult {
   reorderTerminals: (paneId: string, order: string[]) => void;
   remoteCloseTerminal: (termId: string) => void;
   removeAdoptedTerminal: (termId: string) => void;
-  remoteRenameTerminal: (termId: string, label: string) => void;
+  remoteRenameTerminal: (termId: string, label: string, emoji?: string) => void;
+  remoteRestoreTitle: (termId: string) => void;
   remoteTogglePin: (termId: string) => void;
   remoteReorderTerminals: (order: string[]) => void;
   moveTerminal: (fromPaneId: string, termId: string, toPaneId: string, toIdx?: number) => void;

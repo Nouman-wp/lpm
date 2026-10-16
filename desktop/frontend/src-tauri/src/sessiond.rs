@@ -86,6 +86,22 @@ impl Registry {
         self.sessions.remove(session).unwrap_or_default()
     }
 
+    /// Put `pane` where `pane_id` is, keeping its place in the session.
+    fn replace(&mut self, pane_id: &str, pane: std::sync::Arc<Pane>) -> bool {
+        match self
+            .sessions
+            .values_mut()
+            .flatten()
+            .find(|p| p.id == pane_id)
+        {
+            Some(slot) => {
+                *slot = pane;
+                true
+            }
+            None => false,
+        }
+    }
+
     /// Forget a pane, and the session with it once it holds none — the way a
     /// window closes with its last pane.
     fn drop_pane(&mut self, pane_id: &str) {
@@ -112,7 +128,7 @@ fn teardown(panes: &[std::sync::Arc<Pane>], wait: bool) {
     crate::panestop::interrupt_and_wait(panes);
     // One process-table scan for every pane, not one per pane: `trees` takes all
     // the roots at once, and a project stop would otherwise fork `ps` per service.
-    let roots: Vec<i32> = panes.iter().map(|p| p.pid).collect();
+    let roots: Vec<i32> = panes.iter().filter(|p| p.alive()).map(|p| p.pid).collect();
     let victims = crate::proctree::trees(&roots);
     for pane in panes {
         pane.close();
@@ -130,9 +146,7 @@ fn open_panes(session: &str, specs: &[PaneSpec]) -> Result<(), String> {
     let mut opened: Vec<std::sync::Arc<Pane>> = Vec::new();
     for spec in specs {
         let id = registry().lock().unwrap().next_id();
-        match Pane::open(id, spec, |pane_id| {
-            registry().lock().unwrap().drop_pane(&pane_id);
-        }) {
+        match Pane::open(id, spec) {
             Ok(pane) => {
                 registry()
                     .lock()
@@ -166,38 +180,69 @@ fn pane_infos(session: &str, detail: bool) -> Vec<PaneInfo> {
         .cloned()
         .unwrap_or_default();
     if !detail {
-        return panes
-            .iter()
-            .map(|pane| PaneInfo {
-                id: pane.id.clone(),
-                session: session.to_string(),
-                service: pane.service.clone(),
-                pid: pane.pid as i64,
-                ..Default::default()
-            })
-            .collect();
+        return panes.iter().map(|pane| brief(session, pane)).collect();
     }
     // The foreground-process lookups fork, which is why they are opt-in: only
     // `lpm project` renders them, and the log poller asks for pane ids twice a
     // second. Each pane's foreground pid is read ONCE and carried through —
     // reading it again after the lookups would sometimes name a process the
     // lookups never saw, leaving the pane with an empty command and path.
-    let foreground: Vec<i32> = panes.iter().map(|p| p.foreground_pid()).collect();
+    let foreground: Vec<i32> = panes
+        .iter()
+        .map(|p| if p.alive() { p.foreground_pid() } else { 0 })
+        .collect();
     let commands = crate::procinfo::commands(&foreground);
     let cwds = crate::procinfo::cwds(&foreground);
     panes
         .iter()
         .zip(foreground)
         .map(|(pane, fg)| PaneInfo {
-            id: pane.id.clone(),
-            session: session.to_string(),
-            service: pane.service.clone(),
-            pid: pane.pid as i64,
             command: commands.get(&fg).cloned().unwrap_or_default(),
             path: cwds.get(&fg).cloned().unwrap_or_default(),
             title: pane.title(),
+            ..brief(session, pane)
         })
         .collect()
+}
+
+/// A pane as `Panes` lists it without detail. A pane whose shell has gone
+/// reports no pid: the number may already belong to another process.
+fn brief(session: &str, pane: &Pane) -> PaneInfo {
+    let (ended, code) = pane.outcome();
+    PaneInfo {
+        id: pane.id.clone(),
+        session: session.to_string(),
+        service: pane.service.clone(),
+        pid: if pane.alive() { pane.pid as i64 } else { 0 },
+        ended,
+        code,
+        ..Default::default()
+    }
+}
+
+/// Type a line into a pane whose shell has exited: a new shell takes its
+/// place, under a new id in the same position, and runs the line. None for a
+/// pane whose shell is still there.
+fn reopen(pane_id: &str, text: &str) -> Option<Result<(), String>> {
+    let old = registry().lock().unwrap().find(pane_id)?;
+    if old.alive() {
+        return None;
+    }
+    let spec = PaneSpec {
+        service: old.service.clone(),
+        command: text.to_string(),
+        dir: old.dir.clone(),
+    };
+    let id = registry().lock().unwrap().next_id();
+    let pane = match Pane::open(id, &spec) {
+        Ok(pane) => pane,
+        Err(error) => return Some(Err(error)),
+    };
+    if registry().lock().unwrap().replace(pane_id, pane.clone()) {
+        return Some(Ok(()));
+    }
+    teardown(&[pane], false);
+    Some(Err(format!("no pane {pane_id}")))
 }
 
 /// Look a pane up and let go of the registry immediately. Written as its own
@@ -263,7 +308,10 @@ fn handle(request: Request) -> Response {
             }
             done(open_panes(&session, &panes))
         }
-        Request::Send { pane, text } => with_pane(&pane, |p| done(p.send(&text))),
+        Request::Send { pane, text } => match reopen(&pane, &text) {
+            Some(result) => done(result),
+            None => with_pane(&pane, |p| done(p.send(&text))),
+        },
         Request::Interrupt { pane } => with_pane(&pane, |p| done(p.interrupt())),
         Request::KillPane { pane } => {
             let mut reg = registry().lock().unwrap();

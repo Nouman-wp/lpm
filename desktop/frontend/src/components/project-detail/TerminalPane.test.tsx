@@ -35,6 +35,7 @@ function PaneWithRowMenu() {
         themeStyle={undefined}
         terminalRef={createRef<TerminalViewHandle>()}
         projectName="web"
+        projectLabel="My Web"
         projectRoot="/tmp/web"
         services={[]}
         terminalTheme="default"

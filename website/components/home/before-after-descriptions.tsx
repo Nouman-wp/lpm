@@ -1,5 +1,5 @@
 import { AGENT_COUNT, SERVICE_COUNT, WINDOWS } from "./before-after-data";
-import { PROJECT_COUNT } from "./before-after-replica";
+import { PROJECT_COUNT } from "./before-after-sidebar";
 
 // What the two pictures show, for readers who get neither. Rendered once for
 // both layouts; the desktop slider points at it with aria-describedby.

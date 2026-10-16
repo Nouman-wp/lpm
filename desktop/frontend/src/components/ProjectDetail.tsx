@@ -78,6 +78,7 @@ import { useFollowState } from "../hooks/useFollowState";
 import { peerSlugOf } from "../peer/markers";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
 import { isPeerName } from "../peer/markers";
+import { liveServices } from "../serviceExit";
 
 interface ProjectDetailProps {
   project: ProjectInfo;
@@ -281,9 +282,9 @@ export function ProjectDetail({
     }
   }, [spawnTasks, project.actions, project.name, consumeSpawnTasks, handleRunAction, switchDetailView]);
 
-  // Run an action / open a terminal on behalf of the mobile app. The store
-  // activated this project; run once per `nonce` (a repeat request bumps it) with
-  // a ref latch so StrictMode's double-invoke doesn't spawn twice.
+  // Run an action / open a terminal on behalf of the mobile app, on screen or
+  // not (see triggerRemoteAction); run once per `nonce` (a repeat request bumps
+  // it) with a ref latch so StrictMode's double-invoke doesn't spawn twice.
   const pendingRemoteAction = useAppStore((s) => s.pendingRemoteAction);
   const clearPendingRemoteAction = useAppStore((s) => s.clearPendingRemoteAction);
   const selectedProject = useAppStore((s) => s.selected);
@@ -292,25 +293,29 @@ export function ProjectDetail({
     if (
       !pendingRemoteAction ||
       pendingRemoteAction.projectName !== project.name ||
-      selectedProject !== project.name ||
+      (!pendingRemoteAction.background && selectedProject !== project.name) ||
       remoteActionConsumed.current === pendingRemoteAction.nonce
     ) {
       return;
     }
     remoteActionConsumed.current = pendingRemoteAction.nonce;
-    const { action, inputValues, confirmed } = pendingRemoteAction;
+    const { action, inputValues, confirmed, background } = pendingRemoteAction;
     clearPendingRemoteAction();
-    switchDetailView("terminal");
+    if (!background) switchDetailView("terminal");
     if (action) {
       const found = resolveRunnableAction(project.actions ?? [], action);
       if (found)
-        handleRunAction(found, { inputValues: inputValues ?? {}, skipPrompts: confirmed ?? false });
+        handleRunAction(found, {
+          inputValues: inputValues ?? {},
+          skipPrompts: confirmed ?? false,
+          background,
+        });
       else
         toast.error(
           `Couldn't run "${action}" in ${project.name} — no matching action.`,
         );
     } else {
-      terminalRef.current?.createTerminal();
+      terminalRef.current?.createTerminal(background);
     }
   }, [
     pendingRemoteAction,
@@ -347,8 +352,10 @@ export function ProjectDetail({
     } else switchDetailView(view);
   }, [pendingDetailView, selectedProject, project.name, switchDetailView, clearPendingDetailView]);
 
-  // Mobile relay: close / rename / pin a terminal tab, addressed by id. Same
-  // nonce ref-latch as run-action so StrictMode can't double-fire.
+  // A phone or a paired Mac closes / renames / pins / reorders a tab, addressed
+  // by id. Applied where the project is, on screen or not, so the person at this
+  // Mac keeps their view. Same nonce ref-latch as run-action so StrictMode can't
+  // double-fire.
   const pendingRemoteTerminalOp = useAppStore((s) => s.pendingRemoteTerminalOp);
   const clearPendingRemoteTerminalOp = useAppStore((s) => s.clearPendingRemoteTerminalOp);
   const remoteTerminalOpConsumed = useRef(0);
@@ -356,24 +363,19 @@ export function ProjectDetail({
     if (
       !pendingRemoteTerminalOp ||
       pendingRemoteTerminalOp.projectName !== project.name ||
-      selectedProject !== project.name ||
       remoteTerminalOpConsumed.current === pendingRemoteTerminalOp.nonce
     ) {
       return;
     }
     remoteTerminalOpConsumed.current = pendingRemoteTerminalOp.nonce;
-    const { op, id, label, order } = pendingRemoteTerminalOp;
+    const { op, id, label, emoji, order } = pendingRemoteTerminalOp;
     clearPendingRemoteTerminalOp();
     if (op === "close") terminalRef.current?.remoteCloseTerminal(id);
-    else if (op === "rename") terminalRef.current?.remoteRenameTerminal(id, label);
+    else if (op === "rename") terminalRef.current?.remoteRenameTerminal(id, label, emoji);
+    else if (op === "title") terminalRef.current?.remoteRestoreTitle(id);
     else if (op === "pin") terminalRef.current?.remoteTogglePin(id);
     else if (op === "reorder") terminalRef.current?.remoteReorderTerminals(order);
-  }, [
-    pendingRemoteTerminalOp,
-    selectedProject,
-    project.name,
-    clearPendingRemoteTerminalOp,
-  ]);
+  }, [pendingRemoteTerminalOp, project.name, clearPendingRemoteTerminalOp]);
 
   // A cross-project view asked to put one of our terminals on screen. The store
   // selected+mounted us; focus the tab once per nonce.
@@ -410,9 +412,9 @@ export function ProjectDetail({
       return;
     }
     adoptTerminalConsumed.current = pendingAdoptTerminal.nonce;
-    const { id, label, startCmd, resumeCmd, actionName } = pendingAdoptTerminal;
+    const { id, label, opts } = pendingAdoptTerminal;
     clearPendingAdoptTerminal();
-    terminalRef.current?.adoptTerminal(id, label, { startCmd, resumeCmd, actionName });
+    terminalRef.current?.adoptTerminal(id, label, opts);
   }, [pendingAdoptTerminal, project.name, clearPendingAdoptTerminal]);
 
   // Mirror: a peer closed a terminal it spawned here. Keyed by pty id, not
@@ -548,6 +550,11 @@ export function ProjectDetail({
 
   const handleStart = () => runAndShowTerminal(() => onStart(project.name, activeProfile));
   const handleStop = () => runAndShowTerminal(() => onStop(project.name));
+  const restartProject = useAppStore((s) => s.restartProject);
+  const handleRestart = () => {
+    setShowProfileMenu(false);
+    void withLoading(() => restartProject(project.name, project.activeProfile));
+  };
   const handleToggleServiceClick = (serviceName: string) =>
     runAndShowTerminal(() => onToggleService(project.name, serviceName));
   const handlePickProfile = (profile: string) => {
@@ -614,7 +621,7 @@ export function ProjectDetail({
   }, [project.name]);
 
   const runningServiceNames = useMemo(
-    () => (project.running ? new Set(project.services.map((s) => s.name)) : null),
+    () => (project.running ? new Set(liveServices(project).map((s) => s.name)) : null),
     [project.running, project.services],
   );
 
@@ -758,6 +765,7 @@ export function ProjectDetail({
       onToggleProfileMenu={() => setShowProfileMenu((v) => !v)}
       onStart={handleStart}
       onStop={handleStop}
+      onRestart={handleRestart}
       onPickProfile={handlePickProfile}
       onToggleService={handleToggleServiceClick}
       onAddService={() => {
@@ -841,6 +849,7 @@ export function ProjectDetail({
           themeStyle={themeStyle}
           terminalRef={terminalRef}
           projectName={project.name}
+          projectLabel={displayName}
           projectRoot={project.root}
           services={project.running ? project.services : EMPTY_SERVICES}
           terminalTheme={terminalTheme}

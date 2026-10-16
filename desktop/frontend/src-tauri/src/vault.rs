@@ -14,13 +14,30 @@ use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
 #[cfg(windows)]
-use crate::vaultcred as store;
+use crate::vaultcred as native;
 #[cfg(target_os = "macos")]
-use crate::vaultkeychain as store;
-#[cfg(all(unix, not(target_os = "macos")))]
-use crate::vaultkeyfile as store;
+use crate::vaultkeychain as native;
 
 pub const KEY_LEN: usize = 32;
+
+// Where the key lives: the OS keystore, except on Linux and for a copy of lpm on
+// a data directory of its own (a lesson, a test), which keep it in a 0600 file
+// there and so never touch — or ask the user about — the real app's key.
+fn fetch_stored_key() -> Result<[u8; KEY_LEN], VaultError> {
+    #[cfg(any(target_os = "macos", windows))]
+    if !crate::config::own_data_dir() {
+        return native::fetch_key();
+    }
+    crate::vaultkeyfile::fetch_key()
+}
+
+fn store_key(key: &[u8]) -> Result<(), VaultError> {
+    #[cfg(any(target_os = "macos", windows))]
+    if !crate::config::own_data_dir() {
+        return native::write_key(key);
+    }
+    crate::vaultkeyfile::write_key(key)
+}
 
 // --- export wire format constants (must match vault/export.go byte-for-byte) --
 const EXPORT_VERSION: u32 = 1;
@@ -51,7 +68,7 @@ impl std::fmt::Display for VaultError {
             #[cfg(target_os = "macos")]
             VaultError::Denied => write!(
                 f,
-                "vault: keychain item exists but access was denied (open Keychain Access, delete 'lpm vault key', then retry)"
+                "vault: keychain item exists but access was denied (allow lpm to use 'lpm vault key' when macOS asks, then retry; delete it in Keychain Access only if you have no encrypted notes to keep)"
             ),
             #[cfg(windows)]
             VaultError::Denied => write!(
@@ -99,7 +116,7 @@ impl From<VaultError> for String {
 
 /// The shared key, created on first use. Get-or-create, mirroring vault.Key().
 pub fn key() -> Result<[u8; KEY_LEN], VaultError> {
-    match store::fetch_key() {
+    match fetch_stored_key() {
         Ok(k) => Ok(k),
         Err(VaultError::NotFound) => create_key(),
         Err(e) => Err(e),
@@ -110,7 +127,7 @@ fn create_key() -> Result<[u8; KEY_LEN], VaultError> {
     let mut key = [0u8; KEY_LEN];
     getrandom::fill(&mut key)
         .map_err(|e| VaultError::Other(format!("vault: generate key: {e}")))?;
-    store::write_key(&key)?;
+    store_key(&key)?;
     Ok(key)
 }
 
@@ -297,10 +314,10 @@ pub fn import_key(passphrase: &str, data: &[u8]) -> Result<(), VaultError> {
         return Err(VaultError::EmptyPassphrase);
     }
     let key = unwrap_key(passphrase, data)?;
-    match store::fetch_key() {
+    match fetch_stored_key() {
         Ok(existing) if existing == key => Ok(()),
         Ok(_) => Err(VaultError::KeyConflict),
-        Err(_) => store::write_key(&key),
+        Err(_) => store_key(&key),
     }
 }
 

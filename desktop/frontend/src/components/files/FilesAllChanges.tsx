@@ -21,6 +21,7 @@ interface FilesAllChangesProps {
   // What the commit review picked: the files left out dim.
   selected?: Set<string>;
   onDirtyPathsChange?: (paths: Set<string>) => void;
+  onSplitFitsChange?: (fits: boolean) => void;
 }
 
 // Every uncommitted file as one scrolling stack of diffs. Memoized so the pane
@@ -36,6 +37,7 @@ export const FilesAllChanges = memo(function FilesAllChanges({
   authority = "files",
   selected,
   onDirtyPathsChange,
+  onSplitFitsChange,
 }: FilesAllChangesProps) {
   const baseFontSize = useSettingsStore((s) => s.editorFontSize) || DEFAULT_MONACO_FONT_SIZE;
   // Tree order — folders first, alphabetical — so the stack reads in the order
@@ -61,6 +63,7 @@ export const FilesAllChanges = memo(function FilesAllChanges({
       selected={selected}
       onActiveFileChange={onActiveFileChange}
       onDirtyPathsChange={onDirtyPathsChange}
+      onSplitFitsChange={onSplitFitsChange}
     />
   );
 });

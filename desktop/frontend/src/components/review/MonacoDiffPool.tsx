@@ -23,6 +23,7 @@ import {
 import { useGitChanged } from "../../hooks/useGitChanged";
 import { LayersIcon } from "../icons";
 import { READ_HEAVY_DIFF_OPTIONS } from "./diffEditorOptions";
+import { SPLIT_MIN_WIDTH, splitFits } from "./diffSplit";
 import {
   REVIEW_SOURCES,
   isPathEditable,
@@ -128,6 +129,8 @@ interface MonacoDiffPoolProps {
   // Reports which paths have unsaved edits, so a host's file tree can badge them
   // and warn before discarding them (e.g. the commit modal on close).
   onDirtyPathsChange?: (paths: Set<string>) => void;
+  // Whether the stack is wide enough for Split; narrower, Monaco shows it inline.
+  onSplitFitsChange?: (fits: boolean) => void;
 }
 
 export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolProps>(
@@ -144,6 +147,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       selected,
       authority = "pool",
       onDirtyPathsChange,
+      onSplitFitsChange,
     },
     ref,
   ) {
@@ -612,6 +616,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         readOnly: true,
         originalEditable: false,
         renderSideBySide: true,
+        renderSideBySideInlineBreakpoint: SPLIT_MIN_WIDTH,
         ignoreTrimWhitespace: false,
         hideUnchangedRegions: { enabled: true },
         minimap: { enabled: false },
@@ -1092,11 +1097,15 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       }
     }, [files]);
 
+    const onSplitFitsChangeRef = useRef(onSplitFitsChange);
+    onSplitFitsChangeRef.current = onSplitFitsChange;
+
     // Relayout attached editors when the container width changes (split drag etc.).
     useEffect(() => {
       const root = scrollRef.current;
       if (!root || typeof ResizeObserver === "undefined") return;
       viewportRef.current = { width: root.clientWidth, height: root.clientHeight };
+      onSplitFitsChangeRef.current?.(splitFits(root.clientWidth));
       scheduleFrame();
       const ro = new ResizeObserver((entries) => {
         const rect = entries[0]?.contentRect;
@@ -1118,6 +1127,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
           }
         }
         if (widthChanged) {
+          onSplitFitsChangeRef.current?.(splitFits(rect.width));
           slotsRef.current.forEach((s) => {
             if (s.path) scheduleLayout(s);
           });

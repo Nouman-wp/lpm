@@ -1,89 +1,17 @@
-import { Bell, Check, Columns2, Zap } from "lucide-react";
+import { Columns2, Zap } from "lucide-react";
 import { TerminalLine } from "@/components/terminal-line";
 import { ClaudeBanner } from "./before-after-claude-banner";
 import { CLAUDE_SESSION } from "./before-after-session";
+import { ReplicaSidebar } from "./before-after-sidebar";
 
 // The same window every lpm user works in, placed on the stage where the pile it
 // replaces lies. Palette and structure are lifted from components/demo/*, which
 // mirrors desktop/frontend/src.
 const TEXT = "text-[#d4d4d4]";
 
-// The agent states the app paints, in its own colours: amber while a turn waits
-// on you, a gradient shimmer while it works, blue once it lands.
-const NEEDS_YOU = "text-[#fbbf24] motion-safe:animate-pulse";
-const WORKING = "sidebar-shimmer";
-const DONE = "text-[#60a5fa]";
-
-type Agent = { name: string; tone: string; elapsed: string; mark?: "bell" | "check" };
-type Row = { name: string; running: boolean; selected?: boolean; agent?: Agent };
-
-const ROWS: Row[] = [
-  {
-    name: "auth-service",
-    running: true,
-    selected: true,
-    agent: { name: "claude", tone: NEEDS_YOU, elapsed: "4m", mark: "bell" },
-  },
-  {
-    name: "saas-app",
-    running: true,
-    agent: { name: "codex", tone: WORKING, elapsed: "41s" },
-  },
-  {
-    name: "docs-site",
-    running: true,
-    agent: { name: "claude", tone: DONE, elapsed: "52s", mark: "check" },
-  },
-  { name: "ml-pipeline", running: true },
-];
-
-export const PROJECT_COUNT = ROWS.length;
-export const AGENT_ROW_COUNT = ROWS.filter((r) => r.agent).length;
-
-const MARK_SLOT = "flex h-[0.9em] w-[0.9em] shrink-0 items-center justify-center";
-
-function ProjectRow({ row }: { row: Row }) {
-  return (
-    <div>
-      <div
-        className={`flex items-center gap-[0.7em] rounded-[0.45em] px-[0.7em] py-[0.4em] text-[1.05em] ${
-          row.selected ? "bg-[#333333] text-[#e5e5e5]" : "text-[#b3b3b3]"
-        }`}
-      >
-        <span
-          className={
-            row.running
-              ? "h-[0.6em] w-[0.6em] shrink-0 rounded-full bg-emerald-400"
-              : "h-[0.6em] w-[0.6em] shrink-0 rounded-full border border-[#4a4a4a]"
-          }
-        />
-        {/* The app rolls a project's agent state up onto the project row, so
-            the name itself waits, works and lands. */}
-        <span className={`min-w-0 truncate ${row.agent ? row.agent.tone : ""}`}>
-          {row.name}
-        </span>
-      </div>
-      {row.agent && (
-        // One line per agent under the project it runs in: the tab it lives in,
-        // coloured by what it is doing, a mark, and how long it has taken.
-        <div className="flex items-center gap-[0.5em] rounded-[0.45em] py-[0.22em] pl-[1.15em] pr-[0.6em] text-[0.95em] text-[#8e8e8e]">
-          <span className={MARK_SLOT} />
-          <span className={`min-w-0 flex-1 truncate ${row.agent.tone}`}>
-            {row.agent.name}
-          </span>
-          <span className={MARK_SLOT}>
-            {row.agent.mark === "bell" ? (
-              <Bell className="h-full w-full text-[#fbbf24]" strokeWidth={2.25} />
-            ) : row.agent.mark === "check" ? (
-              <Check className="h-full w-full text-[#60a5fa]" strokeWidth={2.5} />
-            ) : null}
-          </span>
-          <span className="shrink-0 tabular-nums">{row.agent.elapsed}</span>
-        </div>
-      )}
-    </div>
-  );
-}
+// The app tints a tab's label with its agent's state: amber, pulsing, while it
+// waits on you.
+const NEEDS_YOU = "sidebar-waiting";
 
 function Tab({
   children,
@@ -137,21 +65,7 @@ export function LpmReplica({ compact = false }: { compact?: boolean }) {
       data-on-dark
       className="flex h-full w-full overflow-hidden rounded-[0.9em] bg-[#1e1e1e] ring-1 ring-white/10 shadow-[0_12px_36px_-14px_rgba(0,0,0,0.4)] dark:shadow-[0_12px_36px_-12px_rgba(0,0,0,0.9)]"
     >
-      <aside className="flex w-[11.4em] shrink-0 flex-col border-r border-[#2e2e2e] bg-[#1e1e1e]">
-        <div className="flex h-[2.6em] shrink-0 items-center gap-[0.55em] px-[0.9em] pt-[0.3em]">
-          <span className="h-[0.7em] w-[0.7em] rounded-full bg-[#ff5f57]" />
-          <span className="h-[0.7em] w-[0.7em] rounded-full bg-[#febc2e]" />
-          <span className="h-[0.7em] w-[0.7em] rounded-full bg-[#28c840]" />
-        </div>
-        <div className="px-[1em] pb-[0.4em] pt-[0.5em] text-[0.85em] font-medium uppercase tracking-wider text-[#919191]">
-          Projects
-        </div>
-        <nav className="flex flex-col gap-[0.15em] px-[0.5em]">
-          {ROWS.map((row) => (
-            <ProjectRow key={row.name} row={row} />
-          ))}
-        </nav>
-      </aside>
+      <ReplicaSidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <div
           className={`flex shrink-0 items-center overflow-hidden bg-[#2d2d2d] py-[0.4em] ${

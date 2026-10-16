@@ -8,7 +8,7 @@ import { useDiffView, type HeadText } from "./files/useDiffView";
 import { useFileBuffer } from "./files/useFileBuffer";
 
 // Only these have a HEAD side worth comparing; a new file is all additions.
-const HAS_HEAD = new Set(["modified", "renamed", "deleted"]);
+const HAS_HEAD = new Set(["modified", "renamed", "deleted", "conflicted"]);
 
 const STATUS_LABEL: Record<string, string> = {
   modified: "Modified",
@@ -16,6 +16,7 @@ const STATUS_LABEL: Record<string, string> = {
   deleted: "Deleted",
   added: "New",
   untracked: "New",
+  conflicted: "Conflicted",
 };
 
 // A file under the terminal's project is read through that root, which is what

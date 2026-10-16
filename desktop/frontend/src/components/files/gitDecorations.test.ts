@@ -22,6 +22,16 @@ describe("decorate", () => {
     expect(map.get("src/new.ts")).toBe("untracked");
   });
 
+  it("marks a conflicted file and lets it outweigh every other change on its folders", () => {
+    const map = decorate([
+      { path: "src/lib/old.ts", status: "modified" },
+      { path: "src/README.md", status: "conflicted" },
+    ]);
+    expect(map.get("src")).toBe("conflicted");
+    expect(map.get("src/lib")).toBe("modified");
+    expect(decorationOf("conflicted").letter).toBe("!");
+  });
+
   it("falls back to the modified look for a status it does not know", () => {
     expect(decorationOf("copied")).toBe(decorationOf("modified"));
     expect(decorationOf("deleted").strike).toBe(true);

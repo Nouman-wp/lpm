@@ -1,4 +1,5 @@
 import { create, type StoreApi } from "zustand";
+import { type AdoptedTabOpts } from "../paneTree";
 import { toast } from "sonner";
 import YAML from "yaml";
 import {
@@ -43,8 +44,11 @@ import {
   StartDuplicateProject,
   StartDuplicateWorktreeProject,
   StartProject,
+  StartProjectWithServices,
   StopProject,
   ToggleProjectService,
+  RestartProjectService,
+  StopProjectService,
   TrashProject,
 } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
@@ -102,10 +106,13 @@ import { applyMove } from "../components/actionsDndLayout";
 import type { StructuralOp } from "../actionsGesture";
 import type { ActionLevel } from "../actionLevels";
 import { projectStartProfile } from "../projectStartProfile";
+import { displayNameForProjectName } from "../components/ProjectNameDisplay";
 import { onProjectsRemoved } from "../sendLater/closeout";
 import { deferRefresh, holdRefresh, refreshHeld } from "./refreshHold";
 
 export type ProjectDetailTarget = "config" | "notes" | "ai" | "memory" | "automations";
+
+export type RemoteTerminalOp = "close" | "rename" | "pin" | "reorder" | "title";
 
 export type View =
   | "projects"
@@ -143,6 +150,7 @@ export interface CloneProjectParams {
 export interface PortConflictPrompt {
   title: string;
   conflicts: main.PortConflictInfo[];
+  projectName: string;
 }
 
 interface AppState {
@@ -220,15 +228,21 @@ interface AppState {
   restartProject: (name: string, profile: string) => Promise<void>;
   toggleProjectRunning: (name: string) => Promise<void>;
   toggleService: (name: string, service: string) => Promise<void>;
+  restartService: (name: string, service: string) => Promise<void>;
+  stopService: (name: string, service: string) => Promise<void>;
   cancelPortConflict: () => void;
   confirmPortConflict: () => Promise<void>;
+  // `projectName` is the project being started: its Mac is the one whose port
+  // gets freed, which for another Mac's project isn't this one.
   triggerPortConflictPrompt: (
     title: string,
     conflicts: main.PortConflictInfo[],
+    projectName: string,
   ) => Promise<boolean>;
   resolvePortConflicts: (
     title: string,
     conflicts: main.PortConflictInfo[],
+    projectName: string,
   ) => Promise<boolean>;
   addProject: () => void;
   addProjectForPeer: (slug: string, alias: string) => void;
@@ -255,6 +269,9 @@ interface AppState {
     // Relayed from mobile after it ran the inputs + confirm gauntlet on the phone.
     inputValues?: Record<string, string>;
     confirmed?: boolean;
+    // Run without putting the project on screen: nothing here asks the person
+    // at this Mac anything, so they keep their place.
+    background: boolean;
   } | null;
   triggerRemoteAction: (
     projectName: string,
@@ -279,18 +296,21 @@ interface AppState {
   // order. Consumed by the mounted ProjectDetail.
   pendingRemoteTerminalOp: {
     projectName: string;
-    op: "close" | "rename" | "pin" | "reorder";
+    op: RemoteTerminalOp;
     id: string;
     label: string;
+    emoji?: string;
     order: string[];
     nonce: number;
   } | null;
+  // Mounts the project if it wasn't, without putting it on screen.
   triggerRemoteTerminalOp: (
     projectName: string,
-    op: "close" | "rename" | "pin" | "reorder",
+    op: RemoteTerminalOp,
     id: string,
     label: string,
     order: string[],
+    emoji?: string,
   ) => void;
   clearPendingRemoteTerminalOp: () => void;
   // A "put this terminal on screen" request from a cross-project view. Selects+
@@ -306,16 +326,14 @@ interface AppState {
     projectName: string;
     id: string;
     label: string;
-    startCmd?: string;
-    resumeCmd?: string;
-    actionName?: string;
+    opts: AdoptedTabOpts;
     nonce: number;
   } | null;
   adoptRemoteTerminal: (
     projectName: string,
     id: string,
     label: string,
-    opts?: { startCmd?: string; resumeCmd?: string; actionName?: string },
+    opts?: AdoptedTabOpts,
   ) => void;
   clearPendingAdoptTerminal: () => void;
   // A peer Mac closed a terminal it had spawned here; drop the host tab holding
@@ -358,7 +376,7 @@ interface AppState {
   moveProjectRoot: (name: string, newRoot: string) => Promise<void>;
   createGroup: (name: string, opts?: { initialMembers?: string[] }) => Promise<void>;
   renameGroup: (id: string, name: string) => Promise<void>;
-  deleteGroup: (id: string) => Promise<void>;
+  deleteGroup: (id: string, keepProjects?: boolean) => Promise<void>;
   toggleGroupCollapsed: (id: string) => Promise<void>;
   moveProjectToGroup: (name: string, groupId: string | null) => Promise<void>;
   moveProjectsToGroup: (names: string[], groupId: string | null) => Promise<void>;
@@ -960,19 +978,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   startProject: async (name, profile) => {
+    const label = displayNameForProjectName(name, get().projects);
     try {
       const conflicts = (await CheckPortConflicts(name, profile)) || [];
       if (conflicts.length > 0) {
         const ok = await get().resolvePortConflicts(
-          `Cannot start "${name}"`,
+          `Cannot start "${label}"`,
           conflicts,
+          name,
         );
         if (!ok) return;
       }
       await StartProject(name, profile);
       await get().refreshProjects();
     } catch (err) {
-      toast.error(`Failed to start ${name}: ${err}`);
+      toast.error(`Failed to start ${label}: ${err}`);
     }
   },
 
@@ -981,16 +1001,23 @@ export const useAppStore = create<AppState>((set, get) => ({
       await StopProject(name);
       await get().refreshProjects();
     } catch (err) {
-      toast.error(`Failed to stop ${name}: ${err}`);
+      toast.error(`Failed to stop ${displayNameForProjectName(name, get().projects)}: ${err}`);
     }
   },
 
+  // Without a profile, the services that were started come back up as they were.
   restartProject: async (name, profile) => {
+    const started = (get().projects.find((p) => p.name === name)?.services ?? []).map((s) => s.name);
     try {
       await StopProject(name);
-      await get().startProject(name, profile);
+      if (profile || started.length === 0) {
+        await get().startProject(name, profile);
+        return;
+      }
+      await StartProjectWithServices(name, started);
+      await get().refreshProjects();
     } catch (err) {
-      toast.error(`Failed to restart ${name}: ${err}`);
+      toast.error(`Failed to restart ${displayNameForProjectName(name, get().projects)}: ${err}`);
     }
   },
 
@@ -1015,7 +1042,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!prompt) return;
     set({ resolvingPortConflict: true });
     try {
-      await Promise.all(prompt.conflicts.map((c) => ResolvePortConflict(c)));
+      await Promise.all(prompt.conflicts.map((c) => ResolvePortConflict(c, prompt.projectName)));
       set({ portConflict: null, resolvingPortConflict: false });
       resolvePortConflictPromise?.(true);
       resolvePortConflictPromise = null;
@@ -1025,14 +1052,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  triggerPortConflictPrompt: (title, conflicts) =>
+  triggerPortConflictPrompt: (title, conflicts, projectName) =>
     new Promise<boolean>((resolve) => {
       resolvePortConflictPromise?.(false);
       resolvePortConflictPromise = resolve;
-      set({ portConflict: { title, conflicts } });
+      set({ portConflict: { title, conflicts, projectName } });
     }),
 
-  resolvePortConflicts: async (title, conflicts) => {
+  resolvePortConflicts: async (title, conflicts, projectName) => {
     const policyOf = (c: main.PortConflictInfo) => c.portConflict || "ask";
     const noun = (cs: main.PortConflictInfo[]) => (cs.length > 1 ? "ports" : "port");
     const list = (cs: main.PortConflictInfo[]) => cs.map((c) => c.port).join(", ");
@@ -1045,7 +1072,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const frees = conflicts.filter((c) => policyOf(c) === "free");
     if (frees.length > 0) {
       try {
-        await Promise.all(frees.map((c) => ResolvePortConflict(c)));
+        await Promise.all(frees.map((c) => ResolvePortConflict(c, projectName)));
         toast.success(`Freed ${noun(frees)} ${list(frees)}`);
       } catch (err) {
         toast.error(`Failed to free port: ${err}`);
@@ -1054,7 +1081,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     const asks = conflicts.filter((c) => policyOf(c) === "ask");
     if (asks.length > 0) {
-      return await get().triggerPortConflictPrompt(title, asks);
+      return await get().triggerPortConflictPrompt(title, asks, projectName);
     }
     return true;
   },
@@ -1065,6 +1092,24 @@ export const useAppStore = create<AppState>((set, get) => ({
       await get().refreshProjects();
     } catch (err) {
       toast.error(`Failed to toggle ${service}: ${err}`);
+    }
+  },
+
+  restartService: async (name, service) => {
+    try {
+      await RestartProjectService(name, service);
+      await get().refreshProjects();
+    } catch (err) {
+      toast.error(`Failed to restart ${service}: ${err}`);
+    }
+  },
+
+  stopService: async (name, service) => {
+    try {
+      await StopProjectService(name, service);
+      await get().refreshProjects();
+    } catch (err) {
+      toast.error(`Failed to stop ${service}: ${err}`);
     }
   },
 
@@ -1152,19 +1197,25 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Mount/activate the target project (only a mounted ProjectDetail has a live
   // TerminalView to run in), then park the request for its consumer effect.
+  // An action the phone didn't confirm (an older phone) asks for its inputs
+  // and confirmation here, so it brings the project on screen; anything else
+  // runs where the project is.
   triggerRemoteAction: (projectName, action, inputValues, confirmed) =>
-    set((s) => ({
-      selected: projectName,
-      view: "projects",
-      visited: new Set([...s.visited, projectName]),
-      pendingRemoteAction: {
-        projectName,
-        action,
-        nonce: ++remoteRequestNonce,
-        inputValues,
-        confirmed,
-      },
-    })),
+    set((s) => {
+      const background = !action || confirmed === true;
+      return {
+        ...(background ? {} : { selected: projectName, view: "projects" as const }),
+        visited: s.visited.has(projectName) ? s.visited : new Set([...s.visited, projectName]),
+        pendingRemoteAction: {
+          projectName,
+          action,
+          nonce: ++remoteRequestNonce,
+          inputValues,
+          confirmed,
+          background,
+        },
+      };
+    }),
 
   clearPendingRemoteAction: () => set({ pendingRemoteAction: null }),
 
@@ -1184,16 +1235,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   pendingRemoteTerminalOp: null,
 
-  triggerRemoteTerminalOp: (projectName, op, id, label, order) =>
+  triggerRemoteTerminalOp: (projectName, op, id, label, order, emoji) =>
     set((s) => ({
-      selected: projectName,
-      view: "projects",
-      visited: new Set([...s.visited, projectName]),
+      visited: s.visited.has(projectName) ? s.visited : new Set([...s.visited, projectName]),
       pendingRemoteTerminalOp: {
         projectName,
         op,
         id,
         label,
+        emoji,
         order,
         nonce: ++remoteRequestNonce,
       },
@@ -1241,9 +1291,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           projectName,
           id,
           label,
-          startCmd: opts?.startCmd,
-          resumeCmd: opts?.resumeCmd,
-          actionName: opts?.actionName,
+          opts: opts ?? {},
           nonce: ++remoteRequestNonce,
         },
       });
@@ -1255,6 +1303,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       ...(opts?.startCmd ? { startCmd: opts.startCmd } : {}),
       ...(opts?.resumeCmd ? { resumeCmd: opts.resumeCmd } : {}),
       ...(opts?.actionName ? { actionName: opts.actionName } : {}),
+      ...(opts?.emoji ? { emoji: opts.emoji } : {}),
+      ...(opts?.color ? { color: opts.color } : {}),
+      ...(opts?.restoreHere ? { restoreHere: true } : {}),
     });
   },
 
@@ -1738,12 +1789,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Deleting a folder deletes everything inside it: each member, plus the
   // duplicates of any member original (a duplicate's copy is removed from disk,
   // an original only loses its lpm entry). The now-empty folder is then dropped.
-  deleteGroup: async (id) => {
+  // keepProjects drops only the folder; its members take its place in the list.
+  deleteGroup: async (id, keepProjects = false) => {
     const group = get().groups.find((g) => g.id === id);
     if (!group) return;
     const projects = get().projects;
     const byName = projectsByName(projects);
-    const names = expandRemovalSet(projects, byName, group.members).map((p) => p.name);
+    const names = keepProjects
+      ? []
+      : expandRemovalSet(projects, byName, group.members).map((p) => p.name);
     if (names.length > 0) {
       const removed = await get().removeProjectsBatch(names);
       // A partial/no-op removal (e.g. a member was mid-delete) would leave

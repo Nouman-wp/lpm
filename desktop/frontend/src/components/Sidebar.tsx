@@ -14,6 +14,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, type SortingStrategy } from "@dnd-kit/sortable";
 import { StatusDot, dotKind } from "./StatusDot";
+import { crashSummary, projectUp } from "../serviceExit";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
 import { openClaudeAccountSettings, setClaudeAccountChoice } from "../store/claudeAccountPin";
@@ -87,6 +88,7 @@ import { SyncSetupModal } from "./SyncSetupModal";
 import { syncSourceFor } from "./syncSource";
 import { buildPeerSections, followForRow, type PeerSection } from "./peerSections";
 import { RemoveSyncedCopyDialog } from "./RemoveSyncedCopyDialog";
+import { DeleteCopyBody } from "./DeleteCopyBody";
 import { syncSupported } from "../syncApi";
 import { FollowIndicator } from "./FollowIndicator";
 import { useFollowState } from "../hooks/useFollowState";
@@ -177,7 +179,7 @@ interface SidebarProps {
   onReorderDuplicate: (name: string, overName: string) => void;
   onCreateGroup: (name: string, opts?: { initialMembers?: string[] }) => void;
   onRenameGroup: (id: string, name: string) => void;
-  onDeleteGroup: (id: string) => void;
+  onDeleteGroup: (id: string, keepProjects?: boolean) => void;
   onToggleGroupCollapsed: (id: string) => void;
   onMoveProjectToGroup: (name: string, groupId: string | null) => void;
   onMoveProjectsToGroup: (names: string[], groupId: string | null) => void;
@@ -717,16 +719,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           confirmLabel: "Delete",
           confirmText: undefined as string | undefined,
           onConfirm: onRemoveProject,
-          body: (
-            <>
-              Delete{" "}
-              <span className="font-medium text-[var(--text-primary)]">
-                {pendingRemoveLabel}
-              </span>
-              ? Its {pendingRemove?.worktree ? "worktree" : "folder"} and
-              everything inside is permanently deleted from disk. This can't be
-              undone.
-            </>
+          body: pendingRemove && (
+            <DeleteCopyBody project={pendingRemove} label={pendingRemoveLabel} />
           ),
         }
       : removeMode === "cascade"
@@ -932,7 +926,6 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const parent = project.parentName ? allByName.get(project.parentName) : undefined;
     const name = peerRow?.label ?? <ProjectNameDisplay project={project} parent={parent} />;
     const displayName = peerRow?.label ?? projectDisplayName(project, parent);
-    const rawName = peerRawName(project.name);
     const isChecked = selectedForDelete.has(project.name);
     const follow = follows.get(project.name);
     const agents = agentsByProject.get(project.name) ?? [];
@@ -986,7 +979,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           title={
             project.configError ||
             (project.parentName
-              ? `${project.worktree ? "Git worktree" : "Duplicate"} of ${peerRawName(project.parentName)}`
+              ? `${project.worktree ? "Git worktree" : "Duplicate"} of ${
+                  parent ? projectDisplayName(parent) : peerRawName(project.parentName)
+                }`
               : displayName)
           }
         >
@@ -1068,7 +1063,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
                 ) : project.configError ? (
                   <span className="h-2 w-2 rounded-full bg-[var(--accent-red)]" title="Config error" />
                 ) : (
-                  <StatusDot running={project.running} kind={dotKind(project)} />
+                  <StatusDot
+                    running={projectUp(project)}
+                    crashed={crashSummary(project)}
+                    kind={dotKind(project)}
+                  />
                 )}
               </span>
             )}
@@ -1118,7 +1117,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
               {canExpand && (
                 <SidebarAgentChevron
                   expanded={isExpanded}
-                  label={rawName}
+                  label={displayName}
                   onToggle={() => toggleExpanded(project.name)}
                 />
               )}
@@ -1127,7 +1126,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           {showOrigin && (
             <SidebarOriginAction
               root={project.root}
-              projectName={rawName}
+              projectName={displayName}
               className={`${controlTop} ${trailing.action}`}
               onResolve={() => setGitModal({ name: project.name, path: project.root, kind: "merge" })}
             />
@@ -1148,7 +1147,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
                   : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
               }`}
               title="More options"
-              aria-label={`More options for ${rawName}`}
+              aria-label={`More options for ${displayName}`}
             >
               <MoreVerticalIcon />
             </button>
@@ -1703,6 +1702,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           y={groupMenu.y}
           onRename={() => setRenamingGroupId(groupMenu.id)}
           onNewFolder={() => setCreateFolder({})}
+          onUngroup={
+            groups.find((g) => g.id === groupMenu.id)?.members.length
+              ? () => onDeleteGroup(groupMenu.id, true)
+              : undefined
+          }
           onDelete={() => setDeletingGroupId(groupMenu.id)}
           onClose={() => setGroupMenu(null)}
         />
@@ -1788,6 +1792,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             />
           )
         }
+        secondaryLabel={groupRemovalCount > 0 ? "Keep projects" : undefined}
+        onSecondary={() => {
+          if (deletingGroupId) onDeleteGroup(deletingGroupId, true);
+          setDeletingGroupId(null);
+        }}
         onCancel={() => setDeletingGroupId(null)}
         onConfirm={() => {
           if (deletingGroupId) onDeleteGroup(deletingGroupId);

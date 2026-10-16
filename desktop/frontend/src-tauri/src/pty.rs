@@ -407,6 +407,8 @@ fn spawn_io_threads(
         // then either told of the exit or finds no terminal (peer::ring_attach).
         sessions.lock().unwrap().remove(&sess.id);
         crate::peer::tee_exit(&app, &sess.id, code);
+        // Its tab can stay, but phones list running terminals only.
+        let _ = app.emit(crate::remote::TERMINALS_CHANGED_EVENT, &sess.project_name);
     });
 }
 

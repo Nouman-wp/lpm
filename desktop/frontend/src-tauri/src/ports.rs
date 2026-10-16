@@ -302,6 +302,28 @@ pub fn format_action_port(action: &str, ports: &[i64]) -> Result<(), String> {
     Err(msg)
 }
 
+/// Two services of one start sharing a port: both would pass the conflict
+/// check, which sees only ports already taken, and the later one would die on
+/// "address already in use".
+pub fn ensure_own_ports(
+    services: &std::collections::BTreeMap<String, config::ServiceFull>,
+    service_names: &[String],
+) -> Result<(), String> {
+    let mut taken: Vec<(i64, &str)> = Vec::new();
+    for name in service_names {
+        let Some(port) = services.get(name).map(|s| s.port).filter(|p| *p > 0) else {
+            continue;
+        };
+        if let Some((_, first)) = taken.iter().find(|(p, _)| *p == port) {
+            return Err(format!(
+                "{first} and {name} both use port {port}. Give each service its own port in the project config."
+            ));
+        }
+        taken.push((port, name));
+    }
+    Ok(())
+}
+
 // ---- commands ---------------------------------------------------------------
 
 #[tauri::command(async)]
@@ -483,6 +505,22 @@ fn wait_bindable(port: i64, timeout: Duration) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn services_started_together_need_ports_of_their_own() {
+        let mut services = std::collections::BTreeMap::new();
+        for (name, port) in [("web", 4402), ("api2", 4402), ("worker", 0), ("db", 5432)] {
+            let svc = config::ServiceFull {
+                port,
+                ..Default::default()
+            };
+            services.insert(name.to_string(), svc);
+        }
+        let names = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let err = ensure_own_ports(&services, &names(&["web", "worker", "api2"])).unwrap_err();
+        assert!(err.starts_with("web and api2 both use port 4402"), "{err}");
+        assert!(ensure_own_ports(&services, &names(&["web", "worker", "db"])).is_ok());
+    }
 
     fn holder(pid: i64, command: &str) -> Holder {
         Holder {

@@ -821,6 +821,21 @@ body {
   background: transparent !important;
 }
 
+/* Unified view pads the original line-number column beside inserted lines with
+   a margin zone Monaco tints as deleted; nothing was removed there. */
+.monaco-diff-editor .editor.original .margin-view-zones .gutter-delete {
+  background: transparent !important;
+}
+
+/* Terminal text clears the pane's edge. The padding sits on .xterm so the fit
+   addon counts it, and xterm's black viewport shows through it unless tinted. */
+.xterm {
+  padding-left: 8px;
+}
+.xterm .xterm-viewport {
+  background-color: var(--terminal-bg) !important;
+}
+
 /* The lifted action button. drop-shadow follows its rounded shape where a
    box-shadow drew a square slab, and the tilt eases in instead of popping. */
 @keyframes lpm-actions-lift {

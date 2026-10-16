@@ -31,6 +31,7 @@ import { isPeerName, peerSlugOf, prefixRoot, PEER_UPLOAD_MAX_BYTES } from "../pe
 import { uploadPeerFile } from "../peer/uploadFiles";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { getSettings } from "../store/settings";
+import { useEndedTerminals } from "../store/endedTerminals";
 import {
   useEnabledComposerActions,
   type ComposerAction,
@@ -1366,7 +1367,11 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       } else {
         const payload = await buildTerminalPayload(row.terminalId, text, images);
         if (!sendToTerminal(row.projectName, row.terminalId, payload)) {
-          toast.error(`${row.label} isn't accepting input right now.`);
+          toast.error(
+            row.terminalId in useEndedTerminals.getState().ended
+              ? `${row.label} has ended. Restart it or close its tab.`
+              : `${row.label} isn't accepting input right now.`,
+          );
           return;
         }
         // It was typed here, so ↑ still brings it back here — but it RAN over

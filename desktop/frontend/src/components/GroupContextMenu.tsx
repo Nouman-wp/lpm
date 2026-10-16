@@ -1,3 +1,4 @@
+import { FolderOpen } from "lucide-react";
 import { FolderIcon, PencilIcon, TrashIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
@@ -8,6 +9,8 @@ interface GroupContextMenuProps {
   y: number;
   onRename: () => void;
   onNewFolder: () => void;
+  // Drops the folder but keeps its projects; absent for an empty folder.
+  onUngroup?: () => void;
   onDelete: () => void;
   onClose: () => void;
 }
@@ -17,6 +20,7 @@ export function GroupContextMenu({
   y,
   onRename,
   onNewFolder,
+  onUngroup,
   onDelete,
   onClose,
 }: GroupContextMenuProps) {
@@ -29,6 +33,14 @@ export function GroupContextMenu({
       <ContextMenuItem label="Rename folder" icon={<PencilIcon />} onClick={close(onRename)} />
       <ContextMenuItem label="New folder" icon={<FolderIcon />} onClick={close(onNewFolder)} />
       <ContextMenuSeparator />
+      {onUngroup && (
+        <ContextMenuItem
+          label="Ungroup"
+          title="Remove the folder and keep its projects"
+          icon={<FolderOpen size={14} />}
+          onClick={close(onUngroup)}
+        />
+      )}
       <ContextMenuItem
         destructive
         label="Delete folder"

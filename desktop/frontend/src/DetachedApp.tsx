@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Toaster } from "sonner";
+import { TOASTER_OFFSET } from "./toasterOffset";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { FeedbackModal } from "./components/FeedbackModal";
@@ -103,7 +104,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
       <Toaster
         position="top-right"
         theme={theme}
-        offset={56}
+        offset={TOASTER_OFFSET}
         closeButton
         richColors
         toastOptions={{ duration: 5000 }}

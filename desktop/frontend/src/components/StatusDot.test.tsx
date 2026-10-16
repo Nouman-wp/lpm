@@ -64,6 +64,14 @@ describe("StatusDot", () => {
     }
   });
 
+  it("turns red and names what crashed when a service crashed", () => {
+    for (const kind of ["project", "copy", "worktree"] as const) {
+      const light = dot(render(<StatusDot running kind={kind} crashed="web exited with code 1" />));
+      expect(light.className).toContain("bg-[var(--accent-red)]");
+      expect(light.title).toBe("web exited with code 1");
+    }
+  });
+
   it("takes no layout width for either mark, so the dots stay in one column", () => {
     for (const kind of ["copy", "worktree"] as const) {
       const wrapper = render(<StatusDot running kind={kind} />).firstElementChild!;

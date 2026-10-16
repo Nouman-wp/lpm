@@ -39,7 +39,7 @@ import { nextId, appendTerminal, resolveActiveAfterClose } from "./util";
 import { onTerminalsClosed } from "../../sendLater/closeout";
 
 // Grace period the closed tab stays recoverable behind the undo toast.
-const UNDO_CLOSE_DURATION_MS = 3000;
+const UNDO_CLOSE_DURATION_MS = 5000;
 
 interface UseTabCloseProps {
   projectName: string;

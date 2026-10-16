@@ -1,5 +1,6 @@
 import type { MouseEvent } from "react";
-import { PencilIcon, PlayIcon, PlusIcon, StopIcon } from "../icons";
+import { PencilIcon, PlayIcon, PlusIcon, RefreshIcon, StopIcon } from "../icons";
+import { serviceCrashed, serviceExitText } from "../../serviceExit";
 import type { ProfileInfo, ServiceInfo } from "../../types";
 
 interface StartMenuProps {
@@ -8,6 +9,10 @@ interface StartMenuProps {
   activeProfile: string;
   running: boolean;
   runningServiceNames: Set<string> | null;
+  // Started services whose command has ended, by name, with the code each
+  // ended with. Clicking one runs it again.
+  exited: ReadonlyMap<string, number | null>;
+  onRestart: () => void;
   onPickProfile: (name: string) => void;
   onToggleService: (name: string) => void;
   onAddService: () => void;
@@ -24,6 +29,8 @@ export function StartMenu({
   activeProfile,
   running,
   runningServiceNames,
+  exited,
+  onRestart,
   onPickProfile,
   onToggleService,
   onAddService,
@@ -39,6 +46,24 @@ export function StartMenu({
   const showProfilesSection = services.length > 0;
   return (
     <div data-row-menu="off" className="switcher-in absolute right-0 top-full z-50 mt-2 min-w-[280px] max-w-[340px] origin-top-right overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl">
+      {running && (
+        <>
+          <div className="py-1.5">
+            <button
+              type="button"
+              onClick={onRestart}
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
+            >
+              <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                <RefreshIcon />
+              </span>
+              <span className="flex-1 truncate">Restart</span>
+              <span className="text-[11px] text-[var(--text-muted)]">every started service</span>
+            </button>
+          </div>
+          <div className="mx-4 border-t border-[var(--border)]" />
+        </>
+      )}
       {showProfilesSection && (
         <Section label="Profiles">
           {profiles.map((p) => (
@@ -61,6 +86,7 @@ export function StartMenu({
             key={s.name}
             service={s}
             running={runningServiceNames?.has(s.name)}
+            exitCode={exited.has(s.name) ? exited.get(s.name) ?? null : undefined}
             onClick={() => onToggleService(s.name)}
             onEdit={() => onEditService(s)}
             onContextMenu={onContextMenuService}
@@ -86,13 +112,17 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 interface ServiceMenuItemProps {
   service: ServiceInfo;
   running?: boolean;
+  // Set (null for no code) when the service was started and its command ended.
+  exitCode?: number | null;
   onClick: () => void;
   onEdit: () => void;
   onContextMenu?: (e: MouseEvent, service: ServiceInfo) => void;
 }
 
-function ServiceMenuItem({ service, running, onClick, onEdit, onContextMenu }: ServiceMenuItemProps) {
+function ServiceMenuItem({ service, running, exitCode, onClick, onEdit, onContextMenu }: ServiceMenuItemProps) {
   const badge = service.port > 0 ? `:${service.port}` : undefined;
+  const ended = exitCode !== undefined;
+  const crashed = ended && serviceCrashed({ exited: true, exitCode });
   return (
     <div
       className={`group relative flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] transition-colors hover:bg-[var(--bg-hover)] ${
@@ -107,14 +137,23 @@ function ServiceMenuItem({ service, running, onClick, onEdit, onContextMenu }: S
         <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
           {running ? (
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-green)]" />
+          ) : crashed ? (
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-red)]" />
           ) : null}
         </span>
         <span className="flex-1 truncate font-mono">{service.name}</span>
+        {ended && (
+          <span
+            className={`shrink-0 text-[11px] ${crashed ? "text-[var(--accent-red-text)]" : "text-[var(--text-muted)]"}`}
+          >
+            {serviceExitText({ exitCode })}
+          </span>
+        )}
         {badge && (
           <span className="text-[11px] text-[var(--text-muted)] tabular-nums">{badge}</span>
         )}
       </button>
-      <RowActions onEdit={onEdit} onToggle={onClick} running={running} />
+      <RowActions onEdit={onEdit} onToggle={onClick} running={running} restart={ended} />
     </div>
   );
 }
@@ -164,11 +203,13 @@ function RowActions({
   onEdit,
   onToggle,
   running,
+  restart = false,
   alignTop = false,
 }: {
   onEdit: () => void;
   onToggle: () => void;
   running?: boolean;
+  restart?: boolean;
   alignTop?: boolean;
 }) {
   return (
@@ -192,10 +233,10 @@ function RowActions({
           e.stopPropagation();
           onToggle();
         }}
-        aria-label={running ? "Stop" : "Start"}
+        aria-label={restart ? "Restart" : running ? "Stop" : "Start"}
         className="rounded p-1 text-[var(--text-muted)] opacity-0 transition-opacity hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)] group-hover:opacity-100"
       >
-        {running ? <StopIcon /> : <PlayIcon />}
+        {restart ? <RefreshIcon /> : running ? <StopIcon /> : <PlayIcon />}
       </button>
     </span>
   );

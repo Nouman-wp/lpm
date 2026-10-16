@@ -53,8 +53,23 @@ export interface TerminalInstance {
   // started there, from a phone or from another Mac — rather than started from
   // here. The host relaunches it after a restart, so this Mac must not.
   fromHost?: boolean;
+  // Host side, with peerAdopted: the Mac that opened this tab here leaves
+  // bringing it back after a restart to this Mac, which restores it in place,
+  // under its name, like a tab of its own. One that didn't say so relaunches it
+  // itself, and restoring it here as well would run it twice.
+  restoreHere?: boolean;
   // Absent == terminal; the other kinds render in-pane views without a PTY.
   kind?: "terminal" | "browser" | "memory" | "toolkit" | "files" | "automations";
+}
+
+// What another Mac says about a tab it opened on this one, which adopts it.
+export interface AdoptedTabOpts {
+  startCmd?: string;
+  resumeCmd?: string;
+  actionName?: string;
+  emoji?: string;
+  color?: string;
+  restoreHere?: boolean;
 }
 
 // True for real PTY-backed terminal tabs (the default kind). Browser and review
@@ -108,6 +123,7 @@ export function makeTerminal(
     memory?: TerminalMemoryRef;
     peerAdopted?: boolean;
     fromHost?: boolean;
+    restoreHere?: boolean;
   },
 ): TerminalInstance {
   return {
@@ -128,6 +144,7 @@ export function makeTerminal(
     ...(opts?.color ? { color: opts.color } : {}),
     ...(opts?.peerAdopted ? { peerAdopted: true } : {}),
     ...(opts?.fromHost ? { fromHost: true } : {}),
+    ...(opts?.restoreHere ? { restoreHere: true } : {}),
   };
 }
 

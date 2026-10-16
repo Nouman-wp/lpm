@@ -1032,7 +1032,8 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
                 .get("platform")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            match pair_device(hub, code, name, platform) {
+            let replaces = v.get("replaces").and_then(Value::as_str);
+            match pair_device(hub, code, name, platform, replaces) {
                 Some((id, token, slug)) => {
                     let _ = ws.send(Message::text(
                         json!({ "t": "paired", "deviceId": id, "token": token,
@@ -1058,7 +1059,8 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
                 .get("platform")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            handle_pair_request(ws, hub, app, name, platform)
+            let replaces = v.get("replaces").and_then(Value::as_str);
+            handle_pair_request(ws, hub, app, name, platform, replaces)
         }
         Some("auth") => {
             let id = v
@@ -1100,10 +1102,22 @@ fn normalize_code(s: &str) -> String {
 /// Mint and persist a new device (token, slug) for `name`, returning
 /// (id, token, slug). Shared by both pairing paths; unlike `pair_device` it never
 /// touches `pairing_code` — a tap-to-approve pairing has no code to consume.
-fn mint_device(hub: &PeerHub, name: &str, platform: &str) -> (String, String, String) {
+/// `replaces` names the record a Mac pairing again had here: it goes, and its
+/// slug carries over, so that Mac replaces its entry for this one instead of
+/// listing it twice.
+fn mint_device(
+    hub: &PeerHub,
+    name: &str,
+    platform: &str,
+    replaces: Option<&str>,
+) -> (String, String, String) {
     let mut cfg = hub.inner.config.lock().unwrap();
     let token = gen_token();
-    let slug = gen_slug(&cfg.host.devices);
+    let previous = replaces.and_then(|id| cfg.host.devices.iter().position(|d| d.id == id));
+    let slug = match previous {
+        Some(i) => cfg.host.devices.remove(i).slug_assigned,
+        None => gen_slug(&cfg.host.devices),
+    };
     let device = PeerDevice {
         id: uuid::Uuid::new_v4().to_string(),
         name: name.chars().take(64).collect(),
@@ -1125,6 +1139,7 @@ fn pair_device(
     code: &str,
     name: &str,
     platform: &str,
+    replaces: Option<&str>,
 ) -> Option<(String, String, String)> {
     {
         let mut cfg = hub.inner.config.lock().unwrap();
@@ -1137,7 +1152,7 @@ fn pair_device(
         drop(cfg);
         let _ = save_config(&snapshot);
     }
-    Some(mint_device(hub, name, platform))
+    Some(mint_device(hub, name, platform, replaces))
 }
 
 const PAIR_APPROVE_WINDOW: Duration = Duration::from_secs(120);
@@ -1166,6 +1181,7 @@ fn handle_pair_request(
     app: &AppHandle,
     name: &str,
     platform: &str,
+    replaces: Option<&str>,
 ) -> Option<String> {
     if let Some(frame) = pair_request_refusal(crate::remote::pair_requests_supported()) {
         let _ = ws.send(Message::text(frame.to_string()));
@@ -1224,7 +1240,7 @@ fn handle_pair_request(
 
     match decision {
         Some(d) if d.accept => {
-            let (dev_id, token, slug) = mint_device(hub, name, platform);
+            let (dev_id, token, slug) = mint_device(hub, name, platform, replaces);
             let _ = ws.send(Message::text(
                 json!({ "t": "paired", "deviceId": dev_id, "token": token, "slug": slug,
                     "hostName": machine_name(), "hostId": hub.host_id(),
@@ -1454,9 +1470,13 @@ fn handle_msg(
         // on. A dedicated frame, not an `invoke`: every `remote_*` command is
         // denied there, and this runs in Rust here rather than in a host webview a
         // headless machine may not have.
-        "remotePair" => handle_remote_pair(out, &v, || {
-            crate::remote::remote_start_pairing(app.clone(), app.state())
-        }),
+        "remotePair" => handle_remote_pair(out, &v, || crate::remote::start_pairing_for_peer(app)),
+        // The Mac disconnected this one from its side: its access goes with it,
+        // rather than staying listed here and authorized.
+        "forget" => {
+            let _ = revoke_device(app, hub, device_id);
+            return Err(());
+        }
         // A paired Mac updating lpm here. The updater is on the invoke denylist,
         // and this way the install runs in Rust and reports each step straight
         // back to the Mac that asked.
@@ -1804,11 +1824,11 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
                 .get("withTabs")
                 .and_then(Value::as_bool)
                 .unwrap_or(false);
+            let project = s("projectName");
+            // Tabs restored for this ask announce themselves (terminals-changed).
+            crate::remote::tabs::wake(app, &hub, &project);
             Some(Ok(crate::remote::project_listing(
-                app,
-                &hub,
-                &s("projectName"),
-                with_tabs,
+                app, &hub, &project, with_tabs,
             )))
         }
         "stop_terminal" => {
@@ -2130,6 +2150,11 @@ pub async fn peer_host_revoke_device(
     hub: State<'_, PeerHub>,
     id: String,
 ) -> Result<Value, String> {
+    revoke_device(&app, &hub, &id)?;
+    Ok(host_state_value(&hub))
+}
+
+fn revoke_device(app: &AppHandle, hub: &PeerHub, id: &str) -> Result<(), String> {
     {
         let mut cfg = hub.inner.config.lock().unwrap();
         cfg.host.devices.retain(|d| d.id != id);
@@ -2145,7 +2170,7 @@ pub async fn peer_host_revoke_device(
         .unwrap()
         .retain(|_, c| c.device_id != id);
     let _ = app.emit("peer-state-changed", ());
-    Ok(host_state_value(&hub))
+    Ok(())
 }
 
 /// Resolve a pending tap-to-approve pairing request with the user's decision.
@@ -2568,7 +2593,7 @@ mod tests {
                         .get("platform")
                         .and_then(Value::as_str)
                         .unwrap_or_default();
-                    let paired = pair_device(&hub2, code, name, platform);
+                    let paired = pair_device(&hub2, code, name, platform, None);
                     if let Some((id, token, slug)) = &paired {
                         let _ = ws.send(Message::text(
                             json!({ "t": "paired", "deviceId": id, "token": token, "slug": slug })
@@ -2632,7 +2657,7 @@ mod tests {
             let v: Value = serde_json::from_str(&txt).unwrap();
             let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
             let hub = crate::remote::RemoteHub::default();
-            handle_remote_pair(&tx, &v, || crate::remote::arm_pairing_payload(&hub));
+            handle_remote_pair(&tx, &v, || crate::remote::arm_pairing_payload(&hub, true));
             let _ = ws.send(Message::text(rx.recv().expect("no reply queued")));
         });
 
@@ -2876,16 +2901,23 @@ mod tests {
         }
 
         // A tap-to-approve mint never consumes the outstanding code.
-        let (id, token, slug) = mint_device(&hub, "Laptop", "macos");
+        let (id, token, slug) = mint_device(&hub, "Laptop", "macos", None);
         assert!(!id.is_empty() && !token.is_empty() && slug.len() == 8);
         assert_eq!(hub.host_config().pairing_code, "AAAA-BBBB");
         assert_eq!(hub.host_config().devices.len(), 1);
 
         // A code-based pair still consumes it, and records what the joiner is.
-        assert!(pair_device(&hub, "AAAA-BBBB", "Studio", "linux").is_some());
+        assert!(pair_device(&hub, "AAAA-BBBB", "Studio", "linux", None).is_some());
         assert!(hub.host_config().pairing_code.is_empty());
         assert_eq!(hub.host_config().devices.len(), 2);
         assert_eq!(hub.host_config().devices[1].platform, "linux");
+
+        // A Mac pairing again replaces its record here and keeps its slug.
+        let (again, _, again_slug) = mint_device(&hub, "Laptop", "macos", Some(&id));
+        assert_eq!(again_slug, slug);
+        assert_eq!(hub.host_config().devices.len(), 2);
+        assert!(hub.host_config().devices.iter().any(|d| d.id == again));
+        assert!(hub.host_config().devices.iter().all(|d| d.id != id));
 
         *TEST_CONFIG_PATH.lock().unwrap() = None;
         let _ = std::fs::remove_file(&tmp);
@@ -2951,7 +2983,7 @@ mod tests {
                     let decision = rx.recv().expect("decision");
                     hub2.remove_pair_request(&id);
                     if decision.accept {
-                        let (dev, token, slug) = mint_device(&hub2, name, "macos");
+                        let (dev, token, slug) = mint_device(&hub2, name, "macos", None);
                         let _ = ws.send(Message::text(
                             json!({ "t": "paired", "deviceId": dev, "token": token, "slug": slug,
                                 "hostName": machine_name(), "hostId": hub2.host_id(), "reciprocal": false })

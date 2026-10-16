@@ -33,6 +33,11 @@ export const DECORATIONS: Record<string, Decoration> = {
   renamed: { letter: "R", ...UNTRACKED },
   added: { letter: "A", text: "text-[var(--git-added)]", dot: "bg-[var(--git-added)]" },
   untracked: { letter: "U", ...UNTRACKED },
+  conflicted: {
+    letter: "!",
+    text: "text-[var(--git-deleted)]",
+    dot: "bg-[var(--git-deleted)]",
+  },
 };
 
 export function decorationOf(status: string): Decoration {
@@ -48,7 +53,7 @@ export function underIgnored(path: string, ignored: ReadonlySet<string>): boolea
 }
 
 // Which status a folder shows when the files under it disagree.
-const PRIORITY = ["modified", "deleted", "renamed", "added", "untracked"];
+const PRIORITY = ["conflicted", "modified", "deleted", "renamed", "added", "untracked"];
 
 function rank(status: string): number {
   const i = PRIORITY.indexOf(status);

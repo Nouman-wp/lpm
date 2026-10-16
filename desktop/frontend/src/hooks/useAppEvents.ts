@@ -1,8 +1,12 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
-import { DrainPendingJobTasks, RemoteTakeRunActions } from "../../bridge/commands";
-import { useAppStore } from "../store/app";
+import {
+  DrainPendingJobTasks,
+  RemoteTakeRestoreRequests,
+  RemoteTakeRunActions,
+} from "../../bridge/commands";
+import { type RemoteTerminalOp, useAppStore } from "../store/app";
 import { useAutomationOpen } from "../store/automationOpen";
 import { applyRemoteDraft } from "../store/composerDrafts";
 import { onFocusMainTerminal } from "../mainWindowFocus";
@@ -132,6 +136,7 @@ export function useAppEvents(): void {
       addProject,
       triggerRemoteAction,
       triggerRemoteTerminalOp,
+      markVisited,
       focusProjectTerminal,
       openProjectDetailView,
     } = useAppStore.getState();
@@ -176,16 +181,18 @@ export function useAppEvents(): void {
         }
       },
     );
-    // The mobile app asks to close / rename / pin / reorder a terminal tab; the
-    // mounted ProjectDetail resolves it against its live tab tree and runs it.
-    // reorder carries the full new id `order`; the others address a single `id`.
+    // A phone or a paired Mac asks to close / rename / pin / reorder a tab, or
+    // to give it back its conversation title; the project's ProjectDetail
+    // resolves it against its live tab tree and runs it. reorder carries the
+    // full new id `order`; the others address a single `id`.
     const cancelRemoteTermOp = EventsOn(
       "remote-terminal-op",
       (payload: {
         project: string;
-        op: "close" | "rename" | "pin" | "reorder";
+        op: RemoteTerminalOp;
         id: string;
         label?: string;
+        emoji?: string | null;
         order?: string[];
       }) => {
         const ok = payload?.op === "reorder" ? !!payload.order?.length : !!payload?.id;
@@ -196,10 +203,20 @@ export function useAppEvents(): void {
             payload.id,
             payload.label ?? "",
             payload.order ?? [],
+            payload.emoji ?? undefined,
           );
         }
       },
     );
+    // A phone or a paired Mac asked for the tabs of a project not shown since
+    // launch: mount it off screen so its saved tabs come back. Asks made before
+    // this listener was up are waiting in Rust.
+    const cancelRestoreProject = EventsOn("remote-restore-project", (project: string) => {
+      if (typeof project === "string" && project) markVisited(project);
+    });
+    void RemoteTakeRestoreRequests()
+      .then((projects: string[] | null) => projects?.forEach((project) => markVisited(project)))
+      .catch(() => {});
     // The phone typed into a terminal's composer. Mirror it into the matching
     // terminal's draft (and its mounted composer, if any).
     const cancelComposerDraft = EventsOn(
@@ -278,6 +295,7 @@ export function useAppEvents(): void {
       if (typeof cancelRemoteAction === "function") cancelRemoteAction();
       if (typeof cancelRemoteRunTask === "function") cancelRemoteRunTask();
       if (typeof cancelRemoteTermOp === "function") cancelRemoteTermOp();
+      if (typeof cancelRestoreProject === "function") cancelRestoreProject();
       if (typeof cancelComposerDraft === "function") cancelComposerDraft();
       if (typeof cancelNavView === "function") cancelNavView();
       if (typeof cancelOpenAutomation === "function") cancelOpenAutomation();

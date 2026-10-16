@@ -3,7 +3,8 @@ export type DotKind = "project" | "copy" | "worktree";
 const DOT_CLASS = "inline-block h-2 w-2 shrink-0 rounded-full";
 const MUTED = "var(--text-muted)";
 
-function toneClass(running: boolean): string {
+function toneClass(running: boolean, crashed: boolean): string {
+  if (crashed) return "bg-[var(--accent-red)]";
   return running
     ? "bg-[var(--accent-green)]"
     : "border border-[var(--text-muted)] bg-[var(--bg-primary)]";
@@ -28,8 +29,20 @@ export function dotKind(project: { parentName?: string; worktree?: boolean }): D
  *  straight line down the sidebar and no name moves. Neither mark carries state
  *  of its own: the twin tints with the dot because it stands for another
  *  instance, and the branch stays muted because it stands for the link. */
-export function StatusDot({ running, kind = "project" }: { running: boolean; kind?: DotKind }) {
-  if (kind === "project") return <span className={`${DOT_CLASS} ${toneClass(running)}`} />;
+/** `crashed` names the services that crashed; it turns the dot red and is its
+ *  tooltip. */
+export function StatusDot({
+  running,
+  kind = "project",
+  crashed,
+}: {
+  running: boolean;
+  kind?: DotKind;
+  crashed?: string | null;
+}) {
+  const tone = toneClass(running, !!crashed);
+  const title = crashed ?? undefined;
+  if (kind === "project") return <span className={`${DOT_CLASS} ${tone}`} title={title} />;
 
   return (
     <span className="relative inline-flex h-2 w-2 shrink-0">
@@ -60,7 +73,7 @@ export function StatusDot({ running, kind = "project" }: { running: boolean; kin
           <circle cx="1.6" cy="1.4" r="1.4" fill={MUTED} opacity="0.6" />
         </svg>
       )}
-      <span className={`relative ${DOT_CLASS} ${toneClass(running)}`} />
+      <span className={`relative ${DOT_CLASS} ${tone}`} title={title} />
     </span>
   );
 }

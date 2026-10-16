@@ -338,7 +338,9 @@ pub fn git_changed_files(cwd: String) -> Vec<ChangedFile> {
         } else {
             let mut status = "modified";
             let mut staged = false;
-            if x != b' ' && x != b'?' {
+            if crate::gitconflict::is_unmerged(x, y) {
+                status = "conflicted";
+            } else if x != b' ' && x != b'?' {
                 staged = true;
                 status = status_label(x);
             } else if y == b'D' {
@@ -407,7 +409,9 @@ fn parse_status_and_files(raw: &str, cwd: &str) -> (GitStatus, Vec<ChangedFile>)
             }
             let mut status = "modified";
             let mut staged_f = false;
-            if x != b' ' && x != b'?' {
+            if crate::gitconflict::is_unmerged(x, y) {
+                status = "conflicted";
+            } else if x != b' ' && x != b'?' {
                 staged_f = true;
                 status = status_label(x);
             } else if y == b'D' {
@@ -1117,12 +1121,13 @@ pub fn checkout_branch(cwd: String, branch: String, remote: String) -> Result<()
     if branch.is_empty() {
         return Err("branch name required".into());
     }
-    if !remote.is_empty() && !branch_exists(&cwd, &format!("refs/heads/{branch}")) {
+    let switched = if !remote.is_empty() && !branch_exists(&cwd, &format!("refs/heads/{branch}")) {
         let tracking = format!("{remote}/{branch}");
-        git_out(&cwd, &["checkout", "-b", &branch, "--track", &tracking]).map(|_| ())
+        git_out(&cwd, &["checkout", "-b", &branch, "--track", &tracking])
     } else {
-        git_out(&cwd, &["checkout", &branch]).map(|_| ())
-    }
+        git_out(&cwd, &["checkout", &branch])
+    };
+    switched.map(|_| crate::gitmoved::announce(&cwd))
 }
 
 #[tauri::command(async)]
@@ -1137,7 +1142,10 @@ pub fn create_branch(cwd: String, name: String) -> Result<(), String> {
     match git_out(&cwd, &["branch", &name]) {
         Ok(_) => checkout_branch(cwd, name, String::new()),
         Err(first) => match git_out(&cwd, &["switch", "-c", &name]) {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                crate::gitmoved::announce(&cwd);
+                Ok(())
+            }
             Err(_) => Err(first),
         },
     }
@@ -1176,7 +1184,7 @@ pub fn rename_branch(cwd: String, old_name: String, new_name: String) -> Result<
     if branch_exists(&cwd, &format!("refs/heads/{new_name}")) {
         return Err(format!("branch {new_name:?} already exists"));
     }
-    git_out(&cwd, &["branch", "-m", old_name, new_name]).map(|_| ())
+    git_out(&cwd, &["branch", "-m", old_name, new_name]).map(|_| crate::gitmoved::announce(&cwd))
 }
 
 fn compute_default_branch(cwd: &str) -> String {
@@ -1272,6 +1280,7 @@ pub fn git_commit(cwd: String, message: String, files: Vec<String>) -> Result<()
     if files.is_empty() {
         return Err("no files selected".into());
     }
+    crate::gitconflict::check_commit(&cwd, &files)?;
     let _ = git_out(&cwd, &["reset", "HEAD"]); // clear stage; ignore (initial commit)
     let mut a: Vec<&str> = vec!["add", "--"];
     a.extend(files.iter().map(String::as_str));
@@ -1348,7 +1357,11 @@ pub fn pull_branch(cwd: String, strategy: String, flags: Vec<String>) -> Result<
     let mut args: Vec<String> = pull_args(&strategy).into_iter().map(String::from).collect();
     args.extend(flags);
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    git_out(&cwd, &refs).map(|_| crate::gitmoved::announce(&cwd))
+    let pulled = git_out(&cwd, &refs);
+    if pulled.is_ok() {
+        crate::gitmoved::announce(&cwd);
+    }
+    crate::gitconflict::explain_pull(&cwd, &strategy, pulled)
 }
 
 // ---- gh / PR ----------------------------------------------------------------
@@ -1909,15 +1922,15 @@ mod tests {
 
     #[test]
     fn parse_status_and_files_reads_header_and_files() {
-        let raw = "## main...origin/main [ahead 2, behind 1]\0 M mod.txt\0A  add.txt\0R  new name.txt\0old.txt\0?? untracked.txt\0";
+        let raw = "## main...origin/main [ahead 2, behind 1]\0 M mod.txt\0A  add.txt\0R  new name.txt\0old.txt\0?? untracked.txt\0UU both.txt\0";
         let (st, files) = parse_status_and_files(raw, ".");
         assert!(st.is_git_repo);
         assert_eq!(st.branch, "main");
         assert!(st.has_upstream);
         assert_eq!(st.ahead, 2);
         assert_eq!(st.behind, 1);
-        // staged (add + rename) = 2 > unstaged (mod) = 1, plus 1 untracked.
-        assert_eq!(st.uncommitted, 3);
+        // staged (add + rename + both) = 3 > unstaged (mod + both) = 2, plus 1 untracked.
+        assert_eq!(st.uncommitted, 4);
 
         let rows: Vec<(&str, &str, bool)> = files
             .iter()
@@ -1930,6 +1943,7 @@ mod tests {
                 ("add.txt", "added", true),
                 ("new name.txt", "renamed", true),
                 ("untracked.txt", "untracked", false),
+                ("both.txt", "conflicted", false),
             ]
         );
     }

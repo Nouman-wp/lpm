@@ -35,6 +35,28 @@ describe("serializeToYaml round-trip", () => {
   });
 });
 
+describe("service ports", () => {
+  it("writes a number as a number and anything else as typed", () => {
+    const original = "services:\n  web:\n    cmd: serve\n    port: 4400\n";
+    const form = parseYaml(original);
+    const withPort = (port: string) =>
+      YAML.parse(serializeToYaml({ ...form, services: [{ ...form.services[0], port }] }, original)).services.web;
+    expect(withPort(" 4401 ").port).toBe(4401);
+    expect(withPort("abc").port).toBe("abc");
+    expect(withPort("")).toBe("serve");
+  });
+});
+
+describe("list-form inputs", () => {
+  it("keep their keys and are saved back as a map", () => {
+    const original = "actions:\n  greet:\n    cmd: echo {{who}}\n    inputs:\n      - key: who\n        default: World\n";
+    const form = parseYaml(original);
+    expect(form.actions[0].inputs.map((i) => i.key)).toEqual(["who"]);
+    const out = YAML.parse(serializeToYaml(form, original));
+    expect(out.actions.greet.inputs).toEqual({ who: { default: "World" } });
+  });
+});
+
 describe("claudeAccount tri-state", () => {
   it("maps an absent key to null and keeps it absent", () => {
     const original = "root: ~/x\n";

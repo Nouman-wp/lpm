@@ -16,6 +16,10 @@ interface ConfirmDialogProps {
   confirmText?: string | string[];
   // Raise above a taller host modal (default sits above the standard z-50).
   zIndexClassName?: string;
+  // A milder alternative to the confirm action, offered beside it; never gated
+  // by the typed confirmation.
+  secondaryLabel?: string;
+  onSecondary?: () => void;
   onCancel: () => void;
   onConfirm: () => void;
 }
@@ -30,6 +34,8 @@ export function ConfirmDialog({
   disabled = false,
   confirmText,
   zIndexClassName = "z-[60]",
+  secondaryLabel,
+  onSecondary,
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
@@ -47,7 +53,7 @@ export function ConfirmDialog({
       ? "rounded-lg bg-[var(--accent-red)] px-4 py-2 text-sm font-medium text-white transition-all hover:opacity-85 disabled:opacity-40"
       : "rounded-lg bg-[var(--text-primary)] px-4 py-2 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-40";
 
-  const width = title ? "w-80" : "w-72";
+  const width = title ? (secondaryLabel ? "w-[400px]" : "w-80") : "w-72";
   const padding = title ? "p-6" : "p-5";
 
   return (
@@ -106,6 +112,15 @@ export function ConfirmDialog({
         >
           {cancelLabel}
         </button>
+        {secondaryLabel && onSecondary && (
+          <button
+            onClick={onSecondary}
+            disabled={disabled}
+            className={`rounded-lg border border-[var(--border)] ${title ? "px-4 py-2 text-sm" : "px-3 py-1.5 text-xs"} font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40`}
+          >
+            {secondaryLabel}
+          </button>
+        )}
         <button
           onClick={onConfirm}
           disabled={confirmBlocked}

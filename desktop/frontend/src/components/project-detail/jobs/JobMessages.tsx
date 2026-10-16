@@ -130,77 +130,81 @@ export function JobMessages({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex items-center gap-3 pt-6">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Back to all jobs"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-        >
-          <ChevronLeftIcon />
-        </button>
-        <span className="grid h-8 w-8 shrink-0 place-items-center text-[17px] text-[var(--text-muted)]">
-          {job.emoji || <ClockIcon size={16} />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-semibold tracking-tight">
-            {job.label || job.id}
-          </h1>
-          <p className="truncate text-[11px] text-[var(--text-muted)]">{meta}</p>
+      <div className="@container flex flex-wrap items-center gap-x-3 gap-y-2 pt-6">
+        <div className="flex min-w-48 flex-1 items-center gap-3">
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Back to all jobs"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            <ChevronLeftIcon />
+          </button>
+          <span className="grid h-8 w-8 shrink-0 place-items-center text-[17px] text-[var(--text-muted)]">
+            {job.emoji || <ClockIcon size={16} />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-lg font-semibold tracking-tight">
+              {job.label || job.id}
+            </h1>
+            <p className="truncate text-[11px] text-[var(--text-muted)]">{meta}</p>
+          </div>
         </div>
-        <ZoomControl
-          percent={zoom.percent}
-          onZoomIn={zoom.zoomIn}
-          onZoomOut={zoom.zoomOut}
-          onReset={zoom.zoomReset}
-          canZoomIn={zoom.canZoomIn}
-          canZoomOut={zoom.canZoomOut}
-        />
-        {job.running ? (
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-2 @max-md:gap-x-1">
+          <ZoomControl
+            percent={zoom.percent}
+            onZoomIn={zoom.zoomIn}
+            onZoomOut={zoom.zoomOut}
+            onReset={zoom.zoomReset}
+            canZoomIn={zoom.canZoomIn}
+            canZoomOut={zoom.canZoomOut}
+          />
+          {job.running ? (
+            <button
+              type="button"
+              onClick={onStop}
+              className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
+            >
+              <StopIcon />
+              Stop
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onRunNow}
+              disabled={!job.enabled}
+              title={job.enabled ? undefined : "Turn it on to run it"}
+              className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors enabled:hover:bg-[var(--bg-hover)] enabled:hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <PlayIcon />
+              Run now
+            </button>
+          )}
           <button
             type="button"
-            onClick={onStop}
-            className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
+            onClick={onEdit}
+            className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           >
-            <StopIcon />
-            Stop
+            <PencilIcon size={12} />
+            Edit
           </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onRunNow}
-            disabled={!job.enabled}
-            title={job.enabled ? undefined : "Turn it on to run it"}
-            className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors enabled:hover:bg-[var(--bg-hover)] enabled:hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <PlayIcon />
-            Run now
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={onEdit}
-          className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-        >
-          <PencilIcon size={12} />
-          Edit
-        </button>
-        {onRemove && job.source !== "repo" && (
-          <button
-            type="button"
-            onClick={onRemove}
-            title="Remove job"
-            aria-label="Remove job"
-            className="flex shrink-0 items-center rounded-md p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
-          >
-            <TrashIcon size={13} />
-          </button>
-        )}
-        <JobOnOffToggle
-          label={job.label || job.id}
-          enabled={job.enabled}
-          onToggle={onToggleEnabled}
-        />
+          {onRemove && job.source !== "repo" && (
+            <button
+              type="button"
+              onClick={onRemove}
+              title="Remove job"
+              aria-label="Remove job"
+              className="flex shrink-0 items-center rounded-md p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
+            >
+              <TrashIcon size={13} />
+            </button>
+          )}
+          <JobOnOffToggle
+            label={job.label || job.id}
+            enabled={job.enabled}
+            onToggle={onToggleEnabled}
+          />
+        </div>
       </div>
 
       <div

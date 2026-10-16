@@ -1,30 +1,37 @@
 import { useCallback, type RefObject } from "react";
 import { type PaneNode, collectPanes } from "../../paneTree";
 import { IS_MIRROR_WINDOW } from "../../mirror";
+import { paneOrderFollowing } from "./remoteTabOrder";
 
 interface UseRemoteTabControlsProps {
   treeRef: RefObject<PaneNode | null>;
+  restoreSettled: RefObject<Promise<void>>;
   closeTerminal: (
     paneId: string,
     tabIdx: number,
     opts?: { stop?: boolean; force?: boolean },
   ) => void;
   renameTerminal: (paneId: string, tabIdx: number, label: string, emoji?: string) => void;
+  restoreSessionTitle: (paneId: string, tabIdx: number) => void;
   toggleTabPinned: (paneId: string, tabIdx: number) => void;
   reorderTerminals: (paneId: string, order: string[]) => void;
 }
 
 export function useRemoteTabControls({
   treeRef,
+  restoreSettled,
   closeTerminal,
   renameTerminal,
+  restoreSessionTitle,
   toggleTabPinned,
   reorderTerminals,
 }: UseRemoteTabControlsProps) {
-  // Pane-agnostic id resolvers for callers (the mobile relay) that only know a
-  // terminal's id, not which pane holds it: walk the tree to locate the tab,
-  // then run the normal index-based handler. A missing id is a safe no-op.
-  const locateTerminal = useCallback((termId: string) => {
+  // Pane-agnostic id resolvers for callers (a phone, another Mac) that only know
+  // a terminal's id, not which pane holds it: walk the tree to locate the tab,
+  // then run the normal index-based handler. A missing id is a safe no-op. A
+  // project mounted for the request is still restoring, so each waits for that.
+  const locateTerminal = useCallback(async (termId: string) => {
+    await restoreSettled.current;
     const current = treeRef.current;
     if (!current) return null;
     for (const pane of collectPanes(current)) {
@@ -35,8 +42,7 @@ export function useRemoteTabControls({
   }, []);
   const remoteCloseTerminal = useCallback(
     (termId: string) => {
-      const hit = locateTerminal(termId);
-      if (hit) closeTerminal(hit.paneId, hit.idx);
+      void locateTerminal(termId).then((hit) => hit && closeTerminal(hit.paneId, hit.idx));
     },
     [locateTerminal, closeTerminal],
   );
@@ -47,39 +53,48 @@ export function useRemoteTabControls({
   const removeAdoptedTerminal = useCallback(
     (termId: string) => {
       if (IS_MIRROR_WINDOW) return;
-      const hit = locateTerminal(termId);
-      if (hit) closeTerminal(hit.paneId, hit.idx, { stop: false, force: true });
+      void locateTerminal(termId).then(
+        (hit) => hit && closeTerminal(hit.paneId, hit.idx, { stop: false, force: true }),
+      );
     },
     [locateTerminal, closeTerminal],
   );
+  // `emoji` undefined leaves the icon alone; "" clears it.
   const remoteRenameTerminal = useCallback(
-    (termId: string, label: string) => {
-      const hit = locateTerminal(termId);
-      if (hit && label.trim()) renameTerminal(hit.paneId, hit.idx, label.trim());
+    (termId: string, label: string, emoji?: string) => {
+      if (!label.trim()) return;
+      void locateTerminal(termId).then(
+        (hit) => hit && renameTerminal(hit.paneId, hit.idx, label.trim(), emoji),
+      );
     },
     [locateTerminal, renameTerminal],
   );
+  const remoteRestoreTitle = useCallback(
+    (termId: string) => {
+      void locateTerminal(termId).then((hit) => hit && restoreSessionTitle(hit.paneId, hit.idx));
+    },
+    [locateTerminal, restoreSessionTitle],
+  );
   const remoteTogglePin = useCallback(
     (termId: string) => {
-      const hit = locateTerminal(termId);
-      if (hit) toggleTabPinned(hit.paneId, hit.idx);
+      void locateTerminal(termId).then((hit) => hit && toggleTabPinned(hit.paneId, hit.idx));
     },
     [locateTerminal, toggleTabPinned],
   );
-  // The phone shows a flat list across all panes and sends the full new id order.
-  // Reorder each pane by its terminals' relative order in that list (a terminal
-  // stays in its own pane; cross-pane moves aren't expressed by a flat reorder).
+  // A phone or another Mac sends one flat id order across every pane. Each pane
+  // takes its terminals' relative order from it; a tab the list leaves out (a
+  // browser tab, a finished terminal) keeps its place, and a terminal stays in
+  // its own pane.
   const remoteReorderTerminals = useCallback(
     (order: string[]) => {
-      const current = treeRef.current;
-      if (!current) return;
-      for (const pane of collectPanes(current)) {
-        const paneIds = new Set(pane.tabs.map((t) => t.id));
-        const paneOrder = order.filter((id) => paneIds.has(id));
-        if (paneOrder.length === pane.tabs.length && paneOrder.length > 0) {
-          reorderTerminals(pane.id, paneOrder);
+      void restoreSettled.current.then(() => {
+        const current = treeRef.current;
+        if (!current) return;
+        for (const pane of collectPanes(current)) {
+          const paneOrder = paneOrderFollowing(pane.tabs.map((t) => t.id), order);
+          if (paneOrder) reorderTerminals(pane.id, paneOrder);
         }
-      }
+      });
     },
     [reorderTerminals],
   );
@@ -88,6 +103,7 @@ export function useRemoteTabControls({
     remoteCloseTerminal,
     removeAdoptedTerminal,
     remoteRenameTerminal,
+    remoteRestoreTitle,
     remoteTogglePin,
     remoteReorderTerminals,
   };

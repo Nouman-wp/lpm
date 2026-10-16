@@ -7,8 +7,8 @@ import { ZoomControl } from "./ui/ZoomControl";
 export type AutomationsViewMode = "list" | "week";
 
 const VIEW_OPTIONS = [
-  { value: "list" as const, label: "List", tooltip: "Every job as a feed, newest activity first" },
-  { value: "week" as const, label: "Week", tooltip: "When each job fires, across the week" },
+  { value: "list" as const, label: "List", tooltip: "Every automation as a feed, newest activity first" },
+  { value: "week" as const, label: "Week", tooltip: "When each automation fires, across the week" },
 ];
 
 interface AutomationsHeaderProps {
@@ -25,16 +25,16 @@ interface AutomationsHeaderProps {
 
 function summary(scoped: boolean, unreadCount: number, view: AutomationsViewMode): string {
   if (unreadCount > 0) {
-    return `${unreadCount} ${unreadCount === 1 ? "job has" : "jobs have"} new messages since you last looked.`;
+    return `${unreadCount} ${unreadCount === 1 ? "automation has" : "automations have"} new messages since you last looked.`;
   }
   if (view === "week") {
     return scoped
-      ? "When this project's scheduled jobs fire, across the week."
-      : "When every scheduled job fires, across the week.";
+      ? "When this project's automations fire, across the week."
+      : "When every automation fires, across the week.";
   }
   return scoped
-    ? "The scheduled jobs that run in this project."
-    : "Every scheduled job across your projects, in one place.";
+    ? "The automations that run in this project."
+    : "Every automation across your projects, in one place.";
 }
 
 export function AutomationsHeader({
@@ -48,13 +48,17 @@ export function AutomationsHeader({
   onNewJob,
 }: AutomationsHeaderProps) {
   return (
-    <>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-6">
+    <div className="flex flex-wrap items-start gap-x-3 gap-y-2 pt-6">
+      <div className="min-w-48 flex-1">
         <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
           Automations
           <CountBadge count={unreadCount} label="unread automations" size="md" />
         </h1>
-        <div className="flex-1" />
+        <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+          {summary(scoped, unreadCount, view)}
+        </p>
+      </div>
+      <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-2">
         {hasJobs && (
           <SegmentedControl
             value={view}
@@ -85,15 +89,12 @@ export function AutomationsHeader({
         <button
           type="button"
           onClick={onNewJob}
-          className="flex items-center gap-1.5 rounded-lg bg-[var(--text-primary)] px-3 py-1.5 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition hover:opacity-90"
+          className="flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-[var(--text-primary)] px-3 py-1.5 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition hover:opacity-90"
         >
           <PlusIcon />
-          New job
+          New automation
         </button>
       </div>
-      <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-        {summary(scoped, unreadCount, view)}
-      </p>
-    </>
+    </div>
   );
 }

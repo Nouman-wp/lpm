@@ -48,11 +48,13 @@ impl Drop for PhoneChannel {
 impl PeerClientHub {
     /// Start relaying a phone to the peer `slug`. `device_id` is the id this Mac
     /// knows the phone by, which the phone compares a terminal's owner against;
-    /// `name` is what the host shows for it.
+    /// `phone_id` the phone's own install id, which the host checks against the
+    /// phones removed there; `name` is what the host shows for it.
     pub(crate) fn open_phone_channel(
         &self,
         slug: &str,
         device_id: &str,
+        phone_id: &str,
         name: &str,
     ) -> Result<PhoneChannel, PhoneChannelError> {
         let conn = self
@@ -76,7 +78,7 @@ impl PeerClientHub {
         channel
             .conn
             .send(
-                json!({ "t": "phoneOpen", "ch": ch, "device": device_id, "name": name })
+                json!({ "t": "phoneOpen", "ch": ch, "device": device_id, "phone": phone_id, "name": name })
                     .to_string(),
             )
             .map_err(|_| PhoneChannelError::Offline)?;

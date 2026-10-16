@@ -54,6 +54,8 @@ export interface RunActionOpts {
   launchModel?: ModelPick;
   // A scheduled job's run: stays on the project's fixed Claude account.
   fixedAccount?: boolean;
+  // Run for someone else (a phone): its tab opens behind the one in view.
+  background?: boolean;
 }
 
 export interface UseProjectActionsResult {
@@ -106,7 +108,7 @@ export function useProjectActions({
       if (conflicts.length === 0) return true;
       return await useAppStore
         .getState()
-        .resolvePortConflicts(`Cannot run "${action.label}"`, conflicts);
+        .resolvePortConflicts(`Cannot run "${action.label}"`, conflicts, projectName);
     } catch (err) {
       toast.error(`Failed to run "${action.label}": ${err}`);
       return false;
@@ -150,6 +152,7 @@ export function useProjectActions({
             prompt: actionPrompt(action, inputValues, opts),
             launchModel: opts.launchModel,
             fixedAccount: opts.fixedAccount,
+            background: opts.background,
           });
           return;
         }
@@ -172,6 +175,7 @@ export function useProjectActions({
           prompt: actionPrompt(action, inputValues, opts),
           launchModel: opts.launchModel,
           fixedAccount: opts.fixedAccount,
+          background: opts.background,
         });
       } catch (err) {
         toast.error(`${action.label}: ${err}`);

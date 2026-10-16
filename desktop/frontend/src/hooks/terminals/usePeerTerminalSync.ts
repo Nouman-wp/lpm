@@ -1,5 +1,5 @@
 import { useEffect, type RefObject } from "react";
-import { ListProjectTerminals } from "../../../bridge/commands";
+import { ListProjectTerminals, TerminalExists } from "../../../bridge/commands";
 import { EventsOn } from "../../../bridge/runtime";
 import { IS_MIRROR_WINDOW } from "../../mirror";
 import { isPeerName, peerSlugOf } from "../../peer/markers";
@@ -8,16 +8,19 @@ import {
   type HostTabsSeen,
   claimPeerTerminal,
   hostClosedTabs,
+  hostTerminalsOf,
   isPeerStartInFlight,
   parseHostListing,
   releasePeerTerminal,
+  tabsLeftByRestart,
   unclaimedHostTerminals,
 } from "../../peer/hostTerminals";
+import { noteHostFollows } from "../../peer/hostFollows";
 import { noteOpenedByOtherMac } from "../../peer/openedByOtherMac";
 import { pendingClosesForProject } from "../../pendingClose";
 import { type PaneNode, collectTerminals } from "../../paneTree";
 import { onTerminalsClosed } from "../../sendLater/closeout";
-import { withHostTabs, withoutHostTabs } from "./hostTabs";
+import { followHostTabs, withHostTabs, withoutHostTabs } from "./hostTabs";
 
 // A start still waiting on its reply holds a sync back; this is how soon it
 // tries again.
@@ -33,7 +36,9 @@ interface UsePeerTerminalSyncProps {
 
 // A peer project shows what runs on the host, not just what this Mac opened
 // there: an agent started at the host's own keyboard, from a phone or from
-// another Mac opens here as a tab too, and a tab closed there closes here.
+// another Mac opens here as a tab too, and a tab closed there closes here. A host
+// that says so (`follow`) also sets the tabs' names and order, and after it
+// restarts its restored tabs replace the ones that ended with it.
 // Synced when the project mounts, when the host's tabs change, and when this
 // window comes back into focus.
 export function usePeerTerminalSync({
@@ -70,12 +75,10 @@ export function usePeerTerminalSync({
       treeRef.current = next.tree;
     };
 
-    const dropClosed = (listing: HostListing) => {
+    const drop = (closed: Set<string>) => {
       const tree = treeRef.current;
-      if (!tree) return;
+      if (!tree || closed.size === 0) return;
       const tabs = collectTerminals(tree);
-      const closed = new Set(hostClosedTabs(seen, listing, tabs.map((t) => t.id)));
-      if (closed.size === 0) return;
       closed.forEach(releasePeerTerminal);
       const next = withoutHostTabs(tree, focusedRef.current, closed);
       applyTree(next.tree, next.focus);
@@ -84,6 +87,35 @@ export function usePeerTerminalSync({
         projectName,
         tabs.filter((t) => closed.has(t.id)).map((t) => t.historyKey),
       );
+    };
+
+    const dropClosed = (listing: HostListing) => {
+      const tree = treeRef.current;
+      if (!tree) return;
+      const openIds = collectTerminals(tree).map((t) => t.id);
+      drop(new Set(hostClosedTabs(seen, listing, openIds)));
+    };
+
+    // Ended with the host's last run: whatever it no longer has, once it says so.
+    const dropEnded = async (previousRun: string | null, listing: HostListing) => {
+      const tree = treeRef.current;
+      if (!tree) return;
+      const openIds = collectTerminals(tree).map((t) => t.id);
+      const left = tabsLeftByRestart(previousRun, listing, openIds);
+      if (!left?.length) return;
+      const alive = await Promise.all(left.map((id) => TerminalExists(id).catch(() => true)));
+      if (disposed) return;
+      drop(new Set(left.filter((_, i) => !alive[i])));
+    };
+
+    const follow = (listing: HostListing) => {
+      const tree = treeRef.current;
+      if (!listing.follow || !tree) return;
+      const hostTabs = hostTerminalsOf(listing.terminals);
+      const next = followHostTabs(tree, hostTabs, listing.tabs ?? hostTabs.map((t) => t.id));
+      if (next === tree) return;
+      applyTree(next);
+      treeRef.current = next;
     };
 
     const sync = async () => {
@@ -106,8 +138,13 @@ export function usePeerTerminalSync({
           return;
         }
         const listing = parseHostListing(listed);
+        noteHostFollows(projectName, listing.follow);
+        const previousRun = seen.run;
         adopt(listing.terminals);
         dropClosed(listing);
+        await dropEnded(previousRun, listing);
+        if (disposed) return;
+        follow(listing);
       } finally {
         running = false;
         if (rerun && !disposed) {

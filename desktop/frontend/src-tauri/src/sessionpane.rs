@@ -4,7 +4,9 @@
 // can type another one later — that is what makes "stop this service, then
 // start it again in the same pane" work, and it is the contract stop/restart in
 // services.rs is written against. So the shell outlives every service it runs,
-// and only tearing the pane down ends it.
+// and only tearing the pane down ends it. A shell that exits on its own (a
+// service line ending in `exit`) leaves its pane and screen behind, marked
+// ended, until a new line or a teardown replaces it.
 use crate::sessionproto::PaneSpec;
 use crate::termgrid::{Grid, HISTORY_LIMIT};
 use crate::termvt::Parser;
@@ -30,10 +32,43 @@ const MAX_COMMAND: usize = 1024 * 1024;
 /// input as keystrokes, and Return is the carriage return a terminal sends.
 const ENTER: &[u8] = if cfg!(windows) { b"\r" } else { b"\n" };
 
+/// What the pane's shell last reported about the line lpm typed into it
+/// (panehook.rs). A shell that reports nothing stays `Starting` for good.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Job {
+    /// Before the shell's first prompt: the line typed at open runs after it.
+    Starting,
+    Running,
+    /// Interrupted by a stop; the prompt that follows leaves the pane idle.
+    Stopping,
+    Idle,
+    Exited(i32),
+}
+
+impl Job {
+    fn at_prompt(self, status: i32) -> Job {
+        match self {
+            Job::Starting => Job::Running,
+            Job::Running => Job::Exited(status),
+            Job::Stopping => Job::Idle,
+            other => other,
+        }
+    }
+}
+
+struct Life {
+    job: Job,
+    shell_gone: bool,
+    shell_code: Option<i32>,
+}
+
 pub struct Pane {
     pub id: String,
     pub service: String,
     pub pid: i32,
+    /// Where the shell started, for the shell that replaces it once it exits.
+    pub dir: String,
+    life: Mutex<Life>,
     grid: Mutex<Grid>,
     // None only on Windows, once the shell has exited: ConPTY keeps its output
     // pipe open until the pseudoconsole is closed, so the reader would never
@@ -44,14 +79,8 @@ pub struct Pane {
 }
 
 impl Pane {
-    /// Open a pane and type its command into it. `on_exit` runs when the shell
-    /// itself ends (the pane is gone at that point, the way tmux destroys a
-    /// pane whose process exited).
-    pub fn open(
-        id: String,
-        spec: &PaneSpec,
-        on_exit: impl FnOnce(String) + Send + 'static,
-    ) -> Result<Arc<Pane>, String> {
+    /// Open a pane and type its command into it.
+    pub fn open(id: String, spec: &PaneSpec) -> Result<Arc<Pane>, String> {
         let pair = native_pty_system()
             .openpty(PtySize {
                 rows: ROWS,
@@ -86,6 +115,7 @@ impl Pane {
         // MSYS's login profile otherwise starts every shell in $HOME.
         #[cfg(windows)]
         builder.env("CHERE_INVOKING", "1");
+        crate::panehook::apply(&mut builder, &crate::sys::login_shell());
 
         let child = pair
             .slave
@@ -106,6 +136,12 @@ impl Pane {
             id,
             service: spec.service.clone(),
             pid,
+            dir: spec.dir.clone(),
+            life: Mutex::new(Life {
+                job: if spec.command.is_empty() { Job::Idle } else { Job::Starting },
+                shell_gone: false,
+                shell_code: None,
+            }),
             grid: Mutex::new(Grid::new(COLS as usize, ROWS as usize)),
             master: Mutex::new(Some(pair.master)),
             writer: Mutex::new(writer),
@@ -119,7 +155,7 @@ impl Pane {
                 drop(master);
             });
         }
-        pane.clone().read_loop(reader, on_exit);
+        pane.clone().read_loop(reader);
         if !spec.command.is_empty() {
             if let Err(error) = pane.send(&spec.command) {
                 // The reader thread holds a clone of this Arc, so returning here
@@ -136,7 +172,7 @@ impl Pane {
 
     /// Drain the pty into the pane's screen until the shell exits, then reap the
     /// child so it never lingers as a zombie.
-    fn read_loop(self: Arc<Self>, mut reader: Box<dyn Read + Send>, on_exit: impl FnOnce(String) + Send + 'static) {
+    fn read_loop(self: Arc<Self>, mut reader: Box<dyn Read + Send>) {
         std::thread::spawn(move || {
             let mut parser = Parser::default();
             let mut buf = vec![0u8; 16 * 1024];
@@ -150,14 +186,39 @@ impl Pane {
                         let bytes = &handshake.answer(&buf[..n], &self.writer)[..];
                         #[cfg(not(windows))]
                         let bytes = &buf[..n];
-                        let mut grid = self.grid.lock().unwrap();
-                        parser.feed(bytes, &mut grid);
+                        parser.feed(bytes, &mut self.grid.lock().unwrap());
+                        for status in parser.take_prompts() {
+                            let mut life = self.life.lock().unwrap();
+                            life.job = life.job.at_prompt(status);
+                        }
                     }
                 }
             }
-            let _ = self.child.lock().unwrap().wait();
-            on_exit(self.id.clone());
+            let status = self.child.lock().unwrap().wait();
+            let mut life = self.life.lock().unwrap();
+            life.shell_gone = true;
+            life.shell_code = status.ok().map(|s| s.exit_code() as i32);
         });
+    }
+
+    /// Whether the pane's shell is still there. Once it has gone its pid may
+    /// already name some other process, so nothing signals or walks it.
+    pub fn alive(&self) -> bool {
+        !self.life.lock().unwrap().shell_gone
+    }
+
+    /// Whether the service in this pane has ended, and the status it ended
+    /// with: None for a stop, or a shell that went without one.
+    pub fn outcome(&self) -> (bool, Option<i32>) {
+        let life = self.life.lock().unwrap();
+        if life.shell_gone {
+            return (true, life.shell_code);
+        }
+        match life.job {
+            Job::Exited(code) => (true, Some(code)),
+            Job::Idle => (true, None),
+            _ => (false, None),
+        }
     }
 
     /// Type a line into the shell. Always literal: tmux's `send-keys` without
@@ -175,7 +236,12 @@ impl Pane {
             .write_all(line.as_bytes())
             .and_then(|_| writer.write_all(ENTER))
             .and_then(|_| writer.flush())
-            .map_err(|e| format!("write to pane {}: {e}", self.id))
+            .map_err(|e| format!("write to pane {}: {e}", self.id))?;
+        let mut life = self.life.lock().unwrap();
+        if life.job != Job::Starting {
+            life.job = Job::Running;
+        }
+        Ok(())
     }
 
     /// Interrupt whatever the pane is running and clear it, leaving the shell
@@ -191,6 +257,15 @@ impl Pane {
     /// ConPTY turns it into a console Ctrl+C for the pane's job, and bash at
     /// its prompt (interactive, see `shellpath::login_args`) shrugs it off.
     pub fn interrupt(&self) -> Result<(), String> {
+        {
+            let mut life = self.life.lock().unwrap();
+            if life.shell_gone {
+                return Ok(());
+            }
+            if life.job == Job::Running {
+                life.job = Job::Stopping;
+            }
+        }
         #[cfg(unix)]
         self.signal_foreground(libc::SIGINT);
         #[cfg(windows)]

@@ -47,7 +47,8 @@ pub enum Request {
         session: String,
         panes: Vec<PaneSpec>,
     },
-    /// Type a line into a pane's shell (the text, then Enter).
+    /// Type a line into a pane's shell (the text, then Enter). A pane whose
+    /// shell has exited gets a new shell, under a new id, to run it.
     Send { pane: String, text: String },
     /// SIGINT the pane's foreground job, then clear its screen and scrollback.
     /// The shell stays, so the service can be started again in place.
@@ -79,6 +80,14 @@ pub struct PaneInfo {
     pub path: String,
     #[serde(default)]
     pub title: String,
+    /// The pane's service is no longer running: its line finished, or its
+    /// shell exited. Known only where the shell reports it (panehook.rs).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub ended: bool,
+    /// The status it ended with; None for a stop, or a shell that went
+    /// without one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<i32>,
 }
 
 /// One reply. `ok` is the only field always present; each op fills in exactly

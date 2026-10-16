@@ -1,6 +1,6 @@
 ---
 name: lpm-cli
-version: 1.6.0
+version: 1.6.1
 description: "Operate lpm-managed projects through the `lpm` CLI: start or stop projects and services, inspect logs and agent status, wait for readiness, run actions, create, edit, run, pause, and read scheduled automations, and duplicate projects into standalone copies or create linked Git worktrees. Use when the user asks to operate or inspect lpm runtime state or manage lpm automations. `LPM_PROJECT_NAME` selects the default project after the skill triggers; it is not a trigger by itself. For editing YAML configuration, use `lpm-config`."
 ---
 
@@ -16,7 +16,7 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 ### Commands
 
 - `lpm list` — all projects, running state, agent counts.
-- `lpm project [name] [--full]` — one project in full (`--full` adds env maps, action details, terminal history).
+- `lpm project [name] [--full]` — one project in full (`--full` adds env maps, action details, terminal history). A started service whose command ended (crashed or exited) shows as `exited` with its code (`runningSource: "exited"`, `exitCode` in `--json`); its pane stays until it is restarted or stopped.
 - In `lpm list --json` and `lpm project --json`, when `isRemote` is `true`, `root` is the project's `ssh.dir`: a path on the SSH host, not on this machine. Don't `cd` into it or read files there locally.
 - `lpm config resolve [--cwd PATH] [--json]` — match a directory to its deepest project root without using `LPM_PROJECT_NAME`. An SSH project matches only from its local sync mirror `~/.lpm/sync/<project-file-name>`, never by `root` or `ssh.dir`.
 - `lpm config validate <file> [--json]` — validate syntax, fields, layer rules, and effective merged configuration.
@@ -25,7 +25,7 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 - `lpm logs [service] [-n 30] [-p proj]` — service scrollback, exactly N lines.
 - `lpm status [project]` — live agent statuses (Running/Waiting/Done/Error).
 - `lpm start [project] [--profile X]` / `lpm stop [project]` — start / stop a project's services.
-- `lpm service <name> start|stop|restart [-p proj]` — one service.
+- `lpm service <name> start|stop|restart [-p proj]` — one service. `restart` stops the run still going first, then runs the command again in the same pane.
 - `lpm wait [project | -p proj] [--service X | --port N | --agent] [--timeout 60]` — block until ready; `--agent` waits until an agent reports after the wait starts and none is still working (your own tab is ignored).
 - `lpm duplicate [project] [-n N] [--label TEXT]... [--group X] [--run ACTION | --command CMD] [--prompt TEXT] [--include-uncommitted | --exclude-uncommitted]` — create parallel working directories. Always pass a `--label` describing the copy's purpose so it's identifiable in the app — one repeated `--label` per copy in creation order, `<project-name>-<short-description>` style such as `lpm-fix-auth`. Only omit it when you genuinely can't infer a purpose. Output lists each copy's path.
 - `lpm worktree [project] [-n N] [--label TEXT]... [--group X] [--run ACTION | --command CMD] [--prompt TEXT] [--reinstall-deps]` — create linked Git worktrees instead of standalone copies. The same labeling guidance applies. Output lists each worktree's path.

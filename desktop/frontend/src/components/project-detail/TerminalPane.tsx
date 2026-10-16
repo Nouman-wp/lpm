@@ -23,6 +23,8 @@ interface TerminalPaneProps {
   themeStyle: CSSProperties | undefined;
   terminalRef: RefObject<TerminalViewHandle | null>;
   projectName: string;
+  // The name the user sees for the project (its label), for copy only.
+  projectLabel: string;
   projectRoot: string;
   services: ServiceInfo[];
   terminalTheme: TerminalThemeName;
@@ -51,6 +53,7 @@ export function TerminalPane({
   themeStyle,
   terminalRef,
   projectName,
+  projectLabel,
   projectRoot,
   services,
   terminalTheme,
@@ -95,7 +98,7 @@ export function TerminalPane({
       </div>
       {showEmptyState && (
         <EmptyTerminalState
-          projectName={projectName}
+          projectLabel={projectLabel}
           onNewTerminal={onNewTerminal}
           onEditConfig={onEditConfig}
           onResumeSession={onResumeSession}

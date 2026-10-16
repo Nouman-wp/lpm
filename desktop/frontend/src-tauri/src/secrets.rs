@@ -1,5 +1,8 @@
 // Named secrets (API keys) kept out of settings.json: the login Keychain on
-// macOS, Credential Manager on Windows, a 0600 file under ~/.lpm on Linux.
+// macOS, Credential Manager on Windows, a 0600 file under the data directory on
+// Linux — and on every platform for a copy of lpm on a data directory of its own
+// (a lesson, a test), which so never reads the real app's secrets or asks the
+// user to let it.
 // Mirrors the vault.rs backend split, but stores arbitrary strings under a
 // caller-chosen account name rather than one fixed 32-byte key.
 //
@@ -19,7 +22,7 @@ pub const OPENAI_API_KEY: &str = "openai-api-key";
 pub const TELEGRAM_BOT_TOKEN: &str = "telegram-bot-token";
 
 #[cfg(target_os = "macos")]
-mod imp {
+mod native {
     use core_foundation::base::{CFType, TCFType};
     use core_foundation::boolean::CFBoolean;
     use core_foundation::data::CFData;
@@ -132,7 +135,7 @@ mod imp {
 }
 
 #[cfg(windows)]
-mod imp {
+mod native {
     use crate::wincred;
 
     pub fn get(account: &str) -> Result<Option<String>, String> {
@@ -154,14 +157,12 @@ mod imp {
     }
 }
 
-#[cfg(all(unix, not(target_os = "macos")))]
-mod imp {
+mod file {
     use std::io::Write;
     use std::path::PathBuf;
 
     fn path(account: &str) -> Result<PathBuf, String> {
-        let home = std::env::var("HOME").map_err(|_| "HOME is not set".to_string())?;
-        let dir = PathBuf::from(home).join(".lpm").join("secrets");
+        let dir = crate::config::lpm_dir().join("secrets");
         std::fs::create_dir_all(&dir).map_err(|e| format!("create secrets dir: {e}"))?;
         Ok(dir.join(account))
     }
@@ -197,6 +198,36 @@ mod imp {
     }
 }
 
+// Whether this process uses the OS keystore; see the note at the top.
+#[cfg(any(target_os = "macos", windows))]
+fn native_store() -> bool {
+    !crate::config::own_data_dir()
+}
+
+fn read(account: &str) -> Result<Option<String>, String> {
+    #[cfg(any(target_os = "macos", windows))]
+    if native_store() {
+        return native::get(account);
+    }
+    file::get(account)
+}
+
+fn write(account: &str, value: &str) -> Result<(), String> {
+    #[cfg(any(target_os = "macos", windows))]
+    if native_store() {
+        return native::set(account, value);
+    }
+    file::set(account, value)
+}
+
+fn remove(account: &str) -> Result<(), String> {
+    #[cfg(any(target_os = "macos", windows))]
+    if native_store() {
+        return native::delete(account);
+    }
+    file::delete(account)
+}
+
 // Values this process has read or written. Only lpm writes these items, and only
 // from the app process, so a value seen once stays right until it sets or
 // deletes it here.
@@ -212,7 +243,7 @@ pub fn get(account: &str) -> Result<Option<String>, String> {
     if let Some(value) = cache().get(account) {
         return Ok(Some(value.clone()));
     }
-    let value = imp::get(account)?;
+    let value = read(account)?;
     if let Some(v) = &value {
         cache().insert(account.to_string(), v.clone());
     }
@@ -224,14 +255,14 @@ pub fn set(account: &str, value: &str) -> Result<(), String> {
     if value.is_empty() {
         return delete(account);
     }
-    imp::set(account, value)?;
+    write(account, value)?;
     cache().insert(account.to_string(), value.to_string());
     Ok(())
 }
 
 pub fn delete(account: &str) -> Result<(), String> {
     cache().remove(account);
-    imp::delete(account)
+    remove(account)
 }
 
 pub fn has(account: &str) -> bool {
@@ -239,11 +270,8 @@ pub fn has(account: &str) -> bool {
         return true;
     }
     #[cfg(target_os = "macos")]
-    {
-        matches!(imp::exists(account), Ok(true))
+    if native_store() {
+        return matches!(native::exists(account), Ok(true));
     }
-    #[cfg(not(target_os = "macos"))]
-    {
-        matches!(imp::get(account), Ok(Some(_)))
-    }
+    matches!(read(account), Ok(Some(_)))
 }

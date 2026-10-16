@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { withHostTabs, withoutHostTabs } from "./hostTabs";
+import { followHostTabs, withHostTabs, withoutHostTabs } from "./hostTabs";
 import { type PaneLeaf, type PaneNode, makePaneLeaf, makeTerminal } from "../../paneTree";
 
 const leaf = (node: PaneNode) => node as PaneLeaf;
@@ -79,5 +79,54 @@ describe("withoutHostTabs", () => {
     const pane: PaneLeaf = { ...makePaneLeaf("p", [makeTerminal("a", "1")]), activeServiceName: "web" };
     const { tree } = withoutHostTabs(pane, "p", new Set(["a"]));
     expect(leaf(tree!).tabs).toEqual([]);
+  });
+});
+
+describe("followHostTabs", () => {
+  const a = "peer-aaaaaaaa-lpm-1";
+  const b = "peer-aaaaaaaa-lpm-2";
+  const c = "peer-aaaaaaaa-lpm-3";
+
+  it("takes the host's names, pins and icons", () => {
+    const start = makePaneLeaf("p", [makeTerminal(a, "Terminal 1"), makeTerminal(b, "Terminal 2")]);
+    const pane = leaf(
+      followHostTabs(start, [
+        { id: a, label: "server", pinned: true, emoji: "🚀" },
+        { id: b, pinned: false },
+      ], [a, b]),
+    );
+    expect(pane.tabs.map((t) => [t.label, !!t.pinned, t.emoji])).toEqual([
+      ["server", true, "🚀"],
+      ["Terminal 2", false, undefined],
+    ]);
+    expect(pane.tabs[0].sessionTitleSource).toBe("manual");
+  });
+
+  it("puts the host's tabs in its order, keeping the tab in view", () => {
+    const start = makePaneLeaf("p", [makeTerminal(a, "A"), makeTerminal(b, "B"), makeTerminal(c, "C")], 1);
+    const pane = leaf(
+      followHostTabs(start, [
+        { id: c, label: "C", pinned: false },
+        { id: a, label: "A", pinned: false },
+        { id: b, label: "B", pinned: false },
+      ], [c, a, b]),
+    );
+    expect(pane.tabs.map((t) => t.id)).toEqual([c, a, b]);
+    expect(pane.tabs[pane.activeTabIdx].id).toBe(b);
+  });
+
+  it("orders each pane on its own and leaves tabs the host doesn't list alone", () => {
+    const left = makePaneLeaf("l", [makeTerminal(b, "B"), makeTerminal("local", "Mine"), makeTerminal(a, "A")]);
+    const right = makePaneLeaf("r", [makeTerminal(c, "C")]);
+    const start: PaneNode = { kind: "split", direction: "row", ratio: 0.5, a: left, b: right };
+    const host = [a, b, c].map((id) => ({ id, label: id === a ? "A" : id === b ? "B" : "C", pinned: false }));
+    const next = followHostTabs(start, host, [a, b, c]) as Extract<PaneNode, { kind: "split" }>;
+    expect(leaf(next.a).tabs.map((t) => t.id)).toEqual([a, "local", b]);
+    expect(leaf(next.b).tabs.map((t) => t.id)).toEqual([c]);
+  });
+
+  it("hands back the same tree when nothing differs", () => {
+    const start = makePaneLeaf("p", [makeTerminal(a, "A")]);
+    expect(followHostTabs(start, [{ id: a, label: "A", pinned: false }], [a])).toBe(start);
   });
 });

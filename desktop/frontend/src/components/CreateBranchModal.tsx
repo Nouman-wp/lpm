@@ -20,6 +20,8 @@ interface CreateBranchModalProps {
   busy: boolean;
   projectName: string;
   projectPath: string;
+  // Prefills the name, e.g. with what was typed into the branch search.
+  initialName?: string;
   onClose: () => void;
   onCreate: (name: string) => Promise<void> | void;
 }
@@ -34,6 +36,7 @@ export function CreateBranchModal({
   busy,
   projectName,
   projectPath,
+  initialName = "",
   onClose,
   onCreate,
 }: CreateBranchModalProps) {
@@ -41,6 +44,8 @@ export function CreateBranchModal({
   const generating = gen.generating;
   const ai = useAIPicker(open);
   const openRef = useRef(open);
+  const initialNameRef = useRef(initialName);
+  initialNameRef.current = initialName;
 
   const {
     register,
@@ -59,9 +64,11 @@ export function CreateBranchModal({
     openRef.current = open;
     if (!open) return;
     reset({ name: "" });
+    const initial = normalize(initialNameRef.current);
+    if (initial) setValue("name", initial, { shouldValidate: true, shouldDirty: true });
     const focusTimer = setTimeout(() => setFocus("name"), 50);
     return () => clearTimeout(focusTimer);
-  }, [open, reset, setFocus]);
+  }, [open, reset, setFocus, setValue]);
 
   const canCreate = !busy && !generating && isValid;
 

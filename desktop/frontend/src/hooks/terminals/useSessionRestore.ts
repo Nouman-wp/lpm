@@ -118,8 +118,8 @@ export function useSessionRestore({
       if (cancelled || !restored) {
         allStartedIds.forEach((id) => StopTerminal(id).catch(() => {}));
         if (!cancelled) {
-          // Nothing came back. When every tab was a parked peer tab whose pty is
-          // gone, that's a clean outcome, not a failure: write the empty tree so
+          // Nothing came back. When every tab was a peer tab the host brings back
+          // itself, that's a clean outcome, not a failure: write the empty tree so
           // the dead entries stop coming back on every mount. Otherwise hold the
           // saved tabs on disk, so a transient failure (root moved, SSH host
           // down) doesn't erase them for good.

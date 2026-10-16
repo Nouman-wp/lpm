@@ -55,6 +55,7 @@ use tungstenite::{accept, Error as WsError, Message, WebSocket};
 
 mod relay;
 pub(crate) mod relayed;
+pub(crate) mod tabs;
 
 // One phone connection's transport. The acceptor handles both this build's
 // TLS-wrapped clients (remotetls.rs) and, transitionally, the plaintext clients
@@ -138,7 +139,11 @@ const LIVE_REFRESH_GAP: Duration = Duration::from_secs(5); // established-sessio
 const PHONE_FEATURES: &[&str] = &[
     crate::peeruploadhost::FILE_UPLOAD_FEATURE,
     crate::remote_service_logs::WATCH_FEATURE,
+    SERVICE_RESTART_FEATURE,
 ];
+
+/// The phone may send `restartService` / `stopService`.
+const SERVICE_RESTART_FEATURE: &str = "serviceRestart";
 
 /// Whether a device-list re-read may wait for a save that is in progress.
 #[derive(Clone, Copy)]
@@ -278,6 +283,15 @@ struct HubInner {
     // any tab tree — never appear. Unlike labels (upsert-only), this is
     // authoritative membership + order.
     tree_ids: Mutex<HashMap<String, Vec<String>>>,
+    // project -> the tabs as remotes last saw them (ids, names, pins, icons), so
+    // a change goes out once and only when there is one.
+    tree_sigs: Mutex<HashMap<String, String>>,
+    // Projects a remote asked about before the desktop showed them this run; each
+    // is offered to the main window once to restore in the background.
+    woken: Mutex<HashSet<String>>,
+    // lpm said goodbye on quitting: the terminals it is killing aren't programs
+    // that exited, nor tabs that closed, as far as a phone is concerned.
+    quitting: AtomicBool,
     // Relayed phone -> its name, for the "Active on <name>" placeholder: a phone
     // relayed here isn't one of this machine's paired devices.
     relay_names: Mutex<HashMap<String, String>>,
@@ -557,6 +571,34 @@ impl RemoteHub {
             .any(|d| d.id == id)
     }
 
+    fn device_phone_id(&self, id: &str) -> String {
+        let cfg = self.inner.config.lock().unwrap();
+        cfg.devices
+            .iter()
+            .find(|d| d.id == id)
+            .map(|d| d.phone_id.clone())
+            .unwrap_or_default()
+    }
+
+    /// Stamp a paired phone's install id on its record the first time it sends
+    /// one (a phone paired before it did), so a later removal can name it.
+    fn note_phone_id(&self, id: &str, phone_id: &str) {
+        if phone_id.is_empty() || self.device_phone_id(id) == phone_id {
+            return;
+        }
+        self.update_config_opt(|cfg| {
+            let device = cfg.devices.iter_mut().find(|d| d.id == id)?;
+            device.phone_id = phone_id.to_string();
+            Some(())
+        });
+    }
+
+    /// Whether the phone was removed here, as of the file on disk.
+    pub(crate) fn phone_revoked(&self, phone_id: &str) -> bool {
+        self.refresh_devices();
+        self.inner.config.lock().unwrap().phone_revoked(phone_id)
+    }
+
     /// Recent scrollback to replay onto a fresh screen, with the stream offset it
     /// ends at. A partial leading line is dropped when the text starts mid-stream,
     /// so the replay begins on a clean row.
@@ -665,7 +707,7 @@ pub fn tee_exit(app: &AppHandle, id: &str, code: i32) {
     let Some(hub) = app.try_state::<RemoteHub>() else {
         return;
     };
-    if !keeps_output(app, &hub) {
+    if !keeps_output(app, &hub) || hub.inner.quitting.load(Ordering::SeqCst) {
         return;
     }
     let payload = json!({ "t": "exit", "id": id, "code": code }).to_string();
@@ -702,6 +744,9 @@ pub(crate) fn phones_connected(app: &AppHandle) -> bool {
 /// is going to sleep, lpm is quitting, or remote control was turned off — and
 /// give the connection threads a moment to write it before the sockets close.
 pub(crate) fn farewell(hub: &RemoteHub, reason: &str) {
+    if reason == "quit" {
+        hub.inner.quitting.store(true, Ordering::SeqCst);
+    }
     let enabled = hub.inner.enabled.load(Ordering::Relaxed);
     // A relayed phone came in over a peer link, so turning this machine's own
     // phone server off doesn't end it; sleeping or quitting does.
@@ -1040,13 +1085,19 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
     let outcome = match authenticate(&mut ws, &hub) {
         FirstFrame::Done(outcome) => outcome,
         // Approve-on-Mac: drive the dialog here, where the AppHandle lives.
-        FirstFrame::PairRequest { name, replaces } => {
-            handle_pair_request(&mut ws, &hub, &app, &name, replaces)
-        }
-        FirstFrame::Relay { device_id, slug } => {
+        FirstFrame::PairRequest {
+            name,
+            replaces,
+            phone_id,
+        } => handle_pair_request(&mut ws, &hub, &app, &name, replaces, &phone_id),
+        FirstFrame::Relay {
+            device_id,
+            slug,
+            phone_id,
+        } => {
             let name = hub.device_name(&device_id);
             note_presence(&hub, &app, &device_id, route);
-            relay::run(&mut ws, &app, &device_id, &name, &slug, || {
+            relay::run(&mut ws, &app, &device_id, &phone_id, &name, &slug, || {
                 hub.refresh_live_devices();
                 hub.inner.generation.load(Ordering::SeqCst) == generation
                     && hub.device_exists(&device_id)
@@ -1271,12 +1322,14 @@ enum FirstFrame {
     PairRequest {
         name: String,             // the phone's device name
         replaces: Option<String>, // the record this phone is re-pairing over
+        phone_id: String,
     },
     /// A paired phone asking this Mac to carry it to one of the machines it
     /// connects to (remote/relay.rs). Its credential is already checked.
     Relay {
         device_id: String,
         slug: String,
+        phone_id: String,
     },
     /// A paired phone that removed this machine from its own list. Its record is
     /// already gone; only an open Settings pane is left to tell.
@@ -1292,6 +1345,18 @@ fn replaced_device_id(v: &Value) -> Option<String> {
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(str::to_string)
+}
+
+/// The phone's own install id (Device::phone_id), empty from a phone that
+/// predates it.
+fn phone_id_of(v: &Value) -> String {
+    v.get("phoneId")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or_default()
+        .chars()
+        .take(64)
+        .collect()
 }
 
 fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
@@ -1315,12 +1380,13 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
             FirstFrame::PairRequest {
                 name: name.to_string(),
                 replaces: replaced_device_id(&v),
+                phone_id: phone_id_of(&v),
             }
         }
         Some("pair") => {
             let code = v.get("code").and_then(Value::as_str).unwrap_or_default();
             let name = v.get("name").and_then(Value::as_str).unwrap_or("device");
-            match pair_device(hub, code, name, replaced_device_id(&v)) {
+            match pair_device(hub, code, name, replaced_device_id(&v), &phone_id_of(&v)) {
                 Ok((id, token)) => {
                     let _ = ws.send(Message::text(
                         with_hosts(
@@ -1362,6 +1428,7 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
             // loaded, so a phone it just paired isn't turned away by this one.
             hub.refresh_devices();
             if check_device(hub, id, token) {
+                hub.note_phone_id(id, &phone_id_of(&v));
                 let _ = ws.send(Message::text(
                     with_hosts(
                         hub,
@@ -1413,9 +1480,11 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
             let slug = v.get("slug").and_then(Value::as_str).unwrap_or_default();
             hub.refresh_devices();
             if check_device(hub, id, token) {
+                hub.note_phone_id(id, &phone_id_of(&v));
                 FirstFrame::Relay {
                     device_id: id.to_string(),
                     slug: slug.to_string(),
+                    phone_id: hub.device_phone_id(id),
                 }
             } else {
                 let _ = ws.send(Message::text(
@@ -1470,6 +1539,7 @@ fn handle_pair_request(
     app: &AppHandle,
     name: &str,
     replaces: Option<String>,
+    phone_id: &str,
 ) -> Option<AuthOutcome> {
     if let Some(frame) = pair_request_refusal(pair_requests_supported()) {
         let _ = ws.send(Message::text(frame.to_string()));
@@ -1535,7 +1605,7 @@ fn handle_pair_request(
 
     match outcome {
         PairOutcome::Allow => {
-            let Some((id, token)) = mint_device_persisted(hub, name, replaces) else {
+            let Some((id, token)) = mint_device_persisted(hub, name, replaces, phone_id) else {
                 let _ = ws.send(Message::text(
                     json!({ "t": "pairDenied", "reason": "declined" }).to_string(),
                 ));
@@ -1586,7 +1656,14 @@ fn normalize_code(s: &str) -> String {
 /// and approve-on-Mac; the caller persists the config. `replaces` is the record
 /// this phone was last paired as: dropping it in the same write is what keeps a
 /// re-pair from leaving its predecessor's token authorized forever.
-fn mint_device(cfg: &mut RemoteConfig, name: &str, replaces: Option<&str>) -> (String, String) {
+/// Someone at this machine (or a code they armed) let the phone in, so a removal
+/// recorded for it no longer stands.
+fn mint_device(
+    cfg: &mut RemoteConfig,
+    name: &str,
+    replaces: Option<&str>,
+    phone_id: &str,
+) -> (String, String) {
     let token = gen_token();
     // Stamp the pairing flavor's server id so push scoping later routes only this
     // flavor's alerts to this device; ensure the id exists first (start() normally
@@ -1599,8 +1676,10 @@ fn mint_device(cfg: &mut RemoteConfig, name: &str, replaces: Option<&str>) -> (S
         token_hash: sha256_hex(token.as_bytes()),
         created_at: crate::status::now_millis(),
         paired_server_id,
+        phone_id: phone_id.to_string(),
         ..Default::default()
     };
+    cfg.revoked_phones.retain(|p| p != phone_id);
     let mut device = device;
     let id = device.id.clone();
     if let Some(old) = replaces {
@@ -1621,8 +1700,9 @@ fn mint_device_persisted(
     hub: &RemoteHub,
     name: &str,
     replaces: Option<String>,
+    phone_id: &str,
 ) -> Option<(String, String)> {
-    hub.update_config(|cfg| mint_device(cfg, name, replaces.as_deref()))
+    hub.update_config(|cfg| mint_device(cfg, name, replaces.as_deref(), phone_id))
 }
 
 /// Why a pairing attempt handed out no credential. The phone acts on the two very
@@ -1633,6 +1713,8 @@ enum PairFailure {
     Rejected,
     Expired,
     Unavailable,
+    /// Another Mac asked for the code on behalf of a phone removed here.
+    Revoked,
 }
 
 impl PairFailure {
@@ -1644,6 +1726,7 @@ impl PairFailure {
         match self {
             PairFailure::Rejected | PairFailure::Expired => "pairing rejected",
             PairFailure::Unavailable => "pairing unavailable",
+            PairFailure::Revoked => "revoked",
         }
     }
 }
@@ -1701,6 +1784,7 @@ fn pair_device(
     code: &str,
     name: &str,
     replaces: Option<String>,
+    phone_id: &str,
 ) -> Result<(String, String), PairFailure> {
     // The code is validated against the state on disk, so a code the other
     // instance already consumed can't be redeemed a second time here. A wrong
@@ -1723,10 +1807,13 @@ fn pair_device(
         if !ct_eq(expected.as_bytes(), normalize_code(code).as_bytes()) {
             return None;
         }
-        let pair = mint_device(cfg, name, replaces.as_deref());
+        let by_peer = std::mem::take(&mut cfg.pairing_code_by_peer);
         cfg.pairing_code.clear(); // single use — the next device needs a fresh code
         cfg.pairing_code_armed_at = 0;
-        Some(Ok(pair))
+        if by_peer && cfg.phone_revoked(phone_id) {
+            return Some(Err(PairFailure::Revoked));
+        }
+        Some(Ok(mint_device(cfg, name, replaces.as_deref(), phone_id)))
     });
     match saved {
         Ok(Some(Ok(pair))) => Ok(pair),
@@ -2484,11 +2571,15 @@ fn handle_msg(
         }
         "terminals" => {
             let project = str_field("project").unwrap_or_default();
-            let terms = project_terminals(app, hub, &project);
-            send(
-                ws,
-                json!({ "t": "terminals", "project": project, "terminals": terms }),
-            )?;
+            if tabs::wake(app, hub, &project) || tabs::awaiting_restore(hub, &project) {
+                let (app, hub, out) = (app.clone(), hub.clone(), out.clone());
+                std::thread::spawn(move || {
+                    tabs::await_tree(&hub, &project);
+                    let _ = out.try_send(tabs::terminals_frame(&app, &hub, &project).to_string());
+                });
+            } else {
+                send(ws, tabs::terminals_frame(app, hub, &project))?;
+            }
         }
         "slash" => {
             // Slash-command autocomplete for a terminal: the frontend registered
@@ -2814,6 +2905,23 @@ fn handle_msg(
                 service,
             );
             send(ws, result_reply("toggleService", r))?;
+        }
+        // Restart one service (stopping its process first) or stop it outright —
+        // what a toggle can't say for a service whose process already ended.
+        // Off the read loop: a restart waits for the old shell to go.
+        "restartService" | "stopService" => {
+            let name = str_field("name").unwrap_or_default();
+            let service = str_field("service").unwrap_or_default();
+            let (app, out, verb) = (app.clone(), out.clone(), t.to_string());
+            std::thread::spawn(move || {
+                let state = app.state::<services::ServiceState>();
+                let r = if verb == "restartService" {
+                    services::restart_project_service(app.clone(), state, name, service)
+                } else {
+                    services::stop_project_service(app.clone(), state, name, service)
+                };
+                let _ = out.try_send(result_reply(&verb, r).to_string());
+            });
         }
         // Duplicate a project, mirroring the desktop modal. Rust creates the copies
         // one at a time (a pure config + disk clone, like start/stop — works with no
@@ -3229,11 +3337,21 @@ fn handle_msg(
                                     o
                                 })
                                 .collect();
+                            let default_branch = crate::git::git_default_branch(cwd.clone());
                             let mut reply = json!({ "t": "git", "project": project, "ok": true, "isRepo": true,
                             "branch": st.branch, "detached": st.detached, "hasUpstream": st.has_upstream,
                             "ahead": st.ahead, "behind": st.behind,
-                            "defaultBranch": crate::git::git_default_branch(cwd.clone()),
+                            "defaultBranch": default_branch,
                             "ghCli": crate::git::check_ghcli(), "files": files });
+                            // A branch with nowhere to push yet (a fresh worktree's) still
+                            // has work only here: its commits not on the default branch.
+                            if !st.has_upstream && !default_branch.is_empty() && default_branch != st.branch {
+                                reply["aheadOfDefault"] = json!(crate::git::git_commit_count(
+                                    cwd.clone(),
+                                    default_branch,
+                                    "HEAD".into(),
+                                ));
+                            }
                             if let Some(pulled) = crate::gitautopull::last_auto_pull(&cwd) {
                                 reply["autoPulled"] = json!(pulled);
                             }
@@ -3778,10 +3896,21 @@ fn handle_msg(
                                 "cmd": s.cmd, "port": s.port })
                         };
                         let services: Vec<Value> = if running {
+                            // A service whose process ended keeps its pane (and logs)
+                            // but isn't running: a switch flipped on it must start it.
+                            let ended = crate::sessions::ended_services(&info.session);
                             config::resolve_running_services(&info, &run_state)
                                 .iter()
                                 .enumerate()
-                                .map(|(i, n)| svc(n, Some(i), true))
+                                .map(|(i, n)| match ended.get(n.as_str()) {
+                                    Some(code) => {
+                                        let mut o = svc(n, Some(i), false);
+                                        o["exited"] = json!(true);
+                                        o["exitCode"] = json!(code);
+                                        o
+                                    }
+                                    None => svc(n, Some(i), true),
+                                })
                                 .collect()
                         } else {
                             info.services.keys().map(|n| svc(n, None, false)).collect()
@@ -5557,6 +5686,7 @@ fn post_push(
 }
 
 fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
+    tabs::install(hub, app);
     let h = hub.clone();
     app.listen("projects-changed", move |_| {
         broadcast(&h, json!({ "t": "projects-changed" }));
@@ -5841,6 +5971,7 @@ pub fn project_terminals(app: &AppHandle, hub: &RemoteHub, project: &str) -> Vec
                 .filter_map(|id| live.get(id.as_str()).map(|t| (*t).clone()))
                 .collect()
         }
+        None if tabs::restoring(hub, project) => Vec::new(),
         None => terms,
     };
     // Attach the desktop's tab label to each terminal (falling back to the id
@@ -5899,7 +6030,10 @@ pub fn project_listing(app: &AppHandle, hub: &RemoteHub, project: &str, with_tab
     }
     let tabs = hub.inner.tree_ids.lock().unwrap().get(project).cloned();
     let run = RUN.get_or_init(|| uuid::Uuid::new_v4().to_string());
-    json!({ "terminals": terminals, "tabs": tabs, "run": run })
+    // `follow`: this host restores the tabs a Mac opened here, takes that Mac's
+    // renames and reorders (terminal_tab_op), and says when any of it changes —
+    // so the Mac shows its names and order rather than keeping its own.
+    json!({ "terminals": terminals, "tabs": tabs, "run": run, "follow": true })
 }
 
 /// Tells paired Macs a project's set of tabs changed, so one showing it picks
@@ -5948,8 +6082,7 @@ pub fn remote_set_terminal_labels(
     if project.is_empty() {
         return;
     }
-    let previous = hub.inner.tree_ids.lock().unwrap().insert(project.clone(), ids.clone());
-    if previous.as_ref() != Some(&ids) {
+    if tabs::note_tree(&hub, &project, ids, &labels) {
         let _ = app.emit(TERMINALS_CHANGED_EVENT, &project);
     }
 }
@@ -6004,11 +6137,12 @@ fn port_to_store(configured: u16, requested: u16, dev: bool) -> u16 {
 /// Split from the command because it needs no `AppHandle`: it is the whole
 /// answer a caller wants, and the listener the code is useless without is the
 /// command's other half.
-pub(crate) fn arm_pairing_payload(hub: &RemoteHub) -> Result<Value, String> {
+pub(crate) fn arm_pairing_payload(hub: &RemoteHub, by_peer: bool) -> Result<Value, String> {
     let code = gen_pairing_code();
     let (tailscale, port) = hub.try_update_config(|cfg| {
         cfg.pairing_code = code.clone();
         cfg.pairing_code_armed_at = crate::status::now_millis();
+        cfg.pairing_code_by_peer = by_peer;
         cfg.enabled = true;
         (cfg.tailscale, effective_port(cfg.port))
     })?;
@@ -6044,19 +6178,40 @@ pub(crate) fn phone_server_id(app: &AppHandle) -> String {
 /// return the QR payload the phone scans.
 #[tauri::command(async)]
 pub fn remote_start_pairing(app: AppHandle, hub: State<'_, RemoteHub>) -> Result<Value, String> {
-    let payload = arm_pairing_payload(&hub)?;
+    let payload = arm_pairing_payload(&hub, false)?;
     apply(&hub, &app); // ensure the listener is up so the phone can connect
+    Ok(payload)
+}
+
+/// `remote_start_pairing` asked for by a paired Mac on a phone's behalf: a phone
+/// removed here can't use the code (PairFailure::Revoked).
+pub(crate) fn start_pairing_for_peer(app: &AppHandle) -> Result<Value, String> {
+    let hub = app.state::<RemoteHub>();
+    let payload = arm_pairing_payload(&hub, true)?;
+    apply(&hub, app);
     Ok(payload)
 }
 
 #[tauri::command(async)]
 pub fn remote_revoke_device(hub: State<'_, RemoteHub>, id: String) -> Result<Value, String> {
-    revoke_device(&hub, &id)?;
+    revoke_device(&hub, &id, true)?;
     Ok(state_value(&hub))
 }
 
-fn revoke_device(hub: &RemoteHub, id: &str) -> Result<(), String> {
-    hub.try_update_config(|cfg| cfg.devices.retain(|d| d.id != id))?;
+/// `block` when the removal is this machine's decision rather than the phone's
+/// own: the phone then can't come back through another Mac either.
+pub(crate) fn revoke_device(hub: &RemoteHub, id: &str, block: bool) -> Result<(), String> {
+    hub.try_update_config(|cfg| {
+        if block {
+            let phone = cfg
+                .devices
+                .iter()
+                .find(|d| d.id == id)
+                .map(|d| d.phone_id.clone());
+            cfg.revoke_phone(&phone.unwrap_or_default());
+        }
+        cfg.devices.retain(|d| d.id != id);
+    })?;
     // Drop any live connection for the revoked device (the poll loop also self-
     // exits on its next tick via device_exists).
     hub.inner
@@ -6075,7 +6230,7 @@ fn unpair_device(hub: &RemoteHub, id: &str, token: &str) -> Result<bool, String>
     if !check_device(hub, id, token) {
         return Ok(false);
     }
-    revoke_device(hub, id)?;
+    revoke_device(hub, id, false)?;
     Ok(true)
 }
 
@@ -6397,8 +6552,8 @@ mod tests {
     fn a_phone_unpairs_itself_with_its_own_token_only() {
         let _cfg = TestConfig::new();
         let hub = loaded_hub();
-        let (id, token) = mint_device_persisted(&hub, "phone", None).expect("mint");
-        let (other, _) = mint_device_persisted(&hub, "other", None).expect("mint");
+        let (id, token) = mint_device_persisted(&hub, "phone", None, "").expect("mint");
+        let (other, _) = mint_device_persisted(&hub, "other", None, "").expect("mint");
 
         let refused = first_frame_reply(
             &hub,
@@ -6476,10 +6631,11 @@ mod tests {
         // A second instance, started from the same file, pairs a phone.
         let theirs = loaded_hub();
         let (their_id, their_token) =
-            mint_device_persisted(&theirs, "their-phone", None).expect("mint");
+            mint_device_persisted(&theirs, "their-phone", None, "").expect("mint");
 
         // We pair another phone from our now-stale snapshot.
-        let (our_id, our_token) = pair_device(&ours, "AAAA-BBBB", "our-phone", None).expect("pair");
+        let (our_id, our_token) =
+            pair_device(&ours, "AAAA-BBBB", "our-phone", None, "").expect("pair");
 
         assert!(
             check_device(&ours, &their_id, &their_token),
@@ -6497,7 +6653,7 @@ mod tests {
         let _cfg = TestConfig::new();
         let ours = loaded_hub();
         ours.update_config(|c| arm(c, "AAAA-BBBB"));
-        let (id, token) = mint_device_persisted(&ours, "phone", None).expect("mint");
+        let (id, token) = mint_device_persisted(&ours, "phone", None, "").expect("mint");
 
         // The other instance revokes it and burns the code.
         let theirs = loaded_hub();
@@ -6526,13 +6682,13 @@ mod tests {
         let _cfg = TestConfig::new();
         let hub = loaded_hub();
         hub.update_config(|c| arm(c, "AAAA-BBBB"));
-        let (first, first_token) = pair_device(&hub, "AAAA-BBBB", "phone", None).expect("pair");
+        let (first, first_token) = pair_device(&hub, "AAAA-BBBB", "phone", None, "").expect("pair");
         let (other, other_token) =
-            mint_device_persisted(&hub, "another-phone", None).expect("mint");
+            mint_device_persisted(&hub, "another-phone", None, "").expect("mint");
 
         hub.update_config(|c| arm(c, "CCCC-DDDD"));
         let (second, second_token) =
-            pair_device(&hub, "CCCC-DDDD", "phone", Some(first.clone())).expect("re-pair");
+            pair_device(&hub, "CCCC-DDDD", "phone", Some(first.clone()), "").expect("re-pair");
 
         assert!(
             !check_device(&hub, &first, &first_token),
@@ -6546,16 +6702,60 @@ mod tests {
         assert_eq!(device_ids(&hub), [other, second]);
     }
 
+    // Removed here, a phone can't come back on a code another Mac asked for on
+    // its behalf; a code armed here lets it back in, and the removal goes.
+    #[test]
+    fn a_removed_phone_comes_back_only_by_pairing_here() {
+        let _cfg = TestConfig::new();
+        let hub = loaded_hub();
+        hub.update_config(|c| arm(c, "AAAA-BBBB"));
+        let (id, _) = pair_device(&hub, "AAAA-BBBB", "phone", None, "phone-1").expect("pair");
+        revoke_device(&hub, &id, true).expect("revoke");
+        assert!(hub.phone_revoked("phone-1"));
+
+        hub.update_config(|c| {
+            arm(c, "CCCC-DDDD");
+            c.pairing_code_by_peer = true;
+        });
+        let why = pair_device(&hub, "CCCC-DDDD", "phone", None, "phone-1").expect_err("refused");
+        assert_eq!(why, PairFailure::Revoked);
+        assert!(load_config().pairing_code.is_empty(), "the code is spent");
+
+        hub.update_config(|c| arm(c, "EEEE-FFFF"));
+        pair_device(&hub, "EEEE-FFFF", "phone", None, "phone-1").expect("paired here");
+        assert!(!hub.phone_revoked("phone-1"));
+    }
+
+    // A phone dropping this Mac from its own list isn't barred from coming back.
+    #[test]
+    fn a_phone_removing_itself_is_not_a_removal() {
+        let _cfg = TestConfig::new();
+        let hub = loaded_hub();
+        hub.update_config(|c| arm(c, "AAAA-BBBB"));
+        let (id, token) = pair_device(&hub, "AAAA-BBBB", "phone", None, "phone-1").expect("pair");
+        assert!(unpair_device(&hub, &id, &token).expect("unpair"));
+        assert!(!hub.phone_revoked("phone-1"));
+    }
+
+    #[test]
+    fn a_phone_paired_before_it_sent_an_id_gets_one_on_its_next_connect() {
+        let _cfg = TestConfig::new();
+        let hub = loaded_hub();
+        let (id, _) = mint_device_persisted(&hub, "phone", None, "").expect("mint");
+        hub.note_phone_id(&id, "phone-1");
+        assert_eq!(load_config().devices[0].phone_id, "phone-1");
+    }
+
     // Older phones send no `replaces`, and a phone naming a record this Mac
     // doesn't have (already revoked here) must simply pair.
     #[test]
     fn absent_or_unknown_replaces_removes_nothing() {
         let _cfg = TestConfig::new();
         let hub = loaded_hub();
-        let (first, first_token) = mint_device_persisted(&hub, "phone", None).expect("mint");
-        let (second, _) = mint_device_persisted(&hub, "phone", None).expect("mint");
+        let (first, first_token) = mint_device_persisted(&hub, "phone", None, "").expect("mint");
+        let (second, _) = mint_device_persisted(&hub, "phone", None, "").expect("mint");
         let (third, _) =
-            mint_device_persisted(&hub, "phone", Some("no-such-device".into())).expect("mint");
+            mint_device_persisted(&hub, "phone", Some("no-such-device".into()), "").expect("mint");
 
         assert_eq!(device_ids(&hub), [first.clone(), second, third]);
         assert!(check_device(&hub, &first, &first_token));
@@ -6574,7 +6774,7 @@ mod tests {
             c.port = 9100;
         });
 
-        let (id, token) = mint_device_persisted(&theirs, "phone", None).expect("mint");
+        let (id, token) = mint_device_persisted(&theirs, "phone", None, "").expect("mint");
         assert!(!check_device(&ours, &id, &token), "not in our snapshot yet");
 
         ours.refresh_devices();
@@ -6603,7 +6803,7 @@ mod tests {
         let start = Instant::now();
         assert!(ours.refresh_devices_as_of(start), "the first read happens");
 
-        let (id, token) = mint_device_persisted(&theirs, "phone", None).expect("mint");
+        let (id, token) = mint_device_persisted(&theirs, "phone", None, "").expect("mint");
         assert!(
             !ours.refresh_devices_as_of(start + DEVICE_REFRESH_GAP / 2),
             "a refresh inside the gap is skipped"
@@ -6662,7 +6862,7 @@ mod tests {
         let _cfg = TestConfig::new();
         let theirs = loaded_hub();
         let ours = fresh_hub();
-        let (id, _) = mint_device_persisted(&theirs, "phone", None).expect("mint");
+        let (id, _) = mint_device_persisted(&theirs, "phone", None, "").expect("mint");
 
         let at = Instant::now();
         assert!(live_refresh(&ours, at));
@@ -6707,7 +6907,7 @@ mod tests {
         let _cfg = TestConfig::new();
         let theirs = loaded_hub();
         let ours = fresh_hub();
-        let (id, _) = mint_device_persisted(&theirs, "phone", None).expect("mint");
+        let (id, _) = mint_device_persisted(&theirs, "phone", None, "").expect("mint");
 
         let at = Instant::now();
         let held = crate::remotestore::hold_store_for_test();
@@ -6819,7 +7019,7 @@ mod tests {
         hub.update_config(|c| arm(c, "AAAA-BBBB"));
         std::fs::write(crate::remotestore::config_path(), b"{ not json").unwrap();
 
-        let why = pair_device(&hub, "AAAA-BBBB", "phone", None).expect_err("no credential");
+        let why = pair_device(&hub, "AAAA-BBBB", "phone", None, "").expect_err("no credential");
 
         assert_eq!(why, PairFailure::Unavailable);
         assert_eq!(why.wire_error(), "pairing unavailable");
@@ -6852,7 +7052,7 @@ mod tests {
         let before = std::fs::read(&path).unwrap();
         let before_inode = std::fs::metadata(&path).unwrap().ino();
 
-        let why = pair_device(&ours, "ZZZZ-YYYY", "phone", None).expect_err("no credential");
+        let why = pair_device(&ours, "ZZZZ-YYYY", "phone", None, "").expect_err("no credential");
         assert_eq!(why, PairFailure::Rejected);
         assert_eq!(why.wire_error(), "pairing rejected");
 
@@ -6886,7 +7086,7 @@ mod tests {
                 crate::status::now_millis() - PAIRING_CODE_TTL.as_millis() as i64 - 1;
         });
 
-        let why = pair_device(&hub, "AAAA-BBBB", "phone", None).expect_err("no credential");
+        let why = pair_device(&hub, "AAAA-BBBB", "phone", None, "").expect_err("no credential");
         assert_eq!(why, PairFailure::Expired);
         assert_eq!(
             why.wire_error(),
@@ -6901,7 +7101,7 @@ mod tests {
 
         // The next attempt sees no code at all — a plain rejection, no write.
         assert_eq!(
-            pair_device(&hub, "AAAA-BBBB", "phone", None).expect_err("still no credential"),
+            pair_device(&hub, "AAAA-BBBB", "phone", None, "").expect_err("still no credential"),
             PairFailure::Rejected
         );
     }
@@ -6960,7 +7160,7 @@ mod tests {
             c.pairing_code_armed_at = 0;
         });
 
-        let (id, _token) = pair_device(&hub, "AAAA-BBBB", "phone", None).expect("pair");
+        let (id, _token) = pair_device(&hub, "AAAA-BBBB", "phone", None, "").expect("pair");
         assert_eq!(device_ids(&hub), vec![id]);
 
         // A wrong code against an unstamped one still costs no write, so the code
@@ -6970,7 +7170,7 @@ mod tests {
             c.pairing_code_armed_at = 0;
         });
         assert_eq!(
-            pair_device(&hub, "WRON-GGGG", "phone", None).expect_err("no credential"),
+            pair_device(&hub, "WRON-GGGG", "phone", None, "").expect_err("no credential"),
             PairFailure::Rejected
         );
         let disk = load_config();
@@ -7331,6 +7531,7 @@ mod tests {
             port: 9000,
             pairing_code: "AB12-CD34".into(),
             pairing_code_armed_at: 42,
+            pairing_code_by_peer: true,
             tailscale: true,
             push_relay: "http://localhost:3000/api/push".into(),
             keep_awake: true,
@@ -7354,8 +7555,10 @@ mod tests {
                 alias: "Work iPhone".into(),
                 last_seen: 43,
                 last_route: "tailscale".into(),
+                phone_id: "phone-1".into(),
                 extra: Default::default(),
             }],
+            revoked_phones: vec!["phone-0".into()],
             extra: Default::default(),
         };
         let s = serde_json::to_string(&cfg).unwrap();
@@ -7375,6 +7578,9 @@ mod tests {
         assert_eq!(back.devices[0].alias, "Work iPhone");
         assert_eq!(back.devices[0].last_seen, 43);
         assert_eq!(back.devices[0].last_route, "tailscale");
+        assert_eq!(back.devices[0].phone_id, "phone-1");
+        assert_eq!(back.revoked_phones, ["phone-0"]);
+        assert!(back.pairing_code_by_peer);
         assert_eq!(
             back.devices[0].push_key,
             base64::engine::general_purpose::STANDARD.encode([7u8; 32])

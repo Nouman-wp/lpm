@@ -1,5 +1,6 @@
 import { AGENT_STATE_LABEL, agentStateOf } from "../agentStatus";
 import { byUrgency, foldByPane } from "../statusByPane";
+import { projectUp } from "../serviceExit";
 import type { ProjectInfo } from "../types";
 import { BLOCKED_TONE_CLASS, WORK_STATE_LABEL, workStatusKey } from "../workStatus";
 
@@ -98,7 +99,7 @@ export function rollupSegments(projects: ProjectInfo[]): RollupSegment[] {
       const state = agentStateOf(entry.value);
       if (state === "needs-you" || state === "error" || state === "working") counts[state]++;
     }
-    if (project.running) counts.running++;
+    if (projectUp(project)) counts.running++;
     const work = project.workStatus;
     if (!work) continue;
     if (work.state !== "custom") {

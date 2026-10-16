@@ -1,4 +1,5 @@
 import YAML from "yaml";
+import { inputsMap } from "./inputsMap";
 
 export interface ServiceEntry {
   key: string;
@@ -103,7 +104,7 @@ export function parseYaml(yaml: string): ConfigForm {
     actions: Object.entries((raw.actions as Record<string, unknown>) || {}).map(([key, v]) => {
       const base = parseEntry(key, v);
       const obj = typeof v === "string" ? {} : (v as Record<string, unknown>);
-      const rawInputs = (obj.inputs as Record<string, unknown>) || {};
+      const rawInputs = inputsMap(obj.inputs);
       return {
         ...base,
         label: str(obj.label),
@@ -135,6 +136,13 @@ export function parseYaml(yaml: string): ConfigForm {
       services: Array.isArray(v) ? v : [],
     })),
   };
+}
+
+// A port that isn't a number is written as typed, so the save is refused with
+// a message naming it instead of the port silently disappearing.
+function portValue(port: string): number | string {
+  const text = port.trim();
+  return /^\d+$/.test(text) ? Number(text) : text;
 }
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
@@ -190,7 +198,7 @@ export function serializeToYaml(form: ConfigForm, originalContent: string): stri
   const svcs: Record<string, unknown> = {};
   for (const s of form.services) {
     if (!s.key) continue;
-    svcs[s.key] = mergeEntry(origSvcs[s.originalKey ?? s.key], s, { port: s.port ? (parseInt(s.port, 10) || 0) : 0 });
+    svcs[s.key] = mergeEntry(origSvcs[s.originalKey ?? s.key], s, { port: portValue(s.port) });
   }
   if (Object.keys(svcs).length > 0) doc.services = svcs;
   else delete doc.services;
@@ -200,7 +208,7 @@ export function serializeToYaml(form: ConfigForm, originalContent: string): stri
   for (const a of form.actions) {
     if (!a.key) continue;
     const origAct = origActs[a.originalKey ?? a.key];
-    const origInputs = isPlainObject(origAct) && isPlainObject(origAct.inputs) ? origAct.inputs : {};
+    const origInputs = isPlainObject(origAct) ? inputsMap(origAct.inputs) : {};
     let inputsObj: Record<string, unknown> | undefined;
     if (a.inputs.length > 0) {
       inputsObj = {};

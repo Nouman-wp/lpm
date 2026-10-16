@@ -50,6 +50,7 @@ pub(crate) fn handle(app: &AppHandle, out: &SyncSender<String>, conn_id: u64, t:
             conn_id,
             ch,
             str_field("device"),
+            str_field("phone"),
             str_field("name"),
         ),
         "phoneIn" => {
@@ -87,6 +88,7 @@ fn open(
     conn_id: u64,
     ch: u64,
     device_id: &str,
+    phone_id: &str,
     name: &str,
 ) {
     let hub = app.try_state::<RemoteHub>().map(|hub| hub.inner().clone());
@@ -97,6 +99,13 @@ fn open(
         let _ = out.try_send(close_frame(ch));
         return;
     };
+    // Removed here, it stays out whichever Mac carries it.
+    if hub.phone_revoked(phone_id) {
+        let refusal = json!({ "t": "error", "error": "revoked" }).to_string();
+        let _ = out.try_send(json!({ "t": "phoneOut", "ch": ch, "d": refusal }).to_string());
+        let _ = out.try_send(close_frame(ch));
+        return;
+    }
     let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
     let (inbox_tx, inbox_rx) = mpsc::sync_channel::<String>(INBOX);
     let mut session = Session::open(hub, app.clone(), device_id, name, tx);

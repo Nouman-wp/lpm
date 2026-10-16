@@ -103,6 +103,15 @@ describe("yamlToActionInfo port handling", () => {
   });
 });
 
+describe("yamlToActionInfo inputs", () => {
+  it("reads the list form lpm Link wrote like the map form", () => {
+    const inputs = yamlToActionInfo(
+      "cmd: echo {{who}}\ninputs:\n  - key: who\n    label: Who\n    default: World\n",
+    ).inputs;
+    expect(inputs).toEqual([expect.objectContaining({ key: "who", label: "Who", default: "World" })]);
+  });
+});
+
 describe("reorderById", () => {
   const items = [{ id: "a" }, { id: "b" }, { id: "c" }];
 

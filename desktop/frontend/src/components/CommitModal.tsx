@@ -34,6 +34,7 @@ import {
   checkState,
 } from "./ChangedFilesTree";
 import { SideBySideDiffModal } from "./SideBySideDiffModal";
+import { ConflictNotice } from "./ConflictNotice";
 import { Tooltip } from "./ui/Tooltip";
 
 type ChangedFile = main.ChangedFile;
@@ -540,6 +541,8 @@ export function CommitModal({
                 </button>
               )}
             </div>
+
+            <ConflictNotice files={files} />
 
             <div
               ref={filesListRef}

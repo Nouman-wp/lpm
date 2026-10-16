@@ -79,6 +79,7 @@ mod gitbring;
 mod gitbringapply;
 mod gitbringhost;
 mod gitbringrun;
+mod gitconflict;
 mod gitfollow;
 mod gitfollowrun;
 mod gitfollowstore;
@@ -124,6 +125,8 @@ mod notes_cmds;
 mod notes_store;
 mod openin;
 mod osproc;
+mod paneexit;
+mod panehook;
 #[cfg(any(windows, test))]
 mod panestop;
 mod peer;
@@ -238,7 +241,6 @@ mod vault;
 mod vaultkeychain;
 #[cfg(windows)]
 mod vaultcred;
-#[cfg(all(unix, not(target_os = "macos")))]
 mod vaultkeyfile;
 mod voicetotext;
 mod watchfilter;
@@ -322,6 +324,7 @@ use portforward::*;
 use ports::*;
 use projects_crud::*;
 use pty::*;
+use remote::tabs::{remote_take_restore_requests, terminal_tab_op};
 use remote::*;
 use send_later::*;
 use services::*;
@@ -541,6 +544,7 @@ pub fn run() {
             // Dynamic action labels: runs label commands and watches the git
             // facts and ages labels show, re-emitting projects-changed on a move.
             label_probes::start(handle.clone());
+            paneexit::start(handle.clone());
 
             // Live usage-limit meters: scan Codex's newest rollout and watch
             // ~/.codex/sessions; Claude limits arrive via the statusline
@@ -648,12 +652,12 @@ pub fn run() {
             tauri::RunEvent::Exit => {
                 mainwindow::persist_now(app); // capture the final window bounds before teardown
                 agentexit::stop(); // the agents dying below are not the user quitting them
+                remote::farewell(&app.state::<remote::RemoteHub>(), "quit"); // tell phones lpm is closing, before its terminals end
                 pty::kill_all_trees(&app.state::<pty::PtyState>()); // reap in-app terminal trees (services stay up)
                 tts::stop_on_exit(app); // kill any suspended python TTS child
                 portforward::stop_all_forwards(app); // kill ssh -L tunnels + pollers
                 statusfwd::stop_all(app); // kill ssh -R status forwards
                 sshsync::stop_all_sync_watchers(app); // drop rsync mirror watchers
-                remote::farewell(&app.state::<remote::RemoteHub>(), "quit"); // tell phones lpm is closing
                 remote::stop(&app.state::<remote::RemoteHub>()); // retire the mobile server threads
                 app.state::<autosync::Engine>().stop(); // retire the auto-sync scheduler
                 app.state::<gitfollow::Engine>().stop(); // retire the follow scheduler

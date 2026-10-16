@@ -59,6 +59,10 @@ pub(crate) struct Device {
     // and how it came in then (remotepresence::Route).
     pub(crate) last_seen: i64,
     pub(crate) last_route: String,
+    // The phone's own install id, the same on every machine it pairs with — what
+    // a revoke here remembers, since each machine mints its own device id.
+    // Empty for a phone that predates it.
+    pub(crate) phone_id: String,
     // Fields a newer lpm wrote that this one doesn't know: kept, so this build
     // saving the file doesn't erase them.
     #[serde(flatten)]
@@ -87,6 +91,7 @@ impl Default for Device {
             alias: String::new(),
             last_seen: 0,
             last_route: String::new(),
+            phone_id: String::new(),
             extra: Default::default(),
         }
     }
@@ -104,6 +109,10 @@ pub(crate) struct RemoteConfig {
     // the TTL from there.
     #[serde(default)]
     pub(crate) pairing_code_armed_at: i64,
+    // The armed code was asked for by a paired Mac on a phone's behalf (the
+    // phone's "add this machine" flow), not by someone at this machine.
+    #[serde(default)]
+    pub(crate) pairing_code_by_peer: bool,
     pub(crate) tailscale: bool, // advertise this Mac's Tailscale address in the pairing QR
     pub(crate) push_relay: String, // override for the APNs relay URL (empty => DEFAULT_PUSH_RELAY)
     pub(crate) keep_awake: bool, // keep this machine from idle-sleeping while remote control is on
@@ -117,6 +126,11 @@ pub(crate) struct RemoteConfig {
     #[serde(default)]
     pub(crate) dev_server_id: Option<String>,
     pub(crate) devices: Vec<Device>,
+    // Phones (Device::phone_id) removed here. They can't come back through
+    // another Mac — relayed, or paired with a code that Mac asked for — only by
+    // pairing at this machine again.
+    #[serde(default)]
+    pub(crate) revoked_phones: Vec<String>,
     // See Device::extra.
     #[serde(flatten)]
     pub(crate) extra: serde_json::Map<String, serde_json::Value>,
@@ -129,18 +143,37 @@ impl Default for RemoteConfig {
             port: 0,
             pairing_code: String::new(),
             pairing_code_armed_at: 0,
+            pairing_code_by_peer: false,
             tailscale: true, // away-from-home works out of the box; the toggle opts out
             push_relay: String::new(),
             keep_awake: false,
             server_id: None,
             dev_server_id: None,
             devices: Vec::new(),
+            revoked_phones: Vec::new(),
             extra: Default::default(),
         }
     }
 }
 
+/// How many removed phones a machine remembers; the oldest is forgotten first.
+const REVOKED_PHONES_MAX: usize = 64;
+
 impl RemoteConfig {
+    /// Remember that the phone `phone_id` was removed here.
+    pub(crate) fn revoke_phone(&mut self, phone_id: &str) {
+        if phone_id.is_empty() || self.revoked_phones.iter().any(|p| p == phone_id) {
+            return;
+        }
+        self.revoked_phones.push(phone_id.to_string());
+        let over = self.revoked_phones.len().saturating_sub(REVOKED_PHONES_MAX);
+        self.revoked_phones.drain(..over);
+    }
+
+    pub(crate) fn phone_revoked(&self, phone_id: &str) -> bool {
+        !phone_id.is_empty() && self.revoked_phones.iter().any(|p| p == phone_id)
+    }
+
     /// The APNs relay URL to POST sealed notifications to: the configured override
     /// when set, else the lpm website's default endpoint.
     pub(crate) fn effective_relay(&self) -> String {
@@ -480,7 +513,9 @@ pub(crate) fn config_status() -> Result<(), StoreError> {
 fn adopt_devices(path: &Path, mem: &Mutex<RemoteConfig>) -> Result<(), StoreError> {
     match read_base(path) {
         Base::Disk(disk, _) => {
-            lock(mem).devices = disk.devices;
+            let mut cfg = lock(mem);
+            cfg.devices = disk.devices;
+            cfg.revoked_phones = disk.revoked_phones;
             Ok(())
         }
         Base::FirstRun => Ok(()), // no file yet: nothing to adopt, but a real answer
@@ -501,7 +536,8 @@ fn try_refresh_devices_at(
     Some(adopt_devices(path, mem))
 }
 
-/// Adopt the on-disk device list, leaving every setting alone. Lets a long-running
+/// Adopt the on-disk device list (and the phones removed here), leaving every
+/// setting alone. Lets a long-running
 /// instance accept a phone the other instance paired — and stop accepting one it
 /// revoked — without waiting for a restart. `Err` means the file was not actually
 /// consulted, so a caller throttling this doesn't spend its window on a read that

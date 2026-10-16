@@ -31,6 +31,8 @@ export interface PersistedTab {
   id?: string;
   // A peer terminal the host opened, not this Mac (see TerminalInstance).
   fromHost?: boolean;
+  // A peer opened it here and leaves bringing it back to us (see TerminalInstance).
+  restoreHere?: boolean;
 }
 
 // Mirrors the Go binding (main.PaneNode) so it round-trips through the

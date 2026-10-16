@@ -244,7 +244,7 @@ export function JobEditorModal({
         editing ? { project: editing.project, id: editing.job.id, source } : null,
         knownIds?.(null) ?? [],
       );
-      toast.success(isEditing ? "Job updated" : "Job created");
+      toast.success(isEditing ? "Automation updated" : "Automation created");
       onSaved();
       onClose();
     } catch (err) {
@@ -252,8 +252,8 @@ export function JobEditorModal({
         err instanceof Error
           ? err.message
           : isEditing
-            ? "Could not update the job"
-            : "Could not create the job",
+            ? "Could not update the automation"
+            : "Could not create the automation",
       );
     } finally {
       setSaving(false);
@@ -272,7 +272,7 @@ export function JobEditorModal({
         await deleteJob(editing.project, editing.job.id);
         await ClearJobState(editing.project, editing.job.id, deleteCopies);
       }
-      toast.success("Job deleted");
+      toast.success("Automation deleted");
       onSaved();
       onClose();
     } catch (err) {
@@ -293,7 +293,7 @@ export function JobEditorModal({
 
   const { requestClose, guardOpen, dialog } = useDiscardGuard({
     open,
-    entity: "job",
+    entity: "automation",
     isDirty: () => touched,
     saving,
     onClose,
@@ -353,7 +353,7 @@ export function JobEditorModal({
                 <ClockIcon size={15} />
               </span>
               <h2 className="text-[14px] font-semibold tracking-tight text-[var(--text-primary)]">
-                {isEditing ? "Edit job" : "New job"}
+                {isEditing ? "Edit automation" : "New automation"}
               </h2>
             </div>
             <div className="flex items-center gap-3">
@@ -388,7 +388,7 @@ export function JobEditorModal({
                   ref={nameRef}
                   value={draft.label}
                   onChange={(e) => set("label", e.target.value)}
-                  placeholder="Name this job"
+                  placeholder="Name this automation"
                   className="min-w-0 flex-1 border-none bg-transparent py-3 pl-11 pr-4 text-[15px] font-semibold tracking-tight text-[var(--text-primary)] outline-none placeholder:font-medium placeholder:text-[var(--text-muted)]"
                 />
               </div>
@@ -513,7 +513,7 @@ export function JobEditorModal({
       </Modal>
       <ConfirmDialog
         open={confirmDelete}
-        title="Delete job?"
+        title="Delete automation?"
         body={
           <>
             Remove{" "}

@@ -11,7 +11,8 @@ export function PasteInviteField({
   onConnect,
 }: {
   busy: boolean;
-  onConnect: (invite: string) => void;
+  // Resolves false when the connection failed, which keeps the invite here to retry.
+  onConnect: (invite: string) => Promise<boolean> | void;
 }) {
   const [value, setValue] = useState("");
   const trimmed = value.trim();
@@ -21,8 +22,9 @@ export function PasteInviteField({
 
   const submit = () => {
     if (!canConnect) return;
-    onConnect(trimmed);
-    setValue("");
+    void Promise.resolve(onConnect(trimmed)).then((ok) => {
+      if (ok !== false) setValue("");
+    });
   };
 
   return (

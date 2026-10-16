@@ -9,13 +9,13 @@ const BUTTON_ROW = isMac ? "flex items-center gap-3" : "flex flex-wrap items-cen
 const NOWRAP = isMac ? "" : " whitespace-nowrap";
 
 interface EmptyTerminalStateProps {
-  projectName: string;
+  projectLabel: string;
   onNewTerminal: () => void;
   onEditConfig: () => void;
   onResumeSession?: () => void;
 }
 
-export function EmptyTerminalState({ projectName, onNewTerminal, onEditConfig, onResumeSession }: EmptyTerminalStateProps) {
+export function EmptyTerminalState({ projectLabel, onNewTerminal, onEditConfig, onResumeSession }: EmptyTerminalStateProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">
       <div className={`flex ${BOX_WIDTH} flex-col items-center gap-5 text-center`}>
@@ -28,7 +28,7 @@ export function EmptyTerminalState({ projectName, onNewTerminal, onEditConfig, o
         <div className="flex flex-col items-center gap-1.5">
           <h3 className="text-sm font-medium text-[var(--text-primary)]">No active terminals</h3>
           <p className="text-xs text-[var(--text-muted)]">
-            Open a terminal to start working on {projectName}, or edit the project config.
+            Open a terminal to start working on {projectLabel}, or edit the project config.
           </p>
         </div>
         <div className={BUTTON_ROW}>

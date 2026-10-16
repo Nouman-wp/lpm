@@ -6,6 +6,7 @@ import type {
   ActionPortConflict,
 } from "../../types";
 import type { RunMode } from "./actionInference";
+import { inputsMap } from "../../inputsMap";
 
 // Fields the wizard form surfaces and writes on its own. Anything outside this
 // set (env, inputs, depends_on, hand-authored keys) is "unmanaged": the form
@@ -138,8 +139,7 @@ function yamlOptionsToInfo(value: unknown): ActionInputOption[] {
 // in key order. Without this the form would show YAML key order and then
 // silently reorder on the next read.
 function yamlInputsToInfos(value: unknown): ActionInputInfo[] | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const entries = Object.entries(value as Record<string, unknown>)
+  const entries = Object.entries(inputsMap(value))
     .filter(
       (entry): entry is [string, Record<string, unknown>] =>
         Boolean(entry[1]) &&

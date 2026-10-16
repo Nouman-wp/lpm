@@ -76,7 +76,7 @@ export function MacsSection({
         setError("That isn't a complete invite.");
         return;
       }
-      void add(invite.hosts, invite.port, invite.code, invite.fp);
+      return add(invite.hosts, invite.port, invite.code, invite.fp);
     },
     [add],
   );

@@ -190,8 +190,9 @@ export function PeerRow({
     updateChannel: peer.updateChannel,
   });
   // Only offer a retry once a dial has actually failed — while it's still
-  // "Connecting…" the button would just interrupt the attempt in flight.
-  const canRetry = status.tone === "error";
+  // "Connecting…" the button would just interrupt the attempt in flight — and
+  // not to a machine that no longer accepts this Mac: only pairing again helps.
+  const canRetry = status.tone === "error" && !/unauthorized|auth failed|401/i.test(status.detail);
 
   return (
     <>

@@ -195,6 +195,7 @@ fn do_start_with_services(
         }
     }
     let services = config::expand_service_deps(&info.services, &services)?;
+    crate::ports::ensure_own_ports(&info.services, &services)?;
     if let Err(e) = sessions::start_project_services(
         &info.session,
         &info.root,
@@ -282,6 +283,7 @@ pub fn start_project(
         return Err(format!("no services to start for profile {profile:?}"));
     }
     let services = config::expand_service_deps(&info.services, &services)?;
+    crate::ports::ensure_own_ports(&info.services, &services)?;
     if let Err(e) = sessions::start_project_services(
         &info.session,
         &info.root,
@@ -407,7 +409,16 @@ fn do_set_service_running(
     }
 
     let running = config::resolve_running_services(&info, &state.get_for_project(name, &info));
-    let is_running = running.iter().any(|s| s == service_name);
+    let slot = running.iter().position(|s| s == service_name);
+    if let Some(idx) = slot.filter(|_| on) {
+        // Its pane is still there, but the line in it may have ended: run it again.
+        if sessions::ended_services(&info.session).contains_key(service_name) {
+            restart_service_at(&info, &running, idx)?;
+            let _ = app.emit("projects-changed", ());
+        }
+        return Ok(());
+    }
+    let is_running = slot.is_some();
     if is_running == on {
         return Ok(()); // already in the desired state
     }
@@ -457,12 +468,49 @@ pub fn toggle_project_service(
     let currently_on = sessions::session_exists(&info.session)
         && config::resolve_running_services(&info, &state.get_for_project(&name, &info))
             .iter()
-            .any(|s| s == &service_name);
+            .any(|s| s == &service_name)
+        && !sessions::ended_services(&info.session).contains_key(&service_name);
     do_set_service_running(&app, &state, &name, &service_name, !currently_on)
 }
 
-/// Re-run the `idx`-th running service's command in its (cleared) pane.
-/// `running` is the resolved running-service list; `idx` indexes into it.
+/// Stop one service by name, closing its tab — also the way to put away a
+/// service whose command has already ended, which a toggle would rerun.
+#[tauri::command(async)]
+pub fn stop_project_service(
+    app: AppHandle,
+    state: State<'_, ServiceState>,
+    name: String,
+    service_name: String,
+) -> Result<(), String> {
+    set_service_running(&app, &state, &name, &service_name, false)
+}
+
+/// Restart one service: run it again in its pane, stopping the run still
+/// going there first. A service that isn't up yet just starts.
+#[tauri::command(async)]
+pub fn restart_project_service(
+    app: AppHandle,
+    state: State<'_, ServiceState>,
+    name: String,
+    service_name: String,
+) -> Result<(), String> {
+    let op = state.op_lock(&name);
+    let _op = op.lock().unwrap();
+    let info = config::spawn_info(&name)?;
+    let running = config::resolve_running_services(&info, &state.get_for_project(&name, &info));
+    let result = match running.iter().position(|s| s == &service_name) {
+        Some(idx) if sessions::session_exists(&info.session) => {
+            restart_service_at(&info, &running, idx)
+        }
+        _ => do_set_service_running(&app, &state, &name, &service_name, true),
+    };
+    let _ = app.emit("projects-changed", ());
+    result
+}
+
+/// Run the `idx`-th running service's command again in its pane, stopping
+/// whatever still runs there first. `running` is the resolved running-service
+/// list; `idx` indexes into it.
 fn restart_service_at(
     info: &config::SpawnInfo,
     running: &[String],
@@ -477,7 +525,6 @@ fn restart_service_at(
         PaneLookup::Gone => return Err(format!("service {svc_name:?} is not running")),
         PaneLookup::Unidentifiable => return Err(unidentifiable_pane_error(svc_name)),
     };
-    // build_command lives in sessions; reuse split's command form via a fresh send.
     sessions::restart_service_pane(
         &pane_id,
         &info.root,

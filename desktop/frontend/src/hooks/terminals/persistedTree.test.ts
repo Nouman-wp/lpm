@@ -4,6 +4,7 @@ const h = vi.hoisted(() => ({
   startTerminal: vi.fn(),
   startForRestore: vi.fn(),
   terminalExists: vi.fn(),
+  listProjectTerminals: vi.fn(),
 }));
 
 vi.mock(
@@ -18,6 +19,7 @@ vi.mock(
           if (prop === "StartTerminal") return h.startTerminal;
           if (prop === "StartTerminalForRestore") return h.startForRestore;
           if (prop === "TerminalExists") return h.terminalExists;
+          if (prop === "ListProjectTerminals") return h.listProjectTerminals;
           return vi.fn();
         },
       },
@@ -50,6 +52,8 @@ describe("reifyTreeWithFreshPtys", () => {
     h.startForRestore.mockReset();
     h.terminalExists.mockReset();
     h.terminalExists.mockResolvedValue(false);
+    h.listProjectTerminals.mockReset();
+    h.listProjectTerminals.mockResolvedValue([]);
   });
 
   // A peer pty lives on the other machine and outlives our restart. Relaunching
@@ -105,6 +109,25 @@ describe("reifyTreeWithFreshPtys", () => {
 
     expect(pane.tabs[0].startCmd).toBe("claude");
     expect(started).not.toContain("peer-a1b2c3d4-project-7");
+  });
+
+  // A host that follows brings back the tabs this Mac opened there itself.
+  it("leaves a terminal this Mac opened to a host that brings it back", async () => {
+    h.terminalExists.mockResolvedValue(false);
+    h.listProjectTerminals.mockResolvedValue({ terminals: [], tabs: [], run: "r", follow: true });
+    const discarded: PersistedTab[] = [];
+
+    const tree = await reifyTreeWithFreshPtys(
+      leaf([{ label: "Terminal 1", id: "peer-f0f0f0f0-project-7" }]),
+      "peer-f0f0f0f0-demo",
+      [],
+      [],
+      discarded,
+    );
+
+    expect(tree).toBeNull();
+    expect(discarded.map((t) => t.label)).toEqual(["Terminal 1"]);
+    expect(h.startTerminal).not.toHaveBeenCalled();
   });
 
   it("relaunches a peer terminal the host has forgotten", async () => {
@@ -365,6 +388,34 @@ describe("reifyTreeWithFreshPtys", () => {
     expect(discarded.map((t) => t.label)).toEqual(["Parked"]);
     expect(dropped).toEqual([]);
     expect(h.startTerminal).toHaveBeenCalledTimes(1);
+  });
+
+  // A Mac that opened the tab here and left bringing it back to this one gets it
+  // back in place, under its name, as a tab of ours.
+  it("restores a peer-opened tab the peer left to this Mac", async () => {
+    h.terminalExists.mockResolvedValue(false);
+    h.startTerminal.mockResolvedValue("pty-fresh");
+    const discarded: PersistedTab[] = [];
+
+    const pane = asLeaf(
+      await reifyTreeWithFreshPtys(
+        leaf([
+          { label: "Mine", startCmd: "npm run dev" },
+          { label: "agent", id: "project-7", restoreHere: true },
+        ]),
+        "demo",
+        [],
+        [],
+        discarded,
+      ),
+    );
+
+    expect(pane.tabs.map((t) => [t.label, t.id])).toEqual([
+      ["Mine", "pty-fresh"],
+      ["agent", "pty-fresh"],
+    ]);
+    expect(pane.tabs[1].peerAdopted).toBeUndefined();
+    expect(discarded).toEqual([]);
   });
 
   // "Couldn't ask" about a LOCAL id is not the peer-link race the retry loop

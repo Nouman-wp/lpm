@@ -744,8 +744,8 @@ export function BulkDuplicateDialog({
                   )}
                 </div>
                 <p className={`mt-2 ${HELPER_TEXT}`}>
-                  A label to recognize the {item} by. Leave blank to name it
-                  automatically.
+                  A label to recognize the {item} by. It starts as the folder
+                  name; type over it to call the {item} something else.
                   {showTargets &&
                     anyRemoteCopy &&
                     ` The copy is created on the chosen ${MACHINE.noun}, from its own copy of the project.`}

@@ -10,17 +10,12 @@ import { byUrgency, foldByPane, paneHoldsError, type PaneAgents } from "./status
 import { applyFleetFilter, type FleetFilter } from "./fleetFilter";
 import {
   fleetIdentityOf,
-  namelessIdentity,
   terminalsIdentity,
   type FleetProjectIdentity,
 } from "./fleetIdentity";
-import {
-  formatDuration,
-  jobTargets,
-  MULTI_PROJECT_LABEL,
-  STANDALONE_PROJECT_LABEL,
-  type JobInfo,
-} from "./jobsFormat";
+import { formatDuration, jobTargets, type JobInfo } from "./jobsFormat";
+import { automationRow, stateSinceOf } from "./fleetAutomations";
+import { serviceCrashed } from "./serviceExit";
 import { peerSlugOf } from "./peer/markers";
 
 export type FleetRowKind = "agent" | "automation";
@@ -60,6 +55,8 @@ export interface FleetChip {
   kind: FleetChipKind;
   name: string;
   running: boolean;
+  /** A started service whose command failed; starting it runs it again. */
+  crashed?: true;
 }
 
 export interface FleetServiceGroup {
@@ -111,13 +108,6 @@ export interface Fleet {
   peerAutomationMacs: string[];
 }
 
-// A paired Mac stamps its statuses with its own clock, which can run ahead of
-// ours; an unstamped entry would otherwise start in 1970.
-function stateSinceOf(stamped: number | undefined, now: number): number {
-  if (!stamped || stamped < 0) return now;
-  return Math.min(stamped, now);
-}
-
 function agentRow(
   project: FleetProjectIdentity,
   held: PaneAgents,
@@ -152,56 +142,11 @@ function agentRow(
   };
 }
 
-/** A job spanning several projects headlines none: naming one of its targets
- *  would headline a project that may not be the one running it. */
-function automationIdentity(
-  targets: string[],
-  targetCount: number,
-  identities: Map<string, FleetProjectIdentity>,
-): FleetProjectIdentity {
-  if (targetCount > 1) return namelessIdentity(MULTI_PROJECT_LABEL);
-  const name = targets[0] ?? "";
-  if (!name) return namelessIdentity(STANDALONE_PROJECT_LABEL);
-  return identities.get(name) ?? { ...namelessIdentity(name), name };
-}
-
-function automationRow(
-  job: FleetJob,
-  targets: string[],
-  identities: Map<string, FleetProjectIdentity>,
-  now: number,
-): FleetRow {
-  const targetCount = Math.max(job.targetCount ?? 0, targets.length);
-  const project = automationIdentity(targets, targetCount, identities);
-  return {
-    id: `automation:${project.name}:${job.id}`,
-    kind: "automation",
-    project,
-    title: job.label || job.id,
-    tabTitle: null,
-    shared: 0,
-    holdsError: false,
-    state: "working",
-    statusKey: null,
-    statusValue: null,
-    terminalId: null,
-    jobId: job.id,
-    stateSince: stateSinceOf(
-      job.runningSince ? job.runningSince * 1000 : undefined,
-      now,
-    ),
-    detail:
-      targetCount > 1
-        ? `Running in ${job.runningCount ?? 1} of ${targetCount} projects`
-        : null,
-    dismissable: false,
-    dismissBlocked: null,
-  };
-}
-
 function dismissBlockedReason(row: FleetRow): string | null {
   if (row.kind === "automation") {
-    return "This automation clears itself when the run finishes.";
+    return row.state === "working"
+      ? "This automation clears itself when the run finishes."
+      : "This clears once you open the automation and read its run.";
   }
   switch (row.state) {
     case "needs-you":
@@ -242,16 +187,18 @@ export function compareFleetRows(a: FleetRow, b: FleetRow): number {
 /** Collapse services into profile shortcuts only while a profile matches the
  *  running set exactly. A custom mix needs individual service chips so every
  *  running process remains visible and independently controllable. */
-function chipsOf(project: ProjectInfo, started: Set<string>): FleetChip[] {
+function chipsOf(project: ProjectInfo, started: Set<string>, crashed: Set<string>): FleetChip[] {
   const profiles = project.profiles ?? [];
   const activeProfile = profiles.find(
     (profile) => profile.name === project.activeProfile,
   );
-  if (!activeProfile && started.size > 0) {
+  // A lit profile would hide which of its services crashed.
+  if ((!activeProfile || crashed.size > 0) && started.size + crashed.size > 0) {
     return (project.allServices ?? []).map((service) => ({
       kind: "service",
       name: service.name,
       running: started.has(service.name),
+      ...(crashed.has(service.name) ? { crashed: true as const } : {}),
     }));
   }
 
@@ -277,8 +224,9 @@ function serviceGroup(
   identity: FleetProjectIdentity,
 ): FleetServiceGroup | null {
   if (!project.running) return null;
-  const running = (project.services ?? []).map((s) => s.name);
+  const running = (project.services ?? []).filter((s) => !s.exited).map((s) => s.name);
   const started = new Set(running);
+  const crashed = new Set((project.services ?? []).filter(serviceCrashed).map((s) => s.name));
   const declared = (project.allServices ?? [])
     .map((s) => s.name)
     .filter((name) => !started.has(name));
@@ -290,7 +238,7 @@ function serviceGroup(
     running,
     declared,
     ports,
-    chips: chipsOf(project, started),
+    chips: chipsOf(project, started, crashed),
   };
 }
 
@@ -331,11 +279,13 @@ export function buildFleet(snapshot: FleetSnapshot): Fleet {
   }
 
   for (const job of jobs) {
-    if (job.running !== true) continue;
+    const running = job.running === true;
+    // A finished run nobody has opened yet is still waiting on the user.
+    if (!running && (job.unread ?? 0) === 0) continue;
     const targets = jobTargets(job);
     rows.push(automationRow(job, targets, identities, now));
     // Every project the job runs in is busy, even the ones the row can't name.
-    for (const name of targets) busy.add(name);
+    if (running) for (const name of targets) busy.add(name);
   }
 
   markDismissable(rows);

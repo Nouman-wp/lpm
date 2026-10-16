@@ -18,6 +18,7 @@ import {
   type PersistedHistoryEntry,
 } from "../../terminals";
 import {
+  type AdoptedTabOpts,
   type PaneNode,
   type TerminalInstance,
   makePaneLeaf,
@@ -76,7 +77,7 @@ export function useTabCreation({
   // Central path for adding a terminal: either to an explicit pane, the
   // focused pane, or a fresh root pane if the tree is empty.
   const addTerminal = useCallback(
-    (term: TerminalInstance, targetPaneId?: string) => {
+    (term: TerminalInstance, targetPaneId?: string, background = false) => {
       const current = treeRef.current;
       // Suffix duplicate PTY-tab labels ("Ultracode 2", "Ultracode 3") at the
       // one path every add funnels through, so no caller can reintroduce a
@@ -91,20 +92,19 @@ export function useTabCreation({
         return;
       }
       const paneId = targetPaneId ?? focusedRef.current ?? firstPaneId(current);
-      applyTree(
-        mapPane(current, paneId, (p) => appendTerminal(p, labeled)),
-        paneId,
-      );
+      const next = mapPane(current, paneId, (p) => appendTerminal(p, labeled, background));
+      if (background) applyTree(next);
+      else applyTree(next, paneId);
     },
     [applyTree],
   );
 
-  const createTerminal = useCallback(async () => {
-    if (IS_MIRROR_WINDOW) return forward("createTerminal");
+  const createTerminal = useCallback(async (background = false) => {
+    if (IS_MIRROR_WINDOW) return forward("createTerminal", background);
     await restoreSettled.current;
     try {
       const id = await StartTerminal(projectName);
-      addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current)));
+      addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current)), undefined, background);
     } catch (err) {
       // Swallowing this silently makes a failed spawn look like a dead button —
       // which is exactly how a host that couldn't find its shell presented.
@@ -124,7 +124,7 @@ export function useTabCreation({
     async (
       id: string,
       label?: string,
-      opts?: { startCmd?: string; resumeCmd?: string; actionName?: string },
+      opts?: AdoptedTabOpts,
     ) => {
       if (IS_MIRROR_WINDOW) return;
       await restoreSettled.current;
@@ -132,11 +132,14 @@ export function useTabCreation({
       // Idempotent: a re-fired op must not add a second tab for the same pty.
       if (current && collectTerminals(current).some((t) => t.id === id)) return;
       noteOpenedByOtherMac(id);
+      // Someone at this Mac keeps the tab they're on.
       addTerminal(
         makeTerminal(id, label || pickTerminalLabel(current), {
           ...opts,
           peerAdopted: true,
         }),
+        undefined,
+        true,
       );
     },
     [addTerminal],
@@ -160,8 +163,8 @@ export function useTabCreation({
           );
           if (idx !== -1) {
             if (
-              pane.activeTabIdx !== idx ||
-              pane.activeServiceName !== undefined
+              !opts.background &&
+              (pane.activeTabIdx !== idx || pane.activeServiceName !== undefined)
             ) {
               applyTree(
                 mapPane(treeRef.current, pane.id, (p) => ({
@@ -174,7 +177,7 @@ export function useTabCreation({
             }
             // Always bring the reused tab into view: when it's already active no
             // pane state changes, so PaneView's activation effect wouldn't fire.
-            useTabScroll.getState().requestScroll(pane.id);
+            if (!opts.background) useTabScroll.getState().requestScroll(pane.id);
             const reused = foldAgentPrompt(cmd, opts.prompt);
             await sendTerminalInput(pane.tabs[idx].id, reused.cmd + "\n");
             scheduleSeedInject(pane.tabs[idx].id, reused.prompt);
@@ -189,7 +192,8 @@ export function useTabCreation({
       // restore (see configLaunchCmds for what the tab keeps).
       if (opts?.configName) {
         // The backend writes this command itself, so it is pinned here too.
-        const started = await StartTerminalForConfig(projectName, opts.configName, opts.fixedAccount);
+        const tab = { label, emoji: opts.emoji, color: opts.color, actionName: opts.actionName };
+        const started = await StartTerminalForConfig(projectName, opts.configName, opts.fixedAccount, tab);
         const launch = {
           ...started,
           startCmd: pinLaunchCommand(started.startCmd, opts.launchModel),
@@ -201,7 +205,7 @@ export function useTabCreation({
           emoji: opts.emoji,
           color: opts.color,
         });
-        addTerminal(term);
+        addTerminal(term, undefined, opts.background);
         if (launch.startCmd) {
           // Fold into the injected command only; `term` persists the original
           // startCmd so a later restore relaunches without re-seeding the task.
@@ -216,6 +220,7 @@ export function useTabCreation({
       // Ad-hoc command terminals (e.g. action-as-terminal invocations) are
       // ephemeral — the command is typed once but not persisted.
       const sessionId = claudeResumeSessionId(cmd);
+      const tab = { label, emoji: opts?.emoji, color: opts?.color, actionName: opts?.actionName };
       const id =
         opts?.cwd || opts?.env
           ? await StartTerminalWithCwdEnv(
@@ -224,8 +229,9 @@ export function useTabCreation({
               opts.env ?? {},
               sessionId,
               opts.fixedAccount,
+              tab,
             )
-          : await StartTerminal(projectName, sessionId, opts?.fixedAccount);
+          : await StartTerminal(projectName, sessionId, opts?.fixedAccount, tab);
       addTerminal(
         makeTerminal(id, label, {
           actionName: opts?.actionName,
@@ -235,6 +241,8 @@ export function useTabCreation({
           resumeCmd: opts?.resumeCmd,
           memory: opts?.memory,
         }),
+        undefined,
+        opts?.background,
       );
       const folded = foldAgentPrompt(cmd, opts?.prompt);
       scheduleCmdInject(id, folded.cmd, folded.prompt);

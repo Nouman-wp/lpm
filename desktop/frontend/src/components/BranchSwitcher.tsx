@@ -60,6 +60,7 @@ import {
 import { branchKey, isUnpublished, orderBranches, RemoteBadge } from "./branchUtils";
 import { relativeTime } from "../relativeTime";
 import { shouldFetch, recordFetch } from "../gitFetchThrottle";
+import { toastPullError } from "../gitPullErrors";
 
 export function BranchSwitcher({
   projectName,
@@ -215,7 +216,8 @@ export function BranchSwitcher({
       await PullBranch(projectPath, cfg.strategy, pullFlags(cfg));
       await refresh();
     } catch (err) {
-      toast.error(`Pull: ${err}`);
+      toastPullError(err, "Pull", () => runPull({ ...cfg, autostash: true }));
+      await refresh();
     } finally {
       setBusy(false);
     }
@@ -832,6 +834,7 @@ export function BranchSwitcher({
         busy={busy}
         projectName={projectName}
         projectPath={projectPath}
+        initialName={query.trim()}
         onClose={() => setCreating(false)}
         onCreate={create}
       />

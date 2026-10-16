@@ -1036,7 +1036,7 @@ export function Settings({
           {activeTab === "templates" && (
             <SettingsSection
               id="templates.list"
-              description="Reusable sets of services, actions, and profiles you can apply to multiple projects. Handy when several projects share a common setup — for example, one template for all your Rails apps."
+              description="Reusable sets of actions and terminals you can apply to multiple projects. Handy when several projects share a common setup — for example, one template for all your Rails apps."
             >
               {templates.length === 0 && !creatingTemplate && (
                 <div className="px-4 py-3 text-[11px] text-[var(--text-muted)]">

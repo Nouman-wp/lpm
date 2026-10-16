@@ -7,7 +7,9 @@ export function nextId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-export function appendTerminal(pane: PaneLeaf, term: TerminalInstance): PaneLeaf {
+// `background` adds the tab behind the one in view, for a tab someone else opened.
+export function appendTerminal(pane: PaneLeaf, term: TerminalInstance, background = false): PaneLeaf {
+  if (background) return { ...pane, tabs: [...pane.tabs, term] };
   return {
     ...pane,
     tabs: [...pane.tabs, term],

@@ -32,7 +32,9 @@ import {
   pullFlags,
   pushFlags,
   fetchFlags,
+  type GitPullConfig,
 } from "../gitOptions";
+import { toastPullError } from "../gitPullErrors";
 
 interface ProjectGitSubmenuProps {
   projectPath: string | null;
@@ -134,6 +136,13 @@ function GitSubmenuItems({
     });
   };
 
+  const pull = (cfg: GitPullConfig, id: string | number = toast.loading("Pulling…")) => {
+    PullBranch(projectPath, cfg.strategy, pullFlags(cfg)).then(
+      () => toast.success("Pulled", { id }),
+      (err) => toastPullError(err, "Pull failed", () => pull({ ...cfg, autostash: true }), id),
+    );
+  };
+
   const copyBranch = async () => {
     onClose();
     try {
@@ -151,12 +160,10 @@ function GitSubmenuItems({
       <ContextMenuItem
         label="Pull"
         icon={<DownloadIcon />}
-        onClick={() =>
-          runOp("Pulling…", "Pulled", "Pull", () => {
-            const cfg = getSettings().gitPull ?? DEFAULT_PULL_CONFIG;
-            return PullBranch(projectPath, cfg.strategy, pullFlags(cfg));
-          })
-        }
+        onClick={() => {
+          onClose();
+          pull(getSettings().gitPull ?? DEFAULT_PULL_CONFIG);
+        }}
       />
       <ContextMenuItem
         label="Push"

@@ -1,7 +1,25 @@
+import { type PeerStatus } from "../peer/peerStatus";
+
 // Shown in place of a remote project whose peer dropped. The project's row and
 // detail return automatically once the peer reconnects and its projects merge
-// back in.
-export function PeerDisconnectedBanner({ alias }: { alias: string }) {
+// back in — unless it was turned off here or stopped accepting this Mac, which
+// no retry fixes, so the copy says what will.
+export function PeerDisconnectedBanner({ alias, status }: { alias: string; status: PeerStatus | null }) {
+  const unauthorized = status?.tone === "error" && /unauthorized|auth failed|401/i.test(status.detail);
+  const title =
+    status?.tone === "off"
+      ? `${alias} is turned off on this Mac`
+      : unauthorized
+        ? `${alias} no longer accepts this Mac`
+        : `${alias} disconnected`;
+  const detail =
+    status?.tone === "off"
+      ? "Turn it on in Settings → Connections."
+      : unauthorized
+        ? "Its access was removed there. Pair again from Settings → Connections."
+        : status?.tone === "error"
+          ? `${status.text}. Trying again…`
+          : "Reconnecting…";
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-active)] text-[var(--text-muted)]">
@@ -20,10 +38,8 @@ export function PeerDisconnectedBanner({ alias }: { alias: string }) {
         </svg>
       </div>
       <div>
-        <p className="text-sm font-medium text-[var(--text-primary)]">
-          {alias} disconnected
-        </p>
-        <p className="mt-0.5 text-xs text-[var(--text-muted)]">Reconnecting…</p>
+        <p className="text-sm font-medium text-[var(--text-primary)]">{title}</p>
+        <p className="mt-0.5 text-xs text-[var(--text-muted)]">{detail}</p>
       </div>
     </div>
   );

@@ -143,8 +143,15 @@ describe("buildPeerSections", () => {
     expect(sections[0].projects).toEqual([]);
   });
 
-  it("drops a section for an away Mac with no copies here", () => {
+  it("keeps an away Mac's section, so it says so and can be reconnected", () => {
     const { sections } = buildPeerSections([], new Map(), [peer({ connected: false })]);
+    expect(sections).toHaveLength(1);
+    expect(sections[0].connected).toBe(false);
+    expect(sections[0].projects).toEqual([]);
+  });
+
+  it("drops a section for a Mac turned off here with no copies here", () => {
+    const { sections } = buildPeerSections([], new Map(), [peer({ connected: false, enabled: false })]);
     expect(sections).toEqual([]);
   });
 

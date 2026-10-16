@@ -446,7 +446,7 @@ export const ROWS = {
     id: "templates.list",
     label: "Templates",
     description:
-      "Reusable sets of services, actions, and profiles you can apply to multiple projects",
+      "Reusable sets of actions and terminals you can apply to multiple projects",
     keywords: ["reusable", "extends", "profile"],
   },
   "backup.export": {

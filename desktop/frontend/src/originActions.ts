@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import { GitMerge, GitOriginStatus, GitPush, PullBranch } from "../bridge/commands";
 import { DEFAULT_PULL_CONFIG, DEFAULT_PUSH_CONFIG, pullFlags, pushFlags } from "./gitOptions";
+import { pullErrorText } from "./gitPullErrors";
 import {
   heldByChanges,
   isPlainPull,
@@ -58,7 +59,7 @@ export async function runOriginAction(root: string, mark: OriginMark, name?: str
     ok = true;
   } catch (err) {
     const verb = mark.kind === "diverged" ? "Sync" : mark.kind === "base" ? "Update" : "Pull";
-    toast.error(`${verb} failed${name ? ` in ${name}` : ""}: ${String(err)}`);
+    toast.error(pullErrorText(err, `${verb} failed${name ? ` in ${name}` : ""}`, name));
   }
   await recheckOrigin(root);
   useOriginStatus.getState().setRunning(root, false);

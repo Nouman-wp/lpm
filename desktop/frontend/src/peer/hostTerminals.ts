@@ -63,31 +63,52 @@ export function unclaimedHostTerminals(
   openIds: Iterable<string>,
 ): HostTerminal[] {
   for (const id of openIds) claimPeerTerminal(id);
+  return hostTerminalsOf(listed).filter((t) => !claimed.has(t.id));
+}
+
+// Every terminal the host lists, in its tab order.
+export function hostTerminalsOf(listed: unknown): HostTerminal[] {
   if (!Array.isArray(listed)) return [];
-  return listed
-    .map(parseHostTerminal)
-    .filter((t): t is HostTerminal => t !== null && !claimed.has(t.id));
+  return listed.map(parseHostTerminal).filter((t): t is HostTerminal => t !== null);
 }
 
 // What a host answers for a project: its live terminals and, from a host that
 // reports them, the ids of every tab it has open — finished ones included — and
-// the app run they belong to.
+// the app run they belong to. `follow` says the host keeps the tabs' names and
+// order for every Mac (see hostFollows).
 export interface HostListing {
   terminals: unknown;
   tabs: string[] | null;
   run: string | null;
+  follow: boolean;
 }
 
 export function parseHostListing(value: unknown): HostListing {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return { terminals: value, tabs: null, run: null };
+    return { terminals: value, tabs: null, run: null, follow: false };
   }
-  const v = value as { terminals?: unknown; tabs?: unknown; run?: unknown };
+  const v = value as { terminals?: unknown; tabs?: unknown; run?: unknown; follow?: unknown };
   return {
     terminals: v.terminals,
     tabs: Array.isArray(v.tabs) ? v.tabs.filter((id): id is string => typeof id === "string") : null,
     run: typeof v.run === "string" ? v.run : null,
+    follow: v.follow === true,
   };
+}
+
+// The tabs here a restarted host no longer has: after a restart it brings its
+// tabs back under new ids, so the old ones it doesn't list are candidates to
+// ask about. Null when the host didn't restart since the last listing.
+export function tabsLeftByRestart(
+  previousRun: string | null,
+  listing: HostListing,
+  openIds: Iterable<string>,
+): string[] | null {
+  if (!listing.follow || !listing.tabs || previousRun === null || listing.run === previousRun) {
+    return null;
+  }
+  const open = new Set(listing.tabs);
+  return [...openIds].filter((id) => isPeerName(id) && !open.has(id));
 }
 
 // The host tabs this Mac has seen open during one run of the host's app.

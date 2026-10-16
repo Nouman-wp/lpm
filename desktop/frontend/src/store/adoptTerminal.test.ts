@@ -43,7 +43,7 @@ describe("adoptRemoteTerminal", () => {
     expect(op.projectName).toBe("proj");
     expect(op.id).toBe("proj-3");
     expect(op.label).toBe("server");
-    expect(op.resumeCmd).toBe("npm run dev");
+    expect(op.opts.resumeCmd).toBe("npm run dev");
     expect(h.appendPersistedTab).not.toHaveBeenCalled();
 
     // A repeat adopt re-fires with a higher nonce so the consumer isn't latched.

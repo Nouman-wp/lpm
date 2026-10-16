@@ -1,9 +1,9 @@
 // Config read/write commands — port of desktop/projects.go config R/W.
-// DEFERRED (flagged): save_config does NOT run the Go ApplyDefaults() (extends
-// flatten + global/repo merge) or structural Validate() (root/cwd existence,
-// port uniqueness, SSH checks) — those depend on the unported extends/global
-// machinery. We validate YAML syntax + do the full rename/parent/duplicate
-// routing (the editor-visible contract); the Go runtime re-validates on start.
+// Saves check YAML syntax and the per-file problems in config::check (wrong
+// types, two services on one port, actions that would be left out), refusing
+// only problems the file didn't already have. They do NOT run the Go
+// ApplyDefaults() (extends flatten + global/repo merge) or the rest of its
+// Validate() (root/cwd existence, SSH checks); the runtime re-validates on start.
 //
 // The raw-text bodies below are shared, non-command fns so the mobile remote's
 // readConfig/saveConfig verbs (remote.rs) round-trip through the exact same
@@ -31,6 +31,13 @@ fn validate_yaml(content: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Refuses content that brings a problem the file at `path` doesn't already
+/// have: a port that isn't a number, two services on one port, an action that
+/// would be left out.
+fn validate_against(path: &std::path::Path, content: &str) -> Result<(), String> {
+    config::check::refuse_new_problems(&read_to_string(path).unwrap_or_default(), content)
+}
+
 /// The raw text of a project's registry config, routing a duplicate to its
 /// parent's file (the project layer the editors read/write).
 pub fn read_project_config(name: &str) -> Result<String, String> {
@@ -49,9 +56,14 @@ pub fn write_project_config(
 ) -> Result<String, String> {
     let parsed: config::NameOnly =
         serde_norway::from_str(&content).map_err(|e| format!("invalid YAML: {e}"))?;
+    let owner = config::peek_parent(&name);
+    validate_against(
+        &config::project_path(owner.as_deref().unwrap_or(&name)),
+        &content,
+    )?;
 
     // Duplicate -> write to the parent's file, keep the duplicate's name.
-    if let Some(parent) = config::peek_parent(&name) {
+    if let Some(parent) = owner {
         config::write_config_file(&config::project_path(&parent), &content)?;
         let _ = app.emit("projects-changed", ());
         return Ok(name);
@@ -89,7 +101,7 @@ pub fn read_global_config_body() -> Result<String, String> {
 
 /// Validate + write the global config text, emitting `projects-changed`.
 pub fn write_global_config(app: &AppHandle, content: &str) -> Result<(), String> {
-    validate_yaml(content)?;
+    validate_against(&config::global_path(), content)?;
     config::ensure_dirs()?;
     config::write_config_file(&config::global_path(), content)?;
     let _ = app.emit("projects-changed", ());
@@ -111,7 +123,7 @@ pub fn read_repo_config_body(name: &str) -> Result<String, String> {
 /// Validate + write a project's repo config text, emitting `projects-changed`.
 pub fn write_repo_config(app: &AppHandle, name: &str, content: &str) -> Result<(), String> {
     let path = repo_config_path(name)?;
-    validate_yaml(content)?;
+    validate_against(&path, content)?;
     config::write_config_file(&path, content)?;
     let _ = app.emit("projects-changed", ());
     Ok(())
@@ -173,7 +185,7 @@ fn apply_file_at_revision(
             "revision conflict: expected {expected_revision}, current revision is {current_revision}"
         ));
     }
-    validate_yaml(content)?;
+    config::check::refuse_new_problems(&current, content)?;
     config::write_config_file(path, content)?;
     Ok(content_revision(content))
 }
@@ -297,6 +309,25 @@ mod tests {
 
         assert!(error.contains("invalid YAML"));
         assert_eq!(std::fs::read_to_string(path).unwrap(), original);
+    }
+
+    #[test]
+    fn a_new_schema_problem_never_replaces_the_destination() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.yml");
+        let original = "services:\n  web:\n    cmd: a\n    port: 3000\n";
+        std::fs::write(&path, original).unwrap();
+        let clash = format!("{original}  api:\n    cmd: b\n    port: 3000\n");
+
+        let error =
+            apply_file_at_revision(&path, &content_revision(original), &clash).unwrap_err();
+
+        assert!(error.contains("3000 is also web's port"), "{error}");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+
+        std::fs::write(&path, &clash).unwrap();
+        let unrelated = format!("{clash}label: Shop\n");
+        assert!(apply_file_at_revision(&path, &content_revision(&clash), &unrelated).is_ok());
     }
 
     #[test]

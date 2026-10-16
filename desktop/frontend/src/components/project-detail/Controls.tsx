@@ -1,4 +1,4 @@
-import { type MouseEvent, type RefObject } from "react";
+import { useMemo, type MouseEvent, type RefObject } from "react";
 import { OpenInDropdown } from "../OpenInDropdown";
 import { ChevronDownIcon } from "../icons";
 import { NO_DRAG_STYLE } from "./constants";
@@ -17,6 +17,7 @@ interface ControlsProps {
   onToggleProfileMenu: () => void;
   onStart: () => void;
   onStop: () => void;
+  onRestart: () => void;
   onPickProfile: (name: string) => void;
   onToggleService: (name: string) => void;
   onAddService: () => void;
@@ -38,6 +39,7 @@ export function Controls({
   onToggleProfileMenu,
   onStart,
   onStop,
+  onRestart,
   onPickProfile,
   onToggleService,
   onAddService,
@@ -62,6 +64,7 @@ export function Controls({
         profileMenuRef={profileMenuRef}
         onStart={onStart}
         onStop={onStop}
+        onRestart={onRestart}
         onToggleProfileMenu={onToggleProfileMenu}
         onPickProfile={onPickProfile}
         onToggleService={onToggleService}
@@ -85,6 +88,7 @@ interface StartStopGroupProps {
   profileMenuRef: RefObject<HTMLDivElement | null>;
   onStart: () => void;
   onStop: () => void;
+  onRestart: () => void;
   onToggleProfileMenu: () => void;
   onPickProfile: (name: string) => void;
   onToggleService: (name: string) => void;
@@ -105,6 +109,7 @@ function StartStopGroup({
   profileMenuRef,
   onStart,
   onStop,
+  onRestart,
   onToggleProfileMenu,
   onPickProfile,
   onToggleService,
@@ -119,6 +124,15 @@ function StartStopGroup({
   // profiles even when the project has zero or one service. Only the
   // primary Start/Stop button is hidden when there are no services to run.
   const hasServices = project.allServices.length > 0;
+  const exited = useMemo(
+    () =>
+      new Map(
+        project.running
+          ? project.services.filter((s) => s.exited).map((s) => [s.name, s.exitCode ?? null] as const)
+          : [],
+      ),
+    [project.running, project.services],
+  );
   const segmentHover = project.running
     ? "hover:bg-black/10"
     : "hover:bg-[var(--bg-primary)]/15";
@@ -171,6 +185,8 @@ function StartStopGroup({
           activeProfile={activeProfile}
           running={project.running}
           runningServiceNames={runningServiceNames}
+          exited={exited}
+          onRestart={onRestart}
           onPickProfile={onPickProfile}
           onToggleService={onToggleService}
           onAddService={onAddService}

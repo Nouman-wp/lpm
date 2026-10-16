@@ -3,6 +3,7 @@ import {
   StartTerminalForRestore,
   TerminalExists,
 } from "../../../bridge/commands";
+import { askHostFollows } from "../../peer/hostFollows";
 import { isPeerMarked } from "../../peer/markers";
 import { claudeResumeSessionId } from "../../agentSession";
 import {
@@ -36,9 +37,10 @@ import { nextId } from "./util";
  * sessions. Returns null only when nothing at all could be restored; the
  * caller stops the PTYs launched so far via `startedIds`.
  *
- * `discarded` is the other, non-failure exit: a parked peer tab whose pty is
- * gone has nothing to relaunch, so it leaves the tree without counting as a
- * loss and the caller is free to erase it from disk.
+ * `discarded` is the other, non-failure exit: a peer tab whose terminal is gone
+ * and which the host brings back itself has nothing to relaunch here, so it
+ * leaves the tree without counting as a loss and the caller is free to erase it
+ * from disk.
  *
  * `replacedIds` names the new ptys started for peer tabs whose terminal the host
  * no longer had — tabs that come back as something other than what they were,
@@ -105,7 +107,9 @@ interface ReifiedTab {
  * Only the machine that started a terminal relaunches it. A peer terminal the
  * host opened (`fromHost`) is the host's to bring back after it restarts — it
  * relaunches its own tabs, and the next sync opens them here — so a second launch
- * from this side would run the same session twice.
+ * from this side would run the same session twice. A host that follows (see
+ * hostFollows) brings back the tabs this Mac opened there too, under the names
+ * and in the places it gave them, so those are left to it as well.
  *
  * A local pty dies with the app, so its persisted id is always stale. Two kinds
  * of tab persist an id because their pty isn't ours:
@@ -114,24 +118,22 @@ interface ReifiedTab {
  *     which kept it running along with its scrollback ring. Relaunching would
  *     strand the live session and any agent inside it and hand back an empty
  *     pane; adopting lets the normal attach path replay the host's scrollback.
- *   - a parked peer tab (host side, unmarked local id): a peer spawned this pty
- *     here while the project was unmounted. Ours to ask about directly — one
- *     local call, no waiting on a peer link. If it's gone the tab is bookkeeping
- *     for a dead session: launching a shell in its place would resurrect it as a
- *     zombie, and the peer that owns the tab never asked for a new one.
+ *   - a peer-opened tab (host side, unmarked local id): a peer spawned this pty
+ *     here. Ours to ask about directly — one local call, no waiting on a peer
+ *     link. Still running, it is adopted. Gone, it comes back like a tab of ours
+ *     when the peer left that to us (`restoreHere`); otherwise the peer
+ *     relaunches it, and a shell here as well would be a zombie — the
+ *     amplifier that once turned 6 tabs into 81.
  */
 async function reifyTab(t: PersistedTab, projectName: string): Promise<ReifiedTab | null> {
   if (t.id) {
     if (isPeerMarked(t.id)) {
       if (await shouldAdoptPeerTerminal(t.id)) return { id: t.id, adopted: true };
-      if (t.fromHost) return null;
+      if (t.fromHost || (await askHostFollows(projectName))) return null;
       return { id: await startFresh(t, projectName), adopted: false, replacedPeer: true };
     }
-    try {
-      return (await TerminalExists(t.id)) ? { id: t.id, adopted: true } : null;
-    } catch {
-      return null;
-    }
+    if (await TerminalExists(t.id).catch(() => false)) return { id: t.id, adopted: true };
+    if (!t.restoreHere) return null;
   }
   return { id: await startFresh(t, projectName), adopted: false };
 }
@@ -199,6 +201,7 @@ async function reifyTree(
           color: t.color,
           peerAdopted: adopted && !isPeerMarked(id),
           fromHost: t.fromHost,
+          restoreHere: adopted && t.restoreHere,
         }),
       );
     });
@@ -277,6 +280,7 @@ export function treeToPersisted(node: PaneNode): PersistedPaneNode {
           label: t.label,
           ...(isPeerMarked(t.id) || t.peerAdopted ? { id: t.id } : {}),
           ...(t.fromHost ? { fromHost: true } : {}),
+          ...(t.peerAdopted && t.restoreHere ? { restoreHere: true } : {}),
           ...(t.sessionTitle ? { sessionTitle: t.sessionTitle } : {}),
           ...(t.sessionTitleId ? { sessionTitleId: t.sessionTitleId } : {}),
           ...(t.sessionTitleSource ? { sessionTitleSource: t.sessionTitleSource } : {}),

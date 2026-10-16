@@ -14,6 +14,7 @@ import { ZoomControl } from "../ui/ZoomControl";
 import { decorationOf } from "./gitDecorations";
 import { ancestorsOf } from "./treeModel";
 import type { FileView, FileViewOption } from "./useFileView";
+import { LAYOUT_OPTIONS, NARROW_LAYOUT_OPTIONS } from "../review/diffSplit";
 
 interface FilesHeaderProps {
   rootName: string;
@@ -31,6 +32,8 @@ interface FilesHeaderProps {
   // Reader zoom, for the views that have one: the diff stack and the preview.
   zoom: ContentZoom | null;
   sideBySide: boolean;
+  // False while the stack is too narrow for Split (it renders inline then).
+  canSplit: boolean;
   onSideBySide: (sideBySide: boolean) => void;
   dirty: boolean;
   saving: boolean;
@@ -44,11 +47,6 @@ interface FilesHeaderProps {
   // Shown when the pane sits in a dialog rather than a tab.
   onClose?: () => void;
 }
-
-const LAYOUT_OPTIONS = [
-  { value: "split", label: "Split" },
-  { value: "unified", label: "Unified" },
-] as const;
 
 const CRUMB_CLASS =
   "shrink-0 rounded px-1 py-0.5 text-xs text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]";
@@ -66,6 +64,7 @@ export function FilesHeader({
   allChanges,
   zoom,
   sideBySide,
+  canSplit,
   onSideBySide,
   dirty,
   saving,
@@ -169,8 +168,8 @@ export function FilesHeader({
       )}
       {allChanges ? (
         <SegmentedControl
-          value={sideBySide ? "split" : "unified"}
-          options={LAYOUT_OPTIONS}
+          value={sideBySide && canSplit ? "split" : "unified"}
+          options={canSplit ? LAYOUT_OPTIONS : NARROW_LAYOUT_OPTIONS}
           onChange={(layout) => onSideBySide(layout === "split")}
           variant="subtle"
           ariaLabel="Diff layout"

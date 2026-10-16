@@ -57,6 +57,19 @@ pub fn run(ctx: &Ctx, name: Option<&str>, as_json: bool, full: bool) -> Result<(
     Ok(())
 }
 
+/// The service's pane, when its command has ended: the service isn't running,
+/// whatever its session or port says.
+fn ended_pane<'a>(panes: &'a [Pane], service: &str) -> Option<&'a Pane> {
+    panes.iter().find(|pane| pane.ended && pane.service == service)
+}
+
+fn exit_text(code: Option<i32>) -> String {
+    match code {
+        Some(code) => format!("exited ({code})"),
+        None => "exited".to_string(),
+    }
+}
+
 // ---- JSON rendering ---------------------------------------------------------
 
 /// Full action shape (every resolved field). Used with `--full`.
@@ -105,6 +118,7 @@ fn render_json(
         .iter()
         .map(|s| {
             let st = service_status(s.port, session_running);
+            let ended = ended_pane(panes, &s.name);
             let mut o = json!({
                 "name": s.name,
                 "cmd": s.cmd,
@@ -113,10 +127,13 @@ fn render_json(
                 "port": s.port,
                 "portConflict": s.port_conflict,
                 "env": s.env,
-                "running": st.running,
-                "runningSource": st.source,
+                "running": st.running && ended.is_none(),
+                "runningSource": if ended.is_some() { "exited" } else { st.source },
                 "portListening": st.port_listening,
             });
+            if let Some(pane) = ended {
+                o["exitCode"] = json!(pane.code);
+            }
             // env is the heaviest per-service field; drop it in the lean view.
             if !full {
                 o.as_object_mut().unwrap().remove("env");
@@ -134,6 +151,7 @@ fn render_json(
                 "currentCommand": pane.current_command,
                 "currentPath": pane.current_path,
                 "title": pane.title,
+                "ended": pane.ended,
             })
         })
         .collect();
@@ -257,10 +275,12 @@ fn render_human(
     };
     o.push_str(&format!("  {}   {}\n", s.dim("status"), run_label));
     for pane in panes {
-        let cmd = if pane.current_command.is_empty() {
-            "—"
+        let cmd = if pane.ended {
+            exit_text(pane.code)
+        } else if pane.current_command.is_empty() {
+            "—".to_string()
         } else {
-            &pane.current_command
+            pane.current_command.clone()
         };
         o.push_str(&format!(
             "    {} {}  {}\n",
@@ -277,7 +297,9 @@ fn render_human(
     }
     for svc in &p.services {
         let st = service_status(svc.port, session_running);
-        let badge = if st.running {
+        let badge = if let Some(pane) = ended_pane(panes, &svc.name) {
+            s.red(&format!("○ {}", exit_text(pane.code)))
+        } else if st.running {
             s.green("● running")
         } else {
             s.red("○ stopped")
@@ -549,6 +571,21 @@ mod tests {
         assert!(act.get("env").is_some());
         assert_eq!(act["emoji"], "🚀");
         assert_eq!(act["ports"][0], 3000);
+    }
+
+    #[test]
+    fn a_service_whose_command_ended_reads_as_exited_with_its_code() {
+        let p = project_with_content();
+        let panes: Vec<Pane> = serde_json::from_value(json!([
+            {"id": "%1", "service": "web", "ended": true, "code": 1}
+        ]))
+        .unwrap();
+        let v = render_json(&p, true, &panes, &[], None, false);
+        assert_eq!(v["services"][0]["running"], false);
+        assert_eq!(v["services"][0]["runningSource"], "exited");
+        assert_eq!(v["services"][0]["exitCode"], 1);
+        let human = render_human(&Style { on: false }, &p, true, &panes, None);
+        assert!(human.contains("○ exited (1) web"), "{human}");
     }
 
     #[test]

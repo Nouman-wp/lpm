@@ -57,6 +57,13 @@ pub struct Pane {
     pub current_path: String,
     #[serde(default)]
     pub title: String,
+    /// The pane's service command has ended (it crashed, exited, or its shell
+    /// did); the pane stays until the service is restarted or stopped.
+    #[serde(default)]
+    pub ended: bool,
+    /// The status it ended with, when the shell reported one.
+    #[serde(default)]
+    pub code: Option<i32>,
 }
 
 /// Panes for a session in creation order. Empty on error / no session.

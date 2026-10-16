@@ -130,13 +130,21 @@ marker before sending over the wire; the host only ever sees raw host-local ids.
 
 First client frame within 20s, or the host closes the socket.
 
-- **Pair** (first time): client → `{ "t": "pair", "code", "name", "platform" }`
+- **Pair** (first time): client → `{ "t": "pair", "code", "name", "platform", "replaces"? }`
   host → `{ "t": "paired", "deviceId", "token", "slug", "hostName", "hostPlatform", "hostHeadless" }`
   The single-use pairing code is consumed on success. `name` is the client
-  machine's display name; `hostName` is the host's.
+  machine's display name; `hostName` is the host's. `replaces` (also on
+  `pairRequest`) is the `deviceId` the client already holds for this host, sent
+  when it pairs a host it already has (same certificate or address): the host
+  drops that record and hands the new one its slug, so the client replaces its
+  entry instead of listing the host twice. The client also drops any other entry
+  with the same `hostId` once paired. An older host ignores the field.
 - **Resume** (already paired): client → `{ "t": "auth", "deviceId", "token" }`
   host → `{ "t": "ready", "hostName", "hostPlatform", "hostHeadless", "hostVersion", "phoneServerId", "features": ["configSync", "configSync2"] }`
 - On failure either returns `{ "t": "error", "error" }` and the host closes.
+- **Forget** (authed): client → `{ "t": "forget" }` when the client disconnects
+  the host on its side. The host drops the client's record and closes, so it
+  stops listing and trusting it. An older host ignores it.
 
 `platform` / `hostPlatform` are `std::env::consts::OS` spelling (`macos`, `linux`,
 `windows`). Both are absent from a build that predates them, which reads as
@@ -327,7 +335,8 @@ A Mac showing a host project opens a tab for each terminal the host lists, and
 closes the tabs the host closed. It asks `list_project_terminals { projectName,
 withTabs: true }` (answered in Rust, so a headless host answers too) when the
 project mounts, when the host emits `terminals-changed`, and when its window gains
-focus. The answer is `{ terminals, tabs, run }`:
+focus. The host emits `terminals-changed` when a project's tabs, their order,
+names, pins or icons change. The answer is `{ terminals, tabs, run, follow }`:
 
 - `terminals` — the host's live terminals in its tab order, as without `withTabs`.
 - `tabs` — the ids of every tab the host's window has open for the project,
@@ -335,20 +344,43 @@ focus. The answer is `{ terminals, tabs, run }`:
   only once its saved tabs are restored, so an empty list means every tab closed.
   A headless host has no window and never reports them.
 - `run` — changes every time the host app starts.
+- `follow` — the host keeps the tabs' names and order for every Mac (below).
+
+A project the host hasn't shown since it started has no `tabs` yet. Asking about
+one that has saved tabs makes the host restore them off screen; its
+`terminals-changed` follows once they are back.
 
 The client closes a tab the host listed earlier in the same `run` and no longer
 lists, without stopping its terminal: an Undo on the host brings the tab back, and
 the next sync opens it again. A tab the host hasn't listed yet (one this Mac just
 opened there) stays, and so do tabs from before a host restart.
 
+**Following the host.** With `follow`, the host's tab tree is the one place a
+project's tabs are named and ordered. The client gives each host terminal the
+host's label, pin and icon, and orders the tabs within each of its panes as the
+host lists them (its pane layout stays its own). A rename, pin, reorder or "use
+conversation title" made on the client goes to the host as `terminal_tab_op
+{ projectName, op: "rename"|"pin"|"reorder"|"title", id?, label?, emoji?, order? }`
+(the same relay a phone's tab edits take), and comes back with the next listing.
+After a host restart (a new `run`) the client asks `terminal_exists` about each
+of its tabs the host no longer lists and closes the ones that are gone; the host's
+restored tabs open in their place.
+
 **Compatibility.** A host that predates `withTabs` ignores it and answers with the
 plain array, and the client closes nothing. A client that predates it never asks.
+A host without `follow` gets no `terminal_tab_op`: the client keeps its own names
+and order, as before.
 
-After the host app restarts, each terminal is relaunched only by the Mac that
-started it. The host relaunches its own tabs and drops the dead ones a paired Mac
-started there. A paired Mac relaunches only the tabs it started; a tab it opened
-because the host had the terminal (`fromHost` in its saved tabs) is dropped on
-restore and comes back through the sync once the host has relaunched it.
+After the host app restarts, each terminal is relaunched exactly once. A client
+starting a terminal on the host adds `restoreHere: true` to the start command's
+arguments; the host keeps that on the tab and, after a restart, relaunches it in
+place, under its name, like its own tabs. A client whose host `follow`s drops its
+dead tabs for that host on restore and gets the relaunched ones through the sync.
+Without `follow` (an older host) the client relaunches the tabs it started, and
+the host drops the dead ones that carry no `restoreHere`, so an older client still
+relaunches its own and nothing runs twice. A tab the client opened because the
+host had the terminal (`fromHost` in its saved tabs) is always the host's to
+relaunch.
 
 ## Global event forwarding
 

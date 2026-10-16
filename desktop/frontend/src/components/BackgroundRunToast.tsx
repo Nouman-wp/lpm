@@ -6,24 +6,25 @@ import {
   getBackgroundRunLines,
   subscribeBackgroundRun,
 } from "../store/backgroundRuns";
+import {
+  type BackgroundRunStatus,
+  backgroundRunDuration,
+  failureText,
+  formatElapsed,
+} from "./backgroundRunToastText";
 
-export type BackgroundRunStatus = "running" | "success" | "error" | "cancelled";
+export type { BackgroundRunStatus };
 
 interface BackgroundRunToastProps {
   runId: string;
   label: string;
   status: BackgroundRunStatus;
   startedAt: number;
+  endedAt?: number;
   error?: string;
   onCancel: () => void;
+  onExpand: () => void;
   onDismiss: () => void;
-}
-
-function formatElapsed(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
 function StatusIcon({ status }: { status: BackgroundRunStatus }) {
@@ -44,8 +45,10 @@ export function BackgroundRunToast({
   label,
   status,
   startedAt,
+  endedAt,
   error,
   onCancel,
+  onExpand,
   onDismiss,
 }: BackgroundRunToastProps) {
   const lines = useSyncExternalStore(
@@ -94,7 +97,7 @@ export function BackgroundRunToast({
           {label}
         </span>
         <span className="shrink-0 text-[11px] tabular-nums text-[var(--text-muted)]">
-          {formatElapsed((running ? now : Date.now()) - startedAt)}
+          {formatElapsed((running ? now : endedAt ?? now) - startedAt)}
         </span>
         {lines.length > 0 && (
           <button
@@ -113,7 +116,10 @@ export function BackgroundRunToast({
         )}
         <button
           type="button"
-          onClick={() => setExpanded((v) => !v)}
+          onClick={() => {
+            if (!expanded) onExpand();
+            setExpanded(!expanded);
+          }}
           className="flex shrink-0 items-center gap-0.5 rounded-md px-1.5 py-1 text-[11px] text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         >
           Output
@@ -143,7 +149,7 @@ export function BackgroundRunToast({
       </div>
       {status === "error" && error && (
         <div className="break-words px-3 pb-2.5 text-[11px] leading-snug text-[var(--accent-red)]">
-          {error}
+          {failureText(error, expanded && lines.length > 0)}
         </div>
       )}
       {expanded && (
@@ -168,6 +174,9 @@ export function BackgroundRunToast({
   );
 }
 
+// Runs whose output the user opened: their toast stays until dismissed.
+const pinnedRuns = new Set<string>();
+
 export function showBackgroundRunToast(opts: {
   runId: string;
   label: string;
@@ -177,21 +186,31 @@ export function showBackgroundRunToast(opts: {
   onCancel: () => void;
 }) {
   const id = `bg-run-${opts.runId}`;
-  toast.custom(
-    () => (
-      <BackgroundRunToast
-        {...opts}
-        onDismiss={() => {
-          toast.dismiss(id);
-          clearBackgroundRun(opts.runId);
-        }}
-      />
-    ),
-    {
-      id,
-      duration:
-        opts.status === "running" || opts.status === "error" ? Infinity : 4000,
-      onAutoClose: () => clearBackgroundRun(opts.runId),
-    },
-  );
+  const endedAt = opts.status === "running" ? undefined : Date.now();
+  const release = () => {
+    pinnedRuns.delete(opts.runId);
+    clearBackgroundRun(opts.runId);
+  };
+  const show = () =>
+    toast.custom(
+      () => (
+        <BackgroundRunToast
+          {...opts}
+          endedAt={endedAt}
+          onExpand={() => {
+            if (pinnedRuns.has(opts.runId)) return;
+            pinnedRuns.add(opts.runId);
+            show();
+          }}
+          onDismiss={() => toast.dismiss(id)}
+        />
+      ),
+      {
+        id,
+        duration: backgroundRunDuration(opts.status, pinnedRuns.has(opts.runId)),
+        onAutoClose: release,
+        onDismiss: release,
+      },
+    );
+  show();
 }

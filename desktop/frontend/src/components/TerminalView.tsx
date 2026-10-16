@@ -20,6 +20,7 @@ import {
   isTerminalTab,
   terminalDisplayLabel,
   type TerminalInstance,
+  type AdoptedTabOpts,
 } from "../paneTree";
 import { agentSessionOf } from "../agentSession";
 import { scanMemoryInvocation } from "../terminalMemory";
@@ -72,7 +73,7 @@ function dropTerminalSession(id: string) {
 interface TerminalViewProps {
   projectName: string;
   projectRoot: string;
-  services: { name: string; cwd?: string }[];
+  services: { name: string; cwd?: string; exited?: boolean; exitCode?: number | null }[];
   terminalTheme: TerminalThemeName;
   onTerminalCountChange?: (count: number) => void;
   fontSize: number;
@@ -91,19 +92,21 @@ interface TerminalViewProps {
 }
 
 export interface TerminalViewHandle {
-  createTerminal(): void;
+  createTerminal(background?: boolean): void;
   createTerminalWithCmd(label: string, cmd: string, opts?: TerminalStartOpts): void;
   // Adopt a peer-spawned pty as a tab (no new pty, no command injection).
-  adoptTerminal(id: string, label?: string, opts?: { startCmd?: string; resumeCmd?: string; actionName?: string }): void;
+  adoptTerminal(id: string, label?: string, opts?: AdoptedTabOpts): void;
   resumeFromHistory(entry: PersistedHistoryEntry): void;
   // Submit a command into the focused pane's active terminal. Returns false
   // (with a toast) when no live terminal is focused.
   sendCommandToActive(cmd: string): boolean;
-  // Terminal-tab ops relayed from the mobile app, addressed by terminal id.
+  // Terminal-tab ops relayed from a phone or a paired Mac, addressed by
+  // terminal id.
   remoteCloseTerminal(id: string): void;
   // A peer Mac closed this terminal — drop its tab (no second stop_terminal).
   removeAdoptedTerminal(id: string): void;
-  remoteRenameTerminal(id: string, label: string): void;
+  remoteRenameTerminal(id: string, label: string, emoji?: string): void;
+  remoteRestoreTitle(id: string): void;
   remoteTogglePin(id: string): void;
   remoteReorderTerminals(order: string[]): void;
   // Bring one of this project's terminals on screen, addressed by terminal id.
@@ -197,6 +200,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     openAutomationsTab,
     closeTerminal,
     closeOtherTerminals,
+    restartTerminal,
     focusTerminal,
     focusAdjacentPaneItem,
     focusService,
@@ -207,6 +211,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     remoteCloseTerminal,
     removeAdoptedTerminal,
     remoteRenameTerminal,
+    remoteRestoreTitle,
     remoteTogglePin,
     remoteReorderTerminals,
     moveTerminal,
@@ -229,6 +234,13 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   const servicesKey = services.map((s) => s.name).join(",");
   const stableServices = useMemo(() => services, [servicesKey]);
+  const serviceExitsKey = services
+    .map((s) => (s.exited ? `${s.name}:${s.exitCode ?? ""}` : ""))
+    .join(",");
+  const serviceExits = useMemo(
+    () => new Map(services.filter((s) => s.exited).map((s) => [s.name, s.exitCode ?? null] as const)),
+    [serviceExitsKey],
+  );
   // Only the owner runs the 3s system-wide lsof port scan. A detached project is
   // mounted in both windows, so gating the mirror off avoids doubling a load the
   // freeze audit already flagged; the mirror's service tabs simply omit port
@@ -283,8 +295,10 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
         sessionKey: `${projectName}:${svc.name}`,
         cwd: projectRoot ? joinAbs(projectRoot, svc.cwd ?? "") : "",
         ports: servicePorts[svc.name] ?? [],
+        exited: serviceExits.has(svc.name),
+        exitCode: serviceExits.get(svc.name) ?? null,
       })),
-    [stableServices, outputs, projectName, projectRoot, servicePorts],
+    [stableServices, outputs, projectName, projectRoot, servicePorts, serviceExits],
   );
 
   // Session keys for all service Panes owned by this TerminalView.
@@ -694,22 +708,26 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     let streaming = false;
     let prevPollOutputs: string[] = [];
 
-    try {
-      StartLogStreaming(projectName, LOG_VIEWER).catch(() => {});
-      const cancel = EventsOn("log-update", (update: { project: string; pane: number; content: string }) => {
-        if (update?.project !== projectName) return;
-        setOutputs((prev) => {
-          if (update.pane < 0 || update.pane >= prev.length) return prev;
-          if (prev[update.pane] === update.content) return prev;
-          const next = [...prev];
-          next[update.pane] = update.content;
-          return next;
+    // `log-update` stays on the Mac it's emitted on, so another Mac's project
+    // polls its logs instead — only the Mac looking at them pays for that.
+    if (!isPeerName(projectName)) {
+      try {
+        StartLogStreaming(projectName, LOG_VIEWER).catch(() => {});
+        const cancel = EventsOn("log-update", (update: { project: string; pane: number; content: string }) => {
+          if (update?.project !== projectName) return;
+          setOutputs((prev) => {
+            if (update.pane < 0 || update.pane >= prev.length) return prev;
+            if (prev[update.pane] === update.content) return prev;
+            const next = [...prev];
+            next[update.pane] = update.content;
+            return next;
+          });
         });
-      });
-      if (typeof cancel === "function") eventCleanup = cancel;
-      streaming = true;
-    } catch {
-      // fall through to polling
+        if (typeof cancel === "function") eventCleanup = cancel;
+        streaming = true;
+      } catch {
+        // fall through to polling
+      }
     }
 
     const poll = async () => {
@@ -927,7 +945,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       const ok = handle?.submitInput(input) ?? false;
       // A live session also returns false transiently while a prior submit is
       // still delivering, so only warn for a genuinely dead/missing session.
-      if (!ok && (!handle || isInteractivePaneSessionDead(terminalId))) {
+      if (!ok && handle && isInteractivePaneSessionDead(terminalId)) {
+        toast.error("This terminal has ended. Restart it or close the tab.");
+      } else if (!ok && !handle) {
         toast.error("This terminal isn't accepting input right now.");
       }
       // Only a delivered prompt counts here — unlike the seeded path there is no
@@ -961,14 +981,21 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     return () => registerProjectSubmit(projectName, null);
   }, [projectName, submitPromptFromElsewhere]);
 
-  // Stopping a running service is a toggle — the service tab only exists while
-  // the service runs, so toggling it from that tab always stops it.
-  const toggleService = useAppStore((s) => s.toggleService);
+  // Not a toggle: the tab of a service whose command has ended stays open, and
+  // toggling that service would run it again.
+  const stopServiceIn = useAppStore((s) => s.stopService);
   const stopService = useCallback(
     (serviceName: string) => {
-      void toggleService(projectName, serviceName);
+      void stopServiceIn(projectName, serviceName);
     },
-    [toggleService, projectName],
+    [stopServiceIn, projectName],
+  );
+  const restartServiceIn = useAppStore((s) => s.restartService);
+  const restartService = useCallback(
+    (serviceName: string) => {
+      void restartServiceIn(projectName, serviceName);
+    },
+    [restartServiceIn, projectName],
   );
 
   // "Run in duplicates" from a composer's split button: the current prompt (with
@@ -1067,6 +1094,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       remoteCloseTerminal,
       removeAdoptedTerminal,
       remoteRenameTerminal,
+      remoteRestoreTitle,
       remoteTogglePin,
       remoteReorderTerminals,
       focusTerminalById,
@@ -1083,6 +1111,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       remoteCloseTerminal,
       removeAdoptedTerminal,
       remoteRenameTerminal,
+      remoteRestoreTitle,
       remoteTogglePin,
       remoteReorderTerminals,
       focusTerminalById,
@@ -1123,6 +1152,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onFocusTab={focusTerminal}
             onFocusService={focusService}
             onStopService={stopService}
+            onRestartService={restartService}
             onAddTerminal={addTerminalToPane}
             onAddBrowser={addBrowserToPane}
             onReviewChanges={(paneId) => showFilesView(paneId, "changes")}
@@ -1132,6 +1162,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onResumeSession={onResumeSession}
             onCloseTerminal={closeTerminal}
             onCloseOtherTerminals={closeOtherTerminals}
+            onRestartTerminal={restartTerminal}
             onForkTerminal={forkTerminal}
             canForkIntoCopy={canForkIntoCopy}
             onForkTerminalIntoCopy={requestForkIntoCopy}

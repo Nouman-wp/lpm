@@ -83,6 +83,7 @@ import {
   TerminalUnpresentControl,
   TerminalClaimControl,
 } from "../../bridge/commands";
+import { useEndedTerminals } from "../store/endedTerminals";
 import "@xterm/xterm/css/xterm.css";
 
 // Cross-window flow-control ack authority (one window acks a PTY's output; two
@@ -368,6 +369,7 @@ export function disposeInteractivePaneSession(terminalId: string) {
   if (!s) return;
   disposeSession(s);
   interactiveSessions.delete(terminalId);
+  useEndedTerminals.getState().forget(terminalId);
   // The mirror of the attach below: the screen this id's stream was being applied
   // to is gone, so the peer client must stop re-subscribing it on every reconnect
   // and must forget the offset it would otherwise resume from — resuming into a
@@ -556,6 +558,7 @@ export function revivePeerSession(terminalId: string): void {
   if (!session || !isPeerName(terminalId)) return;
   if (!session.sessionDead || session.exited) return;
   session.sessionDead = false;
+  useEndedTerminals.getState().forget(terminalId);
   session.term.options.disableStdin = false;
   session.term.options.cursorBlink = true;
 }
@@ -942,6 +945,7 @@ function createInteractiveSession(
   const handleWriteError = () => {
     if (!writeErrorIsFatal(terminalId)) return;
     markDead("[Session disconnected]", "91");
+    useEndedTerminals.getState().mark(terminalId, null);
   };
   session.handleWriteError = handleWriteError;
 
@@ -1063,6 +1067,7 @@ function createInteractiveSession(
   // pane says why instead of reporting an exit code nothing actually returned.
   const cleanupGone = EventsOn("pty-gone-" + terminalId, () => {
     markDead("[This session is no longer running on the other machine]", "90");
+    useEndedTerminals.getState().mark(terminalId, null);
   });
 
   const cleanupExit = EventsOn(
@@ -1079,9 +1084,11 @@ function createInteractiveSession(
               : `[Process exited with code ${exitCode}]`,
             "90",
           );
+          if (!remote) useEndedTerminals.getState().mark(terminalId, exitCode);
         });
       } else {
         markDead(`[Process exited with code ${exitCode}]`, "90");
+        useEndedTerminals.getState().mark(terminalId, exitCode);
       }
       session.onExit?.(exitCode);
     },
