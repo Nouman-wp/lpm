@@ -1285,7 +1285,7 @@ pub fn git_push(cwd: String, flags: Vec<String>) -> Result<(), String> {
     args.extend(flags);
     args.extend(["-u", "origin", "HEAD"].iter().map(|s| s.to_string()));
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    git_out(&cwd, &refs).map(|_| ())
+    git_out(&cwd, &refs).map(|_| crate::gitmoved::announce(&cwd))
 }
 
 #[tauri::command(async)]
@@ -1322,7 +1322,7 @@ pub fn git_merge(cwd: String, branch: String) -> Result<(), String> {
     if branch.is_empty() {
         return Err("branch name required".into());
     }
-    git_out(&cwd, &["merge", "--no-edit", branch]).map(|_| ())
+    git_out(&cwd, &["merge", "--no-edit", branch]).map(|_| crate::gitmoved::announce(&cwd))
 }
 
 #[tauri::command(async)]
@@ -1348,7 +1348,7 @@ pub fn pull_branch(cwd: String, strategy: String, flags: Vec<String>) -> Result<
     let mut args: Vec<String> = pull_args(&strategy).into_iter().map(String::from).collect();
     args.extend(flags);
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    git_out(&cwd, &refs).map(|_| ())
+    git_out(&cwd, &refs).map(|_| crate::gitmoved::announce(&cwd))
 }
 
 // ---- gh / PR ----------------------------------------------------------------

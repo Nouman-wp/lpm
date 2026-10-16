@@ -188,6 +188,7 @@ pub fn git_auto_pull(cwd: String) -> Result<AutoPullOutcome, String> {
     };
     let from = git_out(&cwd, &["rev-parse", "HEAD"])?;
     git_out(&cwd, &["merge", "--ff-only", "--quiet", &upstream])?;
+    crate::gitmoved::announce(&cwd);
     let record = Record {
         branch,
         count,
@@ -232,6 +233,7 @@ pub fn git_auto_pull_undo(cwd: String) -> Result<AutoPulled, String> {
         return Err("This auto pull can't be undone: the branch has moved since.".into());
     };
     git_out(&cwd, &["reset", "--keep", "--quiet", &record.from])?;
+    crate::gitmoved::announce(&cwd);
     let k = key(&cwd);
     let mut mem = memory();
     mem.last.remove(&k);

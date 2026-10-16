@@ -84,6 +84,7 @@ mod gitfollowrun;
 mod gitfollowstore;
 mod gitpush;
 mod gitsync;
+mod gitmoved;
 mod gitwatchhost;
 mod gitworkstate;
 mod hookform;
@@ -544,6 +545,7 @@ pub fn run() {
             // Live usage-limit meters: scan Codex's newest rollout and watch
             // ~/.codex/sessions; Claude limits arrive via the statusline
             // forwarder over the status socket once the user opts in.
+            gitmoved::init(&handle);
             agent_limits::start(handle.clone());
             agent_limits_share::start(&handle);
             claude_pool::init(&handle);
