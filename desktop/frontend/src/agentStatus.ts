@@ -53,6 +53,8 @@ export interface ProjectStatus {
   className: string | null;
 }
 
+const ERROR_NAME_CLASS = "text-[var(--accent-red-text)]";
+
 // A project holds one status per agent; the row decoration shows the most
 // urgent of them.
 export function computeProjectStatus(
@@ -81,18 +83,19 @@ export function computeProjectStatus(
   const className = isWaiting
     ? "sidebar-waiting"
     : isError
-    ? "text-[var(--accent-red-text)]"
+    ? ERROR_NAME_CLASS
     : isWorking
     ? "sidebar-shimmer"
     : null;
   return { isDone, isWaiting, isError, className };
 }
 
-// The rows listed under an expanded project already shimmer while they work,
-// so the name only carries the working state while they are folded away.
+// The rows listed under an expanded project already pulse while they wait and
+// shimmer while they work, so the name only carries those states while the rows
+// are folded away. A problem stays on the name either way.
 export function rowNameClass(status: ProjectStatus, tasksListed: boolean): string | null {
-  if (tasksListed && status.className === "sidebar-shimmer") return null;
-  return status.className;
+  if (!tasksListed) return status.className;
+  return status.isError ? ERROR_NAME_CLASS : null;
 }
 
 export interface AgentAmbient {

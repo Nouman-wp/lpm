@@ -282,13 +282,18 @@ describe("SidebarFooterNav Terminals agents", () => {
     expect(onOpenTerminalTab).toHaveBeenCalledWith("t1");
   });
 
-  it("pulses amber while one waits and names a problem on the row", () => {
+  it("leaves a wait to its rows until they fold, and names a problem on the row", () => {
     seed([entry(STATUS_WAITING, "t1"), entry(STATUS_ERROR, "t2")]);
     renderNav();
 
     const terminals = buttonWithText("Terminals")!;
-    expect(terminals.querySelector(".sidebar-waiting")?.textContent).toBe("Terminals");
+    expect(terminals.querySelector(".sidebar-waiting")).toBeNull();
     expect(terminals.textContent).toContain("Problem");
+
+    act(() => byLabel("Hide agents in Terminals")!.click());
+    expect(buttonWithText("Terminals")!.querySelector(".sidebar-waiting")?.textContent).toBe(
+      "Terminals",
+    );
   });
 
   it("sends an agent with no tab to the Terminals view", () => {

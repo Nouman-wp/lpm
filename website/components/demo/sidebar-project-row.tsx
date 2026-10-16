@@ -12,18 +12,19 @@ const ROW_BASE =
   "flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm outline-none transition-colors";
 
 // The name reads the most pressing of the project's agents, as the app's row
-// does: amber while one waits, red for a problem, and a shimmer while one works
-// — but only with its rows folded, since the rows listed under it already
-// shimmer. A landed turn tints the name blue under whichever of those applies.
+// does: amber while one waits, red for a problem, and a shimmer while one works.
+// With its rows listed, only the problem stays — the rows under it already pulse
+// and shimmer. A landed turn tints the name blue under whichever applies.
 function nameTone(statuses: AiStatus[], tasksListed: boolean) {
   const has = (status: AiStatus) => statuses.includes(status);
-  const tone = has("waiting")
-    ? "sidebar-waiting"
-    : has("error")
-      ? "text-[#f87171]"
-      : has("running") && !tasksListed
-        ? "sidebar-shimmer"
-        : null;
+  const tone =
+    has("waiting") && !tasksListed
+      ? "sidebar-waiting"
+      : has("error")
+        ? "text-[#f87171]"
+        : has("running") && !tasksListed
+          ? "sidebar-shimmer"
+          : null;
   return { tone, done: has("done"), error: has("error") };
 }
 

@@ -61,14 +61,27 @@ describe("rowNameClass", () => {
     expect(rowNameClass(running, true)).toBe(null);
   });
 
-  it("keeps a wait and a problem on the name with the tasks listed", () => {
+  it("keeps the wait on the name while the tasks are hidden", () => {
+    const waiting = computeProjectStatus([entry("codex_%3", STATUS_WAITING)]);
+    expect(rowNameClass(waiting, false)).toBe("sidebar-waiting");
+  });
+
+  it("drops the wait once the tasks are listed under the row", () => {
     const waiting = computeProjectStatus([
       entry("claude_code_abc123", STATUS_RUNNING),
       entry("codex_%3", STATUS_WAITING),
     ]);
+    expect(rowNameClass(waiting, true)).toBe(null);
+  });
+
+  it("keeps a problem on the name with the tasks listed, even beside a wait", () => {
     const failed = computeProjectStatus([entry("codex_%4", STATUS_ERROR)]);
-    expect(rowNameClass(waiting, true)).toBe("sidebar-waiting");
+    const both = computeProjectStatus([
+      entry("codex_%3", STATUS_WAITING),
+      entry("codex_%4", STATUS_ERROR),
+    ]);
     expect(rowNameClass(failed, true)).toBe("text-[var(--accent-red-text)]");
+    expect(rowNameClass(both, true)).toBe("text-[var(--accent-red-text)]");
   });
 });
 
