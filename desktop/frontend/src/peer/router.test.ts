@@ -290,4 +290,12 @@ describe("isLocalOnlyCommand", () => {
     expect(isLocalOnlyCommand("write_terminal")).toBe(false);
     expect(isLocalOnlyCommand("start_terminal")).toBe(false);
   });
+
+  it("reads a paired machine's agent answers there, from its transcript", () => {
+    expect(isLocalOnlyCommand("agent_last_answer")).toBe(false);
+    expect(isLocalOnlyCommand("agent_recent_answers")).toBe(false);
+    const args = { projectName: prefixName(A, "web"), provider: "claude", sessionId: "s-1" };
+    expect(findAgreedSlug(args)).toBe(A);
+    expect(stripArgs(args)).toEqual({ projectName: "web", provider: "claude", sessionId: "s-1" });
+  });
 });

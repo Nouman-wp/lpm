@@ -340,11 +340,19 @@ function PaneViewImpl(props: PaneViewProps) {
   const composerStatus = paneAgentStatus(paneStatus, composerTab?.id);
   const composerForkable = composerTab !== null && canForkSession(composerTab.resumeCmd);
   // The agent conversation behind the active terminal, when its transcript is
-  // readable on this Mac — what both copy-last-answer buttons act on.
+  // readable on this Mac.
   const composerSession =
     localAgentSessions && composerTab && peerSlugOf(composerTab.id) === null
       ? agentSessionOf(composerTab)
       : null;
+  // What both copy-last-answer buttons act on. A connected computer's terminal
+  // copies too: the project's marked name sends the transcript read there.
+  const projectPeer = peerSlugOf(projectName);
+  const copySession =
+    composerSession ??
+    (composerTab && projectPeer !== null && peerSlugOf(composerTab.id) === projectPeer
+      ? agentSessionOf(composerTab)
+      : null);
 
   // A finish that lands on the tab already in front is the easiest one to miss:
   // it arrives while the user is somewhere else entirely. So the badge stays put
@@ -695,13 +703,13 @@ function PaneViewImpl(props: PaneViewProps) {
           );
         })}
       </div>
-      {composerSession && (
+      {copySession && (
         // Zero-height rail on the seam between the terminal and the composer,
         // so the pill can hang below the terminal's clipped content box.
         <div className="relative h-0">
           <TerminalCopyAnswerOverlay
             projectName={projectName}
-            session={composerSession}
+            session={copySession}
             // Hidden only while the agent is visibly producing the next
             // answer. Anything else — waiting, done, error, or no status
             // reported at all — leaves the last answer worth copying.
