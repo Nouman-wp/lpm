@@ -7,9 +7,8 @@ import { loadSettings } from "./store/settings";
 import { loadTerminals } from "./terminals";
 import { loadGroups } from "./store/groups";
 import { hydrateComposerActions } from "./store/composerActions";
-import { applyTheme } from "./theme";
+import { applySettingsOutsideStore } from "./settingsEffects";
 import { hydrateAppStore } from "./store/app";
-import { useComposerStore } from "./store/composer";
 import { initTTSEvents } from "./store/tts";
 import { useGeneratorsStore } from "./store/generators";
 import { useWorkStatusesStore } from "./store/workStatuses";
@@ -95,9 +94,8 @@ async function startApplication() {
       loadGroups(),
       hydrateComposerActions(),
     ]);
-    applyTheme(settings.theme);
+    applySettingsOutsideStore(settings);
     hydrateAppStore(groups);
-    useComposerStore.getState().hydrate(settings.composerOpen ?? true);
     useGeneratorsStore.getState().hydrate();
     useWorkStatusesStore.getState().hydrate();
     useAccountsStore.getState().hydrate();

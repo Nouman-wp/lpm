@@ -83,6 +83,7 @@ const HOST_FEATURES: &[&str] = &[
     crate::peerread::FILE_RANGE_FEATURE,
     REMOTE_PAIR_FEATURE,
     crate::peersettings::HOST_SETTINGS_FEATURE,
+    crate::peersettings::ALL_HOST_SETTINGS_FEATURE,
     crate::remote::relayed::PHONE_RELAY_FEATURE,
     crate::agent_limits_share::LIMITS_FEATURE,
 ];
@@ -1482,9 +1483,9 @@ fn handle_msg(
         // back to the Mac that asked.
         "selfUpdate" => crate::peerupdate::handle_start(app, out, &v),
         "selfUpdateCancel" => crate::peerupdate::handle_cancel(app, out, &v),
-        // A paired Mac reading or changing the few settings that are this
-        // machine's own. Settings are on the invoke denylist; these frames reach
-        // only those fields (peersettings.rs).
+        // A paired Mac reading or changing this machine's settings. Settings are
+        // on the invoke denylist; these frames reach only the fields its Settings
+        // view shows for this machine (peersettings.rs).
         "settingsGet" | "settingsSet" => crate::peersettings::handle(app, out, t, &v),
         // A client's Claude usage limits, and from its first one on, this
         // machine's own in return (agent_limits_share.rs).
@@ -2726,10 +2727,12 @@ mod tests {
     }
 
     // Off this list the asking Mac tells the user to update a host that already
-    // shares its settings.
+    // shares its settings — the first flag with a Mac from before every setting
+    // was shared, the second with one since.
     #[test]
     fn host_settings_are_advertised_in_ready() {
         assert!(HOST_FEATURES.contains(&crate::peersettings::HOST_SETTINGS_FEATURE));
+        assert!(HOST_FEATURES.contains(&crate::peersettings::ALL_HOST_SETTINGS_FEATURE));
     }
 
     // Off this list no Mac can update lpm here; on it where lpm can't replace

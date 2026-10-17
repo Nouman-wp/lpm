@@ -172,8 +172,9 @@ entries ignored). `configSync` = the config-sync frames below exist at all;
 the host will hand back its own phone-pairing QR (see **Commands**); `mediaRange` =
 the host serves a video's byte ranges for preview (see **Commands**); `selfUpdate` =
 the client can have the host install the latest lpm (see **Commands**);
-`hostSettings` = the host shares the few settings that are its own (see
-**Commands**); `agentLimits` = the host trades Claude usage limits (see **Usage
+`hostSettings` = the host answers the settings frames (see **Commands**);
+`hostSettingsAll` = it shares every setting there, not only the first three;
+`agentLimits` = the host trades Claude usage limits (see **Usage
 limits**). A host
 missing a feature simply never receives frames that depend on it. The full list
 is `host_features()` in `peer.rs`.
@@ -262,18 +263,23 @@ gets dedicated frames:
   install can still stop (checking or downloading), `false` once it has started
   replacing the app or when none is running.
 
-**Host settings** (`hostSettings` feature). `save_settings` stays on the denylist:
-most settings are how the machine someone sits at shows things. These frames reach
-only the fields that belong to the host itself — `defaultProjectDirectory`,
-`checkOrigin`, `doubleClickToToggle` (`SHARED` in `peersettings.rs`):
+**Host settings** (`hostSettings` / `hostSettingsAll` features). `save_settings`
+stays on the denylist, so the client's Settings view reaches the host's settings
+through these frames, which touch only the fields that view shows (`SHARED` in
+`peersettings.rs`: theme, sidebar, Git, notification, terminal, shortcut and
+speech settings). Window geometry, sidebar order and the rest of what the host keeps
+for itself are out of reach. A `hostSettings` host without `hostSettingsAll`
+shares only `defaultProjectDirectory`, `checkOrigin` and `doubleClickToToggle`;
+the client asks the user to update it rather than send it the frames.
 
 - client → `{ "t": "settingsGet", "reqId" }` → `result` with those fields the host
   has set; a missing field means its default.
 - client → `{ "t": "settingsSet", "reqId", "patch": { … } }` → `result` with the
-  fields as stored afterwards. `defaultProjectDirectory` takes a path, or `null` /
-  `""` to clear it; the others take a bool. Any other key or kind fails the whole
-  patch and writes nothing. On success the host emits `peer-settings-changed` so
-  its own windows reload settings.
+  fields as stored afterwards. Each field is checked against its kind (bool, path,
+  name, bounded number, one of a few words, or a map of hotkey ids to combos);
+  `null` clears any field, and `""` clears a path or name. Any other key or kind
+  fails the whole patch and writes nothing. On success the host emits
+  `peer-settings-changed` so its own windows reload settings.
 
 ## Terminal streaming
 
@@ -648,9 +654,9 @@ Client role:
 - `peer_update_mac(slug) -> "cancelled" | "disconnected"` (blocks for the install;
   progress arrives as `peer-update-progress` `{ slug, phase, progress }`)
 - `peer_cancel_mac_update(slug) -> bool`
-- `peer_settings_get(slug) -> { defaultProjectDirectory?, checkOrigin?, doubleClickToToggle? }`
+- `peer_settings_get(slug) -> { <shared setting>? … }`
 - `peer_settings_set(slug, patch) -> same shape` (both fail with an update hint on a
-  host without `hostSettings`)
+  host without `hostSettingsAll`)
 - `peer_term_attach(prefixedId, resume)` / `peer_term_detach(prefixedId)` —
   `resume: true` asks for only the bytes missed since this Mac last applied
   output, and is the caller's word that the emulator those bytes were being

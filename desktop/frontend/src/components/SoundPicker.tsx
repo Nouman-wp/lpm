@@ -10,11 +10,15 @@ export function SoundPicker({
   value,
   sounds,
   event,
+  local = true,
   onChange,
 }: {
   value: string;
   sounds: string[];
   event: "done" | "waiting" | "error";
+  /// The sounds are this machine's, so they can be previewed here and a file
+  /// on its disk picked.
+  local?: boolean;
   onChange: (value: string) => void;
 }) {
   const isPath = isRootedPath(value);
@@ -44,19 +48,23 @@ export function SoundPicker({
           </option>
         ))}
       </SettingsSelect>
-      <button type="button" aria-label="Choose audio file" title="Choose audio file" onClick={() => void chooseFile()} className={ICON_BTN}>
-        <FolderOpen size={13} />
-      </button>
-      <button
-        type="button"
-        aria-label="Preview sound"
-        title="Preview"
-        disabled={silent}
-        onClick={() => void PlaySoundPreview(value, event)}
-        className={ICON_BTN}
-      >
-        <Play size={13} />
-      </button>
+      {local && (
+        <>
+          <button type="button" aria-label="Choose audio file" title="Choose audio file" onClick={() => void chooseFile()} className={ICON_BTN}>
+            <FolderOpen size={13} />
+          </button>
+          <button
+            type="button"
+            aria-label="Preview sound"
+            title="Preview"
+            disabled={silent}
+            onClick={() => void PlaySoundPreview(value, event)}
+            className={ICON_BTN}
+          >
+            <Play size={13} />
+          </button>
+        </>
+      )}
     </div>
   );
 }

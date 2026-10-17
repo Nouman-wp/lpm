@@ -15,10 +15,12 @@ export interface UseTerminalThemeResult {
   themeStyle: React.CSSProperties | undefined;
 }
 
+export function terminalThemeOf(value: string | undefined): TerminalThemeName {
+  return isTerminalThemeName(value) ? value : DEFAULT_THEME;
+}
+
 export function useTerminalTheme(): UseTerminalThemeResult {
-  const theme = useSettingsStore((s) =>
-    isTerminalThemeName(s.terminalTheme) ? s.terminalTheme : DEFAULT_THEME,
-  );
+  const theme = useSettingsStore((s) => terminalThemeOf(s.terminalTheme));
   const update = useSettingsStore((s) => s.update);
 
   const setTheme = useCallback(

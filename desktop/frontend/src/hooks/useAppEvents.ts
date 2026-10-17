@@ -10,7 +10,8 @@ import { type RemoteTerminalOp, useAppStore } from "../store/app";
 import { useAutomationOpen } from "../store/automationOpen";
 import { applyRemoteDraft } from "../store/composerDrafts";
 import { onFocusMainTerminal } from "../mainWindowFocus";
-import { useSettingsStore } from "../store/settings";
+import { getSettings, useSettingsStore } from "../store/settings";
+import { applySettingsOutsideStore } from "../settingsEffects";
 import type { SpawnTask } from "../types";
 
 // Events safe to handle in every window — they don't reach into
@@ -107,7 +108,10 @@ export function useAmbientAppEvents(): void {
 
     // A paired Mac changed some of this machine's settings on disk.
     const cancelPeerSettings = EventsOn("peer-settings-changed", () => {
-      void useSettingsStore.getState().hydrate();
+      void useSettingsStore
+        .getState()
+        .hydrate()
+        .then(() => applySettingsOutsideStore(getSettings()));
     });
 
     return () => {

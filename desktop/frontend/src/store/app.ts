@@ -166,6 +166,9 @@ interface AppState {
   selectedTemplate: string | null;
   view: View;
   settingsTab: SettingsTab;
+  // The connected machine whose settings the Settings view shows, by slug; null
+  // for this one's.
+  settingsMachine: string | null;
   sidebarCollapsed: boolean;
   feedbackOpen: boolean;
   // The Usage dashboard is an overlay, not a main-area view — a detached window
@@ -206,6 +209,8 @@ interface AppState {
   setView: (view: View) => void;
   toggleAgentOverview: () => void;
   setSettingsTab: (tab: SettingsTab) => void;
+  setSettingsMachine: (slug: string | null) => void;
+  openMachineSettings: (slug: string) => void;
   setSidebarCollapsed: (next: boolean | ((prev: boolean) => boolean)) => void;
   setFeedbackOpen: (open: boolean) => void;
   setUsageOpen: (open: boolean) => void;
@@ -793,6 +798,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedTemplate: null,
   view: "projects",
   settingsTab: "general",
+  settingsMachine: null,
   sidebarCollapsed: false,
   feedbackOpen: false,
   usageOpen: false,
@@ -813,13 +819,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   resolvingPortConflict: false,
   detached: new Set<string>(),
 
-  setView: (view) => set({ view }),
+  // Any view, Settings included, opens on this machine; openMachineSettings is
+  // the way to a connected one's.
+  setView: (view) => set({ view, settingsMachine: null }),
   toggleAgentOverview: () =>
     set((state) => ({
       view: state.view === "fleet" ? "projects" : "fleet",
     })),
 
   setSettingsTab: (settingsTab) => set({ settingsTab }),
+
+  setSettingsMachine: (settingsMachine) => set({ settingsMachine }),
+
+  openMachineSettings: (slug) =>
+    set({ view: "settings", settingsTab: "general", settingsMachine: slug }),
 
   setSidebarCollapsed: (next) =>
     set((s) => ({

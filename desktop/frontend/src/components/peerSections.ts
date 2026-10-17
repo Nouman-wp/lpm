@@ -42,8 +42,6 @@ export interface PeerSection {
   version: string;
   selfUpdate: boolean;
   updateChannel?: UpdateChannel;
-  /// Whether its own settings can be changed from here.
-  hostSettings: boolean;
   /// The Mac's own project rows; empty while it is away.
   projects: ProjectInfo[];
   /// The Mac's folder path over there → the local copy of it, for the row's mark.
@@ -87,7 +85,6 @@ export function buildPeerSections(
     version: peer.version ?? "",
     selfUpdate: Boolean(peer.supportsSelfUpdate),
     updateChannel: peer.updateChannel,
-    hostSettings: Boolean(peer.supportsHostSettings),
     projects: peer.connected ? (byPeer.get(peer.slug) ?? []) : [],
     mirrors: new Map(),
     strays: [],

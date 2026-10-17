@@ -4,6 +4,12 @@ import { chordLabel } from "./keys";
 import { MACHINE } from "./machineWords";
 import { isMac } from "./platform";
 import { removeAppDescription } from "./removeAppCopy";
+import {
+  LOCAL_MACHINE,
+  reaches,
+  type SettingsMachine,
+  type SettingsReach,
+} from "./settingsMachine";
 
 export type SettingsFlag = "experimentalTTS";
 
@@ -17,6 +23,8 @@ export type SettingsRowEntry = {
   // Backed by something only macOS has; the row and its search entry are
   // hidden elsewhere.
   macOnly?: boolean;
+  // Which connected machines it can be changed on; unset, only this one.
+  reach?: SettingsReach;
 };
 
 export type SettingsViewEntry = {
@@ -102,14 +110,20 @@ export const NAV_GROUPS: SettingsNavGroup[] = [
   },
 ];
 
-export function visibleNavGroups(flags: {
-  experimentalTTS: boolean;
-}): SettingsNavGroup[] {
+// A connected machine's Settings shows only the pages that have something to
+// change there; the views (Global Config) edit this machine's files.
+export function visibleNavGroups(
+  flags: { experimentalTTS: boolean },
+  machine: SettingsMachine = LOCAL_MACHINE,
+): SettingsNavGroup[] {
+  const reachable = (tab: SettingsTab) =>
+    rowEntries().some((row) => row.tab === tab && reaches(machine, row.reach));
   return NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter(
-      (item) =>
-        item.kind !== "tab" || !item.flag || flags[item.flag],
+    items: group.items.filter((item) =>
+      item.kind === "tab"
+        ? (!item.flag || flags[item.flag]) && reachable(item.tab)
+        : machine.kind === "local",
     ),
   })).filter((group) => group.items.length > 0);
 }
@@ -124,6 +138,7 @@ export const ROWS = {
     kind: "row",
     tab: "general",
     id: "general.theme",
+    reach: "attended",
     label: "Theme",
     description: "Choose your preferred look",
     keywords: ["appearance", "dark", "light", "mode", "color"],
@@ -132,6 +147,7 @@ export const ROWS = {
     kind: "row",
     tab: "general",
     id: "general.doubleClick",
+    reach: "attended",
     label: "Double-click to start/stop",
     description: "Double-click a project in sidebar to toggle it",
     keywords: ["toggle", "run"],
@@ -140,6 +156,7 @@ export const ROWS = {
     kind: "row",
     tab: "general",
     id: "general.checkOrigin",
+    reach: "any",
     label: "Check for new commits",
     description: "Show in the sidebar when a project’s branch on origin is ahead",
     keywords: ["git", "fetch", "pull", "behind", "origin", "remote", "sync"],
@@ -148,6 +165,7 @@ export const ROWS = {
     kind: "row",
     tab: "general",
     id: "general.autoPull",
+    reach: "any",
     label: "Auto pull",
     description: "Fast-forward when the branch is clean and has nothing to push",
     keywords: ["git", "pull", "automatic", "fast-forward", "origin", "update", "sync", "duplicates"],
@@ -156,6 +174,7 @@ export const ROWS = {
     kind: "row",
     tab: "general",
     id: "general.defaultDir",
+    reach: "any",
     label: "Default project directory",
     description: "Add project, clone destination, and global terminals open here",
     keywords: ["folder", "location", "path"],
@@ -164,6 +183,7 @@ export const ROWS = {
     kind: "row",
     tab: "general",
     id: "general.version",
+    reach: "any",
     label: "Version",
     description: "lpm desktop",
     keywords: ["build", "about"],
@@ -205,6 +225,7 @@ export const ROWS = {
     kind: "row",
     tab: "notifications",
     id: "notifications.sound",
+    reach: "attended",
     label: "Sound notifications",
     description: "Play a sound when agents finish or need approval",
     keywords: ["audio", "alert", "chime"],
@@ -213,6 +234,7 @@ export const ROWS = {
     kind: "row",
     tab: "notifications",
     id: "notifications.system",
+    reach: "attended",
     label: "System notifications",
     description:
       "Show a notification when an agent or automation needs you and lpm isn't in front",
@@ -238,6 +260,7 @@ export const ROWS = {
     kind: "row",
     tab: "notifications",
     id: "notifications.hooks",
+    reach: "any",
     label: "Claude Code Hooks",
     description: "Display Claude Code running progress in sidebar",
     keywords: ["progress", "sidebar", "claude"],
@@ -246,6 +269,7 @@ export const ROWS = {
     kind: "row",
     tab: "terminal",
     id: "terminal.fontFamily",
+    reach: "attended",
     label: "Font",
     description: "Font family for the built-in terminal",
     keywords: ["font", "typeface", "monospace", "font family"],
@@ -254,6 +278,7 @@ export const ROWS = {
     kind: "row",
     tab: "terminal",
     id: "terminal.fontSize",
+    reach: "attended",
     label: "Font size",
     description: "Used by the built-in terminal",
     keywords: ["zoom", "text size"],
@@ -262,6 +287,7 @@ export const ROWS = {
     kind: "row",
     tab: "terminal",
     id: "terminal.lineHeight",
+    reach: "attended",
     label: "Line height",
     description: "Vertical spacing between terminal lines",
     keywords: ["spacing", "leading"],
@@ -270,6 +296,7 @@ export const ROWS = {
     kind: "row",
     tab: "terminal",
     id: "terminal.theme",
+    reach: "attended",
     label: "Theme",
     description: "Color scheme for the built-in terminal",
     keywords: ["color", "appearance"],
@@ -278,6 +305,7 @@ export const ROWS = {
     kind: "row",
     tab: "terminal",
     id: "terminal.openInDefaultApp",
+    reach: "attended",
     label: "Open files in default app",
     description:
       "Click a file path in the terminal to open it in the OS default app instead of the in-app preview",
@@ -287,6 +315,7 @@ export const ROWS = {
     kind: "row",
     tab: "terminal",
     id: "terminal.input",
+    reach: "attended",
     label: "Terminal input",
     description: `Show the message input below each terminal. Toggle anytime with ${chordLabel({ key: "i", meta: true })}`,
     keywords: ["composer", "message", "prompt"],
@@ -295,6 +324,7 @@ export const ROWS = {
     kind: "row",
     tab: "terminal",
     id: "terminal.filesTreeSide",
+    reach: "attended",
     label: "Files tree position",
     description: "Which side of the Files tab holds the folder tree",
     keywords: ["files", "tree", "sidebar", "left", "right", "browser"],
@@ -303,6 +333,7 @@ export const ROWS = {
     kind: "row",
     tab: "terminal",
     id: "terminal.autoCloseComposer",
+    reach: "attended",
     label: "Auto close composer on send",
     description:
       "Sending a prepared input clears it and closes its tab when more than one is open, instead of keeping the tab",
@@ -312,6 +343,7 @@ export const ROWS = {
     kind: "row",
     tab: "terminal",
     id: "terminal.appTips",
+    reach: "attended",
     label: "App tips",
     description: "Show a rotating tip with shortcuts in the terminal footer",
     keywords: ["hints", "tips"],
@@ -320,6 +352,7 @@ export const ROWS = {
     kind: "row",
     tab: "tts",
     id: "tts.enable",
+    reach: "attended",
     label: "Enable",
     description: "Read terminal text aloud using Kokoro",
     keywords: ["speech", "voice", "read aloud", "kokoro"],
@@ -328,6 +361,7 @@ export const ROWS = {
     kind: "row",
     tab: "tts",
     id: "tts.engine",
+    reach: "attended",
     label: "Engine",
     description: "Which voice synthesizes the speech",
     keywords: ["speech", "kokoro", "openai", "engine", "voice"],
@@ -346,6 +380,7 @@ export const ROWS = {
     kind: "row",
     tab: "tts",
     id: "tts.openaiVoice",
+    reach: "attended",
     label: "OpenAI Voice",
     description: "OpenAI voice",
     keywords: ["speech", "openai", "voice"],
@@ -354,6 +389,7 @@ export const ROWS = {
     kind: "row",
     tab: "tts",
     id: "tts.voice",
+    reach: "attended",
     label: "Voice",
     description: "Kokoro voice",
     keywords: ["speech", "kokoro"],
@@ -362,6 +398,7 @@ export const ROWS = {
     kind: "row",
     tab: "tts",
     id: "tts.speed",
+    reach: "attended",
     label: "Speed",
     description: "Playback speed",
     keywords: ["speech", "rate"],
@@ -587,6 +624,7 @@ function soundEntries(): SettingsRowEntry[] {
     label: s.label,
     description: s.description,
     keywords: ["sound", "audio", "notification"],
+    reach: "attended",
   }));
 }
 
@@ -598,7 +636,17 @@ function shortcutEntries(): SettingsRowEntry[] {
     label: def.label,
     description: def.description,
     keywords: ["keyboard", "hotkey", "shortcut"],
+    reach: "sameKeyboard",
   }));
+}
+
+function rowEntries(): SettingsRowEntry[] {
+  return [...Object.values(ROWS), ...soundEntries(), ...shortcutEntries()];
+}
+
+export function rowReaches(id: SettingsRowId, machine: SettingsMachine): boolean {
+  const row: SettingsRowEntry = ROWS[id];
+  return reaches(machine, row.reach);
 }
 
 export function rowProps(
@@ -616,18 +664,17 @@ export function rowProps(
 export function buildSearchEntries(ctx: {
   experimentalTTS: boolean;
   mac?: boolean;
+  machine?: SettingsMachine;
 }): SettingsSearchEntry[] {
   const mac = ctx.mac ?? isMac;
-  const entries: SettingsSearchEntry[] = [
-    ...Object.values(ROWS),
-    ...soundEntries(),
-    ...shortcutEntries(),
-    ...VIEW_ENTRIES,
-    ...MODAL_ENTRIES,
-  ];
-  return entries.filter(
-    (e) =>
-      e.kind !== "row" || ((e.tab !== "tts" || ctx.experimentalTTS) && (mac || !e.macOnly)),
+  const machine = ctx.machine ?? LOCAL_MACHINE;
+  const entries: SettingsSearchEntry[] = [...rowEntries(), ...VIEW_ENTRIES, ...MODAL_ENTRIES];
+  return entries.filter((e) =>
+    e.kind === "row"
+      ? (e.tab !== "tts" || ctx.experimentalTTS) &&
+        (mac || !e.macOnly) &&
+        reaches(machine, e.reach, mac)
+      : machine.kind === "local",
   );
 }
 

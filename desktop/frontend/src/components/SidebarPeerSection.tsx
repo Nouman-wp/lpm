@@ -4,7 +4,6 @@ import { LaptopIcon } from "./connections/LaptopIcon";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { RenameModal } from "./RenameModal";
 import { PairingModal, type Pairing } from "./PairingModal";
-import { PeerSettingsModal } from "./PeerSettingsModal";
 import { peerSlugOf } from "../peer/markers";
 import { SidebarHeaderShell } from "./SidebarHeaderShell";
 import { SidebarRollupLine } from "./SidebarRollupLine";
@@ -66,7 +65,6 @@ export function SidebarPeerSection({
   version,
   selfUpdate,
   updateChannel,
-  hostSettings,
   projects,
   strays,
   selected,
@@ -90,8 +88,6 @@ export function SidebarPeerSection({
   version: string;
   selfUpdate: boolean;
   updateChannel?: UpdateChannel;
-  /// Whether its own settings can be changed from here.
-  hostSettings: boolean;
   projects: ProjectInfo[];
   /// Copies with no row of this Mac's own to mark.
   strays: MirrorRow[];
@@ -101,10 +97,10 @@ export function SidebarPeerSection({
 }) {
   const clearSelection = useAppStore((s) => s.clearSelection);
   const addProjectForPeer = useAppStore((s) => s.addProjectForPeer);
+  const openMachineSettings = useAppStore((s) => s.openMachineSettings);
   const [collapsed, setCollapsed] = useState(() => isPeerSectionCollapsed(slug));
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   // The QR minted by this machine for a phone to scan, and why one couldn't be.
   const [phonePairing, setPhonePairing] = useState<Pairing | null>(null);
@@ -278,7 +274,7 @@ export function SidebarPeerSection({
           canReconnect={status.tone === "error"}
           onAddProject={() => addProjectForPeer(slug, alias)}
           onPairPhone={() => void pairPhone()}
-          onSettings={() => setSettingsOpen(true)}
+          onSettings={() => openMachineSettings(slug)}
           updateLabel={
             updateLine?.action?.kind === "update" ? updateLine.action.label : undefined
           }
@@ -314,15 +310,6 @@ export function SidebarPeerSection({
         initialValue={alias}
         onClose={() => setRenameOpen(false)}
         onSubmit={(value) => void PeerSetAlias(slug, value)}
-      />
-
-      <PeerSettingsModal
-        open={settingsOpen}
-        slug={slug}
-        alias={alias}
-        headless={linuxHost}
-        supported={hostSettings}
-        onClose={() => setSettingsOpen(false)}
       />
 
       <PairingModal

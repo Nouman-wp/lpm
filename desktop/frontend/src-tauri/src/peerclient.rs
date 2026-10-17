@@ -106,7 +106,7 @@ struct PeerConn {
     supports_file_range: AtomicBool, // host serves any file a chunk at a time
     supports_self_update: AtomicBool, // a paired Mac can update lpm there (peermacupdate.rs)
     beta_updates: AtomicBool, // the host follows the Beta update channel (updatechannel.rs)
-    supports_host_settings: AtomicBool, // host shares its own settings (peersettings.rs)
+    supports_host_settings: AtomicBool, // host shares the settings Settings shows (peersettings.rs)
     supports_phone_relay: AtomicBool, // host runs phones this Mac relays to it (peerclient/phone.rs)
     supports_limits: AtomicBool, // host trades Claude usage limits (agent_limits_share.rs)
     // The phones this Mac is relaying to the host, by channel: where the frames
@@ -2139,7 +2139,7 @@ fn connect_session(
         Ordering::Relaxed,
     );
     conn.supports_host_settings.store(
-        has_feature(crate::peersettings::HOST_SETTINGS_FEATURE),
+        has_feature(crate::peersettings::ALL_HOST_SETTINGS_FEATURE),
         Ordering::Relaxed,
     );
     conn.supports_phone_relay.store(

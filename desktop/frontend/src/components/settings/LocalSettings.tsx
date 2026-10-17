@@ -1,0 +1,10 @@
+import type { ReactNode } from "react";
+import { LOCAL_MACHINE } from "../../settingsMachine";
+import type { View } from "../../store/app";
+import { SettingsLayout } from "./SettingsLayout";
+import { useLocalSettingsTarget } from "./useLocalSettingsTarget";
+
+export function LocalSettings({ picker, onNavigate }: { picker: ReactNode; onNavigate: (view: View) => void }) {
+  const target = useLocalSettingsTarget();
+  return <SettingsLayout machine={LOCAL_MACHINE} target={target} picker={picker} onNavigate={onNavigate} />;
+}

@@ -1,4 +1,4 @@
-import { getSettings, useSettingsStore } from "../store/settings";
+import { getSettings, useSettingsStore, type Settings } from "../store/settings";
 import { terminalFontStack } from "../components/terminal-utils";
 
 export const DEFAULT_TERMINAL_LINE_HEIGHT = 1;
@@ -21,17 +21,28 @@ function clampLineHeight(value?: number): number {
   );
 }
 
-export function useTerminalFont(): TerminalFont {
-  const family = useSettingsStore((s) => s.terminalFontFamily);
-  const lineHeight = useSettingsStore((s) => clampLineHeight(s.terminalLineHeight));
-  return { family, fontFamily: terminalFontStack(family), lineHeight };
+// Steps of a tenth, so repeated steps don't drift off the values shown.
+export function steppedTerminalLineHeight(lineHeight: number, delta: number): number {
+  return clampLineHeight(Math.round((lineHeight + delta) * 10) / 10);
 }
 
-export function getTerminalFont(): TerminalFont {
-  const { terminalFontFamily, terminalLineHeight } = getSettings();
+export function terminalFontOf({
+  terminalFontFamily,
+  terminalLineHeight,
+}: Pick<Settings, "terminalFontFamily" | "terminalLineHeight">): TerminalFont {
   return {
     family: terminalFontFamily,
     fontFamily: terminalFontStack(terminalFontFamily),
     lineHeight: clampLineHeight(terminalLineHeight),
   };
+}
+
+export function useTerminalFont(): TerminalFont {
+  const terminalFontFamily = useSettingsStore((s) => s.terminalFontFamily);
+  const terminalLineHeight = useSettingsStore((s) => s.terminalLineHeight);
+  return terminalFontOf({ terminalFontFamily, terminalLineHeight });
+}
+
+export function getTerminalFont(): TerminalFont {
+  return terminalFontOf(getSettings());
 }

@@ -1,11 +1,12 @@
-import { autoPullExceptions, normalizeAutoPullMode, type AutoPullMode } from "../autoPull";
-import { autoPullSoon } from "../autoPullRun";
-import { useAppStore } from "../store/app";
-import { useSettingsStore } from "../store/settings";
-import { rowProps } from "../settings-registry";
-import { displayNameForProjectName } from "./ProjectNameDisplay";
-import { SettingsRow } from "./SettingsRow";
-import { SegmentedControl } from "./ui/SegmentedControl";
+import { autoPullExceptions, normalizeAutoPullMode, type AutoPullMode } from "../../autoPull";
+import { autoPullSoon } from "../../autoPullRun";
+import { useAppStore } from "../../store/app";
+import { rowProps } from "../../settings-registry";
+import { isOnMachine } from "../../settingsMachine";
+import { displayNameForProjectName } from "../ProjectNameDisplay";
+import { SettingsRow } from "../SettingsRow";
+import { useSettingsTarget } from "./settingsTarget";
+import { SegmentedControl } from "../ui/SegmentedControl";
 
 const OPTIONS: { value: AutoPullMode; label: string; tooltip: string }[] = [
   { value: "off", label: "Off", tooltip: "Never pull on its own" },
@@ -21,21 +22,22 @@ function exceptionsLine(mode: AutoPullMode, on: string[], off: string[]): string
 }
 
 // Settings › General: which projects fast-forward on their own after the check
-// for new commits, and which projects or copies differ from that.
+// for new commits, and which of the machine's projects or copies differ from that.
 export function AutoPullSettingsRow() {
-  const checkOrigin = useSettingsStore((s) => s.checkOrigin ?? true);
-  const mode = useSettingsStore((s) => normalizeAutoPullMode(s.autoPull));
-  const update = useSettingsStore((s) => s.update);
+  const { machine, settings, update } = useSettingsTarget();
+  const checkOrigin = settings.checkOrigin ?? true;
+  const mode = normalizeAutoPullMode(settings.autoPull);
   const projects = useAppStore((s) => s.projects);
 
-  const local = projects.filter((p) => !p.isRemote && !p.configError);
+  const own = projects.filter((p) => isOnMachine(p.name, machine) && !p.isRemote && !p.configError);
   const names = (list: string[]) => list.map((name) => displayNameForProjectName(name, projects));
-  const exceptions = autoPullExceptions(local, mode);
+  const exceptions = autoPullExceptions(own, mode);
   const line = checkOrigin && mode !== "off" ? exceptionsLine(mode, names(exceptions.on), names(exceptions.off)) : "";
 
+  // A connected machine runs its own pulls, on its own schedule.
   const choose = (next: AutoPullMode) => {
     void update({ autoPull: next });
-    if (next !== "off") autoPullSoon();
+    if (next !== "off" && machine.kind === "local") autoPullSoon();
   };
 
   return (

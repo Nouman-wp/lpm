@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   addProjectForPeer: vi.fn(),
   setAlias: vi.fn(() => Promise.resolve()),
   updateMac: vi.fn(() => new Promise(() => {})),
-  settingsGet: vi.fn(() => Promise.resolve({})),
+  openMachineSettings: vi.fn(),
   remotePair: vi.fn(() =>
     Promise.resolve({
       code: "AB12-CD34",
@@ -33,9 +33,6 @@ vi.mock("../../bridge/commands", () => ({
   PeerRemotePair: mocks.remotePair,
   PeerUpdateMac: mocks.updateMac,
   PeerCancelMacUpdate: vi.fn(() => Promise.resolve(true)),
-  PeerSettingsGet: mocks.settingsGet,
-  PeerSettingsSet: vi.fn(() => Promise.resolve({})),
-  PeerInvoke: vi.fn(() => new Promise(() => {})),
   GetVersion: vi.fn(() => Promise.resolve("1.43.0")),
 }));
 
@@ -81,7 +78,6 @@ function render(props: Record<string, unknown> = {}) {
         status={LIVE}
         version="1.43.0"
         selfUpdate
-        hostSettings
         projects={[project("glimpse2", true)]}
         strays={[]}
         selected={null}
@@ -309,9 +305,8 @@ describe("SidebarPeerSection header", () => {
       (b) => b.textContent?.trim() === "Settings on GURGENS-MACBOOK-PRO…",
     );
     expect(settings).toBeTruthy();
-    await act(async () => settings!.click());
-    expect(mocks.settingsGet).toHaveBeenCalledWith("aabbccdd");
-    expect(document.body.textContent).toContain("Settings on GURGENS-MACBOOK-PRO");
+    act(() => settings!.click());
+    expect(mocks.openMachineSettings).toHaveBeenCalledWith("aabbccdd");
   });
 
   it("offers its settings only while the machine is reachable", () => {

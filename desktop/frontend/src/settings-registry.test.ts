@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   buildSearchEntries,
   matchSettings,
+  visibleNavGroups,
   type SettingsSearchEntry,
 } from "./settings-registry";
+import type { PeerMachine } from "./settingsMachine";
 
 const withTTS = buildSearchEntries({ experimentalTTS: true });
 const withoutTTS = buildSearchEntries({ experimentalTTS: false });
@@ -71,5 +73,67 @@ describe("matchSettings", () => {
   it("excludes filtered-out entries from results", () => {
     expect(ids(matchSettings(withoutTTS, "kokoro"))).not.toContain("tts.enable");
     expect(ids(matchSettings(withTTS, "kokoro"))).toContain("tts.enable");
+  });
+});
+
+const studio: PeerMachine = {
+  kind: "peer",
+  slug: "aabbccdd",
+  name: "Studio",
+  attended: true,
+  mac: true,
+  version: "0.7.20",
+};
+const server: PeerMachine = { ...studio, name: "build-box", attended: false, mac: false };
+
+function tabs(machine?: PeerMachine, experimentalTTS = false): string[] {
+  return visibleNavGroups({ experimentalTTS }, machine).flatMap((group) =>
+    group.items.map((item) => (item.kind === "tab" ? item.tab : item.view)),
+  );
+}
+
+describe("a connected machine's settings", () => {
+  it("lists every page on this machine", () => {
+    expect(tabs()).toEqual([
+      "general",
+      "notifications",
+      "terminal",
+      "shortcuts",
+      "ai",
+      "templates",
+      "backup",
+      "global-config",
+      "mobile",
+      "connections",
+    ]);
+  });
+
+  it("lists only the pages with something to change on a Mac someone uses", () => {
+    expect(tabs(studio)).toEqual(["general", "notifications", "terminal", "shortcuts"]);
+    expect(tabs(studio, true)).toContain("tts");
+  });
+
+  it("lists only what a machine nobody sits at runs by", () => {
+    expect(tabs(server, true)).toEqual(["general", "notifications"]);
+  });
+
+  it("searches only the rows the machine has", () => {
+    const onStudio = ids(buildSearchEntries({ experimentalTTS: true, mac: true, machine: studio }));
+    expect(onStudio).toEqual(
+      expect.arrayContaining(["general.theme", "general.autoPull", "terminal.fontSize", "shortcut.renameProject", "sound.done"]),
+    );
+    expect(onStudio).not.toContain("general.removeApp");
+    expect(onStudio).not.toContain("backup.export");
+    expect(onStudio).not.toContain("tts.openaiKey");
+    expect(onStudio).not.toContain("global-config");
+    expect(onStudio).not.toContain("usage");
+
+    const onServer = ids(buildSearchEntries({ experimentalTTS: true, mac: true, machine: server }));
+    expect(onServer).toEqual(
+      expect.arrayContaining(["general.checkOrigin", "general.defaultDir", "notifications.hooks"]),
+    );
+    expect(onServer).not.toContain("general.theme");
+    expect(onServer).not.toContain("terminal.fontSize");
+    expect(onServer).not.toContain("shortcut.renameProject");
   });
 });

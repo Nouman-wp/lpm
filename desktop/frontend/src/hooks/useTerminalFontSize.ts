@@ -11,18 +11,21 @@ export interface UseTerminalFontSizeResult {
   zoomOut: () => void;
 }
 
+export function terminalFontSizeOf(value: number | undefined): number {
+  return value ?? DEFAULT_TERMINAL_FONT_SIZE;
+}
+
+export function steppedTerminalFontSize(fontSize: number, delta: number): number {
+  return Math.min(MAX_TERMINAL_FONT_SIZE, Math.max(MIN_TERMINAL_FONT_SIZE, fontSize + delta));
+}
+
 export function useTerminalFontSize(): UseTerminalFontSizeResult {
-  const fontSize = useSettingsStore(
-    (s) => s.terminalFontSize ?? DEFAULT_TERMINAL_FONT_SIZE,
-  );
+  const fontSize = useSettingsStore((s) => terminalFontSizeOf(s.terminalFontSize));
   const update = useSettingsStore((s) => s.update);
 
   const step = useCallback(
     (delta: number) => {
-      const next = Math.min(
-        MAX_TERMINAL_FONT_SIZE,
-        Math.max(MIN_TERMINAL_FONT_SIZE, fontSize + delta),
-      );
+      const next = steppedTerminalFontSize(fontSize, delta);
       if (next !== fontSize) void update({ terminalFontSize: next });
     },
     [fontSize, update],

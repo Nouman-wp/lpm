@@ -1,11 +1,10 @@
 // The settings of a paired machine, read and changed from another one.
 //
-// Settings are on the invoke denylist, and most of them are how the machine
-// someone sits at shows things, which is that machine's business. So the asking
-// Mac gets dedicated frames that reach only the few that belong to this one:
-// where its new projects go, whether it fetches in the background, and how its
-// own sidebar starts a project. `settingsGet` answers with those; `settingsSet`
-// writes a patch of them and refreshes this machine's UI.
+// Settings are on the invoke denylist, so the asking Mac gets dedicated frames
+// that reach exactly the settings its Settings view shows for this machine
+// (SHARED) and nothing else: window geometry, sidebar order and the rest of what
+// this machine keeps for itself stay out of reach. `settingsGet` answers with
+// those; `settingsSet` writes a patch of them and refreshes this machine's UI.
 use crate::peer::result_frame;
 use crate::peerclient::PeerClientHub;
 use serde_json::{json, Map, Value};
@@ -13,16 +12,60 @@ use std::sync::mpsc::SyncSender;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 
-/// Advertised in `ready` by a host that answers the settings frames. A client
-/// never sends them to a host without it.
+/// Advertised in `ready` for clients from when only the default project
+/// directory, `checkOrigin` and `doubleClickToToggle` were shared. Those are
+/// still in SHARED, so such a client keeps working.
 pub(crate) const HOST_SETTINGS_FEATURE: &str = "hostSettings";
 
-const DEFAULT_DIR: &str = "defaultProjectDirectory";
-const CHECK_ORIGIN: &str = "checkOrigin";
-const DOUBLE_CLICK: &str = "doubleClickToToggle";
-const SHARED: &[&str] = &[DEFAULT_DIR, CHECK_ORIGIN, DOUBLE_CLICK];
+/// Advertised in `ready` by a host that shares every setting in SHARED. A
+/// client never sends the settings frames to a host without it.
+pub(crate) const ALL_HOST_SETTINGS_FEATURE: &str = "hostSettingsAll";
+
+/// What a shared setting may hold. `null` clears any of them back to its default.
+enum Kind {
+    Flag,
+    /// A path on this machine; `""` clears it too.
+    Path,
+    /// A font, voice or theme name; `""` clears it too.
+    Name,
+    Number { min: f64, max: f64 },
+    OneOf(&'static [&'static str]),
+    /// Hotkey id to key combo.
+    Shortcuts,
+}
+
+const SHARED: &[(&str, Kind)] = &[
+    ("theme", Kind::OneOf(&["light", "dark", "system"])),
+    ("doubleClickToToggle", Kind::Flag),
+    ("checkOrigin", Kind::Flag),
+    ("autoPull", Kind::OneOf(&["off", "chosen", "all"])),
+    ("defaultProjectDirectory", Kind::Path),
+    ("systemNotifications", Kind::Flag),
+    ("soundNotifications", Kind::Flag),
+    ("doneSound", Kind::Path),
+    ("waitingSound", Kind::Path),
+    ("errorSound", Kind::Path),
+    ("terminalFontFamily", Kind::Name),
+    ("terminalFontSize", Kind::Number { min: 8.0, max: 24.0 }),
+    ("terminalLineHeight", Kind::Number { min: 1.0, max: 2.0 }),
+    ("terminalTheme", Kind::Name),
+    ("terminalOpenInDefaultApp", Kind::Flag),
+    ("composerOpen", Kind::Flag),
+    ("filesTreeSide", Kind::OneOf(&["left", "right"])),
+    ("autoCloseComposerOnSend", Kind::Flag),
+    ("appTipsDismissed", Kind::Flag),
+    ("hotkeys", Kind::Shortcuts),
+    ("experimentalTTS", Kind::Flag),
+    ("ttsEnabled", Kind::Flag),
+    ("ttsEngine", Kind::OneOf(&["kokoro", "openai"])),
+    ("ttsVoice", Kind::Name),
+    ("ttsOpenAiVoice", Kind::Name),
+    ("ttsSpeed", Kind::Number { min: 0.5, max: 3.0 }),
+];
 
 const MAX_PATH_LEN: usize = 4096;
+const MAX_NAME_LEN: usize = 256;
+const MAX_SHORTCUTS: usize = 64;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 const UNSUPPORTED: &str =
     "that machine's lpm is too old to share its settings — update it there first";
@@ -53,7 +96,7 @@ fn write(app: &AppHandle, patch: &Value) -> Result<Value, String> {
 /// unset field means the default, which the asking Mac knows as well as this one.
 fn shared_view(settings: &Value) -> Value {
     let mut view = Map::new();
-    for key in SHARED {
+    for (key, _) in SHARED {
         if let Some(value) = settings.get(*key) {
             view.insert((*key).to_string(), value.clone());
         }
@@ -85,21 +128,51 @@ fn apply_patch(settings: &mut Value, patch: &Value) -> Result<(), String> {
 
 /// What to store for one patched field; `None` clears it back to its default.
 fn checked(key: &str, value: &Value) -> Result<Option<Value>, String> {
-    match key {
-        DEFAULT_DIR => match value {
-            Value::Null => Ok(None),
-            Value::String(s) if s.is_empty() => Ok(None),
-            Value::String(s) if s.len() <= MAX_PATH_LEN && !s.contains('\0') => {
-                Ok(Some(value.clone()))
-            }
-            _ => Err(format!("{key} must be a folder path")),
-        },
-        CHECK_ORIGIN | DOUBLE_CLICK => match value {
-            Value::Bool(_) => Ok(Some(value.clone())),
-            _ => Err(format!("{key} must be true or false")),
-        },
-        _ => Err(format!("{key} can't be changed from another machine")),
+    let kind = SHARED
+        .iter()
+        .find_map(|(shared, kind)| (*shared == key).then_some(kind))
+        .ok_or_else(|| format!("{key} can't be changed from another machine"))?;
+    if value.is_null() {
+        return Ok(None);
     }
+    let (valid, expected) = match kind {
+        Kind::Flag => (value.is_boolean(), "true or false".to_string()),
+        Kind::Path | Kind::Name if value.as_str() == Some("") => return Ok(None),
+        Kind::Path => (is_text(value, MAX_PATH_LEN), "a path".to_string()),
+        Kind::Name => (is_text(value, MAX_NAME_LEN), "a name".to_string()),
+        Kind::Number { min, max } => (
+            value.as_f64().is_some_and(|n| (*min..=*max).contains(&n)),
+            format!("a number from {min} to {max}"),
+        ),
+        Kind::OneOf(choices) => (
+            value.as_str().is_some_and(|s| choices.contains(&s)),
+            format!("one of {}", choices.join(", ")),
+        ),
+        Kind::Shortcuts => (
+            is_shortcuts(value),
+            "a map of shortcut names to keys".to_string(),
+        ),
+    };
+    if valid {
+        Ok(Some(value.clone()))
+    } else {
+        Err(format!("{key} must be {expected}"))
+    }
+}
+
+fn is_text(value: &Value, max_len: usize) -> bool {
+    value
+        .as_str()
+        .is_some_and(|s| s.len() <= max_len && !s.contains('\0'))
+}
+
+fn is_shortcuts(value: &Value) -> bool {
+    value.as_object().is_some_and(|map| {
+        map.len() <= MAX_SHORTCUTS
+            && map
+                .iter()
+                .all(|(id, keys)| id.len() <= MAX_NAME_LEN && is_text(keys, MAX_NAME_LEN))
+    })
 }
 
 /// A paired machine's own settings, as far as another machine may see them.
@@ -151,11 +224,16 @@ mod tests {
             "theme": "dark",
             "defaultProjectDirectory": "/Users/me/Code",
             "checkOrigin": false,
-            "hotkeys": { "settings": "cmd+," },
+            "windowWidth": 1200,
+            "sidebarOrder": ["web"],
         });
         assert_eq!(
             shared_view(&settings),
-            json!({ "defaultProjectDirectory": "/Users/me/Code", "checkOrigin": false })
+            json!({
+                "theme": "dark",
+                "defaultProjectDirectory": "/Users/me/Code",
+                "checkOrigin": false,
+            })
         );
     }
 
@@ -171,28 +249,59 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_folder_clears_it() {
-        let mut settings = json!({ "defaultProjectDirectory": "/old" });
-        apply_patch(&mut settings, &json!({ "defaultProjectDirectory": "" })).unwrap();
+    fn an_empty_path_or_name_clears_it() {
+        let mut settings = json!({ "defaultProjectDirectory": "/old", "terminalFontFamily": "Menlo" });
+        apply_patch(
+            &mut settings,
+            &json!({ "defaultProjectDirectory": "", "terminalFontFamily": "" }),
+        )
+        .unwrap();
         assert_eq!(settings, json!({}));
     }
 
     #[test]
+    fn every_kind_takes_what_the_settings_view_writes() {
+        let mut settings = json!({});
+        let patch = json!({
+            "theme": "light",
+            "autoPull": "chosen",
+            "doneSound": "/Users/me/ding.aiff",
+            "terminalFontFamily": "JetBrains Mono",
+            "terminalFontSize": 14,
+            "terminalLineHeight": 1.2,
+            "filesTreeSide": "left",
+            "hotkeys": { "renameProject": "cmd+shift+r" },
+            "ttsSpeed": 1.5,
+        });
+        apply_patch(&mut settings, &patch).unwrap();
+        assert_eq!(settings, patch);
+    }
+
+    #[test]
     fn a_field_that_is_not_shared_changes_nothing() {
-        let mut settings = json!({ "theme": "dark" });
-        let err = apply_patch(&mut settings, &json!({ "checkOrigin": false, "theme": "light" }))
+        let mut settings = json!({ "windowWidth": 1200 });
+        let err = apply_patch(&mut settings, &json!({ "checkOrigin": false, "windowWidth": 800 }))
             .unwrap_err();
-        assert!(err.contains("theme"));
-        assert_eq!(settings, json!({ "theme": "dark" }));
+        assert!(err.contains("windowWidth"));
+        assert_eq!(settings, json!({ "windowWidth": 1200 }));
     }
 
     #[test]
     fn a_field_of_the_wrong_kind_is_refused() {
         let mut settings = json!({});
-        assert!(apply_patch(&mut settings, &json!({ "checkOrigin": "no" })).is_err());
-        assert!(apply_patch(&mut settings, &json!({ "defaultProjectDirectory": 3 })).is_err());
-        assert!(apply_patch(&mut settings, &json!({ "defaultProjectDirectory": "/a\0b" })).is_err());
-        assert!(apply_patch(&mut settings, &json!(["checkOrigin"])).is_err());
+        for bad in [
+            json!({ "checkOrigin": "no" }),
+            json!({ "defaultProjectDirectory": 3 }),
+            json!({ "defaultProjectDirectory": "/a\0b" }),
+            json!({ "theme": "sepia" }),
+            json!({ "terminalFontSize": 99 }),
+            json!({ "terminalLineHeight": "tall" }),
+            json!({ "hotkeys": { "renameProject": 1 } }),
+            json!({ "hotkeys": "cmd+r" }),
+            json!(["checkOrigin"]),
+        ] {
+            assert!(apply_patch(&mut settings, &bad).is_err(), "{bad} was accepted");
+        }
         assert_eq!(settings, json!({}));
     }
 }

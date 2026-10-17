@@ -1328,7 +1328,6 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           version={section.version}
           selfUpdate={section.selfUpdate}
           updateChannel={section.updateChannel}
-          hostSettings={section.hostSettings}
           projects={section.projects}
           strays={section.strays}
           selected={selected}

@@ -283,6 +283,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 }));
 
+// A settings file's contents (or the part of one a connected machine shares) as
+// the app reads them, defaults filled in.
+export function settingsFromFile(raw: unknown): Settings {
+  return normalize((raw ?? {}) as main.Settings);
+}
+
 function snapshot(): Settings {
   const { hydrate: _h, update: _u, ...values } = useSettingsStore.getState();
   return values;
