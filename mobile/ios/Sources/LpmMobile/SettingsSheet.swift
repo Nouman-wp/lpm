@@ -63,6 +63,12 @@ struct SettingsSheet: View {
                         Label("Notifications", systemImage: "bell.badge")
                     }
                 }
+
+                Section {
+                    Link(destination: URL(string: "https://lpm.cx/privacy")!) {
+                        Label("Privacy Policy", systemImage: "lock.shield")
+                    }
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

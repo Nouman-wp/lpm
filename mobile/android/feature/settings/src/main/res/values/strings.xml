@@ -21,6 +21,7 @@
     <string name="settings_terminal_footer">Font size and color scheme for the built-in terminal.</string>
 
     <string name="settings_read_aloud">Read aloud</string>
+    <string name="settings_privacy_policy">Privacy Policy</string>
     <string name="settings_notifications">Notifications</string>
 
     <string name="notify_push">Push notifications</string>

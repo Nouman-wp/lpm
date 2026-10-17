@@ -18,6 +18,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import cx.lpm.mobile.core.data.prefs.NotificationPrefs
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.AppearanceMode
@@ -48,7 +49,8 @@ class SettingsUiTest {
                         appearance = it
                         events += "theme ${it.rawValue}"
                     },
-                    onOpen = { events += "open $it" }
+                    onOpen = { events += "open $it" },
+                    onPrivacyPolicy = { events += "privacy" }
                 )
             }
         }
@@ -62,8 +64,15 @@ class SettingsUiTest {
         compose.onNodeWithText("Built-in Tailscale").performClick()
         compose.onNodeWithText("Read aloud").performClick()
         compose.onNodeWithText("Notifications").performClick()
+        compose.onNodeWithText("Privacy Policy").performScrollTo().performClick()
         assertEquals(
-            listOf("theme dark", "open Tailscale", "open ReadAloud", "open Notifications"),
+            listOf(
+                "theme dark",
+                "open Tailscale",
+                "open ReadAloud",
+                "open Notifications",
+                "privacy"
+            ),
             events
         )
     }
