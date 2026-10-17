@@ -54,6 +54,7 @@ describe("saveJobDraft", () => {
     expect(saveJobGlobal).toHaveBeenCalledWith(
       "nightly",
       expect.objectContaining({ projects: ["api", "web"] }),
+      undefined,
     );
   });
 
@@ -62,6 +63,7 @@ describe("saveJobDraft", () => {
     expect(saveJobGlobal).toHaveBeenCalledWith(
       "nightly",
       expect.objectContaining({ projects: [] }),
+      undefined,
     );
   });
 
@@ -108,6 +110,7 @@ describe("saveJobDraft", () => {
     expect(saveJobGlobal).toHaveBeenCalledWith(
       "nightly",
       expect.objectContaining({ projects: ["api", "web"] }),
+      undefined,
     );
     expect(deleteJob).toHaveBeenCalledWith("api", "nightly");
   });
@@ -116,15 +119,38 @@ describe("saveJobDraft", () => {
     const editing = { project: "api", id: "nightly", source: "global" as const };
     await saveJobDraft(draftWith({ targets: ["api"] }), editing, ["nightly"]);
     expect(saveJob).toHaveBeenCalledWith("api", "nightly", expect.anything());
-    expect(deleteJobGlobal).toHaveBeenCalledWith("nightly");
+    expect(deleteJobGlobal).toHaveBeenCalledWith("nightly", undefined);
     expect(deleteJob).not.toHaveBeenCalled();
   });
 
   it("keeps a shared job shared when its scope stays wide", async () => {
     const editing = { project: "api", id: "nightly", source: "global" as const };
     await saveJobDraft(draftWith({ everyProject: true }), editing, ["nightly"]);
-    expect(saveJobGlobal).toHaveBeenCalledWith("nightly", expect.anything());
+    expect(saveJobGlobal).toHaveBeenCalledWith("nightly", expect.anything(), undefined);
     expect(deleteJob).not.toHaveBeenCalled();
     expect(deleteJobGlobal).not.toHaveBeenCalled();
+  });
+
+  it("writes a paired machine's shared job there, in its own names", async () => {
+    vi.mocked(readGlobalJobIds).mockResolvedValue(["nightly"]);
+    const id = await saveJobDraft(
+      draftWith({ targets: ["peer-abcdef12-api", "peer-abcdef12-web"] }),
+      null,
+      [],
+      "abcdef12",
+    );
+    expect(readGlobalJobIds).toHaveBeenCalledWith("abcdef12");
+    expect(id).toBe("nightly-2");
+    expect(saveJobGlobal).toHaveBeenCalledWith(
+      "nightly-2",
+      expect.objectContaining({ projects: ["api", "web"] }),
+      "abcdef12",
+    );
+  });
+
+  it("writes a paired machine's one-project job through that project", async () => {
+    await saveJobDraft(draftWith({ targets: ["peer-abcdef12-api"] }), null, [], "abcdef12");
+    expect(saveJob).toHaveBeenCalledWith("peer-abcdef12-api", "nightly", expect.anything());
+    expect(saveJobGlobal).not.toHaveBeenCalled();
   });
 });

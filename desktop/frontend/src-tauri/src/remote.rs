@@ -4533,7 +4533,7 @@ fn list_projects_json(app: &AppHandle) -> Value {
 /// (order, groups). `order` is settings.json's sidebarOrder — an interleaved list
 /// of project names and "group:<id>" tokens; `groups` is groups.json's group defs
 /// ({id, name, collapsed, members}). Both default to empty/absent gracefully.
-fn sidebar_json() -> (Value, Value) {
+pub(crate) fn sidebar_json() -> (Value, Value) {
     let order = config::load_settings()
         .get("sidebarOrder")
         .cloned()
@@ -4686,7 +4686,7 @@ fn flatten_order(order: &[Value], groups: &[Value]) -> Vec<String> {
 
 /// The current sidebar layout for mutation: the `sidebarOrder` token list and the
 /// groups.json wrapper (`{ "groups": [...] }`), matching group_copies_into_folder.
-fn load_sidebar_layout() -> (Vec<Value>, Value) {
+pub(crate) fn load_sidebar_layout() -> (Vec<Value>, Value) {
     let order: Vec<Value> = config::load_settings()
         .get("sidebarOrder")
         .and_then(Value::as_array)
@@ -4697,7 +4697,7 @@ fn load_sidebar_layout() -> (Vec<Value>, Value) {
 
 /// Persist a mutated layout: rewrite groups.json and the settings sidebarOrder +
 /// flattened projectOrder, exactly like group_copies_into_folder's tail.
-fn persist_sidebar_layout(order: Vec<Value>, wrap: Value) -> Result<(), String> {
+pub(crate) fn persist_sidebar_layout(order: Vec<Value>, wrap: Value) -> Result<(), String> {
     let groups = wrap
         .get("groups")
         .and_then(Value::as_array)

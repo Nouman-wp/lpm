@@ -11,7 +11,7 @@ import { MEMORY_CHANGED_EVENT, type MemorySession } from "../types";
 import { useAppStore } from "../store/app";
 import { useNow } from "../hooks/useNow";
 import { useContentZoom } from "../hooks/useContentZoom";
-import { basename } from "../path";
+import { memoryOwner } from "../memoryOwner";
 import { MemoryCreateForm } from "./MemoryCreateForm";
 import { MemoryEditor } from "./MemoryEditor";
 import { MemoryRenameDialog } from "./MemoryRenameDialog";
@@ -89,7 +89,7 @@ export function MemoryView({ projectName, visible, focused, target }: MemoryView
   // Whoever owns the folder the backend answered with: the project itself, or
   // the original this project is a copy of. Saves are announced under the
   // owner's name, so the watcher needs no knowledge of copies.
-  const owner = basename(dir);
+  const owner = memoryOwner(projectName, dir);
   const shared = owner !== "" && owner !== projectName;
   const ownerLabel = useAppStore((s) =>
     shared ? s.projects.find((p) => p.name === owner)?.label?.trim() || owner : "",

@@ -9,7 +9,12 @@ import type { ClaudeAccountChoice } from "../types";
 import { MoveToFolderSubmenu } from "./MoveToFolderSubmenu";
 import { OpenInBrowserSubmenu } from "./OpenInBrowserSubmenu";
 import { ProjectGitSubmenu } from "./ProjectGitSubmenu";
-import { launchOpenInTarget, primaryOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
+import {
+  launchOpenInTarget,
+  primaryOpenInTarget,
+  projectOpenInTargets,
+  useOpenInTargets,
+} from "../hooks/useOpenInTargets";
 import type { CustomWorkStatus, ProjectGroup, WorkStatus } from "../types";
 import type { WorkStatusChoice } from "../workStatus";
 import type { SideBySideMenuItem } from "../hooks/useSideBySideMenu";
@@ -40,10 +45,12 @@ interface ProjectContextMenuProps {
   isDetached: boolean;
   canSelect: boolean;
   // A project living on a paired Mac. Hides items that would act on the wrong
-  // machine or a local-only concept (open-with, browser, detach, folders,
-  // select); Git / Duplicate / Rename / Copy path / Remove stay and route to
-  // the peer.
+  // machine or a local-only concept (browser, detach, select, Claude account);
+  // Git / Duplicate / Rename / Copy path / Remove and its project files stay
+  // and route to the peer.
   remote: boolean;
+  // That Mac is reached over SSH, so a Remote-SSH editor can open the project.
+  peerViaSsh: boolean;
   // An SSH project (root lives on an SSH host). Limits "Open with" to editors
   // that can open a remote folder (VS Code-family Remote-SSH).
   sshRemote: boolean;
@@ -51,7 +58,9 @@ interface ProjectContextMenuProps {
   running: boolean;
   services: { name: string; port: number }[];
   projectPath: string | null;
-  groups: ProjectGroup[];
+  // The folders this project can be filed into: its own Mac's. Null where there
+  // are none to reach — a paired Mac whose lpm doesn't share its folders.
+  groups: ProjectGroup[] | null;
   currentGroupId: string | null;
   // The project's own status, the statuses the menu offers, and the ways to
   // set, add or edit them; the submenu shows on every local project.
@@ -109,6 +118,7 @@ export function ProjectContextMenu({
   isDetached,
   canSelect,
   remote,
+  peerViaSsh,
   sshRemote,
   projectName,
   running,
@@ -155,7 +165,10 @@ export function ProjectContextMenu({
   onRemoveFromDisk,
   onClose,
 }: ProjectContextMenuProps) {
-  const openInTargets = useOpenInTargets().filter((t) => !t.fileOnly && (!sshRemote || t.remoteCapable));
+  const openInTargets = projectOpenInTargets(useOpenInTargets(), projectPath ?? "", {
+    isRemote: sshRemote,
+    peerViaSsh,
+  });
   const primaryTarget = primaryOpenInTarget(openInTargets);
   const close = (fn: () => void) => () => {
     fn();
@@ -164,7 +177,7 @@ export function ProjectContextMenu({
 
   return (
     <ContextMenuShell x={x} y={y} minWidth={180} onClose={onClose}>
-      {!remote && projectPath && openInTargets.length > 0 && (
+      {projectPath && openInTargets.length > 0 && (
         <ContextMenuSubmenu
           label="Open with"
           icon={primaryTarget ? <img src={primaryTarget.icon} alt="" className="h-4 w-4 shrink-0" /> : undefined}
@@ -219,16 +232,14 @@ export function ProjectContextMenu({
         onReorder={onReorderWorkStatuses}
         onClose={onClose}
       />
-      {!remote && (
-        <ContextMenuSubmenu label="Project files" icon={<FileIcon size={14} />}>
-          <ContextMenuItem label="Edit Config" icon={<SettingsIcon />} shortcut={chordLabel({ key: "e", meta: true })} onClick={close(onEditConfig)} />
-          <ContextMenuItem label="Notes" icon={<MessageIcon />} shortcut={chordLabel({ key: "n", meta: true, shift: true })} onClick={close(onOpenNotes)} />
-          <ContextMenuItem label="AI Instructions" icon={<SparkleIcon />} onClick={close(onOpenAI)} />
-          {!sshRemote && (
-            <ContextMenuItem label="Memory" icon={<BrainIcon />} shortcut={chordLabel({ key: "m", meta: true, shift: true })} onClick={close(onOpenMemory)} />
-          )}
-        </ContextMenuSubmenu>
-      )}
+      <ContextMenuSubmenu label="Project files" icon={<FileIcon size={14} />}>
+        <ContextMenuItem label="Edit Config" icon={<SettingsIcon />} shortcut={chordLabel({ key: "e", meta: true })} onClick={close(onEditConfig)} />
+        <ContextMenuItem label="Notes" icon={<MessageIcon />} shortcut={chordLabel({ key: "n", meta: true, shift: true })} onClick={close(onOpenNotes)} />
+        <ContextMenuItem label="AI Instructions" icon={<SparkleIcon />} onClick={close(onOpenAI)} />
+        {!sshRemote && (
+          <ContextMenuItem label="Memory" icon={<BrainIcon />} shortcut={chordLabel({ key: "m", meta: true, shift: true })} onClick={close(onOpenMemory)} />
+        )}
+      </ContextMenuSubmenu>
       {!remote && !sshRemote && (
         <ClaudeAccountSubmenu
           own={claudeChoice}
@@ -325,7 +336,7 @@ export function ProjectContextMenu({
             onClick={close(onDetach)}
           />
         ))}
-      {!remote && (
+      {groups && (
         <MoveToFolderSubmenu
           groups={groups}
           disabledGroupId={currentGroupId}

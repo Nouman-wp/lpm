@@ -244,9 +244,6 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
             filtered={filtered}
             quietProjectCount={fleet.quietProjectCount}
             openProject={openProject}
-            hiddenAutomationMacs={
-              fleet.peerAutomationsHidden ? fleet.peerAutomationMacs : []
-            }
             onClearFilters={clearFilters}
             onOpenProject={selectProject}
             onAddProject={addProject}

@@ -4261,6 +4261,24 @@ pub fn save_job_value(
     write_yaml_doc(&path, &doc)
 }
 
+/// Remove a job's config from its layer file, leaving its saved state.
+pub fn remove_job_value(source: &str, project: &str, id: &str) -> Result<(), String> {
+    let path = job_config_path(source, project)?;
+    let mut doc = read_yaml_doc_strict(&path)?;
+    if let Some(jobs) = doc
+        .get_mut("jobs")
+        .and_then(serde_norway::Value::as_mapping_mut)
+    {
+        jobs.shift_remove(id);
+        if jobs.is_empty() {
+            if let Some(map) = doc.as_mapping_mut() {
+                map.shift_remove("jobs");
+            }
+        }
+    }
+    write_yaml_doc(&path, &doc)
+}
+
 /// Remove a job's config from its layer file and forget its saved state, the
 /// pair the desktop's delete does (deleteJob + ClearJobState).
 pub fn delete_job_body(
@@ -4270,20 +4288,7 @@ pub fn delete_job_body(
     id: String,
     delete_copies: bool,
 ) -> Result<(), String> {
-    let path = job_config_path(&source, &project)?;
-    let mut doc = read_yaml_doc_strict(&path)?;
-    if let Some(jobs) = doc
-        .get_mut("jobs")
-        .and_then(serde_norway::Value::as_mapping_mut)
-    {
-        jobs.shift_remove(id.as_str());
-        if jobs.is_empty() {
-            if let Some(map) = doc.as_mapping_mut() {
-                map.shift_remove("jobs");
-            }
-        }
-    }
-    write_yaml_doc(&path, &doc)?;
+    remove_job_value(&source, &project, &id)?;
     if source == SOURCE_GLOBAL {
         clear_job_state_global(app, id, delete_copies)
     } else {

@@ -1,4 +1,6 @@
 import YAML from "yaml";
+import { ClearJobStateGlobal, PeerInvoke } from "../bridge/commands";
+import { peerSlugOf } from "./peer/markers";
 import {
   editGlobalDoc,
   editProjectDoc,
@@ -77,31 +79,69 @@ function layerFor(projectName: string, source: JobSourceLayer): ConfigLayer {
   return projectLayer(projectName);
 }
 
+// ---- a paired machine's shared layer ----------------------------------------
+//
+// `host` is a paired machine's slug; absent = this Mac. Its global config is
+// read through it, and written only through the job-scoped commands it takes
+// for that (hostjobs.rs): the file as a whole is not this Mac's to replace.
+
+const HOST_SAVE_CMD = "host_global_job_save";
+const HOST_DELETE_CMD = "host_global_job_delete";
+
+async function readGlobal(host?: string): Promise<string> {
+  if (!host) return globalLayer.read();
+  return ((await PeerInvoke(host, "read_global_config", {})) as string) ?? "";
+}
+
 export async function readJobPayloadFrom(
   projectName: string,
   source: JobSourceLayer,
   id: string,
 ): Promise<Record<string, unknown> | null> {
-  const content = await layerFor(projectName, source).read();
+  // A shared job of a paired machine's is read from that machine's own layer.
+  const content =
+    source === "global"
+      ? await readGlobal(peerSlugOf(projectName) ?? undefined)
+      : await layerFor(projectName, source).read();
   return readJobPayloadFromDoc(YAML.parseDocument(content || "{}"), id);
 }
 
-export async function readGlobalJobIds(): Promise<string[]> {
-  const content = await globalLayer.read();
-  return jobIdsInDoc(YAML.parseDocument(content || "{}"));
+export async function readGlobalJobIds(host?: string): Promise<string[]> {
+  return jobIdsInDoc(YAML.parseDocument((await readGlobal(host)) || "{}"));
 }
 
 export async function saveJobGlobal(
   id: string,
   payload: Record<string, unknown>,
+  host?: string,
 ): Promise<void> {
+  if (host) {
+    await PeerInvoke(host, HOST_SAVE_CMD, { id, yaml: YAML.stringify(payload) });
+    return;
+  }
   await editGlobalDoc((doc) => setJobInDoc(doc, id, payload));
 }
 
-export async function deleteJobGlobal(id: string): Promise<void> {
+export async function deleteJobGlobal(id: string, host?: string): Promise<void> {
+  if (host) {
+    await PeerInvoke(host, HOST_DELETE_CMD, { id });
+    return;
+  }
   await editGlobalDoc((doc) => {
     deleteJobFromDoc(doc, id);
   });
+}
+
+export async function clearJobStateGlobal(
+  id: string,
+  deleteCopies: boolean,
+  host?: string,
+): Promise<void> {
+  if (host) {
+    await PeerInvoke(host, "clear_job_state_global", { jobId: id, deleteCopies });
+    return;
+  }
+  await ClearJobStateGlobal(id, deleteCopies);
 }
 
 export async function saveJob(

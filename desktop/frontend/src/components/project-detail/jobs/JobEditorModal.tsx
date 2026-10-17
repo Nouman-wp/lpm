@@ -24,12 +24,14 @@ import { JobFrequencyCard } from "./JobFrequencyCard";
 import { JobCheckField } from "./JobCheckField";
 import { CheckAIModal } from "./CheckAIModal";
 import { JobEditorFooter } from "./JobEditorFooter";
-import { ClearJobState, ClearJobStateGlobal } from "../../../../bridge/commands";
+import { ClearJobState } from "../../../../bridge/commands";
 import {
+  clearJobStateGlobal,
   deleteJob,
   deleteJobGlobal,
   readJobPayloadFrom,
 } from "../../../jobsConfig";
+import { useJobHost } from "./useJobHost";
 import { saveJobDraft, scopeProject } from "../../../jobsSave";
 import {
   defaultJobDraft,
@@ -111,6 +113,8 @@ export function JobEditorModal({
   const promptRef = useRef<ComposerValue>(draft.prompt);
 
   const source = editing?.job.source ?? "project";
+  // The machine the job runs on; its projects are the only ones it can name.
+  const machine = useJobHost(open, editing, newProject);
   // The scope picker holds the projects the job runs in — for a new job and for
   // one being edited alike; empty = standalone. Exactly one project unlocks the
   // project-scoped features.
@@ -235,6 +239,14 @@ export function JobEditorModal({
 
   const save = async () => {
     if (!canSave) return;
+    // The shared layer of a paired machine is written through it, by builds
+    // that take that.
+    if (machine.peer && !machine.peer.supportsHostJobs && (!runProject || source === "global")) {
+      toast.error(
+        `Update lpm on ${machine.peer.alias || machine.peer.host} to save an automation that runs in more than one of its projects, or in none.`,
+      );
+      return;
+    }
     setSaving(true);
     try {
       await saveJobDraft(
@@ -243,6 +255,7 @@ export function JobEditorModal({
           : draft,
         editing ? { project: editing.project, id: editing.job.id, source } : null,
         knownIds?.(null) ?? [],
+        machine.host,
       );
       toast.success(isEditing ? "Automation updated" : "Automation created");
       onSaved();
@@ -266,8 +279,8 @@ export function JobEditorModal({
     setSaving(true);
     try {
       if (source === "global") {
-        await deleteJobGlobal(editing.job.id);
-        await ClearJobStateGlobal(editing.job.id, deleteCopies);
+        await deleteJobGlobal(editing.job.id, machine.host);
+        await clearJobStateGlobal(editing.job.id, deleteCopies, machine.host);
       } else {
         await deleteJob(editing.project, editing.job.id);
         await ClearJobState(editing.project, editing.job.id, deleteCopies);
@@ -327,11 +340,11 @@ export function JobEditorModal({
     return storeProjects
       .filter(
         (p) =>
-          (draft.everyProject || draft.targets.includes(p.name)) &&
+          (draft.everyProject ? machine.onHost(p.name) : draft.targets.includes(p.name)) &&
           isDuplicate(p, present),
       )
       .map((p) => displayNameForProjectName(p.name, storeProjects));
-  }, [draft.everyProject, draft.targets, runProject, storeProjects]);
+  }, [draft.everyProject, draft.targets, runProject, storeProjects, machine.onHost]);
 
   return (
     <>
@@ -464,10 +477,23 @@ export function JobEditorModal({
                   draft={draft}
                   patch={patch}
                   onScope={setScope}
-                  options={projects.map((p) => ({
+                  options={projects.filter(machine.onHost).map((p) => ({
                     value: p,
                     label: displayNameForProjectName(p, storeProjects),
                   }))}
+                  machine={
+                    machine.shown
+                      ? {
+                          value: machine.host ?? "",
+                          options: machine.options,
+                          // Its projects are that machine's, so they go with it.
+                          onChange: (value) => {
+                            machine.setHost(value || undefined);
+                            setScope([]);
+                          },
+                        }
+                      : undefined
+                  }
                   lockedScope={lockedScope}
                   canDuplicate={canDuplicate}
                   skippedCopies={skippedCopies}

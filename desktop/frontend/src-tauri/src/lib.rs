@@ -91,6 +91,8 @@ mod gitworkstate;
 mod hookform;
 mod hooks;
 mod hostautoupdate;
+mod hostfolders;
+mod hostjobs;
 mod ipc;
 mod jobcal;
 mod jobcron;

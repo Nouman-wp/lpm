@@ -4,11 +4,11 @@ import { useOutsideClick } from "../hooks/useOutsideClick";
 import {
   EDITOR_IDS,
   launchOpenInTarget,
+  projectOpenInTargets,
   useOpenInTargets,
   OPEN_IN_SELECTED_KEY,
   type OpenInTarget,
 } from "../hooks/useOpenInTargets";
-import { isPeerMarked } from "../peer/markers";
 
 const TERMINAL_IDS = new Set([
   "terminal", "iterm2", "ghostty", "warp",
@@ -38,17 +38,9 @@ export function OpenInDropdown({ projectPath, isRemote = false, peerViaSsh = fal
 }) {
   const [open, setOpen] = useState(false);
   const allTargets = useOpenInTargets();
-  // A project on a paired machine opens here only in an editor that reaches it
-  // over SSH, and only when this Mac reaches that machine over SSH at all.
-  const onPeer = isPeerMarked(projectPath);
   const targets = useMemo(
-    () =>
-      allTargets.filter((t) => {
-        if (t.fileOnly) return false;
-        if (onPeer) return peerViaSsh && !isRemote && t.remoteCapable;
-        return !isRemote || t.remoteCapable;
-      }),
-    [allTargets, isRemote, onPeer, peerViaSsh],
+    () => projectOpenInTargets(allTargets, projectPath, { isRemote, peerViaSsh }),
+    [allTargets, projectPath, isRemote, peerViaSsh],
   );
   const groups = useMemo(() => groupTargets(targets), [targets]);
   const [selectedId, setSelectedId] = useState<string>(() => localStorage.getItem(OPEN_IN_SELECTED_KEY) ?? "");

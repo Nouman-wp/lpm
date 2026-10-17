@@ -169,6 +169,35 @@ function cachedPeerList(slug: string): ProjectInfo[] {
   return cached.list.map((project) => ({ ...project, statusEntries: [] }));
 }
 
+// Every automation there is: this Mac's own and each connected host's, which
+// that host lists itself. A host that doesn't answer in time is left out of this
+// listing rather than holding back the rest.
+async function routedListAllJobs(): Promise<unknown[]> {
+  ensureRegistry();
+  const listing = invoke("list_all_jobs") as Promise<unknown[] | null>;
+  if (!registryLoaded) await Promise.race([loadRegistry(), delay(REGISTRY_WAIT_MS)]);
+  const peerRows = await Promise.all(
+    connectedSlugs().map(async (slug) => {
+      const call = invoke("peer_invoke", { slug, cmd: "list_all_jobs", args: {} }).then(
+        (raw) => translateResult("list_all_jobs", slug, raw) as unknown[],
+      );
+      return (await Promise.race([call, delay(PEER_LIST_WAIT_MS).then(() => null)]).catch(() => null)) ?? [];
+    }),
+  );
+  return [...((await listing) ?? []), ...peerRows.flat()];
+}
+
+// "Mark all as read" reads every machine's automations, as the list shows them.
+async function routedMarkAllJobsSeen(): Promise<void> {
+  ensureRegistry();
+  await Promise.all([
+    invoke("mark_all_jobs_seen"),
+    ...connectedSlugs().map((slug) =>
+      invoke("peer_invoke", { slug, cmd: "mark_all_jobs_seen", args: {} }).catch(() => {}),
+    ),
+  ]);
+}
+
 async function dispatchToPeer(
   cmd: string,
   slug: string,
@@ -216,6 +245,8 @@ async function dispatchToPeer(
 export function routedInvoke(cmd: string, args?: unknown): Promise<unknown> {
   ensureRegistry();
   if (cmd === "list_projects") return routedListProjects();
+  if (cmd === "list_all_jobs") return routedListAllJobs();
+  if (cmd === "mark_all_jobs_seen") return routedMarkAllJobsSeen();
   if (isLocalOnlyCommand(cmd)) return invoke(cmd, args as Record<string, unknown> | undefined);
   let slug: string | null;
   try {

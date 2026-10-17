@@ -1,10 +1,13 @@
-import { isDuplicate, type PendingDuplicate, type ProjectInfo } from "../types";
+import { isDuplicate, type PendingDuplicate, type ProjectGroup, type ProjectInfo } from "../types";
+import type { HostFolders } from "../peer/hostFolders";
 import { peerRowToken } from "./peerRowOrder";
+import { rollupSegments, type RollupSegment } from "./sidebarRollup";
 
 // A paired Mac's rows, shaped the way the local list is: each project, then its
 // duplicates and worktrees as a deck under it, with copies still on their way
-// dealt after them as skeletons.
-export type PeerRowItem =
+// dealt after them as skeletons. A host that shares its folders lays them out
+// as its own sidebar does, folders among the top-level rows.
+export type PeerMemberRow =
   | { kind: "project"; project: ProjectInfo }
   | {
       kind: "deck";
@@ -12,6 +15,19 @@ export type PeerRowItem =
       children: ProjectInfo[];
       pending: PendingDuplicate[];
       collapsed: boolean;
+    };
+
+export type PeerRowItem =
+  | PeerMemberRow
+  | {
+      kind: "folder";
+      group: ProjectGroup;
+      collapsed: boolean;
+      /// The folder's own projects, not counting their copies.
+      count: number;
+      /// What a folded folder's projects are up to; empty while open.
+      segments: RollupSegment[];
+      rows: PeerMemberRow[];
     };
 
 export interface PeerSectionRows {
@@ -22,16 +38,23 @@ export interface PeerSectionRows {
   decks: Map<string, ProjectInfo[]>;
 }
 
-// `projects` is the section in the user's order, so a deck keeps its copies in it.
+const GROUP_PREFIX = "group:";
+
+// `projects` is the section in the order to show it, so a deck keeps its copies
+// in it. `collapsedFolders` holds the ids of `folders` folded on this Mac.
 export function peerSectionRows(
   projects: ProjectInfo[],
   pending: PendingDuplicate[],
   collapsedDecks: ReadonlySet<string>,
+  folders?: HostFolders,
+  collapsedFolders: ReadonlySet<string> = new Set(),
 ): PeerSectionRows {
   const byName = new Map(projects.map((p) => [p.name, p]));
+  // A copy filed into a folder of its own stands there, out of its parent's deck.
+  const filed = new Set(folders?.groups.flatMap((g) => g.members) ?? []);
   const decks = new Map<string, ProjectInfo[]>();
   for (const p of projects) {
-    if (!isDuplicate(p, byName)) continue;
+    if (!isDuplicate(p, byName) || filed.has(p.name)) continue;
     const arr = decks.get(p.parentName!);
     if (arr) arr.push(p);
     else decks.set(p.parentName!, [p]);
@@ -39,16 +62,61 @@ export function peerSectionRows(
 
   const rows: PeerRowItem[] = [];
   const ids: string[] = [];
-  for (const project of projects) {
-    if (isDuplicate(project, byName)) continue;
-    rows.push({ kind: "project", project });
-    ids.push(peerRowToken(project.name));
+  const placed = new Set<string>();
+  // A project's row and the deck of copies under it.
+  const place = (project: ProjectInfo, shown: boolean): PeerMemberRow[] => {
+    placed.add(project.name);
+    if (shown) ids.push(peerRowToken(project.name));
     const children = decks.get(project.name) ?? [];
     const coming = pending.filter((copy) => copy.parent === project.name);
-    if (children.length === 0 && coming.length === 0) continue;
+    if (children.length === 0 && coming.length === 0) return [{ kind: "project", project }];
+    for (const child of children) placed.add(child.name);
     const collapsed = children.length > 0 && collapsedDecks.has(project.name);
-    rows.push({ kind: "deck", parent: project, children, pending: coming, collapsed });
-    if (!collapsed) ids.push(...children.map((child) => peerRowToken(child.name)));
+    if (shown && !collapsed) ids.push(...children.map((child) => peerRowToken(child.name)));
+    return [
+      { kind: "project", project },
+      { kind: "deck", parent: project, children, pending: coming, collapsed },
+    ];
+  };
+  const loose = (project: ProjectInfo) =>
+    !placed.has(project.name) && !filed.has(project.name) && !isDuplicate(project, byName);
+
+  if (!folders) {
+    for (const project of projects) if (loose(project)) rows.push(...place(project, true));
+    return { rows, ids, decks };
   }
+
+  const groupsById = new Map(folders.groups.map((g) => [g.id, g]));
+  const shownFolders = new Set<string>();
+  const showFolder = (group: ProjectGroup) => {
+    shownFolders.add(group.id);
+    const collapsed = collapsedFolders.has(group.id);
+    const members = group.members
+      .map((name) => byName.get(name))
+      .filter((p): p is ProjectInfo => p !== undefined && !placed.has(p.name));
+    const inside = members.flatMap((member) => place(member, !collapsed));
+    rows.push({
+      kind: "folder",
+      group,
+      collapsed,
+      count: members.length,
+      segments: collapsed
+        ? rollupSegments(members.flatMap((m) => [m, ...(decks.get(m.name) ?? [])]))
+        : [],
+      rows: inside,
+    });
+  };
+  for (const token of folders.order) {
+    if (token.startsWith(GROUP_PREFIX)) {
+      const group = groupsById.get(token.slice(GROUP_PREFIX.length));
+      if (group && !shownFolders.has(group.id)) showFolder(group);
+      continue;
+    }
+    const project = byName.get(token);
+    if (project && loose(project)) rows.push(...place(project, true));
+  }
+  for (const group of folders.groups) if (!shownFolders.has(group.id)) showFolder(group);
+  // Projects the host hasn't slotted yet go last, as they do in its own sidebar.
+  for (const project of projects) if (loose(project)) rows.push(...place(project, true));
   return { rows, ids, decks };
 }

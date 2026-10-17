@@ -82,6 +82,9 @@ export type JobSourceLayer = "project" | "repo" | "global";
 export interface JobInfo {
   id: string;
   valid: boolean;
+  // The paired machine the job lives on, by slug; absent = this one. Its project
+  // names arrive peer-marked, so commands about them reach that machine.
+  host?: string;
   source?: JobSourceLayer;
   error?: string;
   label?: string;

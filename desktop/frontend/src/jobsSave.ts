@@ -13,6 +13,7 @@ import {
   saveJobGlobal,
 } from "./jobsConfig";
 import { buildJobPayload, type JobDraft, type JobSourceLayer } from "./jobsFormat";
+import { stripMarker } from "./peer/markers";
 import { slugify } from "./slugify";
 import { uniqueKey } from "./uniqueKey";
 
@@ -41,6 +42,10 @@ export async function saveJobDraft(
   // Every job id currently visible — a new job must not take one over, or it
   // would inherit that job's run history.
   visibleIds: string[],
+  // The paired machine the job runs on, whose projects the draft names; absent
+  // = this Mac. A single project's config is reached through the project
+  // itself, the shared layer through the machine.
+  host?: string,
 ): Promise<string> {
   const payload = buildJobPayload(draft);
   const project = scopeProject(draft);
@@ -65,23 +70,24 @@ export async function saveJobDraft(
     }
     await saveJob(project, id, payload);
     if (editing && editing.source === "global") {
-      await deleteJobGlobal(editing.id);
+      await deleteJobGlobal(editing.id, host);
     } else if (editing && editing.project !== project) {
       await deleteJob(editing.project, editing.id);
     }
     return id;
   }
 
-  // An omitted `projects` is what "every project" means on disk.
-  if (!draft.everyProject) payload.projects = draft.targets;
-  const layerIds = await readGlobalJobIds();
+  // An omitted `projects` is what "every project" means on disk, in the names
+  // the machine holding it knows them by.
+  if (!draft.everyProject) payload.projects = host ? draft.targets.map(stripMarker) : draft.targets;
+  const layerIds = await readGlobalJobIds(host);
   let id = editing?.id ?? "";
   if (!id) {
     id = newId(layerIds);
   } else if (editing!.source !== "global" && layerIds.includes(id)) {
     id = uniqueKey(id, layerIds);
   }
-  await saveJobGlobal(id, payload);
+  await saveJobGlobal(id, payload, host);
   if (editing && editing.source !== "global") {
     await deleteJob(editing.project, editing.id);
   }

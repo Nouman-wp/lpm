@@ -345,8 +345,12 @@ export function ProjectDetail({
     detailViewConsumed.current = pendingDetailView.nonce;
     const view = pendingDetailView.view;
     clearPendingDetailView();
-    if (view === "memory") terminalRef.current?.openMemory();
-    else if (view === "automations") {
+    // Memory and Automations are tabs of the terminal pane, so it comes back
+    // from whichever view covered it.
+    if (view === "memory") {
+      switchDetailView("terminal");
+      terminalRef.current?.openMemory();
+    } else if (view === "automations") {
       switchDetailView("terminal");
       void terminalRef.current?.openAutomationsTab();
     } else switchDetailView(view);

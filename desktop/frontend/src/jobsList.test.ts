@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { jobScopeLabel, sortJobsForList } from "./jobsList";
+import { jobScopeLabel, rowProject, sortJobsForList, targetsOfRow } from "./jobsList";
 import type { JobInfo } from "./jobsFormat";
 
 const job = (over: Partial<JobInfo> & { project?: string }): JobInfo & { project?: string } => ({
@@ -59,5 +59,16 @@ describe("jobScopeLabel", () => {
 
   it("calls a standalone job's scope No project", () => {
     expect(jobScopeLabel(job({ standalone: true }), 4, upper)).toBe("No project");
+  });
+});
+
+describe("a paired machine's standalone job", () => {
+  it("runs in that machine's home folder, so its commands go there", () => {
+    const here = job({ standalone: true, targets: [] });
+    const there = job({ standalone: true, targets: [], host: "abcdef12" });
+    expect(targetsOfRow(here)).toEqual([""]);
+    expect(rowProject(here)).toBe("");
+    expect(targetsOfRow(there)).toEqual(["peer-abcdef12-"]);
+    expect(rowProject(there)).toBe("peer-abcdef12-");
   });
 });

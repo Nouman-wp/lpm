@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
 import {
@@ -13,10 +13,23 @@ import { onFocusMainTerminal } from "../mainWindowFocus";
 import { getSettings, useSettingsStore } from "../store/settings";
 import { applySettingsOutsideStore } from "../settingsEffects";
 import type { SpawnTask } from "../types";
+import { displayNameForProjectName } from "../components/ProjectNameDisplay";
+import { isPeerName, peerSlugOf, stripMarker } from "../peer/markers";
+import { peerAlias, usePeerState, type PeerClient } from "../peer/usePeerState";
+
+// A project as a toast names it: a paired machine's by its own name and where.
+function projectPhrase(name: string, peers: PeerClient[]): string {
+  if (!isPeerName(name)) return name;
+  const label = displayNameForProjectName(name, useAppStore.getState().projects);
+  return `${label} on ${peerAlias(peers, peerSlugOf(name) ?? "")}`;
+}
 
 // Events safe to handle in every window — they don't reach into
 // main-window-only state (selection, settings view, modals).
 export function useAmbientAppEvents(): void {
+  const { state: peerState } = usePeerState();
+  const peersRef = useRef(peerState.peers);
+  peersRef.current = peerState.peers;
   useEffect(() => {
     const cancelSyncError = EventsOn("sync-error", (msg: string) => {
       toast.error(`Sync push failed: ${msg}`);
@@ -46,24 +59,24 @@ export function useAmbientAppEvents(): void {
         }
         // The job sends its results elsewhere, not to lpm.
         if (payload?.notify === false) return;
-        if (!payload?.project) return;
+        if (!payload?.project || !stripMarker(payload.project)) return;
+        const project = projectPhrase(payload.project, peersRef.current);
+        const copy = payload.copy ? projectPhrase(payload.copy, peersRef.current) : "";
         // What the run actually reported — "finished" alone doesn't say whether
         // it did what it was asked.
         const detail = payload.detail ? ` ${payload.detail}` : "";
         if (payload.result === "found-work") {
           toast.success(
-            payload.copy
-              ? `"${name}" found work in ${payload.project} — running in ${payload.copy}.`
-              : `"${name}" found work in ${payload.project}.`,
+            copy
+              ? `"${name}" found work in ${project} — running in ${copy}.`
+              : `"${name}" found work in ${project}.`,
           );
         } else if (payload.result === "completed") {
-          toast.success(`"${name}" in ${payload.project} finished.${detail}`);
+          toast.success(`"${name}" in ${project} finished.${detail}`);
         } else if (payload.result === "error") {
-          toast.error(`"${name}" in ${payload.project} hit a problem.${detail}`);
+          toast.error(`"${name}" in ${project} hit a problem.${detail}`);
         } else if (payload.result === "timed-out") {
-          toast.error(
-            `"${name}" in ${payload.project} ran too long and was stopped.`,
-          );
+          toast.error(`"${name}" in ${project} ran too long and was stopped.`);
         }
       },
     );

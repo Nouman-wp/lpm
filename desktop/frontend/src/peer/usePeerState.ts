@@ -59,6 +59,11 @@ export interface PeerClient {
   updateChannel?: UpdateChannel;
   // The peer's build shares its own settings, so they can be changed from here.
   supportsHostSettings?: boolean;
+  // The peer's build shares its sidebar folders, so its section shows and files
+  // into them.
+  supportsHostFolders?: boolean;
+  // ...and takes its shared automations (several projects, all, or none) from here.
+  supportsHostJobs?: boolean;
   pinned?: boolean;
   lastSyncAt?: number;
   lastError?: string;

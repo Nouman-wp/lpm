@@ -270,26 +270,48 @@ pub async fn notes_save_attachment(
     hash: String,
     name: String,
 ) -> Result<String, String> {
-    // Folder picker (native save dialog is flaky on newer macOS). "" = cancel.
-    let Some(dir) = crate::files::pick_path(app, |app| {
+    let Some(dir) = pick_attachment_folder(app).await? else {
+        return Ok(String::new());
+    };
+    let data = state.open(&project)?.blobs.read(&hash)?;
+    write_attachment(&dir, &name, &data)
+}
+
+/// An attachment of a note on a paired machine, saved on this one: its bytes
+/// (base64) came from there, and the folder is picked here, where the person is.
+#[tauri::command]
+pub async fn notes_save_attachment_data(
+    app: AppHandle,
+    name: String,
+    data: String,
+) -> Result<String, String> {
+    let data = B64.decode(data.as_bytes()).map_err(|e| e.to_string())?;
+    let Some(dir) = pick_attachment_folder(app).await? else {
+        return Ok(String::new());
+    };
+    write_attachment(&dir, &name, &data)
+}
+
+/// Folder picker (native save dialog is flaky on newer macOS). None = cancel.
+async fn pick_attachment_folder(app: AppHandle) -> Result<Option<std::path::PathBuf>, String> {
+    crate::files::pick_path(app, |app| {
         app.dialog()
             .file()
             .set_title("Save attachment to folder")
             .blocking_pick_folder()
     })
-    .await?
-    else {
-        return Ok(String::new());
-    };
-    let data = state.open(&project)?.blobs.read(&hash)?;
+    .await
+}
+
+fn write_attachment(dir: &Path, name: &str, data: &[u8]) -> Result<String, String> {
     // file_name() strips any path components in `name` (traversal guard); a
     // name from another Mac this platform can't hold is made legal.
-    let base = Path::new(&name)
+    let base = Path::new(name)
         .file_name()
         .map(|s| crate::fsname::portable(&s.to_string_lossy()))
-        .unwrap_or_else(|| name.clone());
+        .unwrap_or_else(|| name.to_string());
     let path = dir.join(base);
-    std::fs::write(&path, &data).map_err(|e| e.to_string())?;
+    std::fs::write(&path, data).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().into_owned())
 }
 
@@ -440,4 +462,17 @@ fn sniff_mime(data: &[u8]) -> String {
         "application/octet-stream"
     }
     .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_attachment_lands_in_the_picked_folder_under_its_own_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_attachment(dir.path(), "../../etc/notes.txt", b"hi").unwrap();
+        assert_eq!(Path::new(&path), dir.path().join("notes.txt"));
+        assert_eq!(std::fs::read(&path).unwrap(), b"hi");
+    }
 }

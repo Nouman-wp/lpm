@@ -682,23 +682,27 @@ describe("automations", () => {
     expect(fleet.rows[0].detail).toBeNull();
   });
 
-  it("flags that a paired Mac's automations cannot be listed", () => {
+  it("headlines a paired Mac's automation with its project there", () => {
     const fleet = build({
       now: T0,
-      projects: [
-        project({ name: "app" }),
-        project({ name: "peer-abcdef12-app", label: "app" }),
-      ],
+      projects: [project({ name: "peer-abcdef12-app", label: "app" })],
       peerAliases: { abcdef12: "Studio Mac" },
+      jobs: [
+        job({
+          id: "nightly",
+          running: true,
+          host: "abcdef12",
+          targets: ["peer-abcdef12-app"],
+          targetCount: 1,
+        }),
+      ],
     });
-    expect(fleet.peerAutomationsHidden).toBe(true);
-    expect(fleet.peerAutomationMacs).toEqual(["Studio Mac"]);
-  });
-
-  it("does not flag anything when every project is local", () => {
-    const fleet = build({ now: T0, projects: [project({ name: "app" })] });
-    expect(fleet.peerAutomationsHidden).toBe(false);
-    expect(fleet.peerAutomationMacs).toEqual([]);
+    expect(fleet.rows[0].project).toMatchObject({
+      name: "peer-abcdef12-app",
+      label: "app",
+      peerAlias: "Studio Mac",
+    });
+    expect(fleet.quietProjectCount).toBe(0);
   });
 });
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
 import { ReadMemorySessions } from "../../../bridge/commands";
 import { EventsOn } from "../../../bridge/runtime";
 import { IS_MIRROR_WINDOW } from "../../mirror";
-import { basename } from "../../path";
+import { memoryOwner } from "../../memoryOwner";
 import {
   collectTerminals,
   findPane,
@@ -37,7 +37,7 @@ async function readFolder(projectName: string): Promise<FolderState | null> {
   try {
     const state = (await ReadMemorySessions(projectName)) as MemoryState;
     return {
-      owner: basename(state.dir) || projectName,
+      owner: memoryOwner(projectName, state.dir) || projectName,
       times: new Map(state.sessions.map((s) => [s.name, s.updatedAt])),
     };
   } catch {

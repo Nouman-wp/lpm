@@ -24,8 +24,26 @@ import { type AICLI } from "../types";
 import { getSettings, saveSettings } from "../store/settings";
 import { validateYaml } from "../yamlValidation";
 import { primaryHint } from "../shortcutHints";
+import { isPeerName } from "../peer/markers";
 
 type ConfigTarget = "user" | "repo" | "global";
+
+const USER_TARGET = {
+  value: "user" as const,
+  label: "User",
+  tooltip: "Your personal settings for this project. Only you see them.",
+};
+const REPO_TARGET = {
+  value: "repo" as const,
+  label: "Repo",
+  tooltip:
+    "Settings saved inside the project folder. Anyone who opens this project gets the same actions, services, and profiles.",
+};
+const GLOBAL_TARGET = {
+  value: "global" as const,
+  label: "Global",
+  tooltip: "Defaults shared across all your projects. Used when a project doesn't override them.",
+};
 
 interface ConfigEditorProps {
   projectName: string;
@@ -44,6 +62,15 @@ export function ConfigEditor({
 }: ConfigEditorProps) {
   const onSavedRef = useRef(onSaved);
   onSavedRef.current = onSaved;
+  // A paired machine's project edits only its own config there: that machine's
+  // shared layers aren't this Mac's to show or write, and generating one runs
+  // longer than a call to it may.
+  const onPeer = isPeerName(projectName);
+  const targets = onPeer
+    ? [USER_TARGET]
+    : isRemote
+      ? [USER_TARGET, GLOBAL_TARGET]
+      : [USER_TARGET, REPO_TARGET, GLOBAL_TARGET];
 
   const [target, setTarget] = useState<ConfigTarget>("user");
   const [mode, setMode] = useState<"form" | "yaml">(() => getSettings().configEditorMode ?? "form");
@@ -122,52 +149,16 @@ export function ConfigEditor({
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <SegmentedControl
-              value={target}
-              onChange={setTarget}
-              options={
-                isRemote
-                  ? [
-                      {
-                        value: "user",
-                        label: "User",
-                        tooltip: "Your personal settings for this project. Only you see them.",
-                      },
-                      {
-                        value: "global",
-                        label: "Global",
-                        tooltip:
-                          "Defaults shared across all your projects. Used when a project doesn't override them.",
-                      },
-                    ]
-                  : [
-                      {
-                        value: "user",
-                        label: "User",
-                        tooltip: "Your personal settings for this project. Only you see them.",
-                      },
-                      {
-                        value: "repo",
-                        label: "Repo",
-                        tooltip:
-                          "Settings saved inside the project folder. Anyone who opens this project gets the same actions, services, and profiles.",
-                      },
-                      {
-                        value: "global",
-                        label: "Global",
-                        tooltip:
-                          "Defaults shared across all your projects. Used when a project doesn't override them.",
-                      },
-                    ]
-              }
-            />
+            {targets.length > 1 && (
+              <SegmentedControl value={target} onChange={setTarget} options={targets} />
+            )}
             <div
               className={`flex items-center gap-2 ${
                 target === "user" ? "" : "invisible pointer-events-none"
               }`}
               aria-hidden={target !== "user"}
             >
-              <span aria-hidden className="mx-1 h-4 w-px bg-[var(--border)]" />
+              {targets.length > 1 && <span aria-hidden className="mx-1 h-4 w-px bg-[var(--border)]" />}
               <button
                 onClick={() => changeMode(mode === "form" ? "yaml" : "form")}
                 className={`flex h-6 w-6 items-center justify-center rounded transition-colors ${
@@ -179,9 +170,11 @@ export function ConfigEditor({
               >
                 <CodeIcon />
               </button>
-              <AIButton onClick={() => setAiOpen(true)} title="Generate config with AI">
-                Generate with AI
-              </AIButton>
+              {!onPeer && (
+                <AIButton onClick={() => setAiOpen(true)} title="Generate config with AI">
+                  Generate with AI
+                </AIButton>
+              )}
             </div>
           </div>
         </div>

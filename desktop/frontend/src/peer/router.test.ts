@@ -246,6 +246,65 @@ describe("translatePeerEventPayload", () => {
   });
 });
 
+describe("a host's automations", () => {
+  const SLUG = "abcdef12";
+
+  it("marks a host's job rows and stamps the machine on them", () => {
+    const rows = translateResult("list_all_jobs", SLUG, [
+      { id: "lint", project: "web", targets: ["web"] },
+      { id: "nightly", source: "global", targets: ["web", "api"] },
+      { id: "digest", source: "global", targets: [], standalone: true },
+    ]);
+    expect(rows).toEqual([
+      { id: "lint", host: SLUG, project: prefixName(SLUG, "web"), targets: [prefixName(SLUG, "web")] },
+      {
+        id: "nightly",
+        source: "global",
+        host: SLUG,
+        targets: [prefixName(SLUG, "web"), prefixName(SLUG, "api")],
+      },
+      { id: "digest", source: "global", host: SLUG, targets: [], standalone: true },
+    ]);
+  });
+
+  it("marks the copy a run worked in, so it opens here", () => {
+    expect(
+      translateResult("job_history", SLUG, [{ at: 1, result: "completed", copy: "web-2" }, { at: 2, result: "quiet" }]),
+    ).toEqual([
+      { at: 1, result: "completed", copy: prefixName(SLUG, "web-2") },
+      { at: 2, result: "quiet" },
+    ]);
+  });
+
+  it("forwards and marks a host's automation events", () => {
+    expect(GLOBAL_PEER_EVENTS.has("job-status")).toBe(true);
+    expect(GLOBAL_PEER_EVENTS.has("job-seen")).toBe(true);
+    expect(
+      translatePeerEventPayload("job-status", SLUG, { project: "web", jobId: "lint", copy: "web-2" }),
+    ).toEqual({ project: prefixName(SLUG, "web"), jobId: "lint", copy: prefixName(SLUG, "web-2") });
+    expect(translatePeerEventPayload("job-seen", SLUG, {})).toEqual({});
+  });
+});
+
+describe("a host project's files", () => {
+  const SLUG = "abcdef12";
+
+  it("names a project a config save renamed as this Mac lists it", () => {
+    expect(translateResult("save_config", SLUG, "web-renamed")).toBe(prefixName(SLUG, "web-renamed"));
+  });
+
+  it("marks the host's memory folder", () => {
+    expect(
+      translateResult("read_memory_sessions", SLUG, { dir: "/Users/them/.lpm/memory/web", sessions: [] }),
+    ).toEqual({ dir: prefixRoot(SLUG, "/Users/them/.lpm/memory/web"), sessions: [] });
+  });
+
+  it("forwards the host's memory saves under the project's name here", () => {
+    expect(GLOBAL_PEER_EVENTS.has("memory-changed")).toBe(true);
+    expect(translatePeerEventPayload("memory-changed", SLUG, "web")).toBe(prefixName(SLUG, "web"));
+  });
+});
+
 describe("GLOBAL_PEER_EVENTS", () => {
   it("forwards agent-session so peer tabs keep their resume command", () => {
     expect(GLOBAL_PEER_EVENTS.has("agent-session")).toBe(true);

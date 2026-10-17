@@ -3,6 +3,7 @@ import { RowSelect } from "./RowSelect";
 import { JobRunsInMenu } from "./JobRunsInMenu";
 import { JobSendToMenu } from "./JobSendToMenu";
 import { JobMemoryToggle } from "./JobMemoryToggle";
+import { LaptopIcon } from "../../connections/LaptopIcon";
 import type { JobDraft } from "../../../jobsFormat";
 import {
   LPM_DESTINATION,
@@ -37,6 +38,7 @@ export function JobScopeRow({
   skippedCopies,
   problem,
   onConnect,
+  machine,
 }: {
   draft: JobDraft;
   patch: (values: Partial<JobDraft>) => void;
@@ -49,6 +51,12 @@ export function JobScopeRow({
   // Opens the dialog that links an outside service, or adds one of its chats,
   // without leaving the job.
   onConnect: (service: string, intent: ConnectIntent) => void;
+  // The machine the job runs on, where there is more than one to pick from.
+  machine?: {
+    value: string;
+    options: { value: string; label: string }[];
+    onChange: (value: string) => void;
+  };
 }) {
   const links = useSendToLinks();
   const unready = draft.sendTo.filter((id) => sendToReady(id, links) === false);
@@ -74,6 +82,16 @@ export function JobScopeRow({
             value={draft.memory}
             readOnly={draft.access === "read"}
             onChange={(memory) => patch({ memory })}
+          />
+        )}
+        {machine && (
+          <RowSelect
+            variant="pill"
+            icon={<LaptopIcon size={13} />}
+            ariaLabel="Runs on"
+            value={machine.value}
+            onChange={machine.onChange}
+            options={machine.options}
           />
         )}
         <JobRunsInMenu

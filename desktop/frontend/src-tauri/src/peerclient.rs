@@ -107,6 +107,8 @@ struct PeerConn {
     supports_self_update: AtomicBool, // a paired Mac can update lpm there (peermacupdate.rs)
     beta_updates: AtomicBool, // the host follows the Beta update channel (updatechannel.rs)
     supports_host_settings: AtomicBool, // host shares the settings Settings shows (peersettings.rs)
+    supports_host_folders: AtomicBool, // host shares its sidebar folders (hostfolders.rs)
+    supports_host_jobs: AtomicBool, // host takes its shared automations from here (hostjobs.rs)
     supports_phone_relay: AtomicBool, // host runs phones this Mac relays to it (peerclient/phone.rs)
     supports_limits: AtomicBool, // host trades Claude usage limits (agent_limits_share.rs)
     // The phones this Mac is relaying to the host, by channel: where the frames
@@ -171,6 +173,8 @@ impl PeerConn {
             supports_self_update: AtomicBool::new(false),
             beta_updates: AtomicBool::new(false),
             supports_host_settings: AtomicBool::new(false),
+            supports_host_folders: AtomicBool::new(false),
+            supports_host_jobs: AtomicBool::new(false),
             supports_phone_relay: AtomicBool::new(false),
             supports_limits: AtomicBool::new(false),
             phones: Mutex::new(HashMap::new()),
@@ -420,6 +424,12 @@ impl PeerClientHub {
                 let supports_host_settings = conn
                     .map(|c| c.supports_host_settings.load(Ordering::Relaxed))
                     .unwrap_or(false);
+                let supports_host_folders = conn
+                    .map(|c| c.supports_host_folders.load(Ordering::Relaxed))
+                    .unwrap_or(false);
+                let supports_host_jobs = conn
+                    .map(|c| c.supports_host_jobs.load(Ordering::Relaxed))
+                    .unwrap_or(false);
                 let beta_updates = conn
                     .map(|c| c.beta_updates.load(Ordering::Relaxed))
                     .unwrap_or(false);
@@ -455,6 +465,8 @@ impl PeerClientHub {
                     "supportsMediaRange": supports_media_range,
                     "supportsSelfUpdate": supports_self_update,
                     "supportsHostSettings": supports_host_settings,
+                    "supportsHostFolders": supports_host_folders,
+                    "supportsHostJobs": supports_host_jobs,
                     "updateChannel": if beta_updates { "beta" } else { "stable" },
                     // Whether the peer's identity is pinned (verified-encrypted). An
                     // auto run refuses an unpinned channel, so the UI hints on it.
@@ -2140,6 +2152,14 @@ fn connect_session(
     );
     conn.supports_host_settings.store(
         has_feature(crate::peersettings::ALL_HOST_SETTINGS_FEATURE),
+        Ordering::Relaxed,
+    );
+    conn.supports_host_folders.store(
+        has_feature(crate::hostfolders::HOST_FOLDERS_FEATURE),
+        Ordering::Relaxed,
+    );
+    conn.supports_host_jobs.store(
+        has_feature(crate::hostjobs::HOST_JOBS_FEATURE),
         Ordering::Relaxed,
     );
     conn.supports_phone_relay.store(

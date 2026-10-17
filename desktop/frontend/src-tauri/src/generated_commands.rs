@@ -219,6 +219,7 @@ macro_rules! all_command_handlers {
             notes_read_file_as_input,
             notes_rename_chat,
             notes_save_attachment,
+            notes_save_attachment_data,
             notes_search,
             open_file_in_editor,
             open_in,

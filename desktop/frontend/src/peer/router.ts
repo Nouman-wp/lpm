@@ -101,6 +101,9 @@ export const GLOBAL_PEER_EVENTS = new Set<string>([
   "duplicate-done",
   "agent-session",
   "terminals-changed",
+  "job-status",
+  "job-seen",
+  "memory-changed",
 ]);
 
 // Scan a command's arguments (top level + one array level deep) for peer
@@ -158,6 +161,21 @@ function translateProject(slug: string, p: ProjectInfo): ProjectInfo {
   };
 }
 
+// A host's job row: stamped with the machine it lives on, its projects marked.
+// A standalone row keeps its empty targets; `host` is what routes it.
+function translateJob(slug: string, row: unknown): unknown {
+  if (!row || typeof row !== "object") return row;
+  const job = row as { project?: unknown; targets?: unknown };
+  return {
+    ...job,
+    host: slug,
+    ...(typeof job.project === "string" ? { project: prefixName(slug, job.project) } : {}),
+    ...(Array.isArray(job.targets)
+      ? { targets: job.targets.map((t) => (typeof t === "string" ? prefixName(slug, t) : t)) }
+      : {}),
+  };
+}
+
 // Rewrite host identifiers in a routed command's result into their prefixed
 // client-side form. Default is passthrough; start_terminal ids are handled by
 // the caller (they also trigger an attach).
@@ -168,6 +186,26 @@ export function translateResult(cmd: string, slug: string, result: unknown): unk
   }
   if (cmd === "get_project" && result && typeof result === "object") {
     return translateProject(slug, result as ProjectInfo);
+  }
+  // Saving a config can rename the project; the answer is its name now.
+  if (cmd === "save_config" && typeof result === "string" && result) {
+    return prefixName(slug, result);
+  }
+  // The memory folder is the host's, and its name is the owner's name there.
+  if (cmd === "read_memory_sessions" && result && typeof result === "object") {
+    const r = result as { dir?: unknown };
+    if (typeof r.dir === "string" && r.dir) return { ...result, dir: prefixRoot(slug, r.dir) };
+  }
+  if ((cmd === "list_all_jobs" || cmd === "list_jobs") && Array.isArray(result)) {
+    return result.map((row) => translateJob(slug, row));
+  }
+  // A run that worked in a copy names it, for "Open copy".
+  if (cmd === "job_history" && Array.isArray(result)) {
+    return result.map((entry) =>
+      entry && typeof entry === "object" && typeof (entry as { copy?: unknown }).copy === "string"
+        ? { ...entry, copy: prefixName(slug, (entry as { copy: string }).copy) }
+        : entry,
+    );
   }
   // The host's live terminals in a project, named by its own pty ids — and,
   // when asked `withTabs`, the ids of its open tabs alongside.
@@ -236,6 +274,7 @@ export function translatePeerEventPayload(
     case "status-changed":
     case "ports-changed":
     case "terminals-changed":
+    case "memory-changed":
       // Payload is the bare project name.
       return typeof payload === "string" ? prefixName(slug, payload) : payload;
     case "git-changed":
@@ -256,6 +295,19 @@ export function translatePeerEventPayload(
         if (typeof p.name === "string") {
           return { ...(payload as object), name: prefixName(slug, p.name) };
         }
+      }
+      return payload;
+    case "job-status":
+    case "job-seen":
+      // { project, copy?, … } — the project ("" for a standalone job) and the
+      // copy a run worked in, as this Mac names them.
+      if (payload && typeof payload === "object") {
+        const p = payload as { project?: unknown; copy?: unknown };
+        return {
+          ...(payload as object),
+          ...(typeof p.project === "string" ? { project: prefixName(slug, p.project) } : {}),
+          ...(typeof p.copy === "string" ? { copy: prefixName(slug, p.copy) } : {}),
+        };
       }
       return payload;
     case "agent-session":

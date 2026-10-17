@@ -19,8 +19,10 @@ import {
   NotesReadFileAsInput,
   NotesRenameChat,
   NotesSaveAttachment,
+  NotesSaveAttachmentData,
   NotesSearch,
 } from "../../bridge/commands";
+import { isPeerName } from "../peer/markers";
 import { registerFileDropHandler } from "../fileDrop";
 import { main, notes } from "../../bridge/models";
 import {
@@ -1061,11 +1063,13 @@ function AttachmentChip({ projectName, attachment }: AttachmentChipProps) {
 
   const download = async () => {
     try {
-      const path = await NotesSaveAttachment(
-        projectName,
-        attachment.hash,
-        attachment.name,
-      );
+      // A paired machine's attachment is saved here, where the folder is picked.
+      const path = isPeerName(projectName)
+        ? await NotesSaveAttachmentData(
+            attachment.name,
+            await NotesReadAttachment(projectName, attachment.hash),
+          )
+        : await NotesSaveAttachment(projectName, attachment.hash, attachment.name);
       if (path) toast.success(`Saved to ${path}`);
     } catch (err) {
       toast.error(`Save: ${err}`);

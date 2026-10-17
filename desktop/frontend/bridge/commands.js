@@ -652,6 +652,9 @@ export function NotesRenameChat(project, chatID, title) {
 export function NotesSaveAttachment(project, hash, name) {
   return invoke("notes_save_attachment", { project, hash, name });
 }
+export function NotesSaveAttachmentData(name, data) {
+  return invoke("notes_save_attachment_data", { name, data });
+}
 export function NotesSearch(project, query, limit) {
   return invoke("notes_search", { project, query, limit });
 }

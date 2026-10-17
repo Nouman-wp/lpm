@@ -15,6 +15,8 @@ import { PlayIcon } from "../icons";
 import { useNow } from "../../../hooks/useNow";
 import { useAppStore } from "../../../store/app";
 import { displayNameForProjectName } from "../../ProjectNameDisplay";
+import { stripMarker } from "../../../peer/markers";
+import { peerAlias, usePeerState } from "../../../peer/usePeerState";
 import { JobRunRow } from "./JobRunRow";
 import { JobLiveOutput } from "./JobLiveOutput";
 import { JobOffBanner } from "./JobOffBanner";
@@ -125,8 +127,11 @@ export function JobMessages({
   const storeProjects = useAppStore((s) => s.projects);
   const scheduleText = job.schedule ? formatSchedule(job.schedule) : "";
   const nextRunText = job.enabled ? formatNextRun(job.nextFireAt) : "Off";
-  const projectLabel = project ? displayNameForProjectName(project, storeProjects) : "";
-  const meta = [projectLabel, scheduleText, nextRunText].filter(Boolean).join(" · ");
+  const { state: peerState } = usePeerState();
+  // A standalone job of a paired machine's is that machine's sentinel, not a project.
+  const projectLabel = stripMarker(project) ? displayNameForProjectName(project, storeProjects) : "";
+  const machineLabel = job.host ? peerAlias(peerState.peers, job.host) : "";
+  const meta = [projectLabel, machineLabel, scheduleText, nextRunText].filter(Boolean).join(" · ");
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">

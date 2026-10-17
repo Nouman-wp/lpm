@@ -11,7 +11,8 @@ interface GroupContextMenuProps {
   onNewFolder: () => void;
   // Drops the folder but keeps its projects; absent for an empty folder.
   onUngroup?: () => void;
-  onDelete: () => void;
+  // Absent where the folder's projects can't be deleted from here.
+  onDelete?: () => void;
   onClose: () => void;
 }
 
@@ -32,7 +33,7 @@ export function GroupContextMenu({
     <ContextMenuShell x={x} y={y} minWidth={180} onClose={onClose}>
       <ContextMenuItem label="Rename folder" icon={<PencilIcon />} onClick={close(onRename)} />
       <ContextMenuItem label="New folder" icon={<FolderIcon />} onClick={close(onNewFolder)} />
-      <ContextMenuSeparator />
+      {(onUngroup || onDelete) && <ContextMenuSeparator />}
       {onUngroup && (
         <ContextMenuItem
           label="Ungroup"
@@ -41,12 +42,14 @@ export function GroupContextMenu({
           onClick={close(onUngroup)}
         />
       )}
-      <ContextMenuItem
-        destructive
-        label="Delete folder"
-        icon={<TrashIcon />}
-        onClick={close(onDelete)}
-      />
+      {onDelete && (
+        <ContextMenuItem
+          destructive
+          label="Delete folder"
+          icon={<TrashIcon />}
+          onClick={close(onDelete)}
+        />
+      )}
     </ContextMenuShell>
   );
 }

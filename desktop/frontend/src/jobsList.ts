@@ -2,20 +2,27 @@
 // first" rule and the per-row project label can be tested without React.
 
 import { jobTargets, type JobInfo } from "./jobsFormat";
+import { prefixName } from "./peer/markers";
 
 type ListJob = JobInfo & { project?: string };
 
-// The folders a row's job runs in: a standalone job's is the sentinel "";
+// The sentinel folder a standalone job runs in: "" here, and the same marked
+// for its machine when it lives on a paired one, so its commands go there.
+function standaloneTarget(job: JobInfo): string {
+  return job.host ? prefixName(job.host, "") : "";
+}
+
+// The folders a row's job runs in: a standalone job's is the sentinel;
 // project/repo and single-target rows carry a one-entry `targets`; a shared
 // job carries all of them.
 export function targetsOfRow(job: JobInfo): string[] {
-  return job.standalone ? [""] : job.targets ?? [];
+  return job.standalone ? [standaloneTarget(job)] : job.targets ?? [];
 }
 
 // A representative project for opening / editing / removing a row: standalone
 // has none, otherwise the first target.
 export function rowProject(job: ListJob): string {
-  return job.standalone ? "" : job.targets?.[0] ?? job.project ?? "";
+  return job.standalone ? standaloneTarget(job) : job.targets?.[0] ?? job.project ?? "";
 }
 
 export function isUnread(job: ListJob): boolean {

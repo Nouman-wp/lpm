@@ -84,6 +84,8 @@ const HOST_FEATURES: &[&str] = &[
     REMOTE_PAIR_FEATURE,
     crate::peersettings::HOST_SETTINGS_FEATURE,
     crate::peersettings::ALL_HOST_SETTINGS_FEATURE,
+    crate::hostfolders::HOST_FOLDERS_FEATURE,
+    crate::hostjobs::HOST_JOBS_FEATURE,
     crate::remote::relayed::PHONE_RELAY_FEATURE,
     crate::agent_limits_share::LIMITS_FEATURE,
 ];
@@ -112,6 +114,11 @@ const FORWARDED_EVENTS: &[&str] = &[
     "memory-changed",
     "clone-done",
     "duplicate-done",
+    // The host's folders changed, so a Mac showing them reads them again.
+    "sidebar-changed",
+    // An automation here ran, changed or was read, so a Mac listing it refreshes.
+    "job-status",
+    "job-seen",
     // A headless host emits this instead of chiming to an empty room.
     crate::sound::STATUS_SOUND_EVENT,
     // The session an agent in a terminal reports, which is what lets a Mac's tab
@@ -1832,6 +1839,13 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
                 app, &hub, &project, with_tabs,
             )))
         }
+        // The folders the host's own sidebar groups its projects into. Here, not
+        // on the page: they are files, and a headless host has folders too.
+        crate::hostfolders::READ_CMD => Some(Ok(crate::hostfolders::layout())),
+        crate::hostfolders::EDIT_CMD => Some(crate::hostfolders::edit(app, args)),
+        // The global config is denied as a whole; these reach only its jobs.
+        crate::hostjobs::SAVE_CMD => Some(crate::hostjobs::save(app, args)),
+        crate::hostjobs::DELETE_CMD => Some(crate::hostjobs::delete(app, args)),
         "stop_terminal" => {
             let id = s("id");
             Some(pty::stop_terminal(app.clone(), state, id.clone()).map(|_| {
@@ -1940,6 +1954,10 @@ fn is_denied(cmd: &str) -> bool {
             | "open_file_in_editor"
             | "open_path_in_default_app"
             | "reveal_in_finder"
+            // a folder picker on this machine's screen; the Mac asking saves
+            // the attachment's bytes on its own
+            | "notes_save_attachment"
+            | "notes_save_attachment_data"
             // host-local browser overlay
             | "open_browser"
             | "close_browser"
@@ -2527,6 +2545,8 @@ mod tests {
         assert!(is_denied("open_file_in_editor"));
         assert!(is_denied("open_path_in_default_app"));
         assert!(is_denied("reveal_in_finder"));
+        assert!(is_denied("notes_save_attachment"));
+        assert!(is_denied("notes_save_attachment_data"));
         assert!(is_denied("start_claude_login"));
         // Control-ownership forgery and global host mutators must be blocked.
         assert!(is_denied("terminal_claim_control"));
@@ -2733,6 +2753,23 @@ mod tests {
     fn host_settings_are_advertised_in_ready() {
         assert!(HOST_FEATURES.contains(&crate::peersettings::HOST_SETTINGS_FEATURE));
         assert!(HOST_FEATURES.contains(&crate::peersettings::ALL_HOST_SETTINGS_FEATURE));
+    }
+
+    // Off this list a Mac shows this host's projects unfiled; without the event
+    // it keeps showing the folders as they were when it connected.
+    #[test]
+    fn host_folders_are_advertised_and_kept_fresh() {
+        assert!(HOST_FEATURES.contains(&crate::hostfolders::HOST_FOLDERS_FEATURE));
+        assert!(FORWARDED_EVENTS.contains(&"sidebar-changed"));
+    }
+
+    // Off this list a Mac can't save this host's shared automations; without the
+    // events its Automations view goes stale until something else refreshes it.
+    #[test]
+    fn host_jobs_are_advertised_and_kept_fresh() {
+        assert!(HOST_FEATURES.contains(&crate::hostjobs::HOST_JOBS_FEATURE));
+        assert!(FORWARDED_EVENTS.contains(&"job-status"));
+        assert!(FORWARDED_EVENTS.contains(&"job-seen"));
     }
 
     // Off this list no Mac can update lpm here; on it where lpm can't replace

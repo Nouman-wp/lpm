@@ -81,7 +81,7 @@ export type FleetJob = JobInfo & { project?: string };
 
 export interface FleetSnapshot {
   projects: ProjectInfo[];
-  /** Local jobs only — see `peerAutomationsHidden`. */
+  /** Every machine's jobs, a paired one's naming its projects marked. */
   jobs: FleetJob[];
   /** Millis. */
   now: number;
@@ -102,10 +102,6 @@ export interface Fleet {
    *  approval prompt from the header. */
   counts: FleetCounts;
   quietProjectCount: number;
-  /** A paired Mac's automations cannot be listed at all — say so rather than
-   *  imply the list is complete. */
-  peerAutomationsHidden: boolean;
-  peerAutomationMacs: string[];
 }
 
 function agentRow(
@@ -247,11 +243,9 @@ export function buildFleet(snapshot: FleetSnapshot): Fleet {
 
   const byName = new Map(projects.map((p) => [p.name, p]));
   const identities = new Map<string, FleetProjectIdentity>();
-  const peerMacs = new Set<string>();
   for (const project of projects) {
     const slug = peerSlugOf(project.name);
     const peerAlias = slug ? peerAliases[slug] ?? null : null;
-    if (peerAlias) peerMacs.add(peerAlias);
     const parent = project.parentName ? byName.get(project.parentName) : undefined;
     identities.set(project.name, fleetIdentityOf(project, parent, peerAlias));
   }
@@ -311,8 +305,6 @@ export function buildFleet(snapshot: FleetSnapshot): Fleet {
     services: visible.services,
     counts,
     quietProjectCount,
-    peerAutomationsHidden: peerMacs.size > 0,
-    peerAutomationMacs: [...peerMacs],
   };
 }
 

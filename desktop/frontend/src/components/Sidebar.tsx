@@ -116,6 +116,17 @@ import { SidebarOriginAction } from "./SidebarOriginAction";
 import { recheckOrigin } from "../originActions";
 import { logDiagnostic } from "../diagnostics";
 import { SidebarPeerSection } from "./SidebarPeerSection";
+import { PeerFolderMenus } from "./PeerFolderMenus";
+import {
+  dropHostRow,
+  fileHostProject,
+  foldedHostFolders,
+  toggleHostFolder,
+  useHostFolderDialogs,
+  useHostFolders,
+  useHostFoldersSync,
+} from "../peer/useHostFolders";
+import { groupOf } from "../peer/hostFolders";
 import {
   isPeerRowId,
   movePeerRow,
@@ -138,6 +149,7 @@ const ROW_HALF = "18px";
 // Line 1's midline on a two-line row, where `controlTop` also centres the arrow.
 const ROW_TWO_LINE_HALF = "14px";
 const MUTED_STYLE = { color: "var(--text-muted)" } as const;
+const EMPTY_FOLDER_CLASS = `mb-0.5 rounded-md px-3 py-1.5 text-[11px] italic text-[var(--text-muted)] ${ROW_INDENT_CLASS}`;
 const DONE_STYLE = { color: "var(--accent-blue)" } as const;
 
 const UNTAME_DOM_ID = /[^a-zA-Z0-9_-]/g;
@@ -297,6 +309,12 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // user can drag, so a remote host can sit above the local projects.
   const { state: peerState, loaded: peersLoaded } = usePeerState();
   useMacUpdateWatch(peerState.peers);
+  // The folders of each host that shares them, which its section lays its rows
+  // into. How far each one is folded is this Mac's own.
+  useHostFoldersSync(peerState.peers);
+  const hostFolders = useHostFolders((s) => s.bySlug);
+  const hostCollapsed = useHostFolders((s) => s.collapsed);
+  const hostFolderMenu = useHostFolderDialogs((s) => s.menu);
   // Followed projects, keyed by the local project the other Mac's work lands in.
   const { follows } = useFollowState();
   // Each Mac's section, and the synced copies those sections render instead of the
@@ -307,14 +325,17 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   );
   // A host lists its projects in its own order; this Mac's preferred order for
   // them is a setting of its own, since peer projects never join sidebarOrder.
+  // A host that shares its folders shares the order around them too.
   const peerRowOrder = useSettingsStore((s) => s.peerProjectOrder);
   const peerSections = useMemo(
     () =>
       hostSections.map((section) => ({
         ...section,
-        projects: orderPeerProjects(section.projects, peerRowOrder?.[section.slug]),
+        projects: hostFolders[section.slug]
+          ? section.projects
+          : orderPeerProjects(section.projects, peerRowOrder?.[section.slug]),
       })),
-    [hostSections, peerRowOrder],
+    [hostSections, peerRowOrder, hostFolders],
   );
   const localProjects = useMemo(
     () => projects.filter((p) => !isPeerName(p.name) && !hostedRemotely.has(p.name)),
@@ -337,6 +358,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const contextProject = contextMenu
     ? projects.find((p) => p.name === contextMenu.name)
     : null;
+  // A host's project files into that host's folders, when it shares them.
+  const contextSlug = contextMenu && isPeerName(contextMenu.name) ? peerSlugOf(contextMenu.name) : null;
+  const contextHostFolders = contextSlug ? hostFolders[contextSlug] : undefined;
   const sideBySideColumns = useSideBySideColumns(selected);
   const sideBySideItems = useSideBySideMenu(
     contextMenu?.name ?? null,
@@ -495,7 +519,13 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         seenPeers.add(slug);
         // The section's own rows sort among themselves; the synced copies it
         // also renders (section.strays) stay put.
-        const peer = peerSectionRows(section.projects, pendingDuplicates, collapsedDecks);
+        const peer = peerSectionRows(
+          section.projects,
+          pendingDuplicates,
+          collapsedDecks,
+          hostFolders[slug],
+          foldedHostFolders(hostCollapsed, slug),
+        );
         out.push({ kind: "peer", section, rows: peer.rows });
         ids.push(token, ...peer.ids);
         for (const [parent, children] of peer.decks) peerDecks.set(parent, children);
@@ -542,7 +572,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       childProjectsOf: new Map([...childrenByParent, ...peerDecks]),
       childOf,
     };
-  }, [localProjects, groups, order, peerSections, pendingDuplicates, collapsedDecks, selectMode]);
+  }, [localProjects, groups, order, peerSections, pendingDuplicates, collapsedDecks, selectMode, hostFolders, hostCollapsed]);
   const childOfRef = useRef(childOf);
   childOfRef.current = childOf;
 
@@ -854,6 +884,13 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     if (from === null || to === null) return;
     const slug = peerSlugOf(from);
     if (slug === null || slug !== peerSlugOf(to)) return;
+    const deck = childOf.get(activeId);
+    const siblings = deck ? childrenOf.get(deck)?.map((id) => peerRowNameOf(id) ?? id) : undefined;
+    const rows = sortableIds.flatMap((id) => {
+      const name = peerRowNameOf(id);
+      return name !== null && peerSlugOf(name) === slug ? [name] : [];
+    });
+    if (dropHostRow(slug, rows, from, to, siblings)) return;
     const section = peerSections.find((s) => s.slug === slug);
     if (!section) return;
     const next = movePeerRow(section.projects.map((p) => p.name), from, to);
@@ -1333,17 +1370,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           selected={selected}
         >
           {item.rows.map((row) => {
+            if (row.kind === "folder") return renderPeerFolder(section.slug, row, peerRowFor);
             if (row.kind === "deck") return renderDeck(row, undefined, false, peerRowFor);
-            const body = renderProjectRow(row.project, false, peerRowFor(row.project));
-            // Rows drag only where the header does — select mode has no drag
-            // context to register them with.
-            return selectMode ? (
-              <div key={row.project.name}>{body}</div>
-            ) : (
-              <SortableItem key={row.project.name} id={peerRowToken(row.project.name)}>
-                {body}
-              </SortableItem>
-            );
+            return renderPeerProject(row.project, peerRowFor(row.project));
           })}
           {section.strays.map((stray) => (
             <div key={stray.project.name}>
@@ -1355,12 +1384,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     }
 
     if (item.kind === "empty") {
-      const emptyClass = `mb-0.5 rounded-md px-3 py-1.5 text-[11px] italic text-[var(--text-muted)] ${ROW_INDENT_CLASS}`;
       if (selectMode) {
-        return <div key={`empty-${item.group.id}`} className={emptyClass}>Empty</div>;
+        return <div key={`empty-${item.group.id}`} className={EMPTY_FOLDER_CLASS}>Empty</div>;
       }
       return (
-        <FolderDropZone key={`empty-${item.group.id}`} id={folderBodyId(item.group.id)} className={emptyClass}>
+        <FolderDropZone key={`empty-${item.group.id}`} id={folderBodyId(item.group.id)} className={EMPTY_FOLDER_CLASS}>
           Empty — drop projects here
         </FolderDropZone>
       );
@@ -1479,6 +1507,68 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           const twoLine = (next?.kind === "deck" && next.collapsed) || hasNoteLine(it.project);
           return renderRow(it, rowConnector(i === lastProjectIndex, twoLine));
         })}
+      </div>
+    );
+  };
+
+  // A host's project row. Rows drag only where the header does — select mode has
+  // no drag context to register them with.
+  const renderPeerProject = (project: ProjectInfo, peerRow: PeerRowOptions, connector?: React.ReactNode) => {
+    const row = renderProjectRow(project, connector !== undefined, peerRow);
+    const body = connector ? <div className="relative">{connector}{row}</div> : row;
+    return selectMode ? (
+      <div key={project.name}>{body}</div>
+    ) : (
+      <SortableItem key={project.name} id={peerRowToken(project.name)}>
+        {body}
+      </SortableItem>
+    );
+  };
+
+  // A host's folder, drawn as a local one is: the header, then while it is open
+  // its rows on the trunk. Its menu acts on the host's layout.
+  const renderPeerFolder = (
+    slug: string,
+    folder: Extract<PeerRowItem, { kind: "folder" }>,
+    peerRowFor: (project: ProjectInfo) => PeerRowOptions,
+  ) => {
+    const { group, collapsed, rows } = folder;
+    let last = -1;
+    rows.forEach((it, i) => {
+      if (it.kind === "project" || !it.collapsed) last = i;
+    });
+    const containsSelected =
+      collapsed &&
+      selected !== null &&
+      rows.some((it) =>
+        it.kind === "project" ? it.project.name === selected : it.children.some((c) => c.name === selected),
+      );
+    return (
+      <div key={`peer-folder-${group.id}`} data-peer-folder={group.id}>
+        <div className="relative">
+          {!collapsed && last !== -1 && folderConnector}
+          <SidebarGroupRow
+            group={group}
+            collapsed={collapsed}
+            count={folder.count}
+            segments={folder.segments}
+            containsSelected={containsSelected}
+            selectMode={selectMode}
+            isContextTarget={hostFolderMenu?.slug === slug && hostFolderMenu.id === group.id}
+            onToggle={() => toggleHostFolder(slug, group.id)}
+            onMore={(x, y) => useHostFolderDialogs.setState({ menu: { slug, id: group.id, x, y } })}
+          />
+        </div>
+        {!collapsed && rows.length === 0 && <div className={EMPTY_FOLDER_CLASS}>Empty</div>}
+        {!collapsed &&
+          rows.map((it, i) => {
+            if (it.kind === "deck") {
+              return renderDeck({ ...it, folderId: group.id }, rowConnector, i === last, peerRowFor);
+            }
+            const next = rows[i + 1];
+            const twoLine = (next?.kind === "deck" && next.collapsed) || hasNoteLine(it.project);
+            return renderPeerProject(it.project, peerRowFor(it.project), rowConnector(i === last, twoLine));
+          })}
       </div>
     );
   };
@@ -1627,13 +1717,18 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             isDetached={detached.has(contextMenu.name)}
             canSelect={projects.length > 1}
             remote={isPeerName(contextMenu.name)}
+            peerViaSsh={contextSlug !== null && peerState.peers.some((p) => p.slug === contextSlug && !!p.sshHost)}
             sshRemote={contextProject?.isRemote ?? false}
             projectName={contextMenu.name}
             running={contextProject?.running ?? false}
             services={contextProject?.services ?? []}
             projectPath={contextProject?.root ?? null}
-            groups={groups}
-            currentGroupId={memberOf.get(contextMenu.name) ?? null}
+            groups={contextSlug ? (contextHostFolders?.groups ?? null) : groups}
+            currentGroupId={
+              contextSlug
+                ? ((contextHostFolders && groupOf(contextHostFolders, contextMenu.name)?.id) ?? null)
+                : (memberOf.get(contextMenu.name) ?? null)
+            }
             onRename={() => setRenamingName(contextMenu.name)}
             renameShortcut={renameShortcut}
             deleteShortcut={deleteShortcut}
@@ -1677,8 +1772,18 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onGitCreatePR={() => openGitModal("pr")}
             onGitSwitchBranch={() => openGitModal("switch")}
             onGitDiscardAll={() => openGitModal("discard")}
-            onMoveToGroup={(groupId) => onMoveProjectToGroup(contextMenu.name, groupId)}
-            onCreateGroupWith={() => setCreateFolder({ initialMembers: [contextMenu.name] })}
+            onMoveToGroup={(groupId) =>
+              contextSlug
+                ? fileHostProject(contextSlug, contextMenu.name, groupId)
+                : onMoveProjectToGroup(contextMenu.name, groupId)
+            }
+            onCreateGroupWith={() =>
+              contextSlug
+                ? useHostFolderDialogs.setState({
+                    creating: { slug: contextSlug, members: [contextMenu.name] },
+                  })
+                : setCreateFolder({ initialMembers: [contextMenu.name] })
+            }
             onRemove={() => setConfirmRemove(contextMenu.name)}
             onRemoveFromDisk={
               contextProject &&
@@ -1710,6 +1815,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           onClose={() => setGroupMenu(null)}
         />
       )}
+      <PeerFolderMenus />
       <ConfirmDialog
         open={confirmRemove !== null}
         title={removeDialog.title}

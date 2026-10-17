@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
 import {
   ClearJobState,
-  ClearJobStateGlobal,
   ListAllJobs,
   MarkAllJobsSeen,
   MarkJobSeen,
@@ -16,7 +15,9 @@ import { useAutomationOpenRequest } from "../hooks/useAutomationOpenRequest";
 import { ClockIcon, PlusIcon } from "./icons";
 import { EmptyState } from "./ui/EmptyState";
 import { AutomationsHeader, type AutomationsViewMode } from "./AutomationsHeader";
-import { deleteJob, deleteJobGlobal } from "../jobsConfig";
+import { clearJobStateGlobal, deleteJob, deleteJobGlobal } from "../jobsConfig";
+import { peerSlugOf } from "../peer/markers";
+import { peerAlias, usePeerState } from "../peer/usePeerState";
 import type { JobInfo } from "../jobsFormat";
 import {
   isUnread,
@@ -55,6 +56,7 @@ interface ScheduledViewProps {
 export function ScheduledView({ project, visible = true, focused = true }: ScheduledViewProps) {
   const projects = useAppStore((s) => s.projects);
   const selectProject = useAppStore((s) => s.selectProject);
+  const { state: peerState } = usePeerState();
   const [rows, setRows] = useState<ScheduledJob[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<JobEditing>(null);
@@ -148,9 +150,15 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
     (name: string) => displayNameForProjectName(name, projects),
     [projects],
   );
+  // A job's scope is counted against its own machine's projects, and a paired
+  // machine's job says which machine it runs on.
   const scopeLabelFor = useCallback(
-    (job: ScheduledJob) => jobScopeLabel(job, projects.length, projectLabel),
-    [projects.length, projectLabel],
+    (job: ScheduledJob) => {
+      const onMachine = projects.filter((p) => (peerSlugOf(p.name) ?? undefined) === job.host);
+      const scope = jobScopeLabel(job, onMachine.length, projectLabel);
+      return job.host ? `${scope} · ${peerAlias(peerState.peers, job.host)}` : scope;
+    },
+    [projects, projectLabel, peerState.peers],
   );
   // Stable so the board's memoised layout survives a render that changed
   // nothing about the jobs themselves.
@@ -197,11 +205,16 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
     if (!removing) return;
     const { project, job } = removing;
     setRemoving(null);
+    const peer = job.host ? peerState.peers.find((p) => p.slug === job.host) : undefined;
+    if (job.source === "global" && job.host && !peer?.supportsHostJobs) {
+      toast.error(`Update lpm on ${peerAlias(peerState.peers, job.host)} to remove its shared automations from here.`);
+      return;
+    }
     try {
       void StopJobRun(project, job.id);
       if (job.source === "global") {
-        await deleteJobGlobal(job.id);
-        await ClearJobStateGlobal(job.id, deleteCopies);
+        await deleteJobGlobal(job.id, job.host);
+        await clearJobStateGlobal(job.id, deleteCopies, job.host);
       } else {
         await deleteJob(project, job.id);
         await ClearJobState(project, job.id, deleteCopies);

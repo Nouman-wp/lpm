@@ -174,6 +174,8 @@ the host serves a video's byte ranges for preview (see **Commands**); `selfUpdat
 the client can have the host install the latest lpm (see **Commands**);
 `hostSettings` = the host answers the settings frames (see **Commands**);
 `hostSettingsAll` = it shares every setting there, not only the first three;
+`hostFolders` = the host shares its sidebar folders (see **Commands**);
+`hostJobs` = the host takes its shared automations from the client (see **Commands**);
 `agentLimits` = the host trades Claude usage limits (see **Usage
 limits**). A host
 missing a feature simply never receives frames that depend on it. The full list
@@ -214,7 +216,9 @@ Host dispatch has two tiers:
 **Denylist.** The host refuses to dispatch app-meta commands and returns an error
 result: any `peer_*` / `remote_*` command, window/dock/detached-window focus, app
 settings + config import/export, updater/installers, account/login, host-local
-audio/voice, the host browser overlay, and vault key material. Project-scoped
+audio/voice, the host browser overlay, the folder picker that saves a note's
+attachment (the client reads the attachment and saves it itself), and vault key
+material. Project-scoped
 operations are allowed. The client router carries the same guard (defense in
 depth). See `is_denied` in `peer.rs`.
 
@@ -280,6 +284,56 @@ the client asks the user to update it rather than send it the frames.
   `null` clears any field, and `""` clears a path or name. Any other key or kind
   fails the whole patch and writes nothing. On success the host emits
   `peer-settings-changed` so its own windows reload settings.
+
+**Host folders** (`hostFolders` feature). The host's folders (`groups.json` and
+its `sidebarOrder`) are the one layout every viewer of its projects shares — its
+own window, its phones, a paired Mac — so a client shows them in the host's
+section and edits them one op at a time, applied to what is on disk at that
+moment; it never writes back a whole layout it read earlier. Both commands are
+answered in host Rust (a headless host has folders too), over the generic invoke:
+
+- `{ "cmd": "host_folders", "args": {} }` → `{ "order": [...], "groups": [{ id,
+  name, collapsed?, members }] }` — `order` is the top-level slots (host project
+  names and `group:<id>` tokens), without the host's own `peer:<slug>` slots.
+- `{ "cmd": "host_folders_edit", "args": <op> }` → the layout afterwards, same
+  shape. `op` is one of `{ "op": "create", "name", "members"?, "before"? }` (a
+  new folder in the slot before `before`, or last, taking `members` with it),
+  `{ "op": "rename", "id", "name" }`, `{ "op": "ungroup", "id" }` (the folder
+  goes, its projects take its slot), `{ "op": "move", "item", "folder", "before" }`
+  (a project into folder `folder` before its member `before`, or with `folder:
+  null` to the top level before the slot `before`; `item` may also be a
+  `group:<id>` at the top level; a missing `before` means last), or
+  `{ "op": "copies", "order" }` (a project's copies in a new order, which only
+  `projectOrder` holds). An unknown project or folder fails the op and writes
+  nothing. On success the host emits `projects-changed` and `sidebar-changed`.
+
+Folding a folder is the viewer's own: the client ignores `collapsed` and keeps
+its own per host. Deleting the projects in a folder is not an op; a client only
+ungroups. A client re-reads the layout on a forwarded `sidebar-changed` or
+`projects-changed`. A host without the feature has its section listed flat, in
+the order the client keeps for it.
+
+**Host automations** (`hostJobs` feature). A client lists a host's automations
+with the generic `list_all_jobs` and acts on them with the per-project job
+commands (`run_job_now`, `stop_job_run`, `set_job_enabled`, `job_history`,
+`mark_job_seen`, …), whose peer-marked project routes them; a standalone job's
+project is the empty name, which the client marks too (`peer-<slug>-`).
+`clear_job_state_global` and `mark_all_jobs_seen` take no project, so the client
+sends them to the host explicitly. An automation in one project lives in that
+project's config, which the client already edits through the project. One in
+several projects, every project or none lives in the host's global config,
+which is on the denylist as a whole; these two commands, answered in host Rust,
+reach only its `jobs:`:
+
+- `{ "cmd": "host_global_job_save", "args": { "id", "yaml" } }` → `null` — writes
+  `jobs.<id>`; `yaml` is the job's body as the client's editor built it (YAML so
+  its keys keep their order), naming projects by the host's own names.
+- `{ "cmd": "host_global_job_delete", "args": { "id" } }` → `null` — removes
+  `jobs.<id>` and leaves its runs' state, which `clear_job_state_global` forgets.
+
+Both emit `job-status` (`project: ""`) on the host. A client doesn't send them to
+a host without the feature and asks for an update instead; listing and the
+per-project commands work with any host.
 
 ## Terminal streaming
 
@@ -395,7 +449,8 @@ The host forwards these Rust-emitted global events to every authed peer as
 drops and the client re-syncs):
 
 `projects-changed`, `status-changed`, `git-changed`, `ports-changed`,
-`action-output`, `action-done`, `action-bg-output`, `templates-changed`.
+`action-output`, `action-done`, `action-bg-output`, `templates-changed`,
+`sidebar-changed`, `job-status`, `job-seen`, `memory-changed`.
 
 The client re-emits each on a single per-peer wrapper channel `peer-evt-{slug}`
 with payload `{ name, payload }`; the TS shim demultiplexes, translates

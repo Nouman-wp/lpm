@@ -16,9 +16,6 @@ export interface FleetEmptyProps {
   /** Where "Open" goes: the last project the user was in, else the first one.
    *  Null only when there are no projects at all. */
   openProject: { name: string; label: string } | null;
-  /** Paired Macs whose automations this list cannot reach — say so rather than
-   *  imply the list is complete. */
-  hiddenAutomationMacs: string[];
   onClearFilters: () => void;
   onOpenProject: (project: string) => void;
   onAddProject: () => void;
@@ -35,7 +32,6 @@ export function FleetEmpty({
   filtered,
   quietProjectCount,
   openProject,
-  hiddenAutomationMacs,
   onClearFilters,
   onOpenProject,
   onAddProject,
@@ -45,7 +41,6 @@ export function FleetEmpty({
   let title: string;
   let body: string;
   let actions: ReactNode;
-  const notes: string[] = [];
 
   if (filtered) {
     icon = <SearchIcon />;
@@ -91,12 +86,6 @@ export function FleetEmpty({
     );
   }
 
-  if (hiddenAutomationMacs.length > 0) {
-    notes.push(
-      `Automations on ${hiddenAutomationMacs.join(", ")} aren't listed here.`,
-    );
-  }
-
   return (
     <div className="flex min-h-full items-center justify-center px-6 py-10">
       <div className="flex max-w-sm flex-col items-center text-center">
@@ -110,14 +99,6 @@ export function FleetEmpty({
           {body}
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-2">{actions}</div>
-        {notes.map((note, index) => (
-          <p
-            key={note}
-            className={`text-[11px] text-[var(--text-muted)] ${index === 0 ? "mt-5" : "mt-1"}`}
-          >
-            {note}
-          </p>
-        ))}
       </div>
     </div>
   );

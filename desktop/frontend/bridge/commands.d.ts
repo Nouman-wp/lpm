@@ -212,6 +212,7 @@ export function NotesReadAttachment(...args: any[]): Promise<any>;
 export function NotesReadFileAsInput(...args: any[]): Promise<any>;
 export function NotesRenameChat(...args: any[]): Promise<any>;
 export function NotesSaveAttachment(...args: any[]): Promise<any>;
+export function NotesSaveAttachmentData(...args: any[]): Promise<any>;
 export function NotesSearch(...args: any[]): Promise<any>;
 export function OpenFileInEditor(...args: any[]): Promise<any>;
 export function OpenIn(...args: any[]): Promise<any>;
