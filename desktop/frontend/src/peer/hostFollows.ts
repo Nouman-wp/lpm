@@ -6,15 +6,33 @@ import { peerSlugOf } from "./markers";
 // of it changes. A Mac shows such a host's names and order instead of its own.
 // Learned from the host's own listing, per paired machine.
 const follows = new Map<string, boolean>();
+const listeners = new Set<() => void>();
+
+function remember(slug: string, follow: boolean): void {
+  if (follows.get(slug) === follow) return;
+  follows.set(slug, follow);
+  listeners.forEach((listener) => listener());
+}
 
 export function noteHostFollows(projectName: string, follow: boolean): void {
   const slug = peerSlugOf(projectName);
-  if (slug) follows.set(slug, follow);
+  if (slug) remember(slug, follow);
 }
 
 export function hostFollows(projectName: string): boolean {
+  return knownHostFollows(projectName) === true;
+}
+
+// What the project's host said, once it has; undefined until then and for this
+// Mac's own projects.
+export function knownHostFollows(projectName: string): boolean | undefined {
   const slug = peerSlugOf(projectName);
-  return !!slug && follows.get(slug) === true;
+  return slug ? follows.get(slug) : undefined;
+}
+
+export function subscribeHostFollows(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }
 
 // Asks the host when it hasn't been heard from yet. A host that can't be asked
@@ -27,7 +45,7 @@ export async function askHostFollows(projectName: string): Promise<boolean> {
   try {
     const listed = (await ListProjectTerminals(projectName, true)) as { follow?: unknown } | null;
     const follow = !!listed && typeof listed === "object" && listed.follow === true;
-    follows.set(slug, follow);
+    remember(slug, follow);
     return follow;
   } catch {
     return false;

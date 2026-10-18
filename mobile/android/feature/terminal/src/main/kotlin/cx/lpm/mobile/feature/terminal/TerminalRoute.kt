@@ -99,6 +99,11 @@ internal fun TerminalRoute(
                 ),
                 onBack = navigator::back,
                 onTakeControl = viewModel::claimControl,
+                onRestart = viewModel::restart,
+                onCloseTab = {
+                    viewModel.closeTab()
+                    navigator.back()
+                },
                 modifier = modifier.observeTouches(seenOnTouch),
                 trailing = {
                     slots.projectMenu(this, project, terminal, key.session) { spawned ->

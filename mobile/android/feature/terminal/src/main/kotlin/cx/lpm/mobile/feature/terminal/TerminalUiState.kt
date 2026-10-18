@@ -15,6 +15,10 @@ data class TerminalUiState(
     val controlled: Boolean = true,
     val ownerLabel: String = "",
     val ended: TerminalEnding? = null,
+    /** The project's list still holds the terminal: the Mac has its tab. */
+    val listed: Boolean = false,
+    /** The Mac runs an ended terminal again in its tab. */
+    val canRestart: Boolean = false,
     /** lpm restarted and this is the tab it reopened in the old one's place: say so for a moment. */
     val reopened: Boolean = false,
     val connectionReady: Boolean = true,
@@ -28,6 +32,9 @@ data class TerminalUiState(
 ) {
     /** The composer shows for a terminal this phone drives and whose process lives. */
     val showsComposer: Boolean get() = controlled && ended == null
+
+    /** How it ended, while the Mac still has its tab to run again or close from here. */
+    val endedHere: TerminalEnding? get() = ended?.takeIf { !it.restarted && listed }
 }
 
 /** Millis: when the agent's reading counts from, and when it froze once the turn ended. */

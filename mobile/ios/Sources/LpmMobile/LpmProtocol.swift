@@ -179,6 +179,11 @@ enum Wire {
     static func pinTerminal(project: String, id: String) -> String {
         json(["t": "pinTerminal", "project": project, "id": id])
     }
+    /// Runs an ended terminal again in its tab. Only for a Mac whose `features`
+    /// has "restartTerminal".
+    static func restartTerminal(project: String, id: String) -> String {
+        json(["t": "restartTerminal", "project": project, "id": id])
+    }
     static func reorderTerminals(project: String, order: [String]) -> String {
         json(["t": "reorderTerminals", "project": project, "order": order])
     }

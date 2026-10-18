@@ -1,6 +1,12 @@
 import { useCallback, type RefObject } from "react";
 import { toast } from "sonner";
-import { StartTerminal, StartTerminalForRestore, StopTerminal, TerminalTabOp } from "../../../bridge/commands";
+import {
+  StartTerminal,
+  StartTerminalForRestore,
+  StopTerminal,
+  TerminalExists,
+  TerminalTabOp,
+} from "../../../bridge/commands";
 import { disposeInteractivePaneSession } from "../../components/InteractivePane";
 import { isPeerName } from "../../peer/markers";
 import { collectPanes, isTerminalTab, type PaneNode } from "../../paneTree";
@@ -23,7 +29,9 @@ interface UseTerminalRestartProps {
 // Run a terminal whose process has ended again in its own tab: a fresh shell
 // that resumes the tab's agent session, or runs the command it was opened with.
 // A tab on a paired machine is restarted there, in the tab tree it keeps, and
-// comes back here with its next listing.
+// comes back here with its next listing. One still running is left alone: a
+// phone or another Mac can ask after it came back, and swapping it out would
+// leave it running with no tab.
 export function useTerminalRestart({
   projectName,
   treeRef,
@@ -32,6 +40,7 @@ export function useTerminalRestart({
 }: UseTerminalRestartProps) {
   return useCallback(
     async (oldId: string) => {
+      if (await TerminalExists(oldId).catch(() => false)) return;
       if (isPeerName(oldId)) {
         await TerminalTabOp(projectName, "restart", oldId, null, null, null).catch((err) =>
           toast.error(`Couldn't restart the terminal: ${restartRefusal(err)}`),

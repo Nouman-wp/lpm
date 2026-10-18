@@ -27,7 +27,7 @@ export function ClaudeAccountPoolDialog() {
   const consentOpen = useClaudePoolStore((s) => s.consentFor !== null);
   const machine = useClaudeAccountsOf(project);
   const projects = useAppStore((s) => s.projects);
-  const { limits } = useAgentLimits();
+  const { limits } = useAgentLimits(project && peerSlugOf(project));
   const now = useNow(true, 60000);
   const [ticked, setTicked] = useState<string[]>([]);
 

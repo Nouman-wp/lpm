@@ -102,11 +102,9 @@ export function ClaudeSwitchingControls({ pool, source, busy, run }: ClaudeSwitc
               Hold lifted? Turn back on
             </button>
           ) : (
-            turnOnReadings && (
-              <button type="button" className={BTN_SECONDARY} disabled={busy} onClick={() => void run(turnOnReadings)}>
-                Turn on usage readings
-              </button>
-            )
+            <button type="button" className={BTN_SECONDARY} disabled={busy} onClick={() => void run(turnOnReadings)}>
+              Turn on usage readings
+            </button>
           )}
         </div>
       )}

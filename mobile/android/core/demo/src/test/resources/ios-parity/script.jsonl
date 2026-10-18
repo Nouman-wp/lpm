@@ -373,6 +373,13 @@
 {"at": 65200, "frame": {"t": "terminals", "project": "storefront"}}
 {"at": 65300, "frame": {"t": "closeTerminal", "project": "storefront", "id": "demo-storefront-claude"}}
 {"at": 65400, "frame": {"t": "terminals", "project": "storefront"}}
+{"at": 65500, "frame": {"t": "restartTerminal", "project": "storefront", "id": "demo-storefront-5"}}
+{"at": 65500, "frame": {"t": "in", "id": "demo-storefront-5", "d": "exit\r"}}
+{"at": 65550, "frame": {"t": "in", "id": "demo-storefront-5", "d": "ls\r"}}
+{"at": 65550, "frame": {"t": "sub", "id": "demo-storefront-5"}}
+{"at": 65600, "frame": {"t": "restartTerminal", "project": "storefront", "id": "demo-storefront-5"}}
+{"at": 65600, "frame": {"t": "restartTerminal", "project": "storefront", "id": "nope"}}
+{"at": 65700, "frame": {"t": "terminals", "project": "storefront"}}
 {"at": 66000, "frame": {"t": "uploadChunk", "id": "demo-storefront-1", "offset": 1048576, "b64": "aGVsbG8=", "reqId": "u2"}}
 {"at": 66000, "frame": {"t": "uploadDone", "id": "demo-storefront-1", "uploadId": "nope", "reqId": "u4"}}
 {"at": 66000, "frame": {"t": "uploadAbort", "uploadId": "nope"}}

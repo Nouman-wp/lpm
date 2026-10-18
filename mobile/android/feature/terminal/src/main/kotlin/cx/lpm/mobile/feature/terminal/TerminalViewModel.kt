@@ -120,11 +120,13 @@ class TerminalViewModel @AssistedInject constructor(
 
     private fun pollForReopen() {
         reopenPoll?.cancel()
+        val id = currentId
         reopenPoll = viewModelScope.launch {
             repeat(REOPEN_POLLS) {
                 terminals?.loadTerminals(key.project)
                 delay(REOPEN_POLL_MS)
             }
+            terminals?.restartLapsed(id)
         }
     }
 
@@ -137,14 +139,17 @@ class TerminalViewModel @AssistedInject constructor(
 
     /**
      * Carry on with the tab lpm reopened: what was typed here goes with it, and so
-     * does control if this phone had it.
+     * does control if this phone had it. A restart asked for here needs no word that
+     * it happened.
      */
     private fun follow(next: TerminalInfo) {
         val store = terminals ?: return
         val old = currentId
+        val restartedHere = store.state.value.endedTerminals[old]?.restarting == true
         if (store.isControlled(old)) store.claimControl(next.id)
         session?.store<ComposerSessions>()?.carryDraft(from = old, to = next)
         successor.value = next
+        if (restartedHere) return
         reopened.value = true
         reopenedTimer?.cancel()
         reopenedTimer = viewModelScope.launch {
@@ -173,6 +178,8 @@ class TerminalViewModel @AssistedInject constructor(
             controlled = terminals?.isControlled(id) ?: true,
             ownerLabel = terminals?.controlOwnerLabel(id).orEmpty(),
             ended = t.endedTerminals[id],
+            listed = list?.any { it.id == id } == true,
+            canRestart = terminals?.canRestartTerminals == true,
             reopened = reopen,
             connectionReady = s.isReady,
             statusLine = link.statusLine.takeUnless { s.demoMode || s.isReady },
@@ -227,6 +234,17 @@ class TerminalViewModel @AssistedInject constructor(
 
     fun claimControl() {
         terminals?.claimControl(currentId)
+    }
+
+    /** Run the ended terminal again in its tab; the screen carries on with it. */
+    fun restart() {
+        val store = terminals ?: return
+        val terminal = uiState.value.terminal ?: return
+        store.restartTerminal(terminal)
+    }
+
+    fun closeTab() {
+        terminals?.closeTerminal(key.project, currentId)
     }
 
     /**

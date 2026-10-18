@@ -2,6 +2,7 @@ import { accountLabel } from "../claudePoolText";
 import { useAgentLimits } from "../hooks/useAgentLimits";
 import { useClaudeAccountsOf } from "../hooks/useClaudeAccountsOf";
 import { useNow } from "../hooks/useNow";
+import { peerSlugOf } from "../peer/markers";
 import { accountMeters } from "../sidebarUsage";
 import { MAIN_POOL, poolForProjectKey } from "../store/claudePool";
 import type { ClaudeAccountChoice, ProjectInfo } from "../types";
@@ -55,7 +56,7 @@ export function ClaudeAccountSubmenu({
   onClose,
 }: ClaudeAccountSubmenuProps) {
   const machine = useClaudeAccountsOf(projectName);
-  const { limits } = useAgentLimits();
+  const { limits } = useAgentLimits(peerSlugOf(projectName));
   const now = useNow(true, 60000);
   if (!machine || machine.accounts.length === 0) return null;
   const { accounts, statuses, pool } = machine;

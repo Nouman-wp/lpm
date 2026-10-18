@@ -6,7 +6,7 @@ import kotlin.random.Random
 // and the dev server's log lines ticking in while the project runs.
 
 internal fun DemoServer.handleShellInput(id: String, d: String) {
-    val term = demoTerminal(id) ?: return
+    val term = demoTerminal(id)?.takeUnless { it.exited } ?: return
     val prompt = shellPrompt(term.project)
     var pending = term.pendingInput
     var echo = ""
@@ -64,6 +64,11 @@ private fun DemoServer.runShellCommand(id: String, raw: String) {
         "pwd" -> emit(id, "/Users/demo/dev/$project\r\n" + prompt)
 
         "whoami" -> emit(id, "demo\r\n" + prompt)
+
+        "exit" -> {
+            updateTerminal(id) { it.exited = true }
+            push(mapOf("t" to "exit", "id" to id, "code" to 0))
+        }
 
         "clear" -> {
             setBuffer(id, prompt)
@@ -178,7 +183,7 @@ internal fun DemoServer.armDevLog(id: String) {
 private fun DemoServer.scheduleDevLogTick(id: String) {
     pushAfter(Random.nextDouble(4.0, 8.0)) {
         val t = demoTerminal(id) ?: return@pushAfter null
-        if (!t.subscribed) {
+        if (!t.subscribed || t.exited) {
             updateTerminal(id) { it.logTickArmed = false }
             return@pushAfter null
         }

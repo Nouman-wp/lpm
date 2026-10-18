@@ -141,10 +141,14 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_service_logs::WATCH_FEATURE,
     SERVICE_RESTART_FEATURE,
     crate::remote_answers::FEATURE,
+    RESTART_TERMINAL_FEATURE,
 ];
 
 /// The phone may send `restartService` / `stopService`.
 const SERVICE_RESTART_FEATURE: &str = "serviceRestart";
+
+/// The phone may send `restartTerminal`.
+const RESTART_TERMINAL_FEATURE: &str = "restartTerminal";
 
 /// Whether a device-list re-read may wait for a save that is in progress.
 #[derive(Clone, Copy)]
@@ -3238,15 +3242,18 @@ fn handle_msg(
                 send(ws, json!({ "t": "newTerminal", "ok": true }))?;
             }
         }
-        // Terminal tab ops (close / rename / pin) are also frontend pane-tree edits,
-        // so they take the same owner-window relay: emit an event the mounted
-        // ProjectDetail resolves back to its tab id and runs the normal handler.
-        "closeTerminal" | "renameTerminal" | "pinTerminal" => {
+        // Terminal tab ops (close / rename / pin / restart) are also frontend
+        // pane-tree edits, so they take the same owner-window relay: emit an event
+        // the mounted ProjectDetail resolves back to its tab id and runs the
+        // normal handler. A restart runs an ended terminal again in its own tab,
+        // under a new id the next `terminals` push carries.
+        "closeTerminal" | "renameTerminal" | "pinTerminal" | "restartTerminal" => {
             let project = str_field("project").unwrap_or_default();
             let id = str_field("id").unwrap_or_default();
             let op = match t {
                 "closeTerminal" => "close",
                 "renameTerminal" => "rename",
+                "restartTerminal" => "restart",
                 _ => "pin",
             };
             if !project.is_empty() && !id.is_empty() {

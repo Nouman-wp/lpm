@@ -1,5 +1,4 @@
 import { pendingClosesForProject } from "../pendingClose";
-import { isPeerName } from "../peer/markers";
 import type { ScheduledPrompt } from "../store/sendLater";
 import { useTerminalTargets } from "../store/terminalTargets";
 import { collectPersistedTabs, getProjectTerminals } from "../terminals";
@@ -25,7 +24,6 @@ export function createClosedTabReconciler() {
       const targets = byProject[item.projectName];
       const gone =
         targets !== undefined &&
-        !isPeerName(item.projectName) &&
         !targets.some((t) => t.historyKey === item.historyKey) &&
         !collectPersistedTabs(getProjectTerminals(item.projectName).panes).some(
           (t) => t.historyKey === item.historyKey,

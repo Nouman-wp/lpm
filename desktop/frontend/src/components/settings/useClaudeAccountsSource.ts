@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ApplyClaudeLimits, StartClaudeLogin } from "../../../bridge/commands";
+import { ApplyClaudeLimits, PeerSettingsSet, StartClaudeLogin } from "../../../bridge/commands";
 import {
   readHostClaude,
   removeHostAccount,
@@ -31,9 +31,8 @@ export interface ClaudeAccountsSource extends MachineClaudeAccounts {
   askConsent: (request: ConsentRequest) => void;
   // Starts `claude /login` for an account and answers with its terminal.
   startLogin: (id: string) => Promise<string>;
-  // Turns on the usage readings switching needs. A paired machine's readings
-  // are its own to turn on, so it has none.
-  turnOnReadings?: () => Promise<void>;
+  // Turns on the usage readings switching needs.
+  turnOnReadings: () => Promise<void>;
 }
 
 const NOTHING_DISMISSED: Record<string, string> = {};
@@ -141,6 +140,14 @@ function useHostSource(slug: string | null): ClaudeAccountsSource | null {
         });
       },
       startLogin: (id) => startHostClaudeLogin(slug, id),
+      turnOnReadings: async () => {
+        try {
+          await PeerSettingsSet(slug, { claudeLimitsEnabled: true });
+        } catch (err) {
+          toast.error(String(err));
+        }
+        await refresh();
+      },
     };
   }, [slug, found, refresh, askConsent]);
 }

@@ -11,6 +11,10 @@
     <string name="terminal_controlled_elsewhere">This terminal is shown and controlled elsewhere.</string>
     <string name="terminal_take_control">Take control</string>
     <string name="terminal_taking_control">Taking control…</string>
+    <string name="terminal_exited_with_code">%1$s exited with code %2$d — it no longer takes input.</string>
+    <string name="terminal_has_ended">%1$s has ended — it no longer takes input.</string>
+    <string name="terminal_restart">Restart</string>
+    <string name="terminal_close_tab">Close tab</string>
 
     <!-- Terminal settings -->
     <string name="terminal_settings_title">Terminal</string>

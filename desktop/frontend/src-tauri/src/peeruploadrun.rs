@@ -16,6 +16,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::fs::File;
 use std::io::Read;
+use std::path::Path;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 
@@ -100,16 +101,7 @@ fn send(
     match plan(meta.len(), &name, hub.supports_file_upload(slug)) {
         Plan::Refuse(why) => Err(why),
         Plan::SingleFrame => single_frame(hub, slug, terminal_id, &local, &name),
-        Plan::Chunked => chunked(
-            app,
-            hub,
-            slug,
-            terminal_id,
-            &local,
-            &name,
-            meta.len(),
-            token,
-        ),
+        Plan::Chunked => chunked(app, hub, slug, terminal_id, &local, &name, token),
     }
 }
 
@@ -138,7 +130,6 @@ fn single_frame(
     saved_path(&reply, name)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn chunked(
     app: &AppHandle,
     hub: &PeerClientHub,
@@ -146,9 +137,37 @@ fn chunked(
     terminal_id: &str,
     local: &str,
     name: &str,
-    total: u64,
     token: &str,
 ) -> Result<String, String> {
+    let done = send_in_pieces(
+        hub,
+        slug,
+        Path::new(local),
+        name,
+        json!({ "t": "uploadDone", "terminalId": terminal_id }),
+        DONE_TIMEOUT,
+        |sent, total| progress(app, token, name, sent, total),
+    )?;
+    saved_path(done.get("path").unwrap_or(&Value::Null), name)
+}
+
+/// Send `local` to a host that advertises `fileUpload` in pieces, then close the
+/// upload with `finish`, a frame its id is added to. Answers with the host's
+/// reply to that frame. `progress` gets `(sent, total)` as the pieces land.
+pub(crate) fn send_in_pieces(
+    hub: &PeerClientHub,
+    slug: &str,
+    local: &Path,
+    name: &str,
+    mut finish: Value,
+    finish_timeout: Duration,
+    mut progress: impl FnMut(u64, u64),
+) -> Result<Value, String> {
+    let mut file = File::open(local).map_err(|e| format!("could not read {name}: {e}"))?;
+    let total = file
+        .metadata()
+        .map_err(|e| format!("could not read {name}: {e}"))?
+        .len();
     let begun = hub.peer_request(
         slug,
         BEGIN_TIMEOUT,
@@ -165,19 +184,19 @@ fn chunked(
     let chunk = begun.get("chunk").and_then(Value::as_u64).unwrap_or(0);
 
     let outcome = stream(
-        app,
-        Transfer {
-            hub,
-            slug,
-            terminal_id,
-            local,
-            name,
-            total,
-            token,
-            upload_id: &upload_id,
-            chunk,
-        },
-    );
+        hub,
+        slug,
+        &mut file,
+        name,
+        total,
+        &upload_id,
+        chunk,
+        &mut progress,
+    )
+    .and_then(|()| {
+        finish["uploadId"] = json!(upload_id);
+        hub.peer_request(slug, finish_timeout, finish)
+    });
     // Best-effort and unanswered: this side has already failed, and the host
     // reaps what it holds anyway — telling it now just frees the disk sooner.
     if outcome.is_err() {
@@ -186,49 +205,37 @@ fn chunked(
     outcome
 }
 
-struct Transfer<'a> {
-    hub: &'a PeerClientHub,
-    slug: &'a str,
-    terminal_id: &'a str,
-    local: &'a str,
-    name: &'a str,
+#[allow(clippy::too_many_arguments)]
+fn stream(
+    hub: &PeerClientHub,
+    slug: &str,
+    file: &mut File,
+    name: &str,
     total: u64,
-    token: &'a str,
-    upload_id: &'a str,
+    upload_id: &str,
     chunk: u64,
-}
-
-fn stream(app: &AppHandle, t: Transfer<'_>) -> Result<String, String> {
-    let mut file = File::open(t.local).map_err(|e| format!("could not read {}: {e}", t.name))?;
+    progress: &mut impl FnMut(u64, u64),
+) -> Result<(), String> {
     let mut sent = 0u64;
-    progress(app, t.token, t.name, 0, t.total);
-    while let Some((offset, len)) = next_chunk(sent, t.total, t.chunk) {
+    progress(0, total);
+    while let Some((offset, len)) = next_chunk(sent, total, chunk) {
         let mut buf = vec![0u8; len as usize];
         file.read_exact(&mut buf)
-            .map_err(|e| format!("could not read {}: {e}", t.name))?;
-        t.hub.peer_request(
-            t.slug,
+            .map_err(|e| format!("could not read {name}: {e}"))?;
+        hub.peer_request(
+            slug,
             CHUNK_TIMEOUT,
             json!({
                 "t": "uploadChunk",
-                "uploadId": t.upload_id,
+                "uploadId": upload_id,
                 "offset": offset,
                 "b64": B64.encode(&buf),
             }),
         )?;
         sent += len;
-        progress(app, t.token, t.name, sent, t.total);
+        progress(sent, total);
     }
-    let done = t.hub.peer_request(
-        t.slug,
-        DONE_TIMEOUT,
-        json!({
-            "t": "uploadDone",
-            "uploadId": t.upload_id,
-            "terminalId": t.terminal_id,
-        }),
-    )?;
-    saved_path(done.get("path").unwrap_or(&Value::Null), t.name)
+    Ok(())
 }
 
 fn progress(app: &AppHandle, token: &str, name: &str, sent: u64, total: u64) {

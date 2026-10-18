@@ -349,6 +349,9 @@ class LpmClient internal constructor(
         // `restartService` / `stopService`, and ended services reported as `exited`.
         const val SERVICE_RESTART_FEATURE = "serviceRestart"
 
+        // `restartTerminal`: an ended terminal run again in its tab.
+        const val RESTART_TERMINAL_FEATURE = "restartTerminal"
+
         const val OFFLINE_HINT =
             "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 

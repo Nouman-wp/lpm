@@ -96,6 +96,8 @@ export const GLOBAL_PEER_EVENTS = new Set<string>([
   "status-changed",
   "git-changed",
   "ports-changed",
+  "port-auto-forwarded",
+  "port-forward-failed",
   "action-output",
   "action-done",
   "action-bg-output",
@@ -313,10 +315,12 @@ export function translatePeerEventPayload(
         }
       }
       return payload;
+    case "port-auto-forwarded":
+    case "port-forward-failed":
     case "job-status":
     case "job-seen":
       // { project, copy?, … } — the project ("" for a standalone job) and the
-      // copy a run worked in, as this Mac names them.
+      // copy an automation ran in, as this Mac names them.
       if (payload && typeof payload === "object") {
         const p = payload as { project?: unknown; copy?: unknown };
         return {

@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import { AddPortForward } from "../../../bridge/commands";
 import { BrowserOpenURL } from "../../../bridge/runtime";
+import { projectPortUrl } from "../../peer/projectPorts";
 
 // localPort=0 leaves the choice to the backend (mirrors the remote port
 // when free, picks a free one otherwise).
@@ -11,7 +12,7 @@ export async function forwardPortAndOpen(
 ): Promise<void> {
   try {
     const pf = await AddPortForward(projectName, remotePort, localPort);
-    const url = `http://localhost:${pf.localPort}`;
+    const url = await projectPortUrl(projectName, pf.localPort);
     toast.success(`Forwarded :${remotePort} → ${url}`);
     BrowserOpenURL(url);
   } catch (err) {

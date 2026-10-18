@@ -62,7 +62,13 @@ const SHARED: &[(&str, Kind)] = &[
     ("ttsVoice", Kind::Name),
     ("ttsOpenAiVoice", Kind::Name),
     ("ttsSpeed", Kind::Number { min: 0.5, max: 3.0 }),
+    (CLAUDE_LIMITS, Kind::Flag),
 ];
+
+/// Claude usage readings, which switching accounts needs. Its forwarder is
+/// installed or removed with it (claude_statusline), as this machine's own
+/// toggle does.
+const CLAUDE_LIMITS: &str = "claudeLimitsEnabled";
 
 const MAX_PATH_LEN: usize = 4096;
 const MAX_NAME_LEN: usize = 256;
@@ -88,6 +94,12 @@ pub(crate) fn handle(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Val
 fn write(app: &AppHandle, patch: &Value) -> Result<Value, String> {
     let mut settings = crate::config::load_settings();
     apply_patch(&mut settings, patch)?;
+    if let Some(enabled) = patch.get(CLAUDE_LIMITS) {
+        crate::claude_statusline::apply_claude_limits(
+            app.clone(),
+            enabled.as_bool().unwrap_or(false),
+        )?;
+    }
     crate::config::save_settings(&settings)?;
     let _ = app.emit("peer-settings-changed", ());
     Ok(shared_view(&settings))

@@ -4,9 +4,10 @@
 //!
 //! A VS Code-family editor opens the host's own file over Remote-SSH when this
 //! Mac reaches the host over SSH, so what is saved lands there. Every other
-//! case gets a copy (peercopy.rs): a PDF opens in Preview, and a text file an
-//! editor opens sends each save back to the host (peercopysync.rs). Any other
-//! copy is read-only, so an editor can't save changes that would quietly drop.
+//! case gets a copy (peercopy.rs) that sends each save back to the host
+//! (peercopysync.rs): any file, or only text on a host too old to take a file
+//! whole. Any other copy is read-only, so an app can't save changes that would
+//! quietly drop.
 
 use std::time::Duration;
 
@@ -93,16 +94,15 @@ pub(crate) fn open_file(
             serde_json::json!({ "token": marked, "name": name, "sent": sent, "total": total }),
         );
     })?;
-    let syncs = edit
-        && crate::peercopysync::watch(
-            app_handle,
-            hub,
-            peer.slug,
-            peer.host_path,
-            &peer.name,
-            &local,
-        )
-        .is_ok();
+    let syncs = crate::peercopysync::watch(
+        app_handle,
+        hub,
+        peer.slug,
+        peer.host_path,
+        &peer.name,
+        &local,
+    )
+    .is_ok();
     let local = local.to_string_lossy();
     match app {
         Some(app) => open_file_with(app.id, &app.path, &local, line, col)?,

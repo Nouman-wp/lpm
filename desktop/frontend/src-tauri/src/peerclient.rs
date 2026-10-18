@@ -102,6 +102,7 @@ struct PeerConn {
     supports_git_watch: AtomicBool, // ...and push changes instead of waiting to be asked
     supports_remote_pair: AtomicBool, // host can arm its own phone pairing and hand back the QR
     supports_file_upload: AtomicBool, // host can take an attached file in chunks, not one frame
+    supports_file_save: AtomicBool, // ...and save one over a file of its own (hostfilesave.rs)
     supports_media_range: AtomicBool, // host serves a video's byte ranges for preview
     supports_file_range: AtomicBool, // host serves any file a chunk at a time
     supports_self_update: AtomicBool, // a paired Mac can update lpm there (peermacupdate.rs)
@@ -170,6 +171,7 @@ impl PeerConn {
             supports_git_watch: AtomicBool::new(false),
             supports_remote_pair: AtomicBool::new(false),
             supports_file_upload: AtomicBool::new(false),
+            supports_file_save: AtomicBool::new(false),
             supports_media_range: AtomicBool::new(false),
             supports_file_range: AtomicBool::new(false),
             supports_self_update: AtomicBool::new(false),
@@ -1016,6 +1018,17 @@ impl PeerClientHub {
             .unwrap()
             .get(slug)
             .is_some_and(|c| c.supports_file_upload.load(Ordering::Relaxed))
+    }
+
+    /// Whether this peer takes a save of any file of its own, in chunks
+    /// (peercopysync.rs). One that doesn't takes a single write of text.
+    pub(crate) fn supports_file_save(&self, slug: &str) -> bool {
+        self.inner
+            .conns
+            .lock()
+            .unwrap()
+            .get(slug)
+            .is_some_and(|c| c.supports_file_save.load(Ordering::Relaxed))
     }
 
     /// Whether lpm on this peer can be updated from here.
@@ -2191,6 +2204,10 @@ fn connect_session(
     );
     conn.supports_file_upload.store(
         has_feature(crate::peeruploadhost::FILE_UPLOAD_FEATURE),
+        Ordering::Relaxed,
+    );
+    conn.supports_file_save.store(
+        has_feature(crate::hostfilesave::FILE_SAVE_FEATURE),
         Ordering::Relaxed,
     );
     conn.supports_media_range.store(

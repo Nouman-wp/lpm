@@ -4,10 +4,10 @@
 // frame. The phone's link frames its replies itself (remote_upload.rs) around the
 // same `run`.
 //
-// Four verbs — begin, chunk, done, abort — over the same dedicated-frame plumbing
-// as "bring changes": each runs on its own thread and answers through the
-// connection's out-queue, because a blocking handler would stall that
-// connection's reads. Chunks are strictly in order and appended as they land, so
+// Four verbs — begin, chunk, done (or save, hostfilesave.rs), abort — over the
+// same dedicated-frame plumbing as "bring changes": each runs on its own thread
+// and answers through the connection's out-queue, because a blocking handler
+// would stall that connection's reads. Chunks are strictly in order and appended as they land, so
 // nothing bigger than one chunk is ever held in memory here either.
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
@@ -84,6 +84,7 @@ pub(crate) fn run(
             )
             .map(|path| json!({ "path": path }))
         }),
+        "uploadSave" => save(v),
         "uploadAbort" => abort(v),
         _ => Err(format!("unknown upload request: {verb}")),
     }
@@ -178,6 +179,15 @@ fn finish(v: &Value) -> Result<String, String> {
     Ok(up.path.to_string_lossy().into_owned())
 }
 
+/// A save from a paired Mac's copy of a file here, put in the file's place.
+fn save(v: &Value) -> Result<Value, String> {
+    let local = PathBuf::from(finish(v)?);
+    let saved =
+        crate::hostfilesave::save_over(&local, &str_arg(v, "path"), &str_arg(v, "expectedSha256"));
+    remove_upload(&local);
+    saved
+}
+
 fn abort(v: &Value) -> Result<Value, String> {
     let mut reg = registry().lock().unwrap();
     if let Some(up) = reg.remove(&str_arg(v, "uploadId")) {
@@ -193,7 +203,11 @@ fn abort(v: &Value) -> Result<Value, String> {
 fn discard(up: Incoming) {
     let path = up.path.clone();
     drop(up);
-    let _ = std::fs::remove_file(&path);
+    remove_upload(&path);
+}
+
+fn remove_upload(path: &std::path::Path) {
+    let _ = std::fs::remove_file(path);
     if let Some(dir) = path.parent() {
         let _ = std::fs::remove_dir(dir);
     }
@@ -378,5 +392,27 @@ mod tests {
         reap_expired();
         assert!(!path.exists());
         assert!(!registry().lock().unwrap().contains_key(&id));
+    }
+
+    #[test]
+    fn a_save_lands_on_the_file_and_leaves_no_upload_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("logo.png");
+        std::fs::write(&dest, [0x89, b'P', b'N', b'G']).unwrap();
+        let started = crate::hostfilesave::sha256_file(&dest).unwrap();
+        let body = [0x89, b'P', b'N', b'G', 0x00, 0xff, 0x10];
+
+        let (id, _) = begun("logo.png", body.len() as u64);
+        send(&id, 0, &body).unwrap();
+        let upload = path_of(&id);
+        let saved = save(&json!({
+            "uploadId": id,
+            "path": dest.to_str().unwrap(),
+            "expectedSha256": started,
+        }))
+        .unwrap();
+        assert_eq!(saved["written"], true);
+        assert_eq!(std::fs::read(&dest).unwrap(), body);
+        assert!(!upload.parent().unwrap().exists());
     }
 }

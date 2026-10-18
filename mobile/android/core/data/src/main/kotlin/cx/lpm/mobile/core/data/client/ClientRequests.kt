@@ -82,6 +82,8 @@ fun LpmClient.renameTerminal(project: String, id: String, label: String) =
 
 fun LpmClient.pinTerminal(project: String, id: String) = send(Wire.pinTerminal(project, id))
 
+fun LpmClient.restartTerminal(project: String, id: String) = send(Wire.restartTerminal(project, id))
+
 fun LpmClient.reorderTerminals(project: String, order: List<String>) =
     send(Wire.reorderTerminals(project, order))
 

@@ -32,6 +32,7 @@ internal fun LpmClient.connectDemo() {
             putJsonArray("features") {
                 add(LpmClient.FILE_UPLOAD_FEATURE)
                 add(LpmClient.SERVICE_LOGS_WATCH_FEATURE)
+                add(LpmClient.RESTART_TERMINAL_FEATURE)
             }
         }
         injectInbound(Wire.json(ready))

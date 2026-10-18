@@ -3,7 +3,8 @@ import Foundation
 /// lpm reopens a Mac's tabs under new ids when it starts again. A terminal open
 /// on the phone across that restart ends, its process gone with the old lpm,
 /// while the same tab is back in the project's list. These tell that apart from
-/// a real exit and find the tab that took the old one's place.
+/// a real exit and find the tab that took the old one's place — as they do for a
+/// terminal this phone asked lpm to restart.
 extension AppModel {
     /// How long before the link dropped an ending still counts as lpm quitting.
     private static let quitWindow: TimeInterval = 10
@@ -41,6 +42,25 @@ extension AppModel {
             return list[index]
         }
         return named.first
+    }
+
+    /// The Mac runs ended terminals again in their tabs (`restartTerminal`).
+    var canRestartTerminals: Bool {
+        client?.hostFeatures.contains(LpmClient.restartTerminalFeature) == true
+    }
+
+    /// Run an ended terminal again in its tab, as the desktop's Restart does. It
+    /// comes back under a new id in the same place, which `restoredTab` finds.
+    func restartTerminal(_ term: TerminalInfo) {
+        guard canRestartTerminals, endedTerminals[term.id] != nil else { return }
+        endedTerminals[term.id]?.restarting = true
+        client?.restartTerminal(project: term.project, id: term.id)
+        reloadTerminalsSoon(term.project)
+    }
+
+    /// A restart whose tab never showed up: offer it again.
+    func restartLapsed(_ id: String) {
+        endedTerminals[id]?.restarting = false
     }
 
     /// Ask for a project's tabs again once the link is back. An empty list from

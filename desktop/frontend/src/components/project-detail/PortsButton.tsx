@@ -4,8 +4,9 @@ import {
   GetSuggestedPorts,
   ListPortForwards,
 } from "../../../bridge/commands";
-import { BrowserOpenURL, EventsOn } from "../../../bridge/runtime";
+import { EventsOn } from "../../../bridge/runtime";
 import type { main } from "../../../bridge/models";
+import { openProjectPort } from "../../peer/projectPorts";
 import { PortForwardIcon } from "../icons";
 import { PortsPopover } from "./PortsPopover";
 
@@ -44,9 +45,8 @@ export function PortsButton({ projectName }: PortsButtonProps) {
       "port-auto-forwarded",
       (data: { project: string; remotePort: number; localPort: number }) => {
         if (data.project !== projectName) return;
-        const url = `http://localhost:${data.localPort}`;
-        toast.success(`Auto-forwarded :${data.remotePort} → ${url}`, {
-          action: { label: "Open", onClick: () => BrowserOpenURL(url) },
+        toast.success(`Auto-forwarded :${data.remotePort} → http://localhost:${data.localPort}`, {
+          action: { label: "Open", onClick: () => void openProjectPort(projectName, data.localPort) },
         });
       },
     );

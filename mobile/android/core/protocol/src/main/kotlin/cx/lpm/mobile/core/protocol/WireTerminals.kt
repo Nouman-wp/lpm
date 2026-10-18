@@ -51,6 +51,12 @@ sealed interface WireTerminals {
         put("id", id)
     }
 
+    /** Runs an ended terminal again in its tab. Only for a Mac whose `features` has "restartTerminal". */
+    fun restartTerminal(project: String, id: String): String = frame("restartTerminal") {
+        put("project", project)
+        put("id", id)
+    }
+
     fun reorderTerminals(project: String, order: List<String>): String = frame("reorderTerminals") {
         put("project", project)
         putStrings("order", order)

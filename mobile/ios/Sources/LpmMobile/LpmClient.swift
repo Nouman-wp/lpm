@@ -238,6 +238,7 @@ final class LpmClient: NSObject {
     static let serviceLogsWatchFeature = "serviceLogsWatch"
     static let serviceRestartFeature = "serviceRestart"
     static let agentAnswersFeature = "agentAnswers"
+    static let restartTerminalFeature = "restartTerminal"
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -474,7 +475,8 @@ final class LpmClient: NSObject {
             if case .ready = self.state { return }
             self.injectInbound(Wire.json([
                 "t": "ready", "serverId": DemoServer.serverId, "serverName": DemoServer.serverName,
-                "features": [ChunkedUpload.feature, Self.serviceLogsWatchFeature, Self.agentAnswersFeature],
+                "features": [ChunkedUpload.feature, Self.serviceLogsWatchFeature, Self.agentAnswersFeature,
+                             Self.restartTerminalFeature],
             ]))
         }
     }
@@ -922,6 +924,7 @@ final class LpmClient: NSObject {
         send(Wire.renameTerminal(project: project, id: id, label: label))
     }
     func pinTerminal(project: String, id: String) { send(Wire.pinTerminal(project: project, id: id)) }
+    func restartTerminal(project: String, id: String) { send(Wire.restartTerminal(project: project, id: id)) }
     func reorderTerminals(project: String, order: [String]) {
         send(Wire.reorderTerminals(project: project, order: order))
     }

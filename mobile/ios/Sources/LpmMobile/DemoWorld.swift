@@ -123,6 +123,8 @@ struct DemoWorld {
         var logTickArmed = false
         var responding = false
         var ackCount = 0
+        // Its shell ran `exit`: the tab stays, as on the Mac, until it is restarted.
+        var exited = false
     }
 
     var terminals: [String: [Terminal]] = [:] // project -> terminals

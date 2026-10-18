@@ -2166,7 +2166,7 @@ final class AppModel {
     /// The desktop creates the terminal + types its command asynchronously (it
     /// waits for the shell prompt to settle, which can take several seconds), so
     /// poll the list until the new terminal shows up.
-    private func reloadTerminalsSoon(_ project: String) {
+    func reloadTerminalsSoon(_ project: String) {
         for delay in [0.6, 1.5, 3.0, 5.0, 8.0, 12.0] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 self?.loadTerminals(project)

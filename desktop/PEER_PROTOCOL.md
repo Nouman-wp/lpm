@@ -179,6 +179,8 @@ the client can have the host install the latest lpm (see **Commands**);
 `hostJobs` = the host takes its shared automations from the client (see **Commands**);
 `portTunnel` = the host opens its web servers on the client's localhost (see **Port tunnel**);
 `hostClaudeAccounts` = the host answers `host_claude_accounts` (see **Commands**);
+`fileSave` = the host puts a client's save of one of its files in place (see
+**Commands**);
 `agentLimits` = the host trades Claude usage limits (see **Usage
 limits**). A host
 missing a feature simply never receives frames that depend on it. The full list
@@ -248,12 +250,17 @@ the viewer asks for an update instead.
 **Opening a host's file in an app here** (`peeropen.rs`). The app starts on the
 client. A VS Code-family editor opens the host's own file over Remote-SSH when
 the client reaches the host over SSH; otherwise the client fetches a copy (a
-chunk at a time) and opens that. A text file opened in an editor keeps its copy
-in step: each save is sent back as `write_file_if_unchanged { absPath,
-expectedContent, content }`, with `expectedContent` what the host's file held as
-of the copy or the last save. A host file that changed in between isn't
-overwritten — the copy turns read-only and the client says so. Any other copy is
-read-only.
+chunk at a time) and opens that. The copy is kept in step: each save goes back
+to the host, written only while the host's file still holds what it held as of
+the copy or the last save. A `fileSave` host takes any file whole, in the pieces
+an attached file travels in (`uploadBegin`, `uploadChunk`), closed with
+`{ "t": "uploadSave", "reqId", "uploadId", "path", "expectedSha256" }` →
+`result` with `{ written, sha256 }`: the host swaps the file in atomically
+(through a link, keeping its mode) when its SHA-256 is still `expectedSha256`,
+and `sha256` is what it holds afterwards. An older host takes text only, as
+`write_file_if_unchanged { absPath, expectedContent, content }`; any other copy
+stays read-only. A host file that changed in between isn't overwritten — the
+copy turns read-only and the client says so.
 
 **Phone pairing** (`remotePair` feature). The one thing a client needs from the
 host's mobile server gets a dedicated frame rather than a hole in that denylist:
@@ -294,7 +301,7 @@ gets dedicated frames:
 stays on the denylist, so the client's Settings view reaches the host's settings
 through these frames, which touch only the fields that view shows (`SHARED` in
 `peersettings.rs`: theme, sidebar, Git, notification, terminal, shortcut,
-speech and update-channel settings). Window geometry, sidebar order and the rest of what the host keeps
+speech, update-channel and Claude usage-reading settings). Window geometry, sidebar order and the rest of what the host keeps
 for itself are out of reach. A `hostSettings` host without `hostSettingsAll`
 shares only `defaultProjectDirectory`, `checkOrigin` and `doubleClickToToggle`;
 the client asks the user to update it rather than send it the frames.
@@ -306,7 +313,9 @@ the client asks the user to update it rather than send it the frames.
   name, bounded number, one of a few words, or a map of hotkey ids to combos);
   `null` clears any field, and `""` clears a path or name. Any other key or kind
   fails the whole patch and writes nothing. On success the host emits
-  `peer-settings-changed` so its own windows reload settings.
+  `peer-settings-changed` so its own windows reload settings. Setting
+  `claudeLimitsEnabled` also installs or removes the host's usage-reading
+  forwarder, as the host's own toggle does.
 
 **Host folders** (`hostFolders` feature). The host's folders (`groups.json` and
 its `sidebarOrder`) are the one layout every viewer of its projects shares — its
@@ -400,6 +409,10 @@ terminal output may be: a byte stream can't be reseeded. A dropped connection en
 its streams on both sides; the client's listener stays open and carries new
 connections once the host is back. A client doesn't open a tunnel to a host
 without the feature and asks for an update instead.
+
+An SSH project of the host's forwards its server's ports to the host's loopback
+(`add_port_forward` runs there, like the rest of its Ports commands), so the
+client opens a forwarded port through this tunnel in turn.
 
 ## Terminal streaming
 
@@ -518,7 +531,7 @@ The host forwards these Rust-emitted global events to every authed peer as
 drops and the client re-syncs):
 
 `projects-changed`, `status-changed`, `git-changed`, `ports-changed`,
-`action-output`, `action-done`, `action-bg-output`, `templates-changed`,
+`port-auto-forwarded`, `port-forward-failed`, `action-output`, `action-done`, `action-bg-output`, `templates-changed`,
 `sidebar-changed`, `job-status`, `job-seen`, `memory-changed`, and the lines a
 coding agent prints while it generates something (`commit-msg-progress`,
 `pr-title-progress`, `pr-description-progress`, `branch-name-progress`,
@@ -530,6 +543,10 @@ with payload `{ name, payload }`; the TS shim demultiplexes, translates
 identifier fields (project names → prefixed, roots/paths → prefixed root,
 terminal ids → prefixed), and dispatches to the same callbacks the local events
 would.
+
+`agent-limits-changed` (the host's Claude and Codex readings) is forwarded too,
+but not re-emitted under its own name: those aren't the client's readings. The
+client reads it off `peer-evt-{slug}` for the meters beside the host's accounts.
 
 ## Config sync
 

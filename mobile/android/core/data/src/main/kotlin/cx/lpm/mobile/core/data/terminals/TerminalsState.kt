@@ -25,10 +25,15 @@ data class TerminalEnding(
      * The link dropped right after it ended: lpm quit under it, rather than its
      * process exiting on its own.
      */
-    val restarted: Boolean = false
+    val restarted: Boolean = false,
+    /** This phone asked lpm to run it again in its tab, which comes back under a new id. */
+    val restarting: Boolean = false
 ) {
-    /** lpm no longer has the tab, so one it reopened can stand in for it. */
-    val replaceable: Boolean get() = gone || restarted
+    /**
+     * lpm no longer has the tab, or is running it again, so the tab now in its place
+     * can stand in for it.
+     */
+    val replaceable: Boolean get() = gone || restarted || restarting
 
     val message: String
         get() = when {

@@ -187,7 +187,7 @@ is pinned to current.
 | `AppModel` (@Observable, 3.1k lines, `AppModel+*.swift`) | repositories in `:core:data` + one ViewModel per screen |
 | `LpmProtocol.swift` (`Wire.*` builders, `Inbound.parse`) | `:core:protocol`: kotlinx.serialization, same message names and fields |
 | `LpmClient` (URLSessionWebSocketTask, TLS pin/TOFU, ping, backoff, 16 MB frames, send queue) | `:core:protocol`: OkHttp WebSocket, `X509TrustManager` checking only the SHA-256 pin |
-| `DemoServer` + `Demo*.swift` (in-process fake Mac answering 126 `t` values) | `:core:demo`: same fake, same seed — **ported first**, it backs every parity flow |
+| `DemoServer` + `Demo*.swift` (in-process fake Mac answering 127 `t` values) | `:core:demo`: same fake, same seed — **ported first**, it backs every parity flow |
 | SwiftUI sheets / menus / alerts | `ModalBottomSheet` / `DropdownMenu` / `AlertDialog`, same titles and button order |
 | WKWebView + `web/terminal.html` (xterm.js), `window.webkit.messageHandlers` | `:core:web`: WebView + `WebViewAssetLoader` on `assets/web/` (from `mobile/shared/web`) and a JS shim exposing `window.webkit.messageHandlers.*` so `terminal.html`/`markdown.js` run unchanged |
 | Keychain (`cx.lpm.mobile`, `cx.lpm.mobile.push`) | Keystore AES-GCM key encrypting a DataStore entry |
@@ -313,7 +313,7 @@ build Android until the same flows pass there.
 2. **Play: App Bundle, Play App Signing**, with a separate upload key kept outside the
    repo. Package `cx.lpm.mobile`, the iOS bundle id; it can't change after the first upload.
 3. **Demo seed: kept identical by a test, not shared.** `:core:demo` is a line-by-line
-   port of `Demo*.swift`, and `IosParityTest` replays a fixed script of 408 frames into it
+   port of `Demo*.swift`, and `IosParityTest` replays a fixed script of 415 frames into it
    and compares every reply with goldens recorded from the iOS demo code itself, compiled
    on a Mac (`core/demo/ios-parity/generate.sh`, needs `swiftc`). A change to
    `Demo*.swift` is ported to `:core:demo` and the goldens regenerated in the same change;

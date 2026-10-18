@@ -125,7 +125,9 @@ internal class DemoWorld(val clock: Clock) {
         var queuedSubmit: Boolean = false,
         var logTickArmed: Boolean = false,
         var responding: Boolean = false,
-        var ackCount: Int = 0
+        var ackCount: Int = 0,
+        // Its shell ran `exit`: the tab stays, as on the Mac, until it is restarted.
+        var exited: Boolean = false
     )
 
     val terminals = mutableMapOf<String, MutableList<Terminal>>() // project -> terminals

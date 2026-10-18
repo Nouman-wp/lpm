@@ -78,3 +78,10 @@ internal fun DemoServer.demoTerminal(id: String): DemoWorld.Terminal? =
 internal fun DemoServer.updateTerminal(id: String, mutate: (DemoWorld.Terminal) -> Unit) {
     demoTerminal(id)?.let(mutate)
 }
+
+/** The first free `demo-<project>-<n>` id, counting on from the project's tabs. */
+internal fun DemoServer.nextTerminalId(project: String): Pair<Int, String> {
+    var n = (world.terminals[project]?.size ?: 0) + 1
+    while (demoTerminal("demo-$project-$n") != null) n += 1
+    return n to "demo-$project-$n"
+}

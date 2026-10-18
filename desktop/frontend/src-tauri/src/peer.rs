@@ -84,6 +84,7 @@ const HOST_FEATURES: &[&str] = &[
     crate::porttunnel::PORT_TUNNEL_FEATURE,
     crate::hostclaude::HOST_CLAUDE_FEATURE,
     crate::peeruploadhost::FILE_UPLOAD_FEATURE,
+    crate::hostfilesave::FILE_SAVE_FEATURE,
     crate::mediapeer::MEDIA_RANGE_FEATURE,
     crate::peerread::FILE_RANGE_FEATURE,
     REMOTE_PAIR_FEATURE,
@@ -113,6 +114,10 @@ const FORWARDED_EVENTS: &[&str] = &[
     "status-changed",
     "git-changed",
     "ports-changed",
+    // An SSH project's port forwarded on its own, or not, so a Mac showing the
+    // project can open it.
+    "port-auto-forwarded",
+    "port-forward-failed",
     "action-output",
     "action-done",
     "action-bg-output",
@@ -145,6 +150,10 @@ const FORWARDED_EVENTS: &[&str] = &[
     "statusline-gen-progress",
     "ai-generate-output",
     crate::agent_caps::generate::PROGRESS_EVENT,
+    // This machine's Claude and Codex readings, for the meters beside its
+    // accounts on a paired Mac. Not re-emitted there under this name: they
+    // aren't that Mac's readings.
+    crate::agent_limits::CHANGED_EVENT,
 ];
 
 // --- persisted config (~/.lpm/peer.json, shared with peerclient.rs) -----------
@@ -1484,14 +1493,15 @@ fn handle_msg(
         // gitBring feature so an older host simply ignores them.
         "gitBringPrepare" | "gitBringState" | "gitBringStates" | "gitBringChunk"
         | "gitBringDone" => crate::gitbringhost::handle_bring(out, t, &v),
-        // A file attached to a terminal that lives here, streamed in pieces so its
-        // size is bounded by this Mac's disk rather than by one frame. Same shape
-        // again: gated on the fileUpload feature, so a client that hasn't seen it
-        // sends the one-frame upload command instead.
         // A web server here opened from the client's own localhost (porttunnel.rs).
         // Dedicated frames, gated on the portTunnel feature like the others.
         "tcpOpen" | "tcpData" | "tcpClose" => crate::porttunnel::handle_host(conn_id, out, t, &v),
-        "uploadBegin" | "uploadChunk" | "uploadDone" | "uploadAbort" => {
+        // A file attached to a terminal that lives here, streamed in pieces so its
+        // size is bounded by this Mac's disk rather than by one frame. Same shape
+        // again: gated on the fileUpload feature, so a client that hasn't seen it
+        // sends the one-frame upload command instead. A save from a client's copy
+        // of a file here travels the same way and ends in `uploadSave` (fileSave).
+        "uploadBegin" | "uploadChunk" | "uploadDone" | "uploadSave" | "uploadAbort" => {
             answer_soon(QUICK_FOR);
             crate::peeruploadhost::handle(app, out, t, &v)
         }
@@ -2831,6 +2841,14 @@ mod tests {
         assert!(HOST_FEATURES.contains(&crate::hostfolders::HOST_FOLDERS_FEATURE));
         assert!(HOST_FEATURES.contains(&crate::hostfolders::HOST_FOLDER_FOLDS_FEATURE));
         assert!(FORWARDED_EVENTS.contains(&"sidebar-changed"));
+    }
+
+    // Off this list a Mac showing an SSH project of this host's never hears that
+    // one of its ports forwarded on its own.
+    #[test]
+    fn ssh_auto_forwards_reach_a_mac_showing_the_project() {
+        assert!(FORWARDED_EVENTS.contains(&"port-auto-forwarded"));
+        assert!(FORWARDED_EVENTS.contains(&"port-forward-failed"));
     }
 
     // Off this list a Mac can't save this host's shared automations; without the

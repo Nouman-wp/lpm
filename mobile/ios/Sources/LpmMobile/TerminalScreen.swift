@@ -5,6 +5,7 @@ import SwiftUI
 /// matches and scrollback works. The nav bar floats translucently over the top.
 struct TerminalScreen: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
     let term: TerminalInfo
     let project: Project
     @StateObject private var keyboard = KeyboardObserver()
@@ -18,8 +19,8 @@ struct TerminalScreen: View {
     // Top of the navigation stack, so a touch on a screen pushed over it isn't
     // taken as looking at this terminal.
     @State private var onScreen = false
-    // The tab lpm reopened in this one's place after restarting; the screen
-    // carries on with it, saying so for a moment.
+    // The tab lpm reopened in this one's place after restarting, or ran again
+    // when asked to; the screen carries on with it.
     @State private var successor: TerminalInfo?
     @State private var reopened = false
     // Phone-local terminal preferences (Settings → Terminal).
@@ -49,6 +50,9 @@ struct TerminalScreen: View {
         let controlled = model.isControlled(term.id)
         let ended = model.endedTerminals[term.id]
         let restored = model.restoredTab(for: term)
+        // The Mac still has the tab, so it can be run again or closed from here.
+        let listed = model.terminals[term.project]?.contains { $0.id == term.id } == true
+        let endedHere = ended.flatMap { !$0.restarted && listed ? $0 : nil }
         // The terminal sits WITHIN the safe area (below the nav bar), so its top
         // rows aren't hidden under the title; the composer sits below it and rides
         // above the keyboard when it opens.
@@ -83,7 +87,7 @@ struct TerminalScreen: View {
                     .frame(maxHeight: .infinity, alignment: .top)
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
-                } else if let ended {
+                } else if let ended, endedHere == nil {
                     TerminalEndedBanner(text: ended.message)
                     .frame(maxHeight: .infinity, alignment: .top)
                     .padding(.top, 8)
@@ -103,6 +107,13 @@ struct TerminalScreen: View {
                                  terminalBackground: theme.backgroundColor)
                     .environment(model)
                     .id(term.id)
+            } else if let endedHere {
+                TerminalEndedBar(label: term.label, ending: endedHere, background: theme.backgroundColor,
+                                 onRestart: model.canRestartTerminals ? { model.restartTerminal(term) } : nil,
+                                 onClose: {
+                                     model.closeTerminal(term.project, id: term.id)
+                                     dismiss()
+                                 })
             }
         }
             .background(theme.backgroundColor.ignoresSafeArea(.all, edges: .all))
@@ -137,11 +148,13 @@ struct TerminalScreen: View {
             // take a while to hold the one standing in for this.
             .task(id: awaitingReopen) {
                 guard awaitingReopen else { return }
+                let id = current.id
                 for _ in 0..<10 {
                     model.loadTerminals(term.project)
                     try? await Task.sleep(nanoseconds: 4_000_000_000)
                     if Task.isCancelled { return }
                 }
+                model.restartLapsed(id)
             }
             .task(id: reopened) {
                 guard reopened else { return }
@@ -164,13 +177,15 @@ struct TerminalScreen: View {
     }
 
     /// Carry on with the tab lpm reopened: what was typed here goes with it, and
-    /// so does control if this phone had it.
+    /// so does control if this phone had it. A restart asked for here needs no
+    /// word that it happened.
     private func follow(_ next: TerminalInfo) {
         let old = current
+        let restartedHere = model.endedTerminals[old.id]?.restarting == true
         if model.isControlled(old.id) { model.claimControl(next.id) }
         model.carryComposerDraft(from: old.id, to: next)
         hasContent = false
         successor = next
-        reopened = true
+        reopened = !restartedHere
     }
 }

@@ -60,6 +60,7 @@ import { TTSControls } from "./TTSControls";
 import { joinAbs } from "../path";
 import { isPeerName, peerSlugOf } from "../peer/markers";
 import { retainPeerSession } from "../peer/retainedSessions";
+import { useHostFollows } from "../peer/useHostFollows";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { blockingDialogOpen } from "./ui/blockingDialog";
 import { isPendingClose } from "../pendingClose";
@@ -127,9 +128,11 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // An SSH project's transcripts and duplicates live on its server, out of
   // reach. A paired machine's are read and made through that machine.
   const sessionsReachable = !(duplicateProject?.isRemote ?? false);
-  // Titles are worked out here for this Mac's own projects only: a paired
-  // machine titles the tabs it keeps for every Mac showing them.
   const localSessions = sessionsReachable && !isPeerName(projectName);
+  // A paired machine that keeps a project's tabs for every Mac titles them
+  // itself; one that doesn't leaves that to this Mac, as for its own projects.
+  const hostFollowsTabs = useHostFollows(projectName);
+  const titlesHere = localSessions || (sessionsReachable && hostFollowsTabs === false);
   // Jobs run where the project is, this Mac or a paired one — not for the
   // global terminals or an SSH project.
   const hasAutomations = sessionsReachable && duplicateProject !== null;
@@ -231,7 +234,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     projectName,
     onTerminalCountChange,
     submitPrompt,
-    visible && localSessions,
+    visible && titlesHere,
   );
   noteMemoryRef.current = noteTerminalMemory;
 

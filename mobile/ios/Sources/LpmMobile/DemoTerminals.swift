@@ -16,7 +16,7 @@ private let pasteEnd = "\u{1B}[201~"
 
 /// Demo handlers for the terminal engine: the terminal list, subscribe/seed,
 /// a scripted fake shell + Claude Code session, lifecycle (new/close/rename/pin/
-/// reorder), slash commands, mentions, uploads, and the composer parity surface
+/// reorder/restart), slash commands, mentions, uploads, and the composer parity surface
 /// (actions, drafts, transform, history). Owns the cross-domain hooks
 /// `demoCreateTerminals` and `demoWriteToShell`.
 extension DemoServer {
@@ -31,6 +31,11 @@ extension DemoServer {
         register("sub") { [weak self] o in
             guard let self, let id = o["id"] as? String,
                   let term = self.demoTerminal(id) else { return }
+            // The Mac drops a terminal whose process ended, so it answers as for one it no longer has.
+            guard !term.exited else {
+                self.push(["t": "exit", "id": id, "code": -1, "gone": true])
+                return
+            }
             self.updateTerminal(id) { $0.subscribed = true }
             var reply: [String: Any] = [
                 "t": "seed", "id": id,
@@ -69,13 +74,26 @@ extension DemoServer {
 
         register("newTerminal") { [weak self] o in
             guard let self, let project = o["project"] as? String else { return }
-            var n = (self.world.terminals[project]?.count ?? 0) + 1
-            var id = "demo-\(project)-\(n)"
-            while self.demoTerminal(id) != nil { n += 1; id = "demo-\(project)-\(n)" }
+            let (n, id) = self.nextTerminalId(project)
             let term = DemoWorld.Terminal(id: id, label: "Terminal \(n)", project: project,
                                           buffer: self.shellPrompt(project))
             self.world.terminals[project, default: []].append(term)
             self.push(["t": "newTerminal", "ok": true])
+        }
+        // A shell that ran `exit` comes back in its tab under a new id, as the
+        // desktop's Restart does; one still running is left alone.
+        register("restartTerminal") { [weak self] o in
+            guard let self, let project = o["project"] as? String,
+                  let id = o["id"] as? String else { return }
+            self.push(["t": "restartTerminal", "ok": true])
+            guard let index = self.world.terminals[project]?.firstIndex(where: { $0.id == id }),
+                  let old = self.world.terminals[project]?[index], old.exited else { return }
+            let fresh = DemoWorld.Terminal(id: self.nextTerminalId(project).id, label: old.label,
+                                           project: project, remote: old.remote, pinned: old.pinned,
+                                           emoji: old.emoji, buffer: self.shellPrompt(project))
+            self.world.terminals[project]?[index] = fresh
+            self.world.composerDrafts[id] = nil
+            self.push(self.world.terminalsPayload(project))
         }
         register("closeTerminal") { [weak self] o in
             guard let self, let project = o["project"] as? String,
@@ -383,7 +401,7 @@ extension DemoServer {
     // MARK: shell engine
 
     private func handleShellInput(_ id: String, _ d: String) {
-        guard let term = demoTerminal(id) else { return }
+        guard let term = demoTerminal(id), !term.exited else { return }
         let prompt = shellPrompt(term.project)
         var pending = term.pendingInput
         var echo = ""
@@ -435,6 +453,9 @@ extension DemoServer {
             emit(id, "/Users/demo/dev/\(project)\r\n" + prompt)
         case "whoami":
             emit(id, "demo\r\n" + prompt)
+        case "exit":
+            updateTerminal(id) { $0.exited = true }
+            push(["t": "exit", "id": id, "code": 0])
         case "clear":
             setBuffer(id, prompt)
             push(["t": "o", "id": id, "d": "\u{1B}[2J\u{1B}[3J\u{1B}[H" + prompt])
@@ -528,7 +549,7 @@ extension DemoServer {
     private func scheduleDevLogTick(_ id: String) {
         pushAfter(Double.random(in: 4...8)) { [weak self] in
             guard let self, let t = self.demoTerminal(id) else { return nil }
-            guard t.subscribed else {
+            guard t.subscribed, !t.exited else {
                 self.updateTerminal(id) { $0.logTickArmed = false }
                 return nil
             }
@@ -849,6 +870,13 @@ extension DemoServer {
 
     private func demoTerminal(_ id: String) -> DemoWorld.Terminal? {
         world.terminals.values.flatMap { $0 }.first { $0.id == id }
+    }
+
+    /// The first free `demo-<project>-<n>` id, counting on from the project's tabs.
+    private func nextTerminalId(_ project: String) -> (number: Int, id: String) {
+        var n = (world.terminals[project]?.count ?? 0) + 1
+        while demoTerminal("demo-\(project)-\(n)") != nil { n += 1 }
+        return (n, "demo-\(project)-\(n)")
     }
 
     private func updateTerminal(_ id: String, _ mutate: (inout DemoWorld.Terminal) -> Void) {

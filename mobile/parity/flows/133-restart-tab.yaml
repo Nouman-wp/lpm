@@ -1,0 +1,33 @@
+appId: cx.lpm.mobile
+name: 133-restart-tab
+tags: [demo, terminal]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Terminal 1"
+    timeout: 5000
+- tapOn: "Terminal 1"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 10000
+# A terminal whose process ended offers to run it again in its tab, as the desktop does.
+- tapOn: "Message"
+- inputText: "exit"
+- tapOn: "Send"
+- extendedWaitUntil:
+    visible: "Restart"
+    timeout: 5000
+- assertVisible: "Terminal 1 exited with code 0 — it no longer takes input."
+- assertVisible: "Close tab"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-ended
+- tapOn: "Restart"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 10000
+- assertNotVisible: "Restart"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-restarted

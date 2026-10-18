@@ -2,7 +2,7 @@ package cx.lpm.mobile.core.demo
 
 /**
  * Demo handlers for the terminal engine: the terminal list, subscribe/seed, a scripted
- * fake shell and Claude Code session, lifecycle (new/close/rename/pin/reorder), slash
+ * fake shell and Claude Code session, lifecycle (new/close/rename/pin/reorder/restart), slash
  * commands, mentions, uploads, and the composer parity surface (actions, drafts,
  * transform, history). Owns the cross-domain hooks [demoCreateTerminals] and
  * [demoWriteToShell].
@@ -18,6 +18,11 @@ internal fun DemoServer.registerTerminalsHandlers() {
     register("sub") { o ->
         val id = o.string("id") ?: return@register
         val term = demoTerminal(id)?.copy() ?: return@register
+        // The Mac drops a terminal whose process ended, so it answers as for one it no longer has.
+        if (term.exited) {
+            push(mapOf("t" to "exit", "id" to id, "code" to -1, "gone" to true))
+            return@register
+        }
         updateTerminal(id) { it.subscribed = true }
         val reply = mutableMapOf<String, Any?>(
             "t" to "seed",
@@ -67,12 +72,7 @@ internal fun DemoServer.registerTerminalsHandlers() {
 private fun DemoServer.registerTerminalLifecycleHandlers() {
     register("newTerminal") { o ->
         val project = o.string("project") ?: return@register
-        var n = (world.terminals[project]?.size ?: 0) + 1
-        var id = "demo-$project-$n"
-        while (demoTerminal(id) != null) {
-            n += 1
-            id = "demo-$project-$n"
-        }
+        val (n, id) = nextTerminalId(project)
         val term = DemoWorld.Terminal(
             id = id,
             label = "Terminal $n",
@@ -81,6 +81,28 @@ private fun DemoServer.registerTerminalLifecycleHandlers() {
         )
         world.terminals.getOrPut(project) { mutableListOf() }.add(term)
         push(mapOf("t" to "newTerminal", "ok" to true))
+    }
+    // A shell that ran `exit` comes back in its tab under a new id, as the desktop's
+    // Restart does; one still running is left alone.
+    register("restartTerminal") { o ->
+        val project = o.string("project") ?: return@register
+        val id = o.string("id") ?: return@register
+        push(mapOf("t" to "restartTerminal", "ok" to true))
+        val list = world.terminals[project] ?: return@register
+        val index = list.indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: return@register
+        val old = list[index]
+        if (!old.exited) return@register
+        list[index] = DemoWorld.Terminal(
+            id = nextTerminalId(project).second,
+            label = old.label,
+            project = project,
+            remote = old.remote,
+            pinned = old.pinned,
+            emoji = old.emoji,
+            buffer = shellPrompt(project)
+        )
+        world.composerDrafts.remove(id)
+        push(world.terminalsPayload(project))
     }
     register("closeTerminal") { o ->
         val project = o.string("project") ?: return@register

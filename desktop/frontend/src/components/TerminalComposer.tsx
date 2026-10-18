@@ -27,7 +27,7 @@ import {
   UploadClipboardImageForTerminal,
 } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
-import { isPeerName, peerSlugOf, prefixRoot, PEER_UPLOAD_MAX_BYTES } from "../peer/markers";
+import { peerSlugOf, prefixRoot, PEER_UPLOAD_MAX_BYTES } from "../peer/markers";
 import { uploadPeerFile } from "../peer/uploadFiles";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { getSettings } from "../store/settings";
@@ -2455,7 +2455,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         <SendLaterPopover
           anchorRef={containerRef}
           picker={sendLater.picker}
-          {...pickerLimitSource(sendLater.picker, projectName, agentName, isRemotePeer || projectIsRemote, terminalId)}
+          {...pickerLimitSource(sendLater.picker, projectName, agentName, projectIsRemote, terminalId)}
           onPick={(at, kind, choice) => void sendLater.pick(at, kind, choice)}
           onClose={(refocus) => {
             sendLater.close();
@@ -2517,8 +2517,7 @@ function pickerLimitSource(
   }
   const item = picker.item;
   const itemRemote =
-    isPeerName(item.projectName) ||
-    (useAppStore.getState().projects.find((p) => p.name === item.projectName)?.isRemote ?? false);
+    useAppStore.getState().projects.find((p) => p.name === item.projectName)?.isRemote ?? false;
   return { projectName: item.projectName, agent: limitAgentFor(item.agent, itemRemote) };
 }
 

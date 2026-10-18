@@ -37,6 +37,10 @@ class WireTerminalsTest {
             Wire.pinTerminal("api", "api-2")
         )
         assertFrame(
+            """{ "t": "restartTerminal", "project": "api", "id": "api-2" }""",
+            Wire.restartTerminal("api", "api-2")
+        )
+        assertFrame(
             """{ "t": "reorderTerminals", "project": "api", "order": ["api-2", "api-1"] }""",
             Wire.reorderTerminals("api", listOf("api-2", "api-1"))
         )

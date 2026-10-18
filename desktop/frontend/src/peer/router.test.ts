@@ -288,6 +288,14 @@ describe("a host's automations", () => {
     ).toEqual({ project: prefixName(SLUG, "web"), jobId: "lint", copy: prefixName(SLUG, "web-2") });
     expect(translatePeerEventPayload("job-seen", SLUG, {})).toEqual({});
   });
+
+  it("forwards and marks a host's SSH ports forwarding on their own", () => {
+    expect(GLOBAL_PEER_EVENTS.has("port-auto-forwarded")).toBe(true);
+    expect(GLOBAL_PEER_EVENTS.has("port-forward-failed")).toBe(true);
+    expect(
+      translatePeerEventPayload("port-auto-forwarded", SLUG, { project: "api", remotePort: 3000, localPort: 3001 }),
+    ).toEqual({ project: prefixName(SLUG, "api"), remotePort: 3000, localPort: 3001 });
+  });
 });
 
 describe("a host project's files", () => {

@@ -44,7 +44,7 @@ function chipsFor(id: string, pool: ClaudePool, dismissed: Record<string, string
  *  adding, renaming or removing them. */
 export function ClaudeAccountsSection({ source }: { source: ClaudeAccountsSource }) {
   const { accounts, statuses, usage, pool, dismissed, askConsent } = source;
-  const { limits } = useAgentLimits();
+  const { limits } = useAgentLimits(source.host);
   const now = useNow(true, 60000);
   const [busy, setBusy] = useState(false);
   const [pendingMain, setPendingMain] = useState<string[] | null>(null);

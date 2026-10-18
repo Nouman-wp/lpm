@@ -70,6 +70,8 @@ internal fun TerminalScreen(
     stream: TerminalStreamCallbacks,
     onBack: () -> Unit,
     onTakeControl: () -> Unit,
+    onRestart: () -> Unit,
+    onCloseTab: () -> Unit,
     modifier: Modifier = Modifier,
     trailing: @Composable RowScope.() -> Unit = {},
     connectionBanner: @Composable () -> Unit = {},
@@ -147,7 +149,18 @@ internal fun TerminalScreen(
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
                 )
             }
-            if (state.showsComposer) composer()
+            val endedHere = state.endedHere
+            if (state.showsComposer) {
+                composer()
+            } else if (endedHere != null) {
+                TerminalEndedBar(
+                    label = terminal.label,
+                    ending = endedHere,
+                    background = ground,
+                    onRestart = onRestart.takeIf { state.canRestart },
+                    onClose = onCloseTab
+                )
+            }
         }
     }
 }
@@ -184,7 +197,7 @@ private fun TerminalBanners(
             connectionBanner()
         }
         AnimatedVisibility(
-            visible = state.connectionReady && ended != null,
+            visible = state.connectionReady && ended != null && state.endedHere == null,
             enter = enter,
             exit = exit
         ) {

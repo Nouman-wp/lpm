@@ -13,6 +13,7 @@ import cx.lpm.mobile.core.data.client.requestMentions
 import cx.lpm.mobile.core.data.client.requestSlash
 import cx.lpm.mobile.core.data.client.requestTerminals
 import cx.lpm.mobile.core.data.client.resize
+import cx.lpm.mobile.core.data.client.restartTerminal
 import cx.lpm.mobile.core.data.client.sendInput
 import cx.lpm.mobile.core.data.session.GenerationTimeout
 import cx.lpm.mobile.core.data.session.MacSession
@@ -329,6 +330,21 @@ class TerminalsStore(private val session: MacSession) : SessionStore {
         client?.pinTerminal(project, id)
         reloadTerminalsSoon(project)
     }
+
+    /** The Mac runs ended terminals again in their tabs (`restartTerminal`). */
+    val canRestartTerminals: Boolean
+        get() = client?.hostFeatures?.contains(LpmClient.RESTART_TERMINAL_FEATURE) == true
+
+    /** Run an ended terminal again in its tab, as the desktop does; [restoredTab] finds it. */
+    fun restartTerminal(terminal: TerminalInfo) {
+        if (!canRestartTerminals || terminal.id !in state.value.endedTerminals) return
+        mutable.update { it.restarting(terminal.id, true) }
+        client?.restartTerminal(terminal.project, terminal.id)
+        reloadTerminalsSoon(terminal.project)
+    }
+
+    /** A restart whose tab never showed up: offer it again. */
+    fun restartLapsed(id: String) = mutable.update { it.restarting(id, false) }
 
     /**
      * Reorder a project's tabs, applied at once so the list doesn't snap back before

@@ -92,6 +92,7 @@ mod hookform;
 mod hooks;
 mod hostautoupdate;
 mod hostclaude;
+mod hostfilesave;
 mod hostfolders;
 mod hostjobs;
 mod ipc;

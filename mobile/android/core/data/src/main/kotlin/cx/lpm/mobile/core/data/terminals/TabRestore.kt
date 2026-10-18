@@ -5,7 +5,8 @@ import cx.lpm.mobile.core.model.TerminalInfo
 // lpm reopens a Mac's tabs under new ids when it starts again. A terminal open on
 // the phone across that restart ends, its process gone with the old lpm, while the
 // same tab is back in the project's list. These tell that apart from a real exit
-// and find the tab that took the old one's place.
+// and find the tab that took the old one's place — as they do for a terminal this
+// phone asked lpm to restart.
 
 /** How long before the link dropped an ending still counts as lpm quitting. */
 private const val QUIT_WINDOW_MS = 10_000L
@@ -27,6 +28,12 @@ internal fun TerminalsState.recordingEnding(
         TerminalEnding(code, gone, label = listed?.first, index = listed?.second, at = now)
     }
     return copy(endedTerminals = endedTerminals + (id to ending))
+}
+
+/** Whether this phone waits on lpm to run the ended terminal [id] again in its tab. */
+internal fun TerminalsState.restarting(id: String, restarting: Boolean): TerminalsState {
+    val ending = endedTerminals[id] ?: return this
+    return copy(endedTerminals = endedTerminals + (id to ending.copy(restarting = restarting)))
 }
 
 /** The link dropped at [now]: terminals that ended just before it went down with lpm. */

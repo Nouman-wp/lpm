@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { BrowserOpenURL } from "../../../bridge/runtime";
 import {
   AddPortForward,
   ClearPortSuggestions,
@@ -9,6 +8,7 @@ import {
 } from "../../../bridge/commands";
 import type { main } from "../../../bridge/models";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
+import { openProjectPort } from "../../peer/projectPorts";
 import { PlusIcon, XIcon } from "../icons";
 import { forwardPortAndOpen } from "./forwardPort";
 import { LocalPortField } from "./LocalPortField";
@@ -220,7 +220,7 @@ export function PortsPopover({ projectName, forwards, suggestions, onClose }: Po
                   value={isEditing ? editValue : String(f.localPort)}
                   onChange={setEditValue}
                   displayLabel={url}
-                  onDisplayClick={() => BrowserOpenURL(url)}
+                  onDisplayClick={() => void openProjectPort(projectName, f.localPort)}
                   onEdit={() =>
                     startEdit(
                       { kind: "forward", localPort: f.localPort, remotePort: f.remotePort },

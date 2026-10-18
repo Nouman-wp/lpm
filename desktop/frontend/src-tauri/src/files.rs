@@ -347,7 +347,7 @@ pub fn read_file(abs_path: String) -> Result<String, String> {
 
 /// Writes never cross to an SSH host: a remote project's paths arrive verbatim
 /// and would otherwise land on a same-named local path.
-fn refuse_remote_write(abs_path: &str) -> Result<(), String> {
+pub(crate) fn refuse_remote_write(abs_path: &str) -> Result<(), String> {
     if crate::sshexec::remote_project_containing(abs_path).is_some() {
         return Err("Editing files on an SSH host isn't supported yet".into());
     }

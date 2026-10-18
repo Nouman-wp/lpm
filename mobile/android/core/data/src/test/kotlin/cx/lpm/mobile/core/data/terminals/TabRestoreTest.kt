@@ -115,6 +115,44 @@ class TabRestoreTest {
     }
 
     @Test
+    fun `a restarted terminal is carried on as the tab now in its place`() = runTest {
+        val h = SessionHarness(this)
+        val socket = h.connectReady(features = listOf("restartTerminal"))
+        socket.terminals("t1" to "build")
+        settle()
+        val store = h.terminals
+        val old = store.state.value.terminals.getValue("storefront").single()
+        socket.receive("""{"t":"exit","id":"t1","code":1}""")
+        settle()
+        assertNull(store.state.value.restoredTab(old))
+
+        store.restartTerminal(old)
+        assertEquals(1, socket.sentOf("restartTerminal").size)
+        assertTrue(store.state.value.endedTerminals.getValue("t1").restarting)
+        assertNull(store.state.value.restoredTab(old))
+        socket.terminals("t2" to "build")
+        settle()
+        assertEquals("t2", store.state.value.restoredTab(old)?.id)
+
+        store.restartLapsed("t1")
+        assertFalse(store.state.value.endedTerminals.getValue("t1").restarting)
+    }
+
+    @Test
+    fun `a Mac that can't restart terminals isn't asked to`() = runTest {
+        val h = SessionHarness(this)
+        val socket = h.connectReady()
+        socket.terminals("t1" to "build")
+        settle()
+        socket.receive("""{"t":"exit","id":"t1","code":0}""")
+        settle()
+        h.terminals.restartTerminal(
+            h.terminals.state.value.terminals.getValue("storefront").single()
+        )
+        assertEquals(0, socket.sentOf("restartTerminal").size)
+    }
+
+    @Test
     fun `a new tab tapped while the Mac is away waits for it`() = runTest {
         val h = SessionHarness(this)
         val socket = h.connectReady()
