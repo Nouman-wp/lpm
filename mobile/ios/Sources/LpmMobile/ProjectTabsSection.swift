@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// The project screen's open tabs, each with its swipe actions and long-press
-/// menu, then New tab. Close only asks for it: the screen confirms first, since
-/// whatever runs in the tab stops with it.
+/// menu, then New tab. Close takes effect at once and the screen offers Undo;
+/// Fork into Copy and Close Other Tabs only ask for it, and the screen confirms.
 struct ProjectTabsSection: View {
     @Environment(AppModel.self) private var model
     let project: String
@@ -10,8 +10,11 @@ struct ProjectTabsSection: View {
     let agents: [String: ProjectAgentRow]
     let creating: Bool
     @Binding var renaming: TabRename?
-    @Binding var closing: TerminalInfo?
+    @Binding var forkingIntoCopy: TerminalInfo?
+    @Binding var closingOthers: TerminalInfo?
     let onOpen: (TerminalInfo) -> Void
+    // A tab this phone asked the Mac for, such as a fork, once it lands.
+    let onSpawned: (TerminalInfo) -> Void
     let onNew: () -> Void
 
     var body: some View {
@@ -21,7 +24,9 @@ struct ProjectTabsSection: View {
                     .tabMenu(term: t, agent: agents[t.id]) {
                         pinButton(t)
                         renameButton(t)
+                        TabMenuExtras(term: t, onSpawned: onSpawned, forkingIntoCopy: $forkingIntoCopy)
                         closeButton(t)
+                        CloseOtherTabsButton(term: t, closingOthers: $closingOthers)
                     }
                     .compactRow()
                     .swipeActions(edge: .leading, allowsFullSwipe: true) {
@@ -30,11 +35,10 @@ struct ProjectTabsSection: View {
                     // No full swipe: a stray swipe mustn't be enough to end a
                     // tab's process.
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        // Not a destructive role: that slides the row away before
-                        // the close is confirmed.
+                        // Not a destructive role: the list removes the row itself,
+                        // and Undo puts it back.
                         Button {
-                            Haptics.warning()
-                            closing = t
+                            close(t)
                         } label: {
                             Label("Close", systemImage: "xmark")
                         }
@@ -77,12 +81,14 @@ struct ProjectTabsSection: View {
     }
 
     private func closeButton(_ t: TerminalInfo) -> some View {
-        Button(role: .destructive) {
-            Haptics.warning()
-            closing = t
-        } label: {
+        Button(role: .destructive) { close(t) } label: {
             Label("Close", systemImage: "xmark")
         }
+    }
+
+    private func close(_ t: TerminalInfo) {
+        Haptics.warning()
+        withAnimation { model.closeTerminal(project, id: t.id) }
     }
 
     private func move(from source: IndexSet, to destination: Int) {

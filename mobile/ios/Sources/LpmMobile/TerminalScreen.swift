@@ -25,6 +25,7 @@ struct TerminalScreen: View {
     @State private var reopened = false
     // The bar's middle, which the title keeps to whatever buttons flank it.
     @State private var barAxis: CGFloat?
+    @State private var find = TerminalFind()
     // Phone-local terminal preferences (Settings → Terminal).
     @AppStorage(TerminalPrefs.fontSizeKey) private var fontSize = TerminalPrefs.defaultFontSize
     @AppStorage(TerminalPrefs.themeKey) private var themeRaw = TerminalPrefs.defaultTheme.rawValue
@@ -68,7 +69,7 @@ struct TerminalScreen: View {
                     }, hiddenInsets: hidden, textExtent: textExtent, fontSize: fontSize, theme: theme, onOpenPath: { paths, line in
                         Haptics.tap()
                         preview = FilePreviewTarget(project: term.project, paths: paths, line: line)
-                    })
+                    }, find: find)
                         .environment(model)
                         .id(term.id)
                 }
@@ -101,12 +102,19 @@ struct TerminalScreen: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
+            .overlay(alignment: .top) {
+                if find.isOpen {
+                    TerminalFindBar(find: find)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: find.isOpen)
             .animation(.easeOut(duration: 0.2), value: model.connection == .ready)
             .animation(.easeOut(duration: 0.2), value: ended)
             .animation(.easeOut(duration: 0.2), value: reopened)
             if controlled && ended == nil {
                 TerminalComposer(store: model.composerStore(for: term.id, project: term.project, label: term.label),
-                                 terminalBackground: theme.backgroundColor)
+                                 terminalBackground: theme.backgroundColor, onFind: { find.open() })
                     .environment(model)
                     .id(term.id)
             } else if let endedHere {

@@ -50,6 +50,13 @@
     <string name="composer_memory">Memory</string>
     <string name="composer_new_prompt">New prompt</string>
     <string name="composer_history">History</string>
+    <string name="composer_find">Find in Terminal</string>
+    <string name="find_placeholder">Find in terminal</string>
+    <string name="find_no_matches">No matches</string>
+    <string name="find_count">%1$d of %2$d</string>
+    <string name="find_previous">Previous match</string>
+    <string name="find_next">Next match</string>
+    <string name="find_done">Done</string>
     <string name="composer_rewrite_hint">Type a message first — then tap to rewrite it with AI.</string>
     <string name="composer_save_draft">Save as draft</string>
     <string name="composer_run_in_duplicates">Run in duplicates</string>

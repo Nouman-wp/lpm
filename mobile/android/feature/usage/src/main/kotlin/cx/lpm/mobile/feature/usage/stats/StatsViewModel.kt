@@ -3,9 +3,11 @@ package cx.lpm.mobile.feature.usage.stats
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cx.lpm.mobile.core.data.session.MacSessions
+import cx.lpm.mobile.core.data.usage.ALL_MACHINES
 import cx.lpm.mobile.core.data.usage.StatsState
 import cx.lpm.mobile.core.data.usage.StatsStore
 import cx.lpm.mobile.core.model.AgentStats
+import cx.lpm.mobile.core.model.UsageMachine
 import cx.lpm.mobile.core.navigation.StatsKey
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -32,12 +34,16 @@ sealed interface StatsBody {
 
 data class StatsUiState(
     val days: Int = 30,
+    /** Whose usage: "all", "local" or a paired computer's slug. */
+    val machine: String = ALL_MACHINES,
+    /** The computers to pick from; the picker shows when there are two or more. */
+    val machines: List<UsageMachine> = emptyList(),
     val body: StatsBody = StatsBody.Loading,
     /** When the body was built, for "2 hours ago" in Recent sessions. */
     val now: Long = 0
 )
 
-/** The Stats screen (iOS `StatsScreen`): the Mac's local agent token usage by period. */
+/** The Stats screen (iOS `StatsScreen`): agent token usage by period and computer. */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel(assistedFactory = StatsViewModel.Factory::class)
 class StatsViewModel @AssistedInject constructor(
@@ -63,7 +69,13 @@ class StatsViewModel @AssistedInject constructor(
             error != null -> StatsBody.Failed(error)
             else -> StatsBody.Loading
         }
-        return StatsUiState(days = s.days, body = body, now = clock.millis())
+        return StatsUiState(
+            days = s.days,
+            machine = s.machine,
+            machines = s.machines,
+            body = body,
+            now = clock.millis()
+        )
     }
 
     /** The screen came up: load the period it was left on. */
@@ -73,6 +85,10 @@ class StatsViewModel @AssistedInject constructor(
 
     fun select(days: Int) {
         store?.load(days)
+    }
+
+    fun pickMachine(machine: String) {
+        store?.let { it.load(it.state.value.days, machine) }
     }
 
     fun retry() {

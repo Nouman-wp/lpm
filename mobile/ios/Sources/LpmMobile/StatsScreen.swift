@@ -29,6 +29,11 @@ struct StatsScreen: View {
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Stats")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if model.statsMachines.count > 1 {
+                ToolbarItem(placement: .topBarTrailing) { StatsMachineMenu() }
+            }
+        }
         .refreshable { await model.refreshStats() }
         .task { model.loadStats(days: model.statsDays) }
         .onDisappear { model.statsScreenDidClose() }
@@ -49,7 +54,7 @@ struct StatsScreen: View {
     @ViewBuilder
     private var stateContent: some View {
         if let stats = model.stats {
-            StatsBody(stats: stats, days: model.statsDays)
+            StatsBody(stats: stats, days: model.statsDays, machine: model.statsMachine)
                 .opacity(model.statsLoading ? 0.6 : 1)
                 .animation(.easeOut(duration: 0.2), value: model.statsLoading)
         } else if model.statsLoading {
@@ -67,6 +72,7 @@ struct StatsScreen: View {
 private struct StatsBody: View {
     let stats: AgentStats
     let days: Int
+    let machine: String
 
     private var chartDays: [UsageDaily] {
         days == 0 ? Array(stats.daily.suffix(28)) : stats.daily
@@ -86,9 +92,13 @@ private struct StatsBody: View {
                 }
                 ProviderBreakdownCard(providers: stats.providers, total: stats.totals.totalTokens)
                 TopProjectsCard(projects: stats.projects, days: days)
-                RecentSessionsCard(sessions: stats.recentSessions, days: days)
+                RecentSessionsCard(
+                    sessions: stats.recentSessions,
+                    days: days,
+                    machineNames: Dictionary(stats.machines.map { ($0.id, $0.name) }) { first, _ in first }
+                )
             }
-            StatsFooter(totalFiles: totalFiles)
+            StatsFooter(totalFiles: totalFiles, machine: machine, machines: stats.machines)
         }
     }
 }
@@ -385,6 +395,7 @@ private struct TopProjectsCard: View {
 private struct RecentSessionsCard: View {
     let sessions: [UsageSession]
     let days: Int
+    let machineNames: [String: String]
 
     private static let cap = 10
 
@@ -396,7 +407,7 @@ private struct RecentSessionsCard: View {
                 VStack(spacing: 0) {
                     ForEach(Array(sessions.prefix(Self.cap).enumerated()), id: \.offset) { index, session in
                         if index > 0 { Divider() }
-                        SessionRow(session: session)
+                        SessionRow(session: session, machineName: session.machine.flatMap { machineNames[$0] })
                             .padding(.vertical, 8)
                     }
                 }
@@ -407,6 +418,7 @@ private struct RecentSessionsCard: View {
 
 private struct SessionRow: View {
     let session: UsageSession
+    let machineName: String?
 
     var body: some View {
         let meta = providerMeta(session.provider)
@@ -419,6 +431,11 @@ private struct SessionRow: View {
                 HStack(spacing: 6) {
                     Text(session.model)
                         .lineLimit(1)
+                    if let machineName {
+                        Text("·")
+                        Text(machineName)
+                            .lineLimit(1)
+                    }
                     Text("·")
                     Text(relativeUsageTime(session.lastAt))
                         .lineLimit(1)
@@ -438,11 +455,27 @@ private struct SessionRow: View {
 
 private struct StatsFooter: View {
     let totalFiles: Int
+    let machine: String
+    let machines: [UsageMachine]
+
+    private var several: Bool { machines.count > 1 && machine != "local" }
+
+    private var scannedWhere: String {
+        if machine == StatsMachines.all {
+            return " on \(machines.filter(\.isCounted).count) \(StatsMachines.noun(machines).many)"
+        }
+        return machines.first { $0.id == machine }.map { " on \($0.name)" } ?? ""
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Usage metadata stays on your Mac. Prompts and responses aren't included.")
-            Text("\(totalFiles.formatted()) local history files scanned")
+            if several {
+                Text("Each \(StatsMachines.noun(machines).one) reads its own history and shares only usage numbers. Prompts and responses aren't included.")
+                Text("\(totalFiles.formatted()) history files scanned\(scannedWhere)")
+            } else {
+                Text("Usage metadata stays on your Mac. Prompts and responses aren't included.")
+                Text("\(totalFiles.formatted()) local history files scanned")
+            }
         }
         .font(.caption2)
         .foregroundStyle(.secondary)

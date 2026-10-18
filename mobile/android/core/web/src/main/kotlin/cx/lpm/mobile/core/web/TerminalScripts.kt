@@ -9,7 +9,7 @@ import kotlinx.serialization.json.JsonPrimitive
  */
 internal object TerminalScripts {
     /** The handlers WebTerminalView registers, i.e. every `post(…)` in terminal.html. */
-    val handlers = listOf("input", "resize", "ready", "openPath", "openURL", "extent")
+    val handlers = listOf("input", "resize", "ready", "openPath", "openURL", "extent", "find")
 
     const val REVIVE = "window.lpmRevive()"
     const val FOCUS = "document.querySelector('textarea')?.focus()"
@@ -30,6 +30,11 @@ internal object TerminalScripts {
     }
 
     fun capture(lines: Int) = "window.lpmCapture($lines)"
+
+    /** `step` is "type" while the query is typed, else "next" or "prev". */
+    fun find(query: String, step: String) = "window.lpmFind('${JsLiteral.base64(query)}', '$step')"
+
+    const val FIND_CLEAR = "window.lpmFindClear()"
 
     /** `evaluateJavascript` hands results back as JSON; anything but a string reads as "". */
     fun captured(result: String?): String {

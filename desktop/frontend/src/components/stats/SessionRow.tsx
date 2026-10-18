@@ -13,9 +13,10 @@ const fullTimestamp = (ms: number) =>
 
 interface SessionRowProps {
   session: AgentSessionUsage;
+  machineName?: string;
 }
 
-export function SessionRow({ session }: SessionRowProps) {
+export function SessionRow({ session, machineName }: SessionRowProps) {
   const reducedMotion = usePrefersReducedMotion();
   const [open, setOpen] = useState(false);
   const meta = providerMeta(session.provider);
@@ -37,7 +38,12 @@ export function SessionRow({ session }: SessionRowProps) {
       >
         <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: meta.color }} />
         <span className="shrink-0 text-[var(--text-secondary)]">{meta.short}</span>
-        <span className="min-w-0 flex-1 truncate font-medium">{session.project}</span>
+        <span className="min-w-0 flex-1 truncate font-medium">
+          {session.project}
+          {machineName && (
+            <span className="font-normal text-[var(--text-muted)]"> · {machineName}</span>
+          )}
+        </span>
         <span
           className="max-w-[84px] shrink-0 truncate rounded bg-[var(--bg-active)] px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)]"
           title={session.model}

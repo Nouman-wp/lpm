@@ -31,13 +31,14 @@ internal class PlusMenuActions(
     val onPasteImage: (() -> Unit)?,
     val onMemory: (() -> Unit)?,
     val onNewPrompt: () -> Unit,
-    val onHistory: () -> Unit
+    val onHistory: () -> Unit,
+    val onFind: (() -> Unit)? = null
 )
 
 /**
  * The "+" menu: rewrite with AI; photos, camera, files and a copied image; then
- * session memory, a new prompt tab and the message history. Rewriting with
- * nothing typed explains itself instead.
+ * session memory, a new prompt tab, the message history and find in the terminal
+ * above. Rewriting with nothing typed explains itself instead.
  */
 @Composable
 internal fun ComposerPlusMenu(
@@ -117,6 +118,13 @@ internal fun ComposerPlusMenu(
                 icon = painterResource(DesignR.drawable.ic_history),
                 onClick = actions.onHistory
             )
+            actions.onFind?.let {
+                ContextMenuItem(
+                    title = stringResource(R.string.composer_find),
+                    icon = painterResource(DesignR.drawable.ic_search),
+                    onClick = it
+                )
+            }
         }
         if (hint) {
             RewriteHintPopover(

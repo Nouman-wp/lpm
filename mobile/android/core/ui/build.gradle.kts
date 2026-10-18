@@ -5,6 +5,7 @@ plugins {
 
 dependencies {
     api(projects.core.model)
+    implementation(projects.core.data)
     implementation(projects.core.designsystem)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)

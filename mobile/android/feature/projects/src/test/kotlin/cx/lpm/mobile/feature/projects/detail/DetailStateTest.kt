@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.projects.detail
 
+import cx.lpm.mobile.core.data.link.LinkStatusLine
 import cx.lpm.mobile.core.data.link.QueuedAction
 import cx.lpm.mobile.core.data.projects.ProjectsState
 import cx.lpm.mobile.core.model.Service
@@ -41,9 +42,10 @@ class DetailStateTest {
 
     @Test
     fun `an empty tab list while the Mac is away is no answer yet`() {
-        val away = DetailInputs(terminals = emptyList(), live = false, linkText = "Reconnecting…")
+        val line = LinkStatusLine("Reconnecting…", LinkStatusLine.Tone.Waiting, pulse = true)
+        val away = DetailInputs(terminals = emptyList(), live = false, statusLine = line)
         assertNull(detail(inputs = away).tabs)
-        assertEquals(DetailSubtitle.Link("Reconnecting…"), detail(inputs = away).subtitle)
+        assertEquals(DetailSubtitle.Link(line), detail(inputs = away).subtitle)
         assertEquals(1, detail(inputs = away.copy(terminals = listOf(tab))).tabs?.size)
         assertEquals(
             emptyList<TabEntry>(),

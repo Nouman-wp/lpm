@@ -12,6 +12,8 @@ mod agent_sessions_codex;
 mod agent_usage;
 mod agent_usage_claude;
 mod agent_usage_codex;
+mod agent_usage_machines;
+mod agent_usage_merge;
 mod agent_caps;
 mod agentexit;
 mod agentnest;
@@ -279,6 +281,7 @@ use agent_limits::*;
 use agent_session_titles::*;
 use agent_sessions::*;
 use agent_usage::*;
+use agent_usage_machines::agent_usage_machines;
 use agent_caps::{
     create_agent_skill, delete_agent_skill, generate_agent_skill, list_agent_capabilities,
     preview_agent_skill_delete, read_agent_capability, update_agent_skill, write_agent_capability,

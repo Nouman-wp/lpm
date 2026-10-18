@@ -334,4 +334,12 @@ internal class DemoWorld(val clock: Clock) {
 
     fun projectIndex(name: String): Int? =
         projects.indexOfFirst { it.name == name }.takeIf { it >= 0 }
+
+    companion object {
+        /**
+         * The title the demo's Claude conversation would have; a tab that doesn't show
+         * it offers "Use Conversation Title".
+         */
+        const val CONVERSATION_TITLE = "Two-step checkout"
+    }
 }

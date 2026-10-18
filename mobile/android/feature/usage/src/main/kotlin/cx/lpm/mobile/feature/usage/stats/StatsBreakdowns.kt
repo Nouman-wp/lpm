@@ -18,10 +18,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import cx.lpm.mobile.core.data.usage.ALL_MACHINES
+import cx.lpm.mobile.core.data.usage.LOCAL_MACHINE
 import cx.lpm.mobile.core.designsystem.component.StatusDot
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.UsageBreakdown
 import cx.lpm.mobile.core.model.UsageDaily
+import cx.lpm.mobile.core.model.UsageMachine
 import cx.lpm.mobile.core.model.UsageSession
 import cx.lpm.mobile.core.ui.providerMeta
 import cx.lpm.mobile.core.ui.tint
@@ -119,7 +122,8 @@ internal fun RecentSessionsCard(
     sessions: List<UsageSession>,
     days: Int,
     now: Long,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    machineNames: Map<String, String> = emptyMap()
 ) {
     SectionCard(stringResource(R.string.stats_recent_sessions), modifier) {
         if (sessions.isEmpty()) {
@@ -136,26 +140,42 @@ internal fun RecentSessionsCard(
                         color = LpmTheme.colors.separator
                     )
                 }
-                SessionRow(session, now, Modifier.padding(vertical = 8.dp))
+                SessionRow(
+                    session,
+                    now,
+                    session.machine?.let(machineNames::get),
+                    Modifier.padding(vertical = 8.dp)
+                )
             }
         }
     }
 }
 
 @Composable
-private fun SessionRow(session: UsageSession, now: Long, modifier: Modifier = Modifier) {
+private fun SessionRow(
+    session: UsageSession,
+    now: Long,
+    machineName: String?,
+    modifier: Modifier = Modifier
+) {
     val meta = providerMeta(session.provider)
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         StatusDot(meta.tint, size = 9.dp)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(session.project, style = medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val ago = relativeUsageTime(session.lastAt, now)
             Caption(
-                stringResource(
-                    R.string.stats_session_meta,
-                    session.model,
-                    relativeUsageTime(session.lastAt, now)
-                ),
+                if (machineName != null) {
+                    stringResource(
+                        R.string.stats_session_meta_machine,
+                        session.model,
+                        machineName,
+                        ago
+                    )
+                } else {
+                    stringResource(R.string.stats_session_meta, session.model, ago)
+                },
                 maxLines = 1
             )
         }
@@ -164,20 +184,45 @@ private fun SessionRow(session: UsageSession, now: Long, modifier: Modifier = Mo
     }
 }
 
-/** The privacy note and how many history files the Mac read. */
+/** The privacy note and how many history files were read, and where. */
 @Composable
-internal fun StatsFooter(totalFiles: Int, modifier: Modifier = Modifier) {
+internal fun StatsFooter(
+    totalFiles: Int,
+    machine: String,
+    machines: List<UsageMachine>,
+    modifier: Modifier = Modifier
+) {
     val style = LpmTheme.typography.caption2
     val color = LpmTheme.colors.secondaryLabel
+    val several = machines.size > 1 && machine != LOCAL_MACHINE
+    val files = grouped(totalFiles.toLong())
+    val where = when (machine) {
+        ALL_MACHINES -> machinesCount(machines, machines.count { it.isCounted })
+        else -> machines.firstOrNull { it.id == machine }?.name
+    }
     Column(
         modifier
             .fillMaxWidth()
             .padding(top = 4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(stringResource(R.string.stats_privacy), style = style, color = color)
         Text(
-            stringResource(R.string.stats_files_scanned, grouped(totalFiles.toLong())),
+            stringResource(
+                when {
+                    !several -> R.string.stats_privacy
+                    allMacs(machines) -> R.string.stats_privacy_macs
+                    else -> R.string.stats_privacy_computers
+                }
+            ),
+            style = style,
+            color = color
+        )
+        Text(
+            if (several && where != null) {
+                stringResource(R.string.stats_files_scanned_on, files, where)
+            } else {
+                stringResource(R.string.stats_files_scanned, files)
+            },
             style = style,
             color = color
         )

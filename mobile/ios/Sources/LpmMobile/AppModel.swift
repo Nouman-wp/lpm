@@ -92,13 +92,17 @@ final class AppModel {
     // surfaces an error on each instead of spinning forever.
     @ObservationIgnored private let configTimeout = GenerationTimeout<String>()
 
-    // Local agent token-usage stats (the desktop Stats page). `stats` is nil until
-    // the first load lands; `statsDays` is the selected period (1/7/30 days, 0 =
-    // all time). `statsActive` re-issues the query after a reconnect.
+    // Agent token-usage stats (the desktop Stats page). `stats` is nil until the
+    // first load lands; `statsDays` is the selected period (1/7/30 days, 0 = all
+    // time) and `statsMachine` whose usage ("all", "local" or a paired
+    // computer's slug), picked from `statsMachines`. `statsActive` re-issues the
+    // query after a reconnect.
     var stats: AgentStats?
     var statsLoading = false
     var statsError: String?
     var statsDays = 30
+    var statsMachine = "all"
+    var statsMachines: [UsageMachine] = []
     @ObservationIgnored private var statsActive = false
     // The stats scan replies asynchronously and can arrive out of order (the Mac
     // scans history files off the socket), so a generation-guarded timeout keeps a
@@ -294,6 +298,10 @@ final class AppModel {
     // resurfacing the row if the close actually failed.
     @ObservationIgnored private var closingTerminals: [String: Set<String>] = [:]
     @ObservationIgnored private let closingTimeout = GenerationTimeout<String>()
+    // A tab closed on this phone that can still be undone: hidden here, not yet
+    // closed on the Mac. One at a time; the next close sends this one on.
+    var pendingTabClose: PendingTabClose?
+    @ObservationIgnored var pendingTabCloseWork: DispatchWorkItem?
 
     // Terminal streams go straight to the newest screen showing that terminal; the
     // emulator holds the buffer, not this model. Seed and live output are kept
@@ -789,6 +797,9 @@ final class AppModel {
     /// The app came on screen or went away; the Mac sends agent notifications only
     /// while it's away. Carried over to every new connection in `wire`.
     func setInForeground(_ active: Bool) {
+        // iOS may end the app any time after it leaves the screen, so a close
+        // still waiting on its undo goes now.
+        if !active { finishPendingTabClose() }
         inForeground = active
         client?.inForeground = active
         visitSession?.setInForeground(active)
@@ -1185,6 +1196,7 @@ final class AppModel {
     /// per-session value, so switching Macs (or removing one) starts clean. Does
     /// NOT touch the saved-Mac records or their Keychain credentials.
     func resetSessionState() {
+        finishPendingTabClose()
         endVisit()
         client?.disconnect()
         client = nil
@@ -1250,6 +1262,8 @@ final class AppModel {
         statsLoading = false
         statsError = nil
         statsDays = 30
+        statsMachine = "all"
+        statsMachines = []
         statsActive = false
         composerActions = []
         actionVariantCounts = [:]
@@ -1750,15 +1764,22 @@ final class AppModel {
         }
     }
 
-    /// Load the agent-usage stats for a period (1/7/30 days, 0 = all time). Marks
-    /// the screen active so a reconnect re-issues the query, and dims-not-blanks
-    /// while reloading (the view keeps showing the prior snapshot).
-    func loadStats(days: Int) {
+    /// Load the agent-usage stats for a period (1/7/30 days, 0 = all time) and,
+    /// when given, a computer to show. Marks the screen active so a reconnect
+    /// re-issues the query, and dims-not-blanks while reloading (the view keeps
+    /// showing the prior snapshot). `fresh` scans again instead of reusing the
+    /// Mac's read from the last minute.
+    func loadStats(days: Int, machine: String? = nil, fresh: Bool = false) {
         statsActive = true
         statsDays = days
+        if let machine, machine != statsMachine {
+            // Another computer's numbers aren't a dimmed version of these ones.
+            stats = nil
+            statsMachine = machine
+        }
         statsLoading = true
         statsError = nil
-        client?.requestStats(days: days)
+        client?.requestStats(days: days, machine: statsMachine, fresh: fresh)
         // The scan replies asynchronously; if it never does (an old Mac that doesn't
         // know this message, or a reply lost while the socket stayed up), give up so
         // the screen shows an error instead of an endless skeleton. Keep prior data
@@ -1772,7 +1793,7 @@ final class AppModel {
 
     /// Pull-to-refresh on the Stats screen: re-request when live, else reconnect.
     func refreshStats() async {
-        if case .ready = connection { loadStats(days: statsDays) }
+        if case .ready = connection { loadStats(days: statsDays, fresh: true) }
         else { reconnectIfNeeded() }
         try? await Task.sleep(nanoseconds: 500_000_000)
     }
@@ -2147,12 +2168,24 @@ final class AppModel {
             self.loadTerminals(project)
         }
     }
-    func closeTerminal(_ project: String, id: String) {
+    /// Hide a closing tab. It stays filtered from incoming lists until the Mac's
+    /// list confirms it gone, or the wait in `awaitClosedTerminal` runs out.
+    func hideClosingTerminal(_ project: String, id: String) {
         closingTerminals[project, default: []].insert(id)
         terminals[project]?.removeAll { $0.id == id }
-        // Drop the composer draft state for a terminal that's going away.
+    }
+    /// Bring back a tab whose close was undone before it reached the Mac, in its
+    /// old place — unless a list meanwhile showed it gone for another reason.
+    func unhideClosingTerminal(_ tab: TerminalInfo, at index: Int) {
+        guard closingTerminals[tab.project]?.remove(tab.id) != nil,
+              var list = terminals[tab.project], !list.contains(where: { $0.id == tab.id }) else { return }
+        list.insert(tab, at: min(index, list.count))
+        terminals[tab.project] = list
+    }
+    /// The close went to the Mac: drop the tab's composer state and give the list
+    /// a while to confirm, then reload so a close that failed shows the tab again.
+    func awaitClosedTerminal(_ project: String, id: String) {
         composerStores[id] = nil
-        client?.closeTerminal(project: project, id: id)
         closingTimeout.arm(id, seconds: 10) { [weak self] in
             guard let self, self.closingTerminals[project]?.contains(id) == true else { return }
             self.closingTerminals[project]?.remove(id)
@@ -2686,14 +2719,19 @@ final class AppModel {
         c.onStats = { [weak self] stats, error in
             guard let self else { return }
             if let stats {
-                // The usage rows ask for today alone; the echoed period tells their
-                // answer apart from the Stats screen's.
-                if stats.days == 1 { self.usage.applyToday(stats) }
-                // Drop a stale reply from a superseded period — the payload echoes the
-                // period it was scanned for, and only the current one may land.
-                guard stats.days == self.statsDays else { return }
+                // The usage rows ask for this Mac's today alone; the echoed period and
+                // computer tell their answer apart from the Stats screen's.
+                let local = (stats.machine ?? "local") == "local"
+                if stats.days == 1 && local { self.usage.applyToday(stats) }
+                // Drop a stale reply from a superseded period or computer — the
+                // payload echoes what it was scanned for, and only the current pick
+                // may land. A Mac that predates picking echoes no computer.
+                guard stats.days == self.statsDays,
+                      stats.machine == nil || stats.machine == self.statsMachine
+                else { return }
                 self.statsTimeout.cancel("stats")
                 self.stats = stats
+                self.statsMachines = stats.machines
                 self.statsError = nil
                 self.statsLoading = false
             } else if self.statsLoading {

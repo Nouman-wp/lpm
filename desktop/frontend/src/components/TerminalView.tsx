@@ -18,13 +18,12 @@ import {
   findTerminalLocation,
   isTabPinned,
   isTerminalTab,
-  terminalDisplayLabel,
   type TerminalInstance,
   type AdoptedTabOpts,
 } from "../paneTree";
-import { agentSessionOf, type AgentSessionRef } from "../agentSession";
+import { agentSessionOf } from "../agentSession";
+import { remoteTabOf, sameRemoteTabs, type RemoteTab } from "../remoteTabs";
 import { scanMemoryInvocation } from "../terminalMemory";
-import { detectAICLI } from "../slashCommands";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
 import { BulkDuplicateDialog, type DuplicatePromptSeed } from "./BulkDuplicateDialog";
@@ -58,7 +57,7 @@ import { registerProjectSubmit, useTerminalTargets } from "../store/terminalTarg
 import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
 import { TTSControls } from "./TTSControls";
 import { joinAbs } from "../path";
-import { isPeerName, peerSlugOf } from "../peer/markers";
+import { isPeerName } from "../peer/markers";
 import { retainPeerSession } from "../peer/retainedSessions";
 import { useHostFollows } from "../peer/useHostFollows";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
@@ -105,6 +104,9 @@ export interface TerminalViewHandle {
   // Terminal-tab ops relayed from a phone or a paired Mac, addressed by
   // terminal id.
   remoteCloseTerminal(id: string): void;
+  remoteForkTerminal(id: string): void;
+  remoteForkIntoCopy(id: string): void;
+  remoteCloseOthers(id: string): void;
   // A peer Mac closed this terminal — drop its tab (no second stop_terminal).
   removeAdoptedTerminal(id: string): void;
   remoteRenameTerminal(id: string, label: string, emoji?: string): void;
@@ -216,6 +218,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     toggleTabPinned,
     reorderTerminals,
     remoteCloseTerminal,
+    remoteForkTerminal,
+    remoteForkIntoCopy,
+    remoteCloseOthers,
     removeAdoptedTerminal,
     remoteRenameTerminal,
     remoteRestoreTitle,
@@ -363,60 +368,20 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // tree gets a fresh reference every drag frame, which would churn each
   // composer's mention memos, so reuse the prior array while the id/label set is
   // unchanged. Non-PTY tabs (browser, review) have no xterm session, so they're
-  // left out.
-  // {id, label, cli}: cli is detected from each terminal's launch command (empty
-  // for plain shells), used only by the remote push, as is agentSession — the
-  // conversation whose transcript the phone's copy key reads, so only for tabs
-  // whose transcripts are on this Mac. Identity-stabilized (the tree gets a fresh
-  // reference each drag frame) so consumers/effects don't churn.
-  const allTerminalsRef = useRef<
-    {
-      id: string;
-      label: string;
-      cli: string;
-      pinned: boolean;
-      emoji: string;
-      historyKey: string;
-      agentSession: AgentSessionRef | null;
-    }[]
-  >([]);
+  // left out. The same list is the remote push (see RemoteTab). Identity-stabilized
+  // (the tree gets a fresh reference each drag frame) so consumers/effects don't
+  // churn.
+  const allTerminalsRef = useRef<RemoteTab[]>([]);
   const allTerminals = useMemo(() => {
     const next = tree
       ? collectTerminals(tree)
           .filter(isTerminalTab)
-          .map((t) => ({
-            id: t.id,
-            label: terminalDisplayLabel(t),
-            cli: detectAICLI(t.startCmd) ?? "",
-            pinned: t.pinned === true,
-            emoji: t.emoji ?? "",
-            // Same fallback the composer uses: an older persisted tree can carry
-            // a tab that predates history keys.
-            historyKey: t.historyKey ?? t.id,
-            agentSession:
-              localSessions && peerSlugOf(t.id) === null ? agentSessionOf(t) : null,
-          }))
+          .map((t) => remoteTabOf(t, { localSessions, sessionsReachable }))
       : [];
-    const prev = allTerminalsRef.current;
-    if (
-      prev.length === next.length &&
-      prev.every(
-        (p, i) =>
-          p.id === next[i].id &&
-          p.label === next[i].label &&
-          p.cli === next[i].cli &&
-          p.pinned === next[i].pinned &&
-          p.emoji === next[i].emoji &&
-          p.historyKey === next[i].historyKey &&
-          p.agentSession?.provider === next[i].agentSession?.provider &&
-          p.agentSession?.sessionId === next[i].agentSession?.sessionId,
-      )
-    ) {
-      return prev;
-    }
+    if (sameRemoteTabs(allTerminalsRef.current, next)) return allTerminalsRef.current;
     allTerminalsRef.current = next;
     return next;
-  }, [tree, localSessions]);
+  }, [tree, localSessions, sessionsReachable]);
 
   // Mirror the live id -> {label, cli} mapping to the remote server so paired
   // phones show the same terminal names and offer the same slash commands. It is
@@ -1113,6 +1078,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       resumeFromHistory,
       sendCommandToActive,
       remoteCloseTerminal,
+      remoteForkTerminal,
+      remoteForkIntoCopy,
+      remoteCloseOthers,
       removeAdoptedTerminal,
       remoteRenameTerminal,
       remoteRestoreTitle,
@@ -1131,6 +1099,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       resumeFromHistory,
       sendCommandToActive,
       remoteCloseTerminal,
+      remoteForkTerminal,
+      remoteForkIntoCopy,
+      remoteCloseOthers,
       removeAdoptedTerminal,
       remoteRenameTerminal,
       remoteRestoreTitle,

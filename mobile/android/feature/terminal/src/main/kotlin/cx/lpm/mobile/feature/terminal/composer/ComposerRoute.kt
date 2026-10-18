@@ -17,7 +17,8 @@ internal fun ComposerRoute(
     slots: TerminalSlots,
     onHideTerminalKeyboard: () -> Unit,
     onPreviewFile: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onFind: (() -> Unit)? = null
 ) {
     val duplicates = slots.duplicateSheet
     ComposerHost(
@@ -31,6 +32,7 @@ internal fun ComposerRoute(
             ),
             onPreviewFile = onPreviewFile,
             onHideTerminalKeyboard = onHideTerminalKeyboard,
+            onFind = onFind,
             memorySheet = slots.memorySheet,
             duplicateSheet = duplicates?.let { sheet ->
                 { prompt, copies, onDuplicated, onDismiss ->

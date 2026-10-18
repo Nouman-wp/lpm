@@ -4,11 +4,21 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cx.lpm.mobile.core.data.actions.ActionsStore
 import cx.lpm.mobile.core.data.agents.AgentLaunchStore
+import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.session.SessionAlerts
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
+import cx.lpm.mobile.core.data.terminals.canUseTabMenu
+import cx.lpm.mobile.core.data.terminals.closeOtherTerminals
+import cx.lpm.mobile.core.data.terminals.closeTerminal
+import cx.lpm.mobile.core.data.terminals.forkTerminal
+import cx.lpm.mobile.core.data.terminals.forkTerminalIntoCopy
+import cx.lpm.mobile.core.data.terminals.otherClosableTerminals
+import cx.lpm.mobile.core.data.terminals.undoTabClose
+import cx.lpm.mobile.core.data.terminals.useConversationTitle
+import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.navigation.ProjectKey
 import cx.lpm.mobile.feature.projects.visit.listedProject
 import dagger.assisted.Assisted
@@ -35,6 +45,7 @@ class ProjectDetailViewModel @AssistedInject constructor(
     private val session: MacSession? get() = sessions[key.session]
     private val projects: ProjectsStore? get() = session?.store()
     private val terminals: TerminalsStore? get() = session?.store()
+    private val git: GitStore? get() = session?.store()
 
     val uiState: StateFlow<ProjectDetailUiState> = sessions.session(key.session)
         .flatMapLatest { s -> s?.let(::detailState) ?: flowOf(ProjectDetailUiState()) }
@@ -46,19 +57,23 @@ class ProjectDetailViewModel @AssistedInject constructor(
     private fun detailState(s: MacSession) = combine(
         combine(s.state, s.link.views, s.link.state, ::Triple),
         s.store<ProjectsStore>().state,
-        s.store<TerminalsStore>().state,
+        combine(s.store<TerminalsStore>().state, s.store<GitStore>().state, ::Pair),
         s.store<ActionsStore>().state,
         sessions.listedProject(key)
-    ) { (session, view, link), p, t, a, listed ->
+    ) { (session, view, link), p, (t, g), a, listed ->
         val inputs = DetailInputs(
             terminals = t.terminals[key.project],
             creating = key.project in t.creatingTerminals,
             hasBackgroundRuns = a.runs(key.project).isNotEmpty(),
             live = session.demoMode || session.isReady,
-            linkText = view.statusLine.text,
+            statusLine = view.statusLine,
+            git = g.snapshots[key.project],
+            gitLoading = key.project in g.loading,
             queued = link.queued(key.project),
             canStopServices = s.store<ProjectsStore>().canRestartServices,
             canLaunchAgents = s.store<AgentLaunchStore>().canLaunchAgents,
+            canUseTabMenu = s.store<TerminalsStore>().canUseTabMenu,
+            pendingClose = t.pendingTabClose,
             now = clock.millis()
         )
         p.detail(key.project, inputs, listed)
@@ -69,9 +84,27 @@ class ProjectDetailViewModel @AssistedInject constructor(
         terminals?.loadTerminals(key.project)
     }
 
-    /** The link is back: an empty list from before may only mean lpm was restarting. */
+    /**
+     * The link is back: an empty list from before may only mean lpm was restarting,
+     * and the Mac's watch reports only the changes made from now on.
+     */
     fun reloadAfterReconnect() {
         terminals?.reloadTerminalsAfterReconnect(key.project)
+        git?.load(key.project)
+    }
+
+    /** The screen came up: its title follows the project's changes while it shows. */
+    fun appear() {
+        git?.follow(key.project)
+    }
+
+    fun disappear() {
+        git?.unfollow(key.project)
+    }
+
+    /** Back in the foreground: catch up on the changes made meanwhile. */
+    fun resume() {
+        git?.load(key.project)
     }
 
     fun newTerminal() {
@@ -94,6 +127,30 @@ class ProjectDetailViewModel @AssistedInject constructor(
 
     fun close(id: String) {
         terminals?.closeTerminal(key.project, id)
+    }
+
+    fun undoClose() {
+        terminals?.undoTabClose()
+    }
+
+    fun useConversationTitle(term: TerminalInfo) {
+        terminals?.useConversationTitle(term)
+    }
+
+    /** The fork opens in a tab of its own, handed to [onSpawn] once it lands. */
+    fun fork(term: TerminalInfo, onSpawn: (TerminalInfo) -> Unit) {
+        terminals?.forkTerminal(term, onSpawn)
+    }
+
+    fun forkIntoCopy(term: TerminalInfo) {
+        terminals?.forkTerminalIntoCopy(term)
+    }
+
+    /** How many unpinned tabs Close Other Tabs would close. */
+    fun othersClosable(term: TerminalInfo): Int = terminals?.otherClosableTerminals(term)?.size ?: 0
+
+    fun closeOthers(term: TerminalInfo) {
+        terminals?.closeOtherTerminals(term)
     }
 
     /** [label] is already trimmed and differs from the tab's name (see [tabRenameResult]). */

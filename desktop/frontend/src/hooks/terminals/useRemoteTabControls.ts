@@ -1,5 +1,5 @@
 import { useCallback, type RefObject } from "react";
-import { type PaneNode, collectPanes } from "../../paneTree";
+import { type PaneNode, collectPanes, isTerminalTab } from "../../paneTree";
 import { IS_MIRROR_WINDOW } from "../../mirror";
 import { paneOrderFollowing } from "./remoteTabOrder";
 
@@ -15,6 +15,9 @@ interface UseRemoteTabControlsProps {
   restoreSessionTitle: (paneId: string, tabIdx: number) => void;
   toggleTabPinned: (paneId: string, tabIdx: number) => void;
   reorderTerminals: (paneId: string, order: string[]) => void;
+  closeTerminalsById: (ids: string[]) => void;
+  forkTerminal: (paneId: string, termId: string) => Promise<void>;
+  forkTerminalIntoCopy: (paneId: string, termId: string) => Promise<void>;
 }
 
 export function useRemoteTabControls({
@@ -25,6 +28,9 @@ export function useRemoteTabControls({
   restoreSessionTitle,
   toggleTabPinned,
   reorderTerminals,
+  closeTerminalsById,
+  forkTerminal,
+  forkTerminalIntoCopy,
 }: UseRemoteTabControlsProps) {
   // Pane-agnostic id resolvers for callers (a phone, another Mac) that only know
   // a terminal's id, not which pane holds it: walk the tree to locate the tab,
@@ -99,8 +105,42 @@ export function useRemoteTabControls({
     [reorderTerminals],
   );
 
+  const remoteForkTerminal = useCallback(
+    (termId: string) => {
+      void locateTerminal(termId).then((hit) => hit && forkTerminal(hit.paneId, termId));
+    },
+    [locateTerminal, forkTerminal],
+  );
+  // The phone asked before sending this, the way the desktop's own menu does.
+  const remoteForkIntoCopy = useCallback(
+    (termId: string) => {
+      void locateTerminal(termId).then((hit) => hit && forkTerminalIntoCopy(hit.paneId, termId));
+    },
+    [locateTerminal, forkTerminalIntoCopy],
+  );
+  // A phone lists the project's terminals, not one pane's, so its "Close Other
+  // Tabs" closes every other unpinned terminal in any pane.
+  const remoteCloseOthers = useCallback(
+    (termId: string) => {
+      void restoreSettled.current.then(() => {
+        const current = treeRef.current;
+        if (!current) return;
+        const tabs = collectPanes(current).flatMap((p) => p.tabs);
+        if (!tabs.some((t) => t.id === termId)) return;
+        const ids = tabs
+          .filter((t) => t.id !== termId && t.pinned !== true && isTerminalTab(t))
+          .map((t) => t.id);
+        if (ids.length > 0) closeTerminalsById(ids);
+      });
+    },
+    [closeTerminalsById],
+  );
+
   return {
     remoteCloseTerminal,
+    remoteForkTerminal,
+    remoteForkIntoCopy,
+    remoteCloseOthers,
     removeAdoptedTerminal,
     remoteRenameTerminal,
     remoteRestoreTitle,

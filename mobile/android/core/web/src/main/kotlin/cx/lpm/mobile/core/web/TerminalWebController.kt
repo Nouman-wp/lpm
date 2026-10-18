@@ -57,6 +57,27 @@ class TerminalWebController internal constructor(private val post: (() -> Unit) 
     /** Whether terminal.html has loaded and announced itself. */
     val isReady: Boolean get() = ready
 
+    /** The current match of the last find (-1 for none) and how many there are. */
+    var findIndex by mutableIntStateOf(-1)
+        private set
+    var findCount by mutableIntStateOf(0)
+        private set
+
+    /**
+     * Find in the scrollback, as the desktop's search bar does: the page marks every
+     * match and reports the current one out of how many. [step] is
+     * [FindStep.Type] while the query is being typed (stay on a match that still fits).
+     */
+    fun find(query: String, step: FindStep) {
+        surface?.evaluate(TerminalScripts.find(query, step.script))
+    }
+
+    fun clearFind() {
+        findIndex = -1
+        findCount = 0
+        surface?.evaluate(TerminalScripts.FIND_CLEAR)
+    }
+
     /**
      * Apply a seed. A resetting seed replays the whole screen, so any output
      * buffered before it is stale — drop it. A non-resetting one is the slice
@@ -219,6 +240,11 @@ class TerminalWebController internal constructor(private val post: (() -> Unit) 
             "openURL" -> message.string?.takeIf(::isWebLink)?.let(callbacks.onOpenUrl)
 
             "ready" -> onReady()
+
+            "find" -> {
+                findIndex = message.int("index") ?: -1
+                findCount = message.int("count") ?: 0
+            }
         }
     }
 
@@ -279,6 +305,9 @@ class TerminalWebController internal constructor(private val post: (() -> Unit) 
         fun isWebLink(url: String): Boolean = url.substringBefore(':', "").lowercase() in webSchemes
     }
 }
+
+/** How a find moves: while typing, or to the next or previous match. */
+enum class FindStep(internal val script: String) { Type("type"), Next("next"), Prev("prev") }
 
 /** What the page reports, routed to the screen. */
 internal class TerminalCallbacks(

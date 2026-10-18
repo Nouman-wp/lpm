@@ -24,16 +24,19 @@ struct TerminalComposer: View {
     /// The terminal theme background, so the composer ground matches the terminal
     /// it sits under (used only in terminal-tools mode).
     private let terminalBackground: SwiftUI.Color
+    /// Find in the terminal above, offered with the composer's terminal tools.
+    private let onFind: (() -> Void)?
 
     init(store: ComposerStore, onSend: ((String) -> Void)? = nil,
          terminalTools: Bool = true, disabled: Bool = false, placeholder: String = "Message",
-         terminalBackground: SwiftUI.Color = .black) {
+         terminalBackground: SwiftUI.Color = .black, onFind: (() -> Void)? = nil) {
         _store = ObservedObject(wrappedValue: store)
         self.onSend = onSend
         self.terminalTools = terminalTools
         self.disabled = disabled
         self.placeholder = placeholder
         self.terminalBackground = terminalBackground
+        self.onFind = onFind
     }
 
     @State private var showPhotoPicker = false
@@ -481,6 +484,9 @@ struct TerminalComposer: View {
             }
             Button { store.newTab() } label: { Label("New prompt", systemImage: "plus.bubble") }
             Button { showHistory = true } label: { Label("History", systemImage: "clock.arrow.circlepath") }
+            if terminalTools, let onFind {
+                Button(action: onFind) { Label("Find in Terminal", systemImage: "magnifyingglass") }
+            }
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 20, weight: .medium))

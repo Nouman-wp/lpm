@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -42,6 +43,7 @@ internal fun UsageScaffold(
     onBack: () -> Unit,
     onRefresh: suspend () -> Unit,
     modifier: Modifier = Modifier,
+    trailing: (@Composable RowScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     var refreshing by remember { mutableStateOf(false) }
@@ -59,7 +61,8 @@ internal fun UsageScaffold(
                     contentDescription = stringResource(R.string.back),
                     onClick = onBack
                 )
-            }
+            },
+            trailing = trailing
         )
         PullToRefreshBox(
             isRefreshing = refreshing,

@@ -55,6 +55,7 @@ use tungstenite::{accept, Error as WsError, Message, WebSocket};
 
 mod relay;
 pub(crate) mod relayed;
+mod tab_menu;
 pub(crate) mod tabs;
 
 // One phone connection's transport. The acceptor handles both this build's
@@ -142,6 +143,7 @@ const PHONE_FEATURES: &[&str] = &[
     SERVICE_RESTART_FEATURE,
     crate::remote_answers::FEATURE,
     RESTART_TERMINAL_FEATURE,
+    tab_menu::FEATURE,
     crate::remote_agents::LAUNCH_FEATURE,
     crate::remote_agents::SESSIONS_FEATURE,
     crate::remote_files::FEATURE,
@@ -297,6 +299,9 @@ struct HubInner {
     // Live terminal id -> pinned, pushed from the frontend tab tree so the phone
     // can show the pin state and offer Pin/Unpin in the tab menu.
     pinned: Mutex<HashMap<String, bool>>,
+    // Live terminal id -> which of fork / fork into copy / conversation title the
+    // desktop's tab menu offers for it, so the phone's offers the same.
+    tab_caps: Mutex<HashMap<String, tab_menu::TabCaps>>,
     // Live terminal id -> tab emoji (from the frontend tab tree), so the phone can
     // show the same per-terminal tab icon the desktop does. Empty when unset.
     emojis: Mutex<HashMap<String, String>>,
@@ -2397,15 +2402,40 @@ fn handle_msg(
             // Local agent token-usage stats (the desktop Stats page). Scanning the
             // Claude/Codex history files is slow, so run it off the read loop and
             // reply through the async out-queue rather than blocking this socket.
+            // `machine` picks a paired computer, or "all" of them added together;
+            // without it, this one alone and scanned afresh, as before it existed.
             let days = v.get("days").and_then(Value::as_i64).unwrap_or(30);
+            let picked = v.get("machine").and_then(Value::as_str);
+            let machine = picked
+                .unwrap_or(crate::agent_usage_machines::LOCAL)
+                .to_string();
+            let fresh = v
+                .get("fresh")
+                .and_then(Value::as_bool)
+                .unwrap_or(picked.is_none());
+            let peers = app
+                .try_state::<crate::peerclient::PeerClientHub>()
+                .map(|s| s.inner().clone());
             let out = out.clone();
             std::thread::spawn(move || {
-                let reply = match crate::agent_usage::agent_usage_stats(days) {
-                    Ok(stats) => match serde_json::to_value(&stats) {
-                        Ok(value) => json!({ "t": "stats", "ok": true, "stats": value }),
-                        Err(e) => json!({ "t": "stats", "ok": false, "error": e.to_string() }),
-                    },
-                    Err(e) => json!({ "t": "stats", "ok": false, "error": e }),
+                let usage = crate::agent_usage_machines::machines_usage(
+                    peers.as_ref(),
+                    days,
+                    &machine,
+                    fresh,
+                );
+                let reply = match usage
+                    .and_then(|u| serde_json::to_value(u).map_err(|e| e.to_string()))
+                {
+                    Ok(Value::Object(mut fields)) => {
+                        fields.insert("t".into(), json!("stats"));
+                        fields.insert("ok".into(), json!(true));
+                        Value::Object(fields)
+                    }
+                    Ok(_) => {
+                        json!({ "t": "stats", "ok": false, "error": "unreadable stats", "machine": machine })
+                    }
+                    Err(e) => json!({ "t": "stats", "ok": false, "error": e, "machine": machine }),
                 };
                 let _ = out.try_send(reply.to_string());
             });
@@ -3289,19 +3319,27 @@ fn handle_msg(
             }
         }
         "listDir" => crate::remote_files::handle(out, &v),
-        // Terminal tab ops (close / rename / pin / restart) are also frontend
-        // pane-tree edits, so they take the same owner-window relay: emit an event
-        // the mounted ProjectDetail resolves back to its tab id and runs the
-        // normal handler. A restart runs an ended terminal again in its own tab,
+        // Terminal tab ops (close / rename / pin / restart, and the tab menu's fork /
+        // title / close others) are also frontend pane-tree edits, so they take the
+        // same owner-window relay: emit an event the mounted ProjectDetail resolves
+        // back to its tab id and runs the normal handler. A restart runs an ended terminal again in its own tab,
         // under a new id the next `terminals` push carries.
-        "closeTerminal" | "renameTerminal" | "pinTerminal" | "restartTerminal" => {
+        "closeTerminal"
+        | "renameTerminal"
+        | "pinTerminal"
+        | "restartTerminal"
+        | "forkTerminal"
+        | "forkTerminalCopy"
+        | "titleTerminal"
+        | "closeOtherTerminals" => {
             let project = str_field("project").unwrap_or_default();
             let id = str_field("id").unwrap_or_default();
             let op = match t {
                 "closeTerminal" => "close",
                 "renameTerminal" => "rename",
                 "restartTerminal" => "restart",
-                _ => "pin",
+                "pinTerminal" => "pin",
+                _ => tab_menu::op(t).unwrap_or_default(),
             };
             if !project.is_empty() && !id.is_empty() {
                 let _ = app.emit(
@@ -6114,6 +6152,7 @@ pub fn project_terminals(app: &AppHandle, hub: &RemoteHub, project: &str) -> Vec
     let pinned = hub.inner.pinned.lock().unwrap();
     let emojis = hub.inner.emojis.lock().unwrap();
     let clis = hub.inner.clis.lock().unwrap();
+    let caps = hub.inner.tab_caps.lock().unwrap();
     terms
         .iter()
         .map(|t| {
@@ -6133,6 +6172,7 @@ pub fn project_terminals(app: &AppHandle, hub: &RemoteHub, project: &str) -> Vec
                     "cli".into(),
                     json!(clis.get(&t.id).cloned().unwrap_or_default()),
                 );
+                caps.get(&t.id).copied().unwrap_or_default().write(m);
             }
             o
         })
@@ -6186,6 +6226,7 @@ pub fn remote_set_terminal_labels(
     let mut pin_map = hub.inner.pinned.lock().unwrap();
     let mut emoji_map = hub.inner.emojis.lock().unwrap();
     let mut session_map = hub.inner.agent_sessions.lock().unwrap();
+    let mut caps_map = hub.inner.tab_caps.lock().unwrap();
     let mut ids: Vec<String> = Vec::new();
     for item in &labels {
         let id = item.get("id").and_then(Value::as_str).unwrap_or("");
@@ -6212,6 +6253,7 @@ pub fn remote_set_terminal_labels(
                 .unwrap_or("")
                 .to_string(),
         );
+        caps_map.insert(id.to_string(), tab_menu::TabCaps::from_value(item));
         match item
             .get("agentSession")
             .and_then(crate::remote_answers::AgentSession::from_value)
@@ -6220,7 +6262,14 @@ pub fn remote_set_terminal_labels(
             None => session_map.remove(id),
         };
     }
-    drop((label_map, cli_map, pin_map, emoji_map, session_map));
+    drop((
+        label_map,
+        cli_map,
+        pin_map,
+        emoji_map,
+        session_map,
+        caps_map,
+    ));
     if project.is_empty() {
         return;
     }

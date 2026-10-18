@@ -17,6 +17,7 @@
 <script src="xterm/addon-fit.js"></script>
 <script src="xterm/addon-webgl.js"></script>
 <script src="xterm/addon-unicode11.js"></script>
+<script src="xterm/addon-search.js"></script>
 <script src="pathtap.js"></script>
 <script>
   const post = (name, body) => window.webkit?.messageHandlers?.[name]?.postMessage(body);
@@ -392,6 +393,28 @@
     term.scrollToBottom();
     delivering = delivering.then(() => deliver(b64), () => deliver(b64));
   };
+
+  // Find in the terminal, as the desktop's search bar does: every match marked,
+  // the current one brighter, and "n of m" reported back. `mode` is 'type' while
+  // the query is being typed (stay on a match that still fits), else 'next' or
+  // 'prev'. The query crosses as base64, like composed text.
+  let search = null;
+  try { search = new SearchAddon.SearchAddon(); term.loadAddon(search); } catch (e) {}
+  search?.onDidChangeResults(({ resultIndex, resultCount }) =>
+    post('find', { index: resultIndex, count: resultCount }));
+  const findDecorations = {
+    matchBackground: '#5c4b00', matchOverviewRuler: '#ffd60a',
+    activeMatchBackground: '#b36b00', activeMatchColorOverviewRuler: '#ff9f0a',
+  };
+  window.lpmFind = (b64, mode) => {
+    if (!search) return;
+    const query = b64ToStr(b64);
+    if (!query) { search.clearDecorations(); term.clearSelection(); post('find', { index: -1, count: 0 }); return; }
+    const opts = { incremental: mode === 'type', decorations: findDecorations };
+    const found = mode === 'prev' ? search.findPrevious(query, opts) : search.findNext(query, opts);
+    if (!found) post('find', { index: -1, count: 0 });
+  };
+  window.lpmFindClear = () => { search?.clearDecorations(); term.clearSelection(); };
 
   new ResizeObserver(() => refit()).observe(document.getElementById('term'));
   // Don't auto-focus on load — that would pop the keyboard open every time the

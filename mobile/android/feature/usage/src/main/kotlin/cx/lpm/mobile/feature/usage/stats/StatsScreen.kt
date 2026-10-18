@@ -41,6 +41,7 @@ fun StatsRoute(
         onBack = onBack,
         onRefresh = viewModel::refresh,
         onSelect = viewModel::select,
+        onPickMachine = viewModel::pickMachine,
         onRetry = viewModel::retry,
         modifier = modifier
     )
@@ -49,9 +50,10 @@ fun StatsRoute(
 private val Periods = listOf(1, 7, 30, 0)
 
 /**
- * Local agent token usage on the Mac, as the desktop Stats page shows it: a period
- * picker over four summary tiles, the daily activity chart, the provider and project
- * breakdowns, recent sessions and a privacy note.
+ * Agent token usage, as the desktop Stats page shows it: a period picker over four
+ * summary tiles, the daily activity chart, the provider and project breakdowns,
+ * recent sessions and a privacy note. With another computer paired, the bar's menu
+ * picks whose usage: one computer's, or all of them added together.
  */
 @Composable
 fun StatsScreen(
@@ -60,13 +62,19 @@ fun StatsScreen(
     onRefresh: suspend () -> Unit,
     onSelect: (Int) -> Unit,
     onRetry: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onPickMachine: (String) -> Unit = {}
 ) {
     UsageScaffold(
         title = stringResource(R.string.stats_title),
         onBack = onBack,
         onRefresh = onRefresh,
-        modifier = modifier
+        modifier = modifier,
+        trailing = if (state.machines.size > 1) {
+            { StatsMachineMenu(state.machines, state.machine, onPickMachine) }
+        } else {
+            null
+        }
     ) {
         SegmentedControl(
             options = listOf(
@@ -93,30 +101,40 @@ fun StatsScreen(
                     tween(200),
                     label = "dim"
                 )
-                LoadedStats(body.stats, state.days, state.now, Modifier.alpha(alpha))
+                LoadedStats(body.stats, state, Modifier.alpha(alpha))
             }
         }
     }
 }
 
 @Composable
-private fun LoadedStats(stats: AgentStats, days: Int, now: Long, modifier: Modifier = Modifier) {
+private fun LoadedStats(stats: AgentStats, state: StatsUiState, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         if (stats.totals.totalTokens == 0L) {
             StatsEmptyCard()
         } else {
-            LoadedCards(stats, days, now)
+            LoadedCards(stats, state)
         }
-        StatsFooter(totalFiles = stats.sources.sumOf { it.files })
+        StatsFooter(
+            totalFiles = stats.sources.sumOf { it.files },
+            machine = state.machine,
+            machines = stats.machines
+        )
     }
 }
 
 @Composable
-private fun ColumnScope.LoadedCards(stats: AgentStats, days: Int, now: Long) {
+private fun ColumnScope.LoadedCards(stats: AgentStats, state: StatsUiState) {
+    val days = state.days
     StatsSummaryTiles(stats, days)
     val chart = chartDays(stats, days)
     if (chart.isNotEmpty()) DailyActivityCard(chart)
     ProviderBreakdownCard(stats.providers, stats.totals.totalTokens)
     TopProjectsCard(stats.projects, days)
-    RecentSessionsCard(stats.recentSessions, days, now)
+    RecentSessionsCard(
+        stats.recentSessions,
+        days,
+        state.now,
+        machineNames = stats.machines.associate { it.id to it.name }
+    )
 }

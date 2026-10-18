@@ -295,7 +295,7 @@ private fun DemoServer.duplicate(o: Dict) {
     }
 }
 
-private fun DemoServer.createDuplicate(
+internal fun DemoServer.createDuplicate(
     source: String,
     copyName: String,
     label: String,

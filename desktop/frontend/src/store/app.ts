@@ -112,7 +112,16 @@ import { deferRefresh, holdRefresh, refreshHeld } from "./refreshHold";
 
 export type ProjectDetailTarget = "config" | "notes" | "ai" | "memory" | "automations";
 
-export type RemoteTerminalOp = "close" | "rename" | "pin" | "reorder" | "title" | "restart";
+export type RemoteTerminalOp =
+  | "close"
+  | "rename"
+  | "pin"
+  | "reorder"
+  | "title"
+  | "restart"
+  | "fork"
+  | "forkCopy"
+  | "closeOthers";
 
 export type View =
   | "projects"

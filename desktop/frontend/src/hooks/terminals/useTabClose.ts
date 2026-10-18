@@ -26,6 +26,7 @@ import {
   type TerminalInstance,
   makePaneLeaf,
   isTerminalTab,
+  collectPanes,
   findPane,
   firstPaneId,
   siblingPaneId,
@@ -307,6 +308,46 @@ export function useTabClose({
     [applyTree, disposeTabs, forward],
   );
 
+  // Closes the listed tabs at once, wherever they sit, collapsing any pane left
+  // with nothing in it. One batch, like closeOtherTerminals, so no undo toast for
+  // each tab.
+  const closeTerminalsById = useCallback(
+    (ids: string[]) => {
+      const current = treeRef.current;
+      if (!current || IS_MIRROR_WINDOW) return;
+      const wanted = new Set(ids);
+      const panes = collectPanes(current);
+      const closing = panes.flatMap((p) => p.tabs.filter((t) => wanted.has(t.id)));
+      if (closing.length === 0) return;
+      disposeTabs(closing);
+      let next: PaneNode | null = current;
+      for (const pane of panes) {
+        if (!next) break;
+        const tabs = pane.tabs.filter((t) => !wanted.has(t.id));
+        if (tabs.length === pane.tabs.length) continue;
+        if (tabs.length === 0 && !pane.activeServiceName) {
+          next = removePane(next, pane.id);
+          continue;
+        }
+        const active = pane.tabs[pane.activeTabIdx];
+        const kept = active ? tabs.findIndex((t) => t.id === active.id) : -1;
+        next = mapPane(next, pane.id, (p) => ({
+          ...p,
+          tabs,
+          activeTabIdx: kept >= 0 ? kept : Math.max(0, tabs.length - 1),
+        }));
+      }
+      const focused = focusedRef.current;
+      const focus = !next
+        ? null
+        : focused && findPane(next, focused)
+          ? undefined
+          : firstPaneId(next);
+      applyTree(next, focus);
+    },
+    [applyTree, disposeTabs],
+  );
+
   const closePane = useCallback(
     (paneId: string) => {
       if (IS_MIRROR_WINDOW) return forward("closePane", paneId);
@@ -361,6 +402,7 @@ export function useTabClose({
     closePane,
     closeTerminalById,
     closeOthersById,
+    closeTerminalsById,
     finalizePendingClosesForProject,
   };
 }

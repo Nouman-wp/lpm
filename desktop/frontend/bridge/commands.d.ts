@@ -3,6 +3,7 @@
 
 export function AckTerminalData(...args: any[]): Promise<any>;
 export function AgentUsageStats(...args: any[]): Promise<any>;
+export function AgentUsageMachines(...args: any[]): Promise<any>;
 export function AgentLimits(...args: any[]): Promise<any>;
 export function ClaudeLimitsAccount(...args: any[]): Promise<any>;
 export function AgentSessionTitle(projectName: string, provider: "claude" | "codex", sessionId: string): Promise<string | null>;

@@ -1,7 +1,10 @@
 package cx.lpm.mobile.feature.projects.detail
 
+import cx.lpm.mobile.core.data.link.LinkStatusLine
 import cx.lpm.mobile.core.data.link.QueuedAction
 import cx.lpm.mobile.core.data.projects.ProjectsState
+import cx.lpm.mobile.core.data.terminals.PendingTabClose
+import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.ProjectAgentRow
 import cx.lpm.mobile.core.model.Service
@@ -28,7 +31,7 @@ data class ServiceEntry(
     val ended: Service? = null
 )
 
-/** The line under the title: the project's state, or the link's while it's down. */
+/** The line over the title: the project's state, or the link's while it's down. */
 sealed interface DetailSubtitle {
     data object Running : DetailSubtitle
 
@@ -39,7 +42,7 @@ sealed interface DetailSubtitle {
     /** Started services that crashed, named with how ("web exited with code 1"). */
     data class Crashed(val services: List<Service>) : DetailSubtitle
 
-    data class Link(val text: String) : DetailSubtitle
+    data class Link(val line: LinkStatusLine) : DetailSubtitle
 }
 
 data class ProjectDetailUiState(
@@ -47,6 +50,9 @@ data class ProjectDetailUiState(
     /** The status a person set leads the name, as in the projects list. */
     val title: String = "",
     val subtitle: DetailSubtitle? = null,
+    /** The working tree's changes, under the title. */
+    val git: GitSnapshot? = null,
+    val gitLoading: Boolean = false,
     /** The Mac answers (or it's the demo). */
     val live: Boolean = true,
     /** Starts, stops and runs tapped while the Mac was away, waiting for it. */
@@ -63,7 +69,11 @@ data class ProjectDetailUiState(
     /** The project has background runs listed under its services. */
     val hasBackgroundRuns: Boolean = false,
     /** The Mac starts agents in new tabs, so New tab asks what the tab starts with. */
-    val canLaunchAgents: Boolean = false
+    val canLaunchAgents: Boolean = false,
+    /** The Mac takes the tab menu's fork / title / close-others (`tabMenu`). */
+    val canUseTabMenu: Boolean = false,
+    /** A tab closed here that Undo can still bring back. */
+    val pendingClose: PendingTabClose? = null
 ) {
     val runningServices: Int get() = services.count { it.running }
 
@@ -86,10 +96,14 @@ data class DetailInputs(
     val hasBackgroundRuns: Boolean = false,
     /** The Mac answers (or it's the demo): the title shows the project's state. */
     val live: Boolean = true,
-    val linkText: String = "",
+    val statusLine: LinkStatusLine? = null,
+    val git: GitSnapshot? = null,
+    val gitLoading: Boolean = false,
     val queued: List<QueuedAction> = emptyList(),
     val canStopServices: Boolean = false,
     val canLaunchAgents: Boolean = false,
+    val canUseTabMenu: Boolean = false,
+    val pendingClose: PendingTabClose? = null,
     val now: Long = 0
 )
 
@@ -111,7 +125,9 @@ fun ProjectsState.detail(
             queued = inputs.queued,
             tabs = terminals?.map { TabEntry(it, null) },
             hasBackgroundRuns = inputs.hasBackgroundRuns,
-            canLaunchAgents = inputs.canLaunchAgents
+            canLaunchAgents = inputs.canLaunchAgents,
+            canUseTabMenu = inputs.canUseTabMenu,
+            pendingClose = inputs.pendingClose
         )
     val agents = agentRowsByTerminal(projectAgentRows(project, inputs.now, emptyMap()))
     // One that ended keeps its place among the started services until restarted or stopped.
@@ -124,8 +140,10 @@ fun ProjectsState.detail(
         project = project,
         title = if (mark.isEmpty()) project.label else "$mark ${project.label}",
         live = inputs.live,
+        git = inputs.git,
+        gitLoading = inputs.gitLoading,
         subtitle = when {
-            !inputs.live -> DetailSubtitle.Link(inputs.linkText)
+            !inputs.live && inputs.statusLine != null -> DetailSubtitle.Link(inputs.statusLine)
             project.configError != null -> DetailSubtitle.InvalidConfiguration
             crashed.isNotEmpty() -> DetailSubtitle.Crashed(crashed)
             project.isUp -> DetailSubtitle.Running
@@ -145,6 +163,8 @@ fun ProjectsState.detail(
         canStopServices = inputs.canStopServices,
         stopping = name in pendingRun,
         hasBackgroundRuns = inputs.hasBackgroundRuns,
-        canLaunchAgents = inputs.canLaunchAgents
+        canLaunchAgents = inputs.canLaunchAgents,
+        canUseTabMenu = inputs.canUseTabMenu,
+        pendingClose = inputs.pendingClose
     )
 }

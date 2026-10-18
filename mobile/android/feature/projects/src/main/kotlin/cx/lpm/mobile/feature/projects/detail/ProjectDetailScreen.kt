@@ -17,6 +17,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.key
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -45,6 +46,11 @@ class ProjectDetailActions(
     val pin: (TerminalInfo) -> Unit = {},
     val rename: (TerminalInfo) -> Unit = {},
     val close: (TerminalInfo) -> Unit = {},
+    val useTitle: (TerminalInfo) -> Unit = {},
+    val fork: (TerminalInfo) -> Unit = {},
+    val forkCopy: (TerminalInfo) -> Unit = {},
+    val closeOthers: (TerminalInfo) -> Unit = {},
+    val undoClose: () -> Unit = {},
     val toggleService: (Service) -> Unit = {},
     val restartService: (Service) -> Unit = {},
     val stopService: (Service) -> Unit = {},
@@ -80,8 +86,6 @@ fun ProjectDetailScreen(
             .background(LpmTheme.colors.systemGroupedBackground)
     ) {
         LpmTopBar(
-            title = state.title,
-            subtitle = subtitleText(state.subtitle),
             leading = {
                 GlassIconButton(
                     icon = painterResource(R.drawable.ic_arrow_back_ios_new),
@@ -89,8 +93,11 @@ fun ProjectDetailScreen(
                     onClick = actions.back
                 )
             },
-            trailing = menu
-        )
+            trailing = menu,
+            keepTitleCentered = true
+        ) {
+            ProjectTitle(state)
+        }
         connectionStatusBar()
         Box(
             Modifier
@@ -133,18 +140,13 @@ fun ProjectDetailScreen(
                     modifier = Modifier.background(LpmTheme.colors.systemGroupedBackground)
                 )
             }
+            UndoCloseBar(
+                pending = state.pendingClose,
+                onUndo = actions.undoClose,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
         }
     }
-}
-
-@Composable
-private fun subtitleText(subtitle: DetailSubtitle?): String? = when (subtitle) {
-    DetailSubtitle.Running -> stringResource(ProjectsR.string.detail_running)
-    DetailSubtitle.Stopped -> stringResource(ProjectsR.string.detail_stopped)
-    DetailSubtitle.InvalidConfiguration -> stringResource(ProjectsR.string.detail_invalid_config)
-    is DetailSubtitle.Crashed -> crashSummaryText(subtitle.services)
-    is DetailSubtitle.Link -> subtitle.text
-    null -> null
 }
 
 /** Starts, stops and runs waiting for the Mac, one row each. */
@@ -185,7 +187,8 @@ private fun TabsSection(state: ProjectDetailUiState, actions: ProjectDetailActio
                     onOpen = { actions.openTerminal(tab.terminal) },
                     onPin = { actions.pin(tab.terminal) },
                     onRename = { actions.rename(tab.terminal) },
-                    onClose = { actions.close(tab.terminal) }
+                    onClose = { actions.close(tab.terminal) },
+                    extras = tabMenuExtras(state, tabs, tab.terminal, actions)
                 )
             }
         }
@@ -238,6 +241,23 @@ private fun ServicesSection(state: ProjectDetailUiState, actions: ProjectDetailA
             }
         }
     }
+}
+
+/** What the long press offers beyond Pin / Rename / Close, as the desktop's menu would. */
+private fun tabMenuExtras(
+    state: ProjectDetailUiState,
+    tabs: List<TabEntry>,
+    term: TerminalInfo,
+    actions: ProjectDetailActions
+): TabMenuExtras {
+    if (!state.canUseTabMenu) return TabMenuExtras()
+    val others = tabs.any { it.terminal.id != term.id && !it.terminal.pinned }
+    return TabMenuExtras(
+        useTitle = { actions.useTitle(term) }.takeIf { term.canTitle },
+        fork = { actions.fork(term) }.takeIf { term.canFork },
+        forkCopy = { actions.forkCopy(term) }.takeIf { term.canForkCopy },
+        closeOthers = { actions.closeOthers(term) }.takeIf { others }
+    )
 }
 
 private const val SKELETON_ROWS = 3

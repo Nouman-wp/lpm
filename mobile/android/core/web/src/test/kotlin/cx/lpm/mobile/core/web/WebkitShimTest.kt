@@ -10,12 +10,12 @@ class WebkitShimTest {
     @Test
     fun registersExactlyTheTerminalHandlersIosRegisters() {
         assertEquals(
-            listOf("input", "resize", "ready", "openPath", "openURL", "extent"),
+            listOf("input", "resize", "ready", "openPath", "openURL", "extent", "find"),
             TerminalScripts.handlers
         )
         assertTrue(
             terminal.contains(
-                """for (const name of ["input","resize","ready","openPath","openURL","extent"])"""
+                """for (const name of ["input","resize","ready","openPath","openURL","extent","find"])"""
             )
         )
     }

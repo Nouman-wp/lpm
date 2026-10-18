@@ -8,9 +8,11 @@ const COLLAPSED_COUNT = 12;
 interface RecentSessionsPanelProps {
   sessions: AgentSessionUsage[];
   days: number;
+  // Display names by machine id, for sessions listed from several computers.
+  machineNames?: Record<string, string>;
 }
 
-export function RecentSessionsPanel({ sessions, days }: RecentSessionsPanelProps) {
+export function RecentSessionsPanel({ sessions, days, machineNames }: RecentSessionsPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? sessions : sessions.slice(0, COLLAPSED_COUNT);
 
@@ -37,6 +39,7 @@ export function RecentSessionsPanel({ sessions, days }: RecentSessionsPanelProps
               <SessionRow
                 key={`${session.provider}-${session.project}-${session.startedAt}-${session.lastAt}-${index}`}
                 session={session}
+                machineName={session.machine ? machineNames?.[session.machine] : undefined}
               />
             ))}
           </div>

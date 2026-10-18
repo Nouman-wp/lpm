@@ -29,6 +29,7 @@ macro_rules! all_command_handlers {
             claude_session_state,
             list_agent_sessions,
             agent_usage_stats,
+            agent_usage_machines,
             apply_claude_limits,
             get_claude_statusline_state,
             apply_claude_statusline,

@@ -7,18 +7,30 @@ tags: [demo, projects, terminal]
 - extendedWaitUntil:
     visible: "Terminal 1"
     timeout: 5000
-# Whatever runs in a tab stops with it, so Close asks first.
+# Close takes effect at once and offers Undo for a few seconds.
 - longPressOn: "Terminal 1"
-- tapOn: "Close"
-- extendedWaitUntil:
-    visible: "Close “Terminal 1”?"
-    timeout: 5000
-- assertVisible: "Whatever is running in it stops."
 - waitForAnimationToEnd:
     timeout: 3000
-- takeScreenshot: 1-confirm-close
-- tapOn: "Close Tab"
+- tapOn: "^Close$"
 - extendedWaitUntil:
-    notVisible: "Terminal 1"
+    visible: "Terminal 1 closed"
+    timeout: 3000
+- tapOn: "Undo"
+- extendedWaitUntil:
+    visible: "Terminal 1"
     timeout: 5000
+- assertNotVisible: "Terminal 1 closed"
+# Left alone, the close goes through.
+- longPressOn: "Terminal 1"
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn: "^Close$"
+- extendedWaitUntil:
+    visible: "Terminal 1 closed"
+    timeout: 3000
+- takeScreenshot: 1-undo-close
+- extendedWaitUntil:
+    notVisible: "Terminal 1 closed"
+    timeout: 10000
+- assertNotVisible: "Terminal 1"
 - assertVisible: "New tab"

@@ -2,7 +2,6 @@ package cx.lpm.mobile.core.data.terminals
 
 import cx.lpm.mobile.core.data.client.LpmClient
 import cx.lpm.mobile.core.data.client.claim
-import cx.lpm.mobile.core.data.client.closeTerminal
 import cx.lpm.mobile.core.data.client.newTerminal
 import cx.lpm.mobile.core.data.client.pinTerminal
 import cx.lpm.mobile.core.data.client.recordHistory
@@ -19,6 +18,7 @@ import cx.lpm.mobile.core.data.session.GenerationTimeout
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.model.TerminalInfo
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,7 +35,7 @@ import kotlinx.coroutines.launch
  * appears and a close hides the row until the list confirms it — each with a
  * timeout that reloads the list so the screen converges on the Mac's truth.
  */
-class TerminalsStore(private val session: MacSession) : SessionStore {
+class TerminalsStore(internal val session: MacSession) : SessionStore {
     private val mutable = MutableStateFlow(TerminalsState())
     val state: StateFlow<TerminalsState> = mutable.asStateFlow()
 
@@ -66,7 +66,7 @@ class TerminalsStore(private val session: MacSession) : SessionStore {
     // opens a terminal that may not be on screen yet).
     private val queuedPrompts = mutableMapOf<String, String>()
 
-    private val client: LpmClient? get() = session.client
+    internal val client: LpmClient? get() = session.client
 
     override fun wire(client: LpmClient) {
         val c = client
@@ -113,6 +113,8 @@ class TerminalsStore(private val session: MacSession) : SessionStore {
     }
 
     override fun reset() {
+        pendingTabCloseJob?.cancel()
+        pendingTabCloseJob = null
         mutable.value = TerminalsState()
         creatingBaseline.clear()
         creatingTimeout.cancelAll()
@@ -309,18 +311,45 @@ class TerminalsStore(private val session: MacSession) : SessionStore {
     }
 
     /**
-     * Remove the row at once (the swipe already animated it away) and keep it hidden
-     * until the desktop confirms; a timeout reloads, resurfacing it if the close
-     * actually failed.
+     * Hide a closing tab. It stays filtered from incoming lists until the Mac's list
+     * confirms it gone, or the wait in [awaitClosedTerminal] runs out.
      */
-    fun closeTerminal(project: String, id: String) {
+    internal fun hideClosingTerminal(project: String, id: String) {
         closingTerminals[project] = closingTerminals[project].orEmpty() + id
         mutable.update { s ->
             val list = s.terminals[project] ?: return@update s
             s.copy(terminals = s.terminals + (project to list.filterNot { it.id == id }))
         }
+    }
+
+    /**
+     * Bring back a tab whose close was undone before it reached the Mac, in its old
+     * place — unless a list meanwhile showed it gone for another reason.
+     */
+    internal fun unhideClosingTerminal(tab: TerminalInfo, index: Int) {
+        val closing = closingTerminals[tab.project] ?: return
+        if (tab.id !in closing) return
+        val still = closing - tab.id
+        if (still.isEmpty()) {
+            closingTerminals.remove(tab.project)
+        } else {
+            closingTerminals[tab.project] =
+                still
+        }
+        mutable.update { s ->
+            val list = s.terminals[tab.project] ?: return@update s
+            if (list.any { it.id == tab.id }) return@update s
+            val restored = list.toMutableList().apply { add(index.coerceAtMost(size), tab) }
+            s.copy(terminals = s.terminals + (tab.project to restored))
+        }
+    }
+
+    /**
+     * The close went to the Mac: per-terminal state elsewhere can go, and the list
+     * gets a while to confirm; then a reload shows the tab again if the close failed.
+     */
+    internal fun awaitClosedTerminal(project: String, id: String) {
         closed.tryEmit(id)
-        client?.closeTerminal(project, id)
         closingTimeout.arm(id, CLOSING_TIMEOUT_MS) {
             val closing = closingTerminals[project] ?: return@arm
             if (id !in closing) return@arm
@@ -331,6 +360,15 @@ class TerminalsStore(private val session: MacSession) : SessionStore {
         }
         reloadTerminalsSoon(project)
     }
+
+    // The undo window of [PendingTabClose], running out.
+    internal var pendingTabCloseJob: Job? = null
+
+    internal fun setPendingTabClose(pending: PendingTabClose?) {
+        mutable.update { it.copy(pendingTabClose = pending) }
+    }
+
+    override fun flushPending() = finishPendingTabClose()
 
     fun renameTerminal(project: String, id: String, label: String) {
         client?.renameTerminal(project, id, label)

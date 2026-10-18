@@ -69,17 +69,23 @@ internal fun DemoWorld.statusPayload(project: String): Dict {
     return mapOf("t" to "status", "project" to project, "status" to entries.map(::statusDict))
 }
 
-internal fun terminalDict(t: DemoWorld.Terminal): Dict = mapOf(
-    "id" to t.id,
-    "label" to t.label,
-    "project" to t.project,
-    "cols" to t.cols,
-    "rows" to t.rows,
-    "remote" to t.remote,
-    "pinned" to t.pinned,
-    "emoji" to t.emoji,
-    "cli" to t.cli
-)
+internal fun terminalDict(t: DemoWorld.Terminal): Dict {
+    val agent = t.cli == "claude"
+    return mapOf(
+        "id" to t.id,
+        "label" to t.label,
+        "project" to t.project,
+        "cols" to t.cols,
+        "rows" to t.rows,
+        "remote" to t.remote,
+        "pinned" to t.pinned,
+        "emoji" to t.emoji,
+        "cli" to t.cli,
+        "canFork" to agent,
+        "canForkCopy" to (agent && !t.remote),
+        "canTitle" to (agent && t.label != DemoWorld.CONVERSATION_TITLE)
+    )
+}
 
 internal fun DemoWorld.terminalsPayload(project: String): Dict = mapOf(
     "t" to "terminals",

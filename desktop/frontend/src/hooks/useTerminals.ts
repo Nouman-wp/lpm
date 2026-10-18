@@ -188,6 +188,7 @@ export function useTerminals(
     closePane,
     closeTerminalById,
     closeOthersById,
+    closeTerminalsById,
     finalizePendingClosesForProject,
   } = useTabClose({
     projectName,
@@ -200,6 +201,9 @@ export function useTerminals(
 
   const {
     remoteCloseTerminal,
+    remoteForkTerminal,
+    remoteForkIntoCopy,
+    remoteCloseOthers,
     removeAdoptedTerminal,
     remoteRenameTerminal,
     remoteRestoreTitle,
@@ -213,6 +217,9 @@ export function useTerminals(
     restoreSessionTitle,
     toggleTabPinned,
     reorderTerminals,
+    closeTerminalsById,
+    forkTerminal,
+    forkTerminalIntoCopy,
   });
 
   // Owner side of action forwarding: execute the actions a mirror window sends
@@ -322,6 +329,9 @@ export function useTerminals(
     toggleTabPinned,
     reorderTerminals,
     remoteCloseTerminal,
+    remoteForkTerminal,
+    remoteForkIntoCopy,
+    remoteCloseOthers,
     removeAdoptedTerminal,
     remoteRenameTerminal,
     remoteRestoreTitle,

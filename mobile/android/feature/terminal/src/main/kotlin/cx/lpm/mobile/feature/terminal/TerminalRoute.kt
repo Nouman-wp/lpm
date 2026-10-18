@@ -75,6 +75,8 @@ internal fun TerminalRoute(
     // A tab lpm reopened in this one's place gets a fresh web view and composer.
     androidx.compose.runtime.key(terminal.id) {
         val controller = rememberTerminalWebController()
+        var findOpen by remember { mutableStateOf(false) }
+        var findQuery by remember { mutableStateOf("") }
         val scope = rememberCoroutineScope()
         val haptics = LocalHapticFeedback.current
         val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -124,6 +126,20 @@ internal fun TerminalRoute(
                     }
                 },
                 connectionBanner = { slots.connectionBanner(key.session) },
+                findBar = {
+                    if (findOpen) {
+                        TerminalFindBar(
+                            query = findQuery,
+                            onQueryChange = { findQuery = it },
+                            controller = controller,
+                            onDone = {
+                                findOpen = false
+                                findQuery = ""
+                                controller.clearFind()
+                            }
+                        )
+                    }
+                },
                 composer = {
                     ComposerRoute(
                         target = ComposerTarget(
@@ -136,6 +152,7 @@ internal fun TerminalRoute(
                         background = state.look.theme.backgroundColor,
                         slots = slots,
                         onHideTerminalKeyboard = controller::hideKeyboard,
+                        onFind = { findOpen = true },
                         onPreviewFile = { path ->
                             navigator.navigate(
                                 FilePreviewKey(key.project, listOf(path), session = key.session)

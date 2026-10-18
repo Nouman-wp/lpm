@@ -87,12 +87,9 @@ struct LinkStatusLabel: View {
 private struct ConnectionSubtitle: ViewModifier {
     @Environment(AppModel.self) private var model
     let title: String
-    let otherwise: String?
 
-    /// While connected the screen keeps its own subtitle; otherwise the
-    /// connection's status takes its place.
     private var subtitle: String? {
-        if model.demoMode || model.link.isReady { return otherwise }
+        if model.demoMode || model.link.isReady { return nil }
         return model.link.statusLine.text
     }
 
@@ -123,7 +120,7 @@ private struct ConnectionSubtitle: ViewModifier {
 extension View {
     /// A pushed screen's title, with the connection's status under it whenever
     /// the Mac isn't connected.
-    func connectionTitle(_ title: String, otherwise subtitle: String? = nil) -> some View {
-        modifier(ConnectionSubtitle(title: title, otherwise: subtitle))
+    func connectionTitle(_ title: String) -> some View {
+        modifier(ConnectionSubtitle(title: title))
     }
 }

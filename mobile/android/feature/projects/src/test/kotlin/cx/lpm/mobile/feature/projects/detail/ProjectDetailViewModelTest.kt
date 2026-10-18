@@ -54,6 +54,18 @@ class ProjectDetailViewModelTest {
     }
 
     @Test
+    fun `the title carries the project's changes while the screen shows`() = runTest {
+        val t = demoSession()
+        val vm = subscribed(t)
+        vm.appear()
+        t.settle()
+        val git = vm.uiState.value.git
+        assertEquals(4, git?.files?.size)
+        assertTrue((git?.linesAdded ?: 0) > 0)
+        vm.disappear()
+    }
+
+    @Test
     fun `a service toggle spins until the service moves`() = runTest {
         val t = demoSession()
         val vm = subscribed(t)

@@ -44,6 +44,9 @@ data class TerminalEnding(
         }
 }
 
+/** A tab closed on this phone that can still be brought back, and where it sat. */
+data class PendingTabClose(val tab: TerminalInfo, val index: Int)
+
 data class TerminalsState(
     /** project → its terminals, in the desktop's tab order. */
     val terminals: Map<String, List<TerminalInfo>> = emptyMap(),
@@ -62,7 +65,12 @@ data class TerminalsState(
     /** terminal id → how it ended, for screens still showing its last output. */
     val endedTerminals: Map<String, TerminalEnding> = emptyMap(),
     /** Projects with a new terminal or run action in flight: show a placeholder row. */
-    val creatingTerminals: Set<String> = emptySet()
+    val creatingTerminals: Set<String> = emptySet(),
+    /**
+     * A tab closed on this phone that can still be undone: hidden here, not yet
+     * closed on the Mac. One at a time; the next close sends this one on.
+     */
+    val pendingTabClose: PendingTabClose? = null
 ) {
     /** project → terminal id → tab name, for naming agent rows on Activity. */
     val terminalTitles: Map<String, Map<String, String>>

@@ -245,6 +245,7 @@ final class LpmClient: NSObject {
     static let agentLaunchFeature = "agentLaunch"
     static let agentSessionsFeature = "agentSessions"
     static let listDirFeature = "listDir"
+    static let tabMenuFeature = "tabMenu"
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -483,7 +484,7 @@ final class LpmClient: NSObject {
                 "t": "ready", "serverId": DemoServer.serverId, "serverName": DemoServer.serverName,
                 "features": [ChunkedUpload.feature, Self.serviceLogsWatchFeature, Self.agentAnswersFeature,
                              Self.restartTerminalFeature, Self.agentLaunchFeature, Self.agentSessionsFeature,
-                             Self.listDirFeature],
+                             Self.listDirFeature, Self.tabMenuFeature],
             ]))
         }
     }
@@ -846,7 +847,9 @@ final class LpmClient: NSObject {
 
     func requestProjects() { send(Wire.projects()) }
     func requestSidebar() { send(Wire.sidebar()) }
-    func requestStats(days: Int) { send(Wire.stats(days: days)) }
+    func requestStats(days: Int, machine: String? = nil, fresh: Bool = false) {
+        send(Wire.stats(days: days, machine: machine, fresh: fresh))
+    }
     func requestLimits() { send(Wire.limits()) }
     func requestSpeech(reqId: String, text: String) { send(Wire.ttsSpeak(reqId: reqId, text: text)) }
     func requestTerminals(project: String) { send(Wire.terminals(project: project)) }
@@ -943,6 +946,12 @@ final class LpmClient: NSObject {
     }
     func pinTerminal(project: String, id: String) { send(Wire.pinTerminal(project: project, id: id)) }
     func restartTerminal(project: String, id: String) { send(Wire.restartTerminal(project: project, id: id)) }
+    func forkTerminal(project: String, id: String) { send(Wire.forkTerminal(project: project, id: id)) }
+    func forkTerminalCopy(project: String, id: String) { send(Wire.forkTerminalCopy(project: project, id: id)) }
+    func titleTerminal(project: String, id: String) { send(Wire.titleTerminal(project: project, id: id)) }
+    func closeOtherTerminals(project: String, id: String) {
+        send(Wire.closeOtherTerminals(project: project, id: id))
+    }
     func reorderTerminals(project: String, order: [String]) {
         send(Wire.reorderTerminals(project: project, order: order))
     }

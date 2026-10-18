@@ -16,7 +16,8 @@ fun LpmClient.requestProjects() = send(Wire.projects())
 
 fun LpmClient.requestSidebar() = send(Wire.sidebar())
 
-fun LpmClient.requestStats(days: Int) = send(Wire.stats(days))
+fun LpmClient.requestStats(days: Int, machine: String? = null, fresh: Boolean = false) =
+    send(Wire.stats(days, machine, fresh))
 
 fun LpmClient.requestLimits() = send(Wire.limits())
 
@@ -96,6 +97,16 @@ fun LpmClient.renameTerminal(project: String, id: String, label: String) =
 fun LpmClient.pinTerminal(project: String, id: String) = send(Wire.pinTerminal(project, id))
 
 fun LpmClient.restartTerminal(project: String, id: String) = send(Wire.restartTerminal(project, id))
+
+fun LpmClient.forkTerminal(project: String, id: String) = send(Wire.forkTerminal(project, id))
+
+fun LpmClient.forkTerminalCopy(project: String, id: String) =
+    send(Wire.forkTerminalCopy(project, id))
+
+fun LpmClient.titleTerminal(project: String, id: String) = send(Wire.titleTerminal(project, id))
+
+fun LpmClient.closeOtherTerminals(project: String, id: String) =
+    send(Wire.closeOtherTerminals(project, id))
 
 fun LpmClient.reorderTerminals(project: String, order: List<String>) =
     send(Wire.reorderTerminals(project, order))

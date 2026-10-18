@@ -98,6 +98,10 @@ struct DemoWorld {
 
     // MARK: Terminals
 
+    /// The title the demo's Claude conversation would have; a tab that doesn't
+    /// show it offers "Use Conversation Title".
+    static let conversationTitle = "Two-step checkout"
+
     struct Terminal {
         var id: String
         var label: String
@@ -668,10 +672,13 @@ extension DemoWorld {
     }
 
     func terminalDict(_ t: Terminal) -> [String: Any] {
-        [
+        let agent = t.cli == "claude"
+        return [
             "id": t.id, "label": t.label, "project": t.project,
             "cols": t.cols, "rows": t.rows, "remote": t.remote,
             "pinned": t.pinned, "emoji": t.emoji, "cli": t.cli,
+            "canFork": agent, "canForkCopy": agent && !t.remote,
+            "canTitle": agent && t.label != Self.conversationTitle,
         ]
     }
 

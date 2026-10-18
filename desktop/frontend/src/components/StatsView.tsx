@@ -1,14 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LoaderCircle, RefreshCw } from "lucide-react";
-import { AgentUsageStats } from "../../bridge/commands";
-import type { AgentUsageStats as AgentUsageStatsData } from "../types";
+import { AgentUsageMachines } from "../../bridge/commands";
+import type { AgentUsageStats, MachinesUsage, UsageMachine } from "../types";
 import { StatTiles } from "./stats/StatTiles";
 import { TokenActivityChart } from "./stats/TokenActivityChart";
 import { BreakdownPanel } from "./stats/BreakdownPanel";
 import { ProjectsPanel } from "./stats/ProjectsPanel";
 import { RecentSessionsPanel } from "./stats/RecentSessionsPanel";
 import { StatsSkeleton } from "./stats/StatsSkeleton";
+import { ComputerMenu } from "./stats/ComputerMenu";
 import { distinctModelCount, providerMeta } from "./stats/statsDerive";
+import {
+  ALL_MACHINES,
+  LOCAL_MACHINE,
+  isCounted,
+  machineNames,
+  machinesNoun,
+  statsSubtitle,
+} from "./stats/statsMachines";
 import { MACHINE } from "../machineWords";
 
 const PERIODS = [
@@ -20,21 +29,33 @@ const PERIODS = [
 
 export function StatsView() {
   const [days, setDays] = useState(30);
-  const [stats, setStats] = useState<AgentUsageStatsData | null>(null);
+  const [machine, setMachine] = useState(ALL_MACHINES);
+  const [stats, setStats] = useState<AgentUsageStats | null>(null);
+  const [machines, setMachines] = useState<UsageMachine[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // A switch of period or computer retires the read still in flight, so a slow
+  // answer for the old pick never lands over the new one.
+  const latest = useRef(0);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      setStats((await AgentUsageStats(days)) as AgentUsageStatsData);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setLoading(false);
-    }
-  }, [days]);
+  const load = useCallback(
+    async (fresh = false) => {
+      const mine = ++latest.current;
+      setLoading(true);
+      setError("");
+      try {
+        const usage = (await AgentUsageMachines(days, machine, fresh)) as MachinesUsage;
+        if (mine !== latest.current) return;
+        setStats(usage.stats);
+        setMachines(usage.machines);
+      } catch (cause) {
+        if (mine === latest.current) setError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        if (mine === latest.current) setLoading(false);
+      }
+    },
+    [days, machine],
+  );
 
   useEffect(() => {
     void load();
@@ -45,6 +66,15 @@ export function StatsView() {
     return days === 0 ? values.slice(-28) : values;
   }, [stats, days]);
   const totalFiles = stats?.sources.reduce((sum, source) => sum + source.files, 0) ?? 0;
+  const names = useMemo(() => machineNames(machines), [machines]);
+  const several = machines.length > 1 && machine !== LOCAL_MACHINE;
+  const noun = machinesNoun(machines);
+  const filesWhere =
+    machine === ALL_MACHINES
+      ? `on ${machines.filter(isCounted).length} ${noun.many}`
+      : names[machine]
+        ? `on ${names[machine]}`
+        : "";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -52,9 +82,19 @@ export function StatsView() {
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold tracking-tight">Stats</h1>
           <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-            Local token usage across your LPM projects
+            {statsSubtitle(machine, machines)}
           </p>
         </div>
+        {machines.length > 1 && (
+          <ComputerMenu
+            machines={machines}
+            selected={machine}
+            onSelect={(id) => {
+              setStats(null);
+              setMachine(id);
+            }}
+          />
+        )}
         <div className="flex items-center rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-0.5">
           {PERIODS.map((period) => (
             <button
@@ -76,7 +116,7 @@ export function StatsView() {
           ))}
         </div>
         <button
-          onClick={() => void load()}
+          onClick={() => void load(true)}
           disabled={loading}
           aria-label="Refresh stats"
           className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border)] text-[var(--text-muted)] transition-colors duration-[120ms] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:opacity-50"
@@ -146,14 +186,26 @@ export function StatsView() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <ProjectsPanel projects={stats.projects} days={days} />
-                  <RecentSessionsPanel sessions={stats.recentSessions} days={days} />
+                  <RecentSessionsPanel
+                    sessions={stats.recentSessions}
+                    days={days}
+                    machineNames={names}
+                  />
                 </div>
               </>
             )}
 
             <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
-              <span>Usage metadata stays on {MACHINE.thisMachine}. Prompts and responses are not included.</span>
-              <span>{totalFiles.toLocaleString()} local history files scanned · SSH projects excluded</span>
+              <span>
+                {several
+                  ? `Each ${noun.one} reads its own history and shares only usage numbers.`
+                  : `Usage metadata stays on ${MACHINE.thisMachine}.`}{" "}
+                Prompts and responses are not included.
+              </span>
+              <span>
+                {totalFiles.toLocaleString()} {several ? "" : "local "}history files scanned
+                {several && filesWhere ? ` ${filesWhere}` : ""} · SSH projects excluded
+              </span>
             </div>
           </div>
         )}

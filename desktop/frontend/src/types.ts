@@ -291,6 +291,9 @@ export interface AgentSessionUsage {
   startedAt: number;
   lastAt: number;
   tokens: TokenUsage;
+  // The computer that ran it ("local" or a paired one's slug), set when several
+  // computers' sessions are listed together.
+  machine?: string;
 }
 
 export interface UsageSource {
@@ -309,6 +312,26 @@ export interface AgentUsageStats {
   daily: DailyUsage[];
   recentSessions: AgentSessionUsage[];
   sources: UsageSource[];
+}
+
+// A computer the Stats page can show: this one ("local") or a paired one.
+export interface UsageMachine {
+  id: string;
+  name: string;
+  platform: string;
+  headless?: boolean;
+  local: boolean;
+  connected: boolean;
+  // Its total for the period, once read.
+  totalTokens?: number;
+  // Why its stats couldn't be read, leaving it out of the total.
+  error?: string;
+}
+
+export interface MachinesUsage {
+  machine: string;
+  stats: AgentUsageStats;
+  machines: UsageMachine[];
 }
 
 // A user-created sidebar folder. Persisted in ~/.lpm/groups.json; `members` are

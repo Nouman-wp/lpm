@@ -1,0 +1,71 @@
+# An agent tab offers the rest of the desktop's tab menu: its conversation title,
+# a fork here or into a copy of the project, and closing the other tabs.
+appId: cx.lpm.mobile
+name: 134-tab-menu
+tags: [demo, projects, terminal]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: ".*Claude"
+    timeout: 5000
+- longPressOn: ".*Claude"
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible: "Use Conversation Title"
+- assertVisible: "Fork Session"
+- assertVisible: "Fork into Copy"
+- assertVisible: "Close Other Tabs"
+- takeScreenshot: 1-tab-menu
+- tapOn: "Use Conversation Title"
+- extendedWaitUntil:
+    visible: ".*Two-step checkout"
+    timeout: 5000
+# Fork Session opens the new tab, carrying on the conversation.
+- longPressOn: ".*Two-step checkout"
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn: "Fork Session"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 15000
+- runFlow: subflows/back.yaml
+- extendedWaitUntil:
+    visible: "Terminal 1"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-forked
+# Fork into Copy asks first, as the desktop does.
+- longPressOn:
+    text: ".*Two-step checkout"
+    index: 0
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn: "Fork into Copy"
+- extendedWaitUntil:
+    visible: "Fork into a Copy"
+    timeout: 5000
+- tapOn: "Create Copy"
+# Close Other Tabs asks first, then leaves only the tab it was opened on.
+- longPressOn: "Terminal 1"
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn: "Close Other Tabs"
+- extendedWaitUntil:
+    visible: "Close 2 Other Tabs?"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 3-close-others
+- tapOn: "Close 2 Tabs"
+- extendedWaitUntil:
+    notVisible: ".*Two-step checkout"
+    timeout: 5000
+- assertVisible: "Terminal 1"
+- assertVisible: "New tab"
+# The copy the fork went into joins the projects list.
+- runFlow: subflows/back.yaml
+- extendedWaitUntil:
+    visible: "storefront-2"
+    timeout: 10000

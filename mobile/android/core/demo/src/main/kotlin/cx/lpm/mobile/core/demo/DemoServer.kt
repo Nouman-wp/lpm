@@ -36,6 +36,7 @@ class DemoServer(
     init {
         registerProjectsHandlers()
         registerTerminalsHandlers()
+        registerTabMenuHandlers()
         registerGitHandlers()
         registerGitAutoHandlers()
         registerAutoPullHandlers()

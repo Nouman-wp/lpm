@@ -6,6 +6,7 @@ import cx.lpm.mobile.core.data.session.GenerationTimeout
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.model.AgentStats
+import cx.lpm.mobile.core.model.UsageMachine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,13 +19,20 @@ data class StatsState(
     val loading: Boolean = false,
     val error: String? = null,
     /** The selected period: 1, 7 or 30 days, 0 = all time. */
-    val days: Int = 30
+    val days: Int = 30,
+    /** Whose usage: "all", "local" or a paired computer's slug. */
+    val machine: String = ALL_MACHINES,
+    /** The computers [machine] is picked from, this Mac first. */
+    val machines: List<UsageMachine> = emptyList()
 )
 
+const val ALL_MACHINES = "all"
+const val LOCAL_MACHINE = "local"
+
 /**
- * Local agent token-usage stats (iOS `AppModel` stats, the desktop Stats page). It
- * also hands the usage rows their `days: 1` answers: one `stats` reply serves both,
- * told apart by the period it echoes.
+ * Agent token-usage stats (iOS `AppModel` stats, the desktop Stats page). It also
+ * hands the usage rows their `days: 1` answers for this Mac: one `stats` reply serves
+ * both, told apart by the period and computer it echoes.
  */
 class StatsStore(private val session: MacSession) : SessionStore {
     private val mutable = MutableStateFlow(StatsState())
@@ -62,13 +70,25 @@ class StatsStore(private val session: MacSession) : SessionStore {
     }
 
     /**
-     * Load a period (1/7/30 days, 0 = all time). Marks the screen active so a reconnect
-     * re-issues the query, and dims rather than blanks while reloading.
+     * Load a period (1/7/30 days, 0 = all time) and, when given, a computer to show.
+     * Marks the screen active so a reconnect re-issues the query, and dims rather than
+     * blanks while reloading. [fresh] scans again instead of reusing the Mac's read
+     * from the last minute.
      */
-    fun load(days: Int) {
+    fun load(days: Int, machine: String? = null, fresh: Boolean = false) {
         active = true
-        mutable.update { it.copy(days = days, loading = true, error = null) }
-        session.client?.requestStats(days)
+        mutable.update {
+            // Another computer's numbers aren't a dimmed version of these ones.
+            val switched = machine != null && machine != it.machine
+            it.copy(
+                days = days,
+                machine = machine ?: it.machine,
+                stats = if (switched) null else it.stats,
+                loading = true,
+                error = null
+            )
+        }
+        session.client?.requestStats(days, state.value.machine, fresh)
         // If the scan never answers (an old Mac that doesn't know this message, or a
         // reply lost while the socket stayed up), give up so the screen shows an error
         // instead of an endless skeleton. A reload keeps its data; only the first,
@@ -92,7 +112,11 @@ class StatsStore(private val session: MacSession) : SessionStore {
 
     /** Pull-to-refresh: re-request when live, else reconnect. */
     suspend fun refresh() {
-        if (session.state.value.isReady) load(state.value.days) else session.reconnectIfNeeded()
+        if (session.state.value.isReady) {
+            load(state.value.days, fresh = true)
+        } else {
+            session.reconnectIfNeeded()
+        }
         delay(REFRESH_SETTLE_MS)
     }
 
@@ -103,13 +127,19 @@ class StatsStore(private val session: MacSession) : SessionStore {
 
     private fun receive(stats: AgentStats?, error: String?) {
         if (stats != null) {
-            // The usage rows ask for today alone; the echoed period tells their answer
-            // apart from the Stats screen's.
-            if (stats.days == 1) usage.applyToday(stats)
-            // Only the current period may land; a superseded one is stale.
+            // The usage rows ask for this Mac's today alone; the echoed period and
+            // computer tell their answer apart from the Stats screen's.
+            if (stats.days == 1 && (stats.machine ?: LOCAL_MACHINE) == LOCAL_MACHINE) {
+                usage.applyToday(stats)
+            }
+            // Only the current period and computer may land; a superseded one is stale.
+            // A Mac that predates picking echoes no computer.
             if (stats.days != state.value.days) return
+            if (stats.machine != null && stats.machine != state.value.machine) return
             timeout.cancel(STATS)
-            mutable.update { it.copy(stats = stats, error = null, loading = false) }
+            mutable.update {
+                it.copy(stats = stats, machines = stats.machines, error = null, loading = false)
+            }
         } else if (state.value.loading) {
             // A failure echoes no period; only a screen waiting on one claims it.
             timeout.cancel(STATS)

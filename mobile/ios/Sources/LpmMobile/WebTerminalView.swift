@@ -52,6 +52,8 @@ struct WebTerminalView: UIViewRepresentable {
     var theme: TerminalTheme = TerminalPrefs.defaultTheme
     /// A file path was tapped: its readings (most likely first) and `:line`.
     var onOpenPath: ((_ paths: [String], _ line: Int) -> Void)? = nil
+    /// Find in this terminal, when the screen offers it.
+    var find: TerminalFind? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(model: model, termId: term.id) }
 
@@ -63,6 +65,7 @@ struct WebTerminalView: UIViewRepresentable {
         controller.add(context.coordinator, name: "openPath")
         controller.add(context.coordinator, name: "openURL")
         controller.add(context.coordinator, name: "extent")
+        controller.add(context.coordinator, name: "find")
 
         let config = WKWebViewConfiguration()
         config.userContentController = controller
@@ -86,6 +89,8 @@ struct WebTerminalView: UIViewRepresentable {
         web.hideInputAccessoryBar()
         web.navigationDelegate = context.coordinator
         context.coordinator.web = web
+        context.coordinator.find = find
+        find?.web = web
 
         // Assets ship as a preserved "web/" folder; grant read access to the whole
         // folder so xterm's relative script/css loads resolve.
@@ -126,7 +131,9 @@ struct WebTerminalView: UIViewRepresentable {
 
     static func dismantleUIView(_ web: WKWebView, coordinator: Coordinator) {
         let c = web.configuration.userContentController
-        ["input", "resize", "ready", "openPath", "openURL", "extent"].forEach { c.removeScriptMessageHandler(forName: $0) }
+        ["input", "resize", "ready", "openPath", "openURL", "extent", "find"].forEach {
+            c.removeScriptMessageHandler(forName: $0)
+        }
         coordinator.model?.closeTerminalScreen(coordinator.termId, key: coordinator)
     }
 
@@ -134,6 +141,7 @@ struct WebTerminalView: UIViewRepresentable {
         weak var model: AppModel?
         let termId: String
         weak var web: WKWebView?
+        weak var find: TerminalFind?
         var hiddenInsets = EdgeInsets()
         var textExtent: TextExtent?
         var fontSize = TerminalPrefs.defaultFontSize
@@ -360,6 +368,10 @@ struct WebTerminalView: UIViewRepresentable {
                 if let d = msg.body as? [String: Any], let bottom = d["bottom"] as? Double {
                     textExtent?.bottom = CGFloat(bottom)
                     textExtent?.fillsOnGrow = d["fills"] as? Bool ?? true
+                }
+            case "find":
+                if let d = msg.body as? [String: Any] {
+                    find?.found(index: d["index"] as? Int ?? -1, count: d["count"] as? Int ?? 0)
                 }
             case "openURL":
                 // The text comes from whatever the terminal printed: open web links only.

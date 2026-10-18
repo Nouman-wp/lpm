@@ -257,7 +257,7 @@ extension DemoServer {
         }
     }
 
-    private func createDuplicate(of source: String, named copyName: String, label: String,
+    func createDuplicate(of source: String, named copyName: String, label: String,
                                  excludeUncommitted: Bool, pullLatest: Bool,
                                  groupName: String?, runCmd: String) {
         guard world.project(named: source) != nil else { return }
@@ -724,7 +724,7 @@ extension DemoServer {
         return out
     }
 
-    private func uniqueProjectName(_ base: String, reserved: Set<String> = []) -> String {
+    func uniqueProjectName(_ base: String, reserved: Set<String> = []) -> String {
         let root = slug(base)
         var name = root
         var n = 2

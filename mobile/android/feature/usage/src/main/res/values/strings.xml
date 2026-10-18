@@ -47,6 +47,26 @@
     <string name="stats_session_meta">%1$s · %2$s</string>
     <string name="stats_privacy">Usage metadata stays on your Mac. Prompts and responses aren\'t included.</string>
     <string name="stats_files_scanned">%1$s local history files scanned</string>
+    <string name="stats_files_scanned_on">%1$s history files scanned on %2$s</string>
+    <string name="stats_session_meta_machine">%1$s · %2$s · %3$s</string>
+    <string name="stats_privacy_macs">Each Mac reads its own history and shares only usage numbers. Prompts and responses aren\'t included.</string>
+    <string name="stats_privacy_computers">Each computer reads its own history and shares only usage numbers. Prompts and responses aren\'t included.</string>
+    <string name="stats_machines_all_macs">All Macs</string>
+    <string name="stats_machines_all_computers">All computers</string>
+    <string name="stats_machines_added">Added together</string>
+    <string name="stats_machines_some_added">%1$d of %2$d added together</string>
+    <string name="stats_machine_online">Online</string>
+    <string name="stats_machine_offline">Offline</string>
+    <string name="stats_machine_failed">Couldn\'t read its stats</string>
+    <string name="stats_machine_with_total">%1$s · %2$s</string>
+    <plurals name="stats_macs">
+        <item quantity="one">%1$d Mac</item>
+        <item quantity="other">%1$d Macs</item>
+    </plurals>
+    <plurals name="stats_computers">
+        <item quantity="one">%1$d computer</item>
+        <item quantity="other">%1$d computers</item>
+    </plurals>
     <string name="stats_empty_title">No local agent usage found</string>
     <string name="stats_empty_text">lpm reads token usage from Claude Code and Codex session histories. Usage appears here after an agent runs inside a local project.</string>
     <string name="stats_error_title">Couldn\'t load stats</string>

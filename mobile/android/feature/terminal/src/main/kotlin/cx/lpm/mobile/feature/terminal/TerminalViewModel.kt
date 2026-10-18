@@ -15,6 +15,7 @@ import cx.lpm.mobile.core.data.session.SessionState
 import cx.lpm.mobile.core.data.terminals.TerminalHooks
 import cx.lpm.mobile.core.data.terminals.TerminalsState
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
+import cx.lpm.mobile.core.data.terminals.closeTerminal
 import cx.lpm.mobile.core.data.terminals.restoredTab
 import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.model.Project

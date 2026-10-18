@@ -360,7 +360,7 @@ export function ProjectDetail({
     } else switchDetailView(view);
   }, [pendingDetailView, selectedProject, project.name, switchDetailView, clearPendingDetailView]);
 
-  // A phone or a paired Mac closes / renames / pins / reorders a tab, addressed
+  // A phone or a paired Mac closes / renames / pins / reorders / forks a tab, addressed
   // by id. Applied where the project is, on screen or not, so the person at this
   // Mac keeps their view. Same nonce ref-latch as run-action so StrictMode can't
   // double-fire.
@@ -384,6 +384,9 @@ export function ProjectDetail({
     else if (op === "pin") terminalRef.current?.remoteTogglePin(id);
     else if (op === "reorder") terminalRef.current?.remoteReorderTerminals(order);
     else if (op === "restart") terminalRef.current?.remoteRestartTerminal(id);
+    else if (op === "fork") terminalRef.current?.remoteForkTerminal(id);
+    else if (op === "forkCopy") terminalRef.current?.remoteForkIntoCopy(id);
+    else if (op === "closeOthers") terminalRef.current?.remoteCloseOthers(id);
   }, [pendingRemoteTerminalOp, project.name, clearPendingRemoteTerminalOp]);
 
   // A cross-project view asked to put one of our terminals on screen. The store

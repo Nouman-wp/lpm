@@ -1776,6 +1776,23 @@ fn dispatch_invoke(
         });
         return;
     }
+    // A Mac's Stats page counting this machine in. The scan of its history files
+    // takes seconds, so it runs off the socket thread, and here rather than on a
+    // page a headless host has none of.
+    if cmd == "agent_usage_stats" {
+        let days = args.get("days").and_then(Value::as_i64).unwrap_or(30);
+        let out = out.clone();
+        std::thread::spawn(move || {
+            let stats = crate::agent_usage::agent_usage_stats(days)
+                .and_then(|stats| serde_json::to_value(stats).map_err(|e| e.to_string()));
+            let frame = match stats {
+                Ok(value) => result_frame(&req_id, true, value),
+                Err(e) => result_frame(&req_id, false, Value::String(e)),
+            };
+            let _ = out.try_send(frame);
+        });
+        return;
+    }
     if let Some(r) = fast_path(app, cmd, &args) {
         let frame = match r {
             Ok(value) => result_frame(&req_id, true, value),

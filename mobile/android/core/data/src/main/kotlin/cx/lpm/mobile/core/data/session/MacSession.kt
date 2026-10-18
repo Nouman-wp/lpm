@@ -219,6 +219,7 @@ class MacSession internal constructor(
 
     /** The app came on screen or went away; the Mac notifies only while it's away. */
     fun setInForeground(active: Boolean) {
+        if (!active) stores.forEach { it.flushPending() }
         inForeground = active
         client?.inForeground = active
         visitSession.value?.setInForeground(active)
@@ -252,6 +253,7 @@ class MacSession internal constructor(
      * credentials are untouched.
      */
     fun resetSessionState() {
+        stores.forEach { it.flushPending() }
         visits.endVisit()
         client?.disconnect()
         client = null

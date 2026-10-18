@@ -3,6 +3,7 @@ plugins {
 }
 
 dependencies {
+    implementation(projects.core.ui)
     implementation(projects.core.web)
     implementation(libs.androidx.activity.compose)
 

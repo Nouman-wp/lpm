@@ -19,6 +19,9 @@ export function AckTerminalData(id, charCount) {
 export function AgentUsageStats(days) {
   return invoke("agent_usage_stats", { days });
 }
+export function AgentUsageMachines(days, machine, fresh) {
+  return invoke("agent_usage_machines", { days, machine, fresh });
+}
 export function AgentLimits() {
   return invoke("agent_limits");
 }

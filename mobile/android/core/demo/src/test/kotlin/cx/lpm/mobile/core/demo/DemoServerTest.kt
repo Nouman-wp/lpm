@@ -68,6 +68,7 @@ class DemoServerTest {
         "runAction", "runActionBackground", "actionBgOutput", "cancelActionBackground",
         "backgroundRuns", "terminals", "sub", "unsub", "claim", "in", "resize", "newTerminal",
         "closeTerminal", "renameTerminal", "pinTerminal", "reorderTerminals", "restartTerminal",
+        "forkTerminal", "forkTerminalCopy", "titleTerminal", "closeOtherTerminals",
         "slash", "mentions",
         "upload", "composerActions", "composerDraft", "transform", "history", "historyAdd", "git",
         "gitDiff", "gitDiffs", "gitCommit", "gitPush", "gitPull", "gitFetch", "gitBranches",

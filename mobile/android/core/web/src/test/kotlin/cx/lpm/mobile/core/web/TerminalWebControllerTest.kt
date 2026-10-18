@@ -46,6 +46,28 @@ class TerminalWebControllerTest {
     }
 
     @Test
+    fun findAsksThePageAndKeepsWhatItReports() {
+        send("ready", "{}")
+        surface.scripts.clear()
+
+        controller.find("dev/store", FindStep.Type)
+        controller.find("dev/store", FindStep.Prev)
+        val query = surface.scripts[0].substringAfter("('").substringBefore("'")
+        assertEquals("dev/store", String(Base64.getDecoder().decode(query), Charsets.UTF_8))
+        assertTrue(surface.scripts[0].endsWith(", 'type')"))
+        assertTrue(surface.scripts[1].endsWith(", 'prev')"))
+
+        send("find", """{"index":2,"count":5}""")
+        assertEquals(2, controller.findIndex)
+        assertEquals(5, controller.findCount)
+
+        controller.clearFind()
+        assertEquals("window.lpmFindClear()", surface.scripts.last())
+        assertEquals(-1, controller.findIndex)
+        assertEquals(0, controller.findCount)
+    }
+
+    @Test
     fun readyAppliesInsetsFontAndThemeBeforeThePendingSeed() {
         controller.applyHiddenInsets(0, 120)
         controller.applyFontSize(14)

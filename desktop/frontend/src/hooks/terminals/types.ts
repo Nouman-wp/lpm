@@ -72,6 +72,9 @@ export interface UseTerminalsResult {
   toggleTabPinned: (paneId: string, tabIdx: number) => void;
   reorderTerminals: (paneId: string, order: string[]) => void;
   remoteCloseTerminal: (termId: string) => void;
+  remoteForkTerminal: (termId: string) => void;
+  remoteForkIntoCopy: (termId: string) => void;
+  remoteCloseOthers: (termId: string) => void;
   removeAdoptedTerminal: (termId: string) => void;
   remoteRenameTerminal: (termId: string, label: string, emoji?: string) => void;
   remoteRestoreTitle: (termId: string) => void;

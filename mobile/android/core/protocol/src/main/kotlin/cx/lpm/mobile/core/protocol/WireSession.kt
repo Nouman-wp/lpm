@@ -125,7 +125,12 @@ sealed interface WireSession {
     /** Ask the Mac to have one of its machines arm a pairing code for this phone. */
     fun machinePair(slug: String): String = frame("machinePair") { put("slug", slug) }
 
-    fun stats(days: Int): String = frame("stats") { put("days", days) }
+    /** [machine]: "all", "local" or a paired computer's slug; none = this Mac alone. */
+    fun stats(days: Int, machine: String? = null, fresh: Boolean = false): String = frame("stats") {
+        put("days", days)
+        if (machine != null) put("machine", machine)
+        if (fresh) put("fresh", true)
+    }
 
     fun limits(): String = frame("limits")
 

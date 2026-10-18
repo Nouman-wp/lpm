@@ -25,6 +25,12 @@ interface SessionStore {
      */
     fun onConnectionReset() = Unit
 
+    /**
+     * Send what is waiting on an undo now: the app is leaving the screen, where it
+     * may be ended any time, or the session is leaving this Mac.
+     */
+    fun flushPending() = Unit
+
     /** Builds this store for one session. */
     fun interface Factory {
         fun create(session: MacSession): SessionStore

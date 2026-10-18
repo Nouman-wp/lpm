@@ -88,14 +88,19 @@ data class UsageDaily(
     }
 }
 
-/** One recent agent session (`startedAt`/`lastAt` are unix **milliseconds**). */
+/**
+ * One recent agent session (`startedAt`/`lastAt` are unix **milliseconds**). [machine]
+ * is the computer that ran it ("local" or a paired one's slug), set when several
+ * computers' sessions are listed together.
+ */
 data class UsageSession(
     val provider: String,
     val project: String,
     val model: String,
     val startedAt: Long,
     val lastAt: Long,
-    val tokens: UsageTokens
+    val tokens: UsageTokens,
+    val machine: String? = null
 ) {
     val id: String get() = provider + "\n" + project + "\n" + model + "\n" + startedAt
 
@@ -106,7 +111,40 @@ data class UsageSession(
             model = o.string("model").orEmpty(),
             startedAt = o.stat("startedAt"),
             lastAt = o.stat("lastAt"),
-            tokens = o.tokens("tokens")
+            tokens = o.tokens("tokens"),
+            machine = o.string("machine")
+        )
+    }
+}
+
+/**
+ * A computer the Stats screen can show: the Mac itself ("local") or one it pairs
+ * with, with its total for the period once read. [error] says why it is out of
+ * the "all" total.
+ */
+data class UsageMachine(
+    val id: String,
+    val name: String,
+    val platform: String,
+    val headless: Boolean?,
+    val local: Boolean,
+    val connected: Boolean,
+    val totalTokens: Long?,
+    val error: String?
+) {
+    val isLinuxHost: Boolean get() = platform == "linux" && headless != false
+    val isCounted: Boolean get() = connected && error == null
+
+    companion object {
+        fun parse(o: JsonObject): UsageMachine = UsageMachine(
+            id = o.string("id").orEmpty(),
+            name = o.string("name").orEmpty(),
+            platform = o.string("platform").orEmpty(),
+            headless = o.bool("headless"),
+            local = o.bool("local") ?: false,
+            connected = o.bool("connected") ?: false,
+            totalTokens = o.numberLong("totalTokens"),
+            error = o.string("error")
         )
     }
 }
@@ -125,7 +163,9 @@ data class UsageSource(val provider: String, val files: Int) {
 
 /**
  * The full stats snapshot for a period. `models` drives the cost estimate;
- * `providers`/`projects` the breakdowns; `daily` the chart.
+ * `providers`/`projects` the breakdowns; `daily` the chart. [machine] is whose usage
+ * it is ("all", "local" or a slug; null from a Mac that predates picking, which only
+ * answers for itself), picked from [machines], this Mac first.
  */
 data class AgentStats(
     val generatedAt: Long,
@@ -137,20 +177,25 @@ data class AgentStats(
     val models: List<UsageBreakdown>,
     val daily: List<UsageDaily>,
     val recentSessions: List<UsageSession>,
-    val sources: List<UsageSource>
+    val sources: List<UsageSource>,
+    val machine: String? = null,
+    val machines: List<UsageMachine> = emptyList()
 ) {
     companion object {
-        fun parse(o: JsonObject): AgentStats = AgentStats(
-            generatedAt = o.stat("generatedAt"),
-            days = o.statInt("days"),
-            sessions = o.statInt("sessions"),
-            totals = o.tokens("totals"),
-            providers = o.list("providers", UsageBreakdown::parse),
-            projects = o.list("projects", UsageBreakdown::parse),
-            models = o.list("models", UsageBreakdown::parse),
-            daily = o.list("daily", UsageDaily::parse),
-            recentSessions = o.list("recentSessions", UsageSession::parse),
-            sources = o.list("sources", UsageSource::parse)
-        )
+        fun parse(o: JsonObject, reply: JsonObject = JsonObject(emptyMap())): AgentStats =
+            AgentStats(
+                generatedAt = o.stat("generatedAt"),
+                days = o.statInt("days"),
+                sessions = o.statInt("sessions"),
+                totals = o.tokens("totals"),
+                providers = o.list("providers", UsageBreakdown::parse),
+                projects = o.list("projects", UsageBreakdown::parse),
+                models = o.list("models", UsageBreakdown::parse),
+                daily = o.list("daily", UsageDaily::parse),
+                recentSessions = o.list("recentSessions", UsageSession::parse),
+                sources = o.list("sources", UsageSource::parse),
+                machine = reply.string("machine"),
+                machines = reply.list("machines", UsageMachine::parse)
+            )
     }
 }

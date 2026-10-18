@@ -49,7 +49,7 @@ internal val sessionParsers = parsers {
     put("pushToken") { o -> Inbound.PushToken(ok = o.ok) }
     put("stats") { o ->
         Inbound.Stats(
-            stats = if (o.ok) AgentStats.parse(o.obj("stats") ?: emptyObject) else null,
+            stats = if (o.ok) AgentStats.parse(o.obj("stats") ?: emptyObject, reply = o) else null,
             error = o.failure("Couldn't load stats.")
         )
     }

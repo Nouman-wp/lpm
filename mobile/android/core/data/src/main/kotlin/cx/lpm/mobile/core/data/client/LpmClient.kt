@@ -358,6 +358,10 @@ class LpmClient internal constructor(
         const val AGENT_SESSIONS_FEATURE = "agentSessions"
         const val LIST_DIR_FEATURE = "listDir"
 
+        // The tab menu's `forkTerminal`, `forkTerminalCopy`, `titleTerminal` and
+        // `closeOtherTerminals`.
+        const val TAB_MENU_FEATURE = "tabMenu"
+
         const val OFFLINE_HINT =
             "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 

@@ -43,7 +43,7 @@ pub(super) fn terminals_frame(app: &AppHandle, hub: &RemoteHub, project: &str) -
 }
 
 /// Records the tab list the frontend just reported and says whether anything a
-/// remote shows — which tabs, their order, names, pins or icons — changed.
+/// remote shows — which tabs, their order, names, pins, icons or menu — changed.
 pub(super) fn note_tree(
     hub: &RemoteHub,
     project: &str,
@@ -62,7 +62,10 @@ pub(super) fn note_tree(
                 item.get("id"),
                 item.get("label"),
                 item.get("pinned"),
-                item.get("emoji")
+                item.get("emoji"),
+                item.get("canFork"),
+                item.get("canForkCopy"),
+                item.get("canTitle")
             ])
         })
         .collect();

@@ -3,18 +3,20 @@ import UIKit
 
 /// A project's screen: the project's open terminals, services, and background
 /// runs as a native list, with a "more" menu in the nav bar for Start/Stop and
-/// actions. Terminal tab actions (Pin / Rename / Close) live
-/// on native swipe gestures and the long-press menu.
+/// actions. Terminal tab actions (Pin / Rename / Close, and Fork and the rest of
+/// the desktop's tab menu) live on native swipe gestures and the long-press menu.
 struct ProjectDetail: View {
     @Environment(AppModel.self) private var model
     let project: Project
     @State private var renaming: TabRename?
-    @State private var closing: TerminalInfo?
+    @State private var forkingIntoCopy: TerminalInfo?
+    @State private var closingOthers: TerminalInfo?
     @State private var openTerminal: TerminalInfo?
     @State private var activeBgRun: BackgroundRunInfo?
     @State private var logsForService: Service?
     @State private var newTabOpen = false
     @State private var usageRest = UsageRest()
+    @State private var barAxis: CGFloat?
 
     // Current project object (fresh status/actions) from the store; falls back to
     // the one we were pushed with.
@@ -42,6 +44,10 @@ struct ProjectDetail: View {
         let mark = live.workStatus?.displayEmoji ?? ""
         return mark.isEmpty ? project.label : "\(mark) \(project.label)"
     }
+    private var status: String {
+        if live.configError != nil { return "Invalid configuration" }
+        return live.crashSummary ?? (live.isUp ? "Running" : "Stopped")
+    }
 
     /// Nothing to list at all: the screen shows the "No Terminals" prompt instead.
     private var isEmpty: Bool {
@@ -65,8 +71,9 @@ struct ProjectDetail: View {
                 ProjectTabsLoadingSection()
             } else if !isEmpty {
                 ProjectTabsSection(project: project.name, terminals: terminals, agents: agentByTerminal,
-                                   creating: creating, renaming: $renaming, closing: $closing,
-                                   onOpen: { openTerminal = $0 }, onNew: newTab)
+                                   creating: creating, renaming: $renaming,
+                                   forkingIntoCopy: $forkingIntoCopy, closingOthers: $closingOthers,
+                                   onOpen: { openTerminal = $0 }, onSpawned: openSpawned, onNew: newTab)
             }
 
             if !live.allServices.isEmpty {
@@ -128,21 +135,20 @@ struct ProjectDetail: View {
         }
         .animation(.default, value: terminalsLoaded)
         .animation(.default, value: creating)
-        .connectionTitle(title, otherwise: live.configError != nil ? "Invalid configuration"
-                         : live.crashSummary ?? (live.isUp ? "Running" : "Stopped"))
+        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).midX } action: { barAxis = $0 }
+        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                ProjectTitle(project: project.name, title: title, status: status, axis: barAxis)
+            }
+        }
+        .followsGitChanges(project.name)
         .topBar { ConnectionStatusBar() }
         .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0, project: live) }
         .tabRenameAlert($renaming)
-        .confirmationDialog(closing.map { "Close “\($0.label)”?" } ?? "",
-                            isPresented: Binding(get: { closing != nil },
-                                                 set: { if !$0 { closing = nil } }),
-                            titleVisibility: .visible, presenting: closing) { t in
-            Button("Close Tab", role: .destructive) { model.closeTerminal(project.name, id: t.id) }
-            Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text("Whatever is running in it stops.")
-        }
+        .tabMenuConfirmations(forkingIntoCopy: $forkingIntoCopy, closingOthers: $closingOthers)
+        .safeAreaInset(edge: .bottom) { UndoCloseToast() }
         .sheet(item: $activeBgRun) { run in
             BackgroundRunSheet(run: run).environment(model)
         }

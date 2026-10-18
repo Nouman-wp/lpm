@@ -89,6 +89,9 @@ class TerminalsStoreTest {
         val store = h.terminals
         store.closeTerminal("storefront", "t2")
         assertEquals(listOf("t1"), store.ids())
+        // It reaches the Mac once the undo window passes.
+        assertEquals(0, socket.sentOf("closeTerminal").size)
+        settle(UNDO_CLOSE_MS)
         assertEquals(1, socket.sentOf("closeTerminal").size)
 
         // A list from before the close can't flash the row back.
@@ -111,6 +114,7 @@ class TerminalsStoreTest {
         settle()
         val store = h.terminals
         store.closeTerminal("storefront", "t2")
+        settle(UNDO_CLOSE_MS)
         socket.terminals("t1")
         settle()
         socket.terminals("t1", "t2")

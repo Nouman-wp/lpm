@@ -46,7 +46,12 @@ enum Wire {
     }
     static func projects() -> String { json(["t": "projects"]) }
     static func sidebar() -> String { json(["t": "sidebar"]) }
-    static func stats(days: Int) -> String { json(["t": "stats", "days": days]) }
+    static func stats(days: Int, machine: String? = nil, fresh: Bool = false) -> String {
+        var o: [String: Any] = ["t": "stats", "days": days]
+        if let machine { o["machine"] = machine }
+        if fresh { o["fresh"] = true }
+        return json(o)
+    }
     static func limits() -> String { json(["t": "limits"]) }
     static func ttsSpeak(reqId: String, text: String) -> String {
         json(["t": "ttsSpeak", "reqId": reqId, "text": text])
@@ -204,6 +209,20 @@ enum Wire {
     /// has "restartTerminal".
     static func restartTerminal(project: String, id: String) -> String {
         json(["t": "restartTerminal", "project": project, "id": id])
+    }
+    /// The tab menu's fork / title / close-others. Only for a Mac whose `features`
+    /// has "tabMenu".
+    static func forkTerminal(project: String, id: String) -> String {
+        json(["t": "forkTerminal", "project": project, "id": id])
+    }
+    static func forkTerminalCopy(project: String, id: String) -> String {
+        json(["t": "forkTerminalCopy", "project": project, "id": id])
+    }
+    static func titleTerminal(project: String, id: String) -> String {
+        json(["t": "titleTerminal", "project": project, "id": id])
+    }
+    static func closeOtherTerminals(project: String, id: String) -> String {
+        json(["t": "closeOtherTerminals", "project": project, "id": id])
     }
     static func reorderTerminals(project: String, order: [String]) -> String {
         json(["t": "reorderTerminals", "project": project, "order": order])
@@ -782,7 +801,7 @@ enum Wire {
                                  error: ok ? nil : (obj["error"] as? String ?? "Couldn't synthesize speech."))
             case "stats":
                 let ok = obj["ok"] as? Bool ?? false
-                return .stats(ok ? AgentStats(obj["stats"] as? [String: Any] ?? [:]) : nil,
+                return .stats(ok ? AgentStats(obj["stats"] as? [String: Any] ?? [:], reply: obj) : nil,
                               error: ok ? nil : (obj["error"] as? String ?? "Couldn't load stats."))
             case "limits":
                 let ok = obj["ok"] as? Bool ?? false
@@ -1805,6 +1824,10 @@ struct TerminalInfo: Identifiable, Hashable {
     // The AI CLI this terminal runs (e.g. "claude"), as detected by the desktop;
     // empty for a plain shell or an older server.
     let cli: String
+    // What the desktop's tab menu offers for this tab; false from an older server.
+    let canFork: Bool
+    let canForkCopy: Bool
+    let canTitle: Bool
 
     init(_ o: [String: Any]) {
         id = o["id"] as? String ?? ""
@@ -1817,6 +1840,9 @@ struct TerminalInfo: Identifiable, Hashable {
         pinned = o["pinned"] as? Bool ?? false
         emoji = o["emoji"] as? String ?? ""
         cli = o["cli"] as? String ?? ""
+        canFork = o["canFork"] as? Bool ?? false
+        canForkCopy = o["canForkCopy"] as? Bool ?? false
+        canTitle = o["canTitle"] as? Bool ?? false
     }
 }
 
@@ -2172,6 +2198,9 @@ struct UsageSession: Identifiable {
     let startedAt: Int
     let lastAt: Int
     let tokens: UsageTokens
+    /// The computer that ran it ("local" or a paired one's slug), set when
+    /// several computers' sessions are listed together.
+    let machine: String?
 
     var id: String { provider + "\n" + project + "\n" + model + "\n" + String(startedAt) }
 
@@ -2182,6 +2211,35 @@ struct UsageSession: Identifiable {
         startedAt = statInt(o, "startedAt")
         lastAt = statInt(o, "lastAt")
         tokens = UsageTokens(o["tokens"] as? [String: Any] ?? [:])
+        machine = o["machine"] as? String
+    }
+}
+
+/// A computer the Stats screen can show: the Mac itself ("local") or one it
+/// pairs with, with its total for the period once read.
+struct UsageMachine: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let platform: String
+    let headless: Bool?
+    let local: Bool
+    let connected: Bool
+    let totalTokens: Int?
+    /// Why its stats couldn't be read, leaving it out of the "all" total.
+    let error: String?
+
+    var isLinuxHost: Bool { platform == "linux" && headless != false }
+    var isCounted: Bool { connected && error == nil }
+
+    init(_ o: [String: Any]) {
+        id = o["id"] as? String ?? ""
+        name = o["name"] as? String ?? ""
+        platform = o["platform"] as? String ?? ""
+        headless = o["headless"] as? Bool
+        local = o["local"] as? Bool ?? false
+        connected = o["connected"] as? Bool ?? false
+        totalTokens = (o["totalTokens"] as? NSNumber)?.intValue
+        error = o["error"] as? String
     }
 }
 
@@ -2211,8 +2269,13 @@ struct AgentStats {
     let daily: [UsageDaily]
     let recentSessions: [UsageSession]
     let sources: [UsageSource]
+    /// Whose usage this is ("all", "local" or a slug); nil from a Mac that
+    /// predates picking, which only ever answers for itself.
+    let machine: String?
+    /// The computers the screen can pick from, this Mac first.
+    let machines: [UsageMachine]
 
-    init(_ o: [String: Any]) {
+    init(_ o: [String: Any], reply: [String: Any] = [:]) {
         generatedAt = statInt(o, "generatedAt")
         days = statInt(o, "days")
         sessions = statInt(o, "sessions")
@@ -2223,5 +2286,7 @@ struct AgentStats {
         daily = (o["daily"] as? [[String: Any]] ?? []).map(UsageDaily.init)
         recentSessions = (o["recentSessions"] as? [[String: Any]] ?? []).map(UsageSession.init)
         sources = (o["sources"] as? [[String: Any]] ?? []).map(UsageSource.init)
+        machine = reply["machine"] as? String
+        machines = (reply["machines"] as? [[String: Any]] ?? []).map(UsageMachine.init)
     }
 }

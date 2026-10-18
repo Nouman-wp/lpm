@@ -75,6 +75,7 @@ internal fun TerminalScreen(
     modifier: Modifier = Modifier,
     trailing: @Composable RowScope.() -> Unit = {},
     connectionBanner: @Composable () -> Unit = {},
+    findBar: @Composable () -> Unit = {},
     composer: @Composable () -> Unit = {}
 ) {
     val ground = state.look.theme.backgroundColor
@@ -151,6 +152,7 @@ internal fun TerminalScreen(
                     connectionBanner = connectionBanner,
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
                 )
+                Box(Modifier.align(Alignment.TopCenter)) { findBar() }
             }
             val endedHere = state.endedHere
             if (state.showsComposer) {

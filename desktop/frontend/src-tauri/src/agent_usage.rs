@@ -2,13 +2,15 @@ use crate::agent_usage_claude::collect_claude_events;
 use crate::agent_usage_codex::collect_codex_events;
 use crate::config;
 use chrono::{DateTime, Duration, Local, TimeZone};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-#[derive(Clone, Copy, Default, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+pub(crate) const RECENT_SESSIONS: usize = 50;
+
+#[derive(Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct TokenUsage {
     pub input_tokens: u64,
     pub cached_input_tokens: u64,
@@ -45,70 +47,74 @@ impl TokenUsage {
     }
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct UsageBreakdown {
-    key: String,
-    label: String,
-    sessions: usize,
-    tokens: TokenUsage,
+    pub(crate) key: String,
+    pub(crate) label: String,
+    pub(crate) sessions: usize,
+    pub(crate) tokens: TokenUsage,
     #[serde(skip_serializing_if = "Option::is_none")]
-    provider: Option<String>,
+    pub(crate) provider: Option<String>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
-    fast: bool,
+    pub(crate) fast: bool,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct DailyModelUsage {
-    provider: String,
-    model: String,
-    tokens: TokenUsage,
+    pub(crate) provider: String,
+    pub(crate) model: String,
+    pub(crate) tokens: TokenUsage,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
-    fast: bool,
+    pub(crate) fast: bool,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct DailyUsage {
-    date: String,
-    claude_tokens: u64,
-    codex_tokens: u64,
-    total_tokens: u64,
-    models: Vec<DailyModelUsage>,
+    pub(crate) date: String,
+    pub(crate) claude_tokens: u64,
+    pub(crate) codex_tokens: u64,
+    pub(crate) total_tokens: u64,
+    pub(crate) models: Vec<DailyModelUsage>,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct AgentSessionUsage {
-    provider: String,
-    project: String,
-    model: String,
-    started_at: i64,
-    last_at: i64,
-    tokens: TokenUsage,
+    pub(crate) provider: String,
+    pub(crate) project: String,
+    pub(crate) model: String,
+    pub(crate) started_at: i64,
+    pub(crate) last_at: i64,
+    pub(crate) tokens: TokenUsage,
+    /// Which computer ran it ("local" or a paired one's slug); set only when
+    /// several computers' sessions are listed together.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) machine: Option<String>,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct UsageSource {
-    provider: String,
-    files: usize,
+    pub(crate) provider: String,
+    pub(crate) files: usize,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct AgentUsageStats {
-    generated_at: i64,
-    days: i64,
-    sessions: usize,
-    totals: TokenUsage,
-    providers: Vec<UsageBreakdown>,
-    projects: Vec<UsageBreakdown>,
-    models: Vec<UsageBreakdown>,
-    daily: Vec<DailyUsage>,
-    recent_sessions: Vec<AgentSessionUsage>,
-    sources: Vec<UsageSource>,
+    pub(crate) generated_at: i64,
+    pub(crate) days: i64,
+    pub(crate) sessions: usize,
+    pub(crate) totals: TokenUsage,
+    pub(crate) providers: Vec<UsageBreakdown>,
+    pub(crate) projects: Vec<UsageBreakdown>,
+    pub(crate) models: Vec<UsageBreakdown>,
+    pub(crate) daily: Vec<DailyUsage>,
+    pub(crate) recent_sessions: Vec<AgentSessionUsage>,
+    pub(crate) sources: Vec<UsageSource>,
 }
 
 #[derive(Clone)]
@@ -300,6 +306,11 @@ fn breakdowns(
             fast: aggregate.fast,
         })
         .collect();
+    sort_breakdowns(&mut rows);
+    rows
+}
+
+pub(crate) fn sort_breakdowns(rows: &mut [UsageBreakdown]) {
     rows.sort_by(|a, b| {
         b.tokens
             .total_tokens
@@ -307,7 +318,6 @@ fn breakdowns(
             .then_with(|| a.label.cmp(&b.label))
             .then_with(|| a.fast.cmp(&b.fast))
     });
-    rows
 }
 
 fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> AgentUsageStats {
@@ -379,10 +389,11 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
             started_at: session.started_at,
             last_at: session.last_at,
             tokens: session.tokens,
+            machine: None,
         })
         .collect();
     recent_sessions.sort_by(|a, b| b.last_at.cmp(&a.last_at));
-    recent_sessions.truncate(50);
+    recent_sessions.truncate(RECENT_SESSIONS);
     let provider_labels = HashMap::from([
         ("claude".to_string(), "Claude Code".to_string()),
         ("codex".to_string(), "Codex".to_string()),

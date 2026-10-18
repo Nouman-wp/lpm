@@ -46,6 +46,17 @@ import cx.lpm.mobile.feature.projects.agents.AgentStatusTrail
 val TerminalInfo.title: String get() = if (emoji.isEmpty()) label else "$emoji $label"
 
 /**
+ * The long press's items beyond Pin / Rename / Close, each null when the Mac or the
+ * tab doesn't offer it, as the desktop's own tab menu wouldn't.
+ */
+class TabMenuExtras(
+    val useTitle: (() -> Unit)? = null,
+    val fork: (() -> Unit)? = null,
+    val forkCopy: (() -> Unit)? = null,
+    val closeOthers: (() -> Unit)? = null
+)
+
+/**
  * One terminal tab in the project's list, read the way the desktop sidebar reads it:
  * the name carries the agent's state, and the trailing edge holds the state's mark
  * and how long it has been so. The desktop's tab actions live on swipes (Pin from
@@ -58,7 +69,8 @@ fun TabRow(
     onPin: () -> Unit,
     onRename: () -> Unit,
     onClose: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    extras: TabMenuExtras = TabMenuExtras()
 ) {
     val term = tab.terminal
     val agent = tab.agent
@@ -149,12 +161,41 @@ fun TabRow(
                     onClick = onRename,
                     icon = painterResource(R.drawable.ic_edit)
                 )
+                extras.useTitle?.let {
+                    ContextMenuItem(
+                        title = stringResource(ProjectsR.string.tab_use_title),
+                        onClick = it,
+                        icon = painterResource(R.drawable.ic_auto_awesome)
+                    )
+                }
+                extras.fork?.let {
+                    ContextMenuItem(
+                        title = stringResource(ProjectsR.string.tab_fork),
+                        onClick = it,
+                        icon = painterResource(R.drawable.ic_fork_right)
+                    )
+                }
+                extras.forkCopy?.let {
+                    ContextMenuItem(
+                        title = stringResource(ProjectsR.string.tab_fork_copy),
+                        onClick = it,
+                        icon = painterResource(R.drawable.ic_library_add)
+                    )
+                }
                 ContextMenuItem(
                     title = closeLabel,
                     onClick = onClose,
                     icon = painterResource(R.drawable.ic_close),
                     destructive = true
                 )
+                extras.closeOthers?.let {
+                    ContextMenuItem(
+                        title = stringResource(ProjectsR.string.tab_close_others),
+                        onClick = it,
+                        icon = painterResource(R.drawable.ic_cancel),
+                        destructive = true
+                    )
+                }
             }
         }
     }

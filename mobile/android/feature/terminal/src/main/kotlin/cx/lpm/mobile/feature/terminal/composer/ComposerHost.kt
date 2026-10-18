@@ -33,6 +33,8 @@ internal class ComposerMode(
     val onSend: ((String) -> Unit)? = null,
     val onPreviewFile: ((String) -> Unit)? = null,
     val onHideTerminalKeyboard: () -> Unit = {},
+    /** Find in the terminal above, offered in the "+" menu. */
+    val onFind: (() -> Unit)? = null,
     val memorySheet: (
         @Composable (
             project: String,
@@ -165,7 +167,8 @@ internal fun ComposerHost(
                         null
                     },
                     onNewPrompt = viewModel::newTab,
-                    onHistory = { showHistory = true }
+                    onHistory = { showHistory = true },
+                    onFind = mode.onFind
                 ),
                 canRewrite = state.canRewrite,
                 enabled = mode.look.enabled && !state.composer.transforming,

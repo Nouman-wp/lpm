@@ -11,6 +11,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import cx.lpm.mobile.core.data.link.QueuedAction
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.GitFile
+import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.Service
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.feature.projects.project
@@ -72,6 +74,33 @@ class ProjectDetailScreenTest {
         compose.onNodeWithText("web").performClick()
         compose.onNodeWithText("Stop all").performClick()
         assertEquals(listOf("toggle worker", "logs web", "stop all"), events)
+    }
+
+    @Test
+    fun theTitleCarriesTheProjectsChanges() {
+        val files = List(4) { GitFile("f$it.ts", "modified", staged = false, stamp = "") }
+        show(
+            state.copy(
+                git = GitSnapshot(
+                    isRepo = true,
+                    branch = "main",
+                    detached = false,
+                    hasUpstream = true,
+                    ahead = 0,
+                    behind = 0,
+                    defaultBranch = "main",
+                    ghCli = false,
+                    files = files,
+                    autoPulled = null,
+                    linesAdded = 412,
+                    linesRemoved = 87
+                )
+            )
+        )
+        compose.onNodeWithText("storefront").assertExists()
+        compose.onNodeWithText("+412").assertExists()
+        compose.onNodeWithText("−87").assertExists()
+        compose.onNodeWithText("4 files").assertExists()
     }
 
     @Test

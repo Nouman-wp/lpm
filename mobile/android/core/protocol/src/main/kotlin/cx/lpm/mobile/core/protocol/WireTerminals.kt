@@ -93,6 +93,27 @@ sealed interface WireTerminals {
         put("id", id)
     }
 
+    /** The tab menu's fork / title / close-others. Only for a Mac whose `features` has "tabMenu". */
+    fun forkTerminal(project: String, id: String): String = frame("forkTerminal") {
+        put("project", project)
+        put("id", id)
+    }
+
+    fun forkTerminalCopy(project: String, id: String): String = frame("forkTerminalCopy") {
+        put("project", project)
+        put("id", id)
+    }
+
+    fun titleTerminal(project: String, id: String): String = frame("titleTerminal") {
+        put("project", project)
+        put("id", id)
+    }
+
+    fun closeOtherTerminals(project: String, id: String): String = frame("closeOtherTerminals") {
+        put("project", project)
+        put("id", id)
+    }
+
     fun reorderTerminals(project: String, order: List<String>): String = frame("reorderTerminals") {
         put("project", project)
         putStrings("order", order)

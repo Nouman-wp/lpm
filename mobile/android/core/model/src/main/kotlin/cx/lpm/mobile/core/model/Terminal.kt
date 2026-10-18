@@ -15,7 +15,11 @@ data class TerminalInfo(
     val emoji: String,
     // The AI CLI this terminal runs (e.g. "claude"), as detected by the desktop;
     // empty for a plain shell or an older server.
-    val cli: String
+    val cli: String,
+    // What the desktop's tab menu offers for this tab; false from an older server.
+    val canFork: Boolean = false,
+    val canForkCopy: Boolean = false,
+    val canTitle: Boolean = false
 ) {
     companion object {
         fun parse(o: JsonObject): TerminalInfo = TerminalInfo(
@@ -27,7 +31,10 @@ data class TerminalInfo(
             remote = o.bool("remote") ?: false,
             pinned = o.bool("pinned") ?: false,
             emoji = o.string("emoji").orEmpty(),
-            cli = o.string("cli").orEmpty()
+            cli = o.string("cli").orEmpty(),
+            canFork = o.bool("canFork") ?: false,
+            canForkCopy = o.bool("canForkCopy") ?: false,
+            canTitle = o.bool("canTitle") ?: false
         )
     }
 }

@@ -221,9 +221,24 @@
     <string name="tab_remote">Remote</string>
     <string name="tab_rename_title">Rename terminal</string>
     <string name="tab_rename_field">Name</string>
-    <string name="tab_close_title">Close “%1$s”?</string>
-    <string name="tab_close_confirm">Close Tab</string>
-    <string name="tab_close_message">Whatever is running in it stops.</string>
+    <string name="tab_use_title">Use Conversation Title</string>
+    <string name="tab_fork">Fork Session</string>
+    <string name="tab_fork_copy">Fork into Copy</string>
+    <string name="tab_close_others">Close Other Tabs</string>
+    <string name="tab_fork_copy_title">Fork into a Copy</string>
+    <string name="tab_fork_copy_message">Create a copy of this project and continue the “%1$s” conversation there. The original keeps running here.</string>
+    <string name="tab_fork_copy_confirm">Create Copy</string>
+    <plurals name="tab_close_others_title">
+        <item quantity="one">Close %1$d Other Tab?</item>
+        <item quantity="other">Close %1$d Other Tabs?</item>
+    </plurals>
+    <plurals name="tab_close_others_confirm">
+        <item quantity="one">Close %1$d Tab</item>
+        <item quantity="other">Close %1$d Tabs</item>
+    </plurals>
+    <string name="tab_close_others_message">Whatever is running in them stops. Pinned tabs stay open.</string>
+    <string name="tab_closed">%1$s closed</string>
+    <string name="tab_undo">Undo</string>
 
     <!-- Services that ended -->
     <string name="service_exit_stopped">stopped</string>

@@ -1,6 +1,7 @@
 package cx.lpm.mobile.feature.projects.detail
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -10,8 +11,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
 import cx.lpm.mobile.core.designsystem.component.AlertButton
@@ -47,13 +50,23 @@ fun ProjectDetailRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val alerts by viewModel.alerts.collectAsStateWithLifecycle()
     var renaming by remember { mutableStateOf<TerminalInfo?>(null) }
-    var closing by remember { mutableStateOf<TerminalInfo?>(null) }
+    var forkingIntoCopy by remember { mutableStateOf<TerminalInfo?>(null) }
+    var closingOthers by remember { mutableStateOf<TerminalInfo?>(null) }
     var logsFor by remember { mutableStateOf<Service?>(null) }
     var newTabOpen by remember { mutableStateOf(false) }
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
     LaunchedEffect(key) { viewModel.load() }
+    DisposableEffect(viewModel) {
+        viewModel.appear()
+        onDispose { viewModel.disappear() }
+    }
+    var backgrounded by remember { mutableStateOf(false) }
+    LifecycleStartEffect(viewModel) {
+        if (backgrounded) viewModel.resume()
+        onStopOrDispose { backgrounded = true }
+    }
     // Back from a dropped link, the tabs are asked for again.
     var wasLive by remember { mutableStateOf(state.live) }
     LaunchedEffect(state.live) {
@@ -94,11 +107,16 @@ fun ProjectDetailRoute(
             },
             pin = { viewModel.pin(it.id) },
             rename = { renaming = it },
-            // Whatever runs in the tab stops with it, so a close is confirmed first.
+            // A close takes effect at once; the screen offers Undo for a few seconds.
             close = {
                 haptics.performHapticFeedback(HapticFeedbackType.Reject)
-                closing = it
+                viewModel.close(it.id)
             },
+            useTitle = viewModel::useConversationTitle,
+            fork = { viewModel.fork(it, openSpawned) },
+            forkCopy = { forkingIntoCopy = it },
+            closeOthers = { closingOthers = it },
+            undoClose = viewModel::undoClose,
             toggleService = { viewModel.toggleService(it.name) },
             restartService = { viewModel.restartService(it.name) },
             stopService = { viewModel.stopService(it.name) },
@@ -130,11 +148,21 @@ fun ProjectDetailRoute(
             onDismiss = { renaming = null }
         )
     }
-    closing?.let { term ->
-        CloseTabDialog(
+    forkingIntoCopy?.let { term ->
+        ForkIntoCopyDialog(
             term = term,
-            onClose = { viewModel.close(term.id) },
-            onDismiss = { closing = null }
+            onFork = { viewModel.forkIntoCopy(term) },
+            onDismiss = { forkingIntoCopy = null }
+        )
+    }
+    closingOthers?.let { term ->
+        CloseOtherTabsDialog(
+            count = viewModel.othersClosable(term),
+            onClose = {
+                haptics.performHapticFeedback(HapticFeedbackType.Reject)
+                viewModel.closeOthers(term)
+            },
+            onDismiss = { closingOthers = null }
         )
     }
     if (newTabOpen) {
@@ -160,14 +188,29 @@ fun ProjectDetailRoute(
     )
 }
 
+/** Fork into Copy asks first, as the desktop does. */
 @Composable
-private fun CloseTabDialog(term: TerminalInfo, onClose: () -> Unit, onDismiss: () -> Unit) {
+private fun ForkIntoCopyDialog(term: TerminalInfo, onFork: () -> Unit, onDismiss: () -> Unit) {
     LpmConfirmationDialog(
-        title = stringResource(R.string.tab_close_title, term.label),
-        message = stringResource(R.string.tab_close_message),
+        title = stringResource(R.string.tab_fork_copy_title),
+        message = stringResource(R.string.tab_fork_copy_message, term.title),
+        buttons = listOf(
+            AlertButton(stringResource(R.string.tab_fork_copy_confirm), onClick = onFork),
+            AlertButton(stringResource(R.string.cancel), AlertRole.Cancel)
+        ),
+        onDismissRequest = onDismiss
+    )
+}
+
+/** Close Other Tabs asks first: whatever runs in them stops. */
+@Composable
+private fun CloseOtherTabsDialog(count: Int, onClose: () -> Unit, onDismiss: () -> Unit) {
+    LpmConfirmationDialog(
+        title = pluralStringResource(R.plurals.tab_close_others_title, count, count),
+        message = stringResource(R.string.tab_close_others_message),
         buttons = listOf(
             AlertButton(
-                stringResource(R.string.tab_close_confirm),
+                pluralStringResource(R.plurals.tab_close_others_confirm, count, count),
                 AlertRole.Destructive,
                 onClick = onClose
             ),

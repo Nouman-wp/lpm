@@ -365,6 +365,12 @@
 {"at": 64500, "frame": {"t": "notesChats", "project": "storefront"}}
 {"at": 65000, "frame": {"t": "composerDraft", "id": "demo-storefront-claude", "text": "Hello"}}
 {"at": 65000, "frame": {"t": "composerDraft", "id": "demo-storefront-1", "text": ""}}
+{"at": 65050, "frame": {"t": "titleTerminal", "project": "storefront", "id": "demo-storefront-claude"}}
+{"at": 65050, "frame": {"t": "titleTerminal", "project": "storefront", "id": "demo-storefront-1"}}
+{"at": 65050, "frame": {"t": "forkTerminal", "project": "storefront", "id": "demo-storefront-claude"}}
+{"at": 65050, "frame": {"t": "forkTerminal", "project": "storefront", "id": "demo-storefront-1"}}
+{"at": 65050, "frame": {"t": "forkTerminalCopy", "project": "storefront", "id": "demo-storefront-claude"}}
+{"at": 65060, "frame": {"t": "closeTerminal", "project": "storefront", "id": "demo-storefront-3"}}
 {"at": 65100, "frame": {"t": "newTerminal", "project": "storefront"}}
 {"at": 65100, "frame": {"t": "newTerminal", "project": "nobody"}}
 {"at": 65100, "frame": {"t": "renameTerminal", "id": "demo-storefront-3", "label": "Logs"}}
@@ -416,4 +422,7 @@
 {"at": 71000, "frame": {"t": "renameProject", "project": "blog", "name": ""}}
 {"at": 71500, "frame": {"t": "projects"}}
 {"at": 73000, "frame": {"t": "limits"}}
+{"at": 79500, "frame": {"t": "closeOtherTerminals", "project": "storefront", "id": "nope"}}
+{"at": 79500, "frame": {"t": "closeOtherTerminals", "project": "storefront", "id": "demo-storefront-1"}}
+{"at": 79600, "frame": {"t": "terminals", "project": "storefront"}}
 {"at": 80000}

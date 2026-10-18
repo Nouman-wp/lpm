@@ -2,6 +2,8 @@ package cx.lpm.mobile.core.data.usage
 
 import cx.lpm.mobile.core.data.testing.FakeSocket
 import cx.lpm.mobile.core.data.testing.SessionHarness
+import cx.lpm.mobile.core.model.bool
+import cx.lpm.mobile.core.model.string
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -16,6 +18,13 @@ class StatsStoreTest {
     private fun stats(days: Int, sessions: Int = 3) =
         """{"t":"stats","ok":true,"stats":{"days":$days,"sessions":$sessions,""" +
             """"totals":{"totalTokens":1200}}}"""
+
+    private fun machineStats(days: Int, machine: String, sessions: Int = 3) =
+        """{"t":"stats","ok":true,"machine":"$machine","stats":{"days":$days,""" +
+            """"sessions":$sessions,"totals":{"totalTokens":1200}},"machines":[""" +
+            """{"id":"local","name":"Studio","platform":"macos","local":true,"connected":true},""" +
+            """{"id":"aaaaaaaa","name":"MacBook Pro","platform":"macos","local":false,""" +
+            """"connected":true,"totalTokens":500}]}"""
 
     private var link: FakeSocket? = null
     private var pongs = 0
@@ -147,6 +156,69 @@ class StatsStoreTest {
         socket.fail()
         settle()
         assertFalse(store.state.value.loading)
+    }
+
+    @Test
+    fun `the picked computer goes out with the period and only its reply lands`() = runTest {
+        val h = SessionHarness(this)
+        val socket = h.connectReady().also { link = it }
+        val store = h.session.store<StatsStore>()
+        store.load(30, machine = "aaaaaaaa")
+        assertEquals("aaaaaaaa", socket.sentOf("stats").last().string("machine"))
+
+        socket.receive(machineStats(days = 30, machine = ALL_MACHINES))
+        settle()
+        assertNull(store.state.value.stats)
+
+        socket.receive(machineStats(days = 30, machine = "aaaaaaaa"))
+        settle()
+        val state = store.state.value
+        assertEquals("aaaaaaaa", state.stats?.machine)
+        assertEquals(listOf("local", "aaaaaaaa"), state.machines.map { it.id })
+        assertEquals(500L, state.machines[1].totalTokens)
+    }
+
+    @Test
+    fun `switching computers clears the numbers rather than dimming them`() = runTest {
+        val h = SessionHarness(this)
+        val socket = h.connectReady().also { link = it }
+        val store = h.session.store<StatsStore>()
+        store.load(30)
+        socket.receive(machineStats(days = 30, machine = ALL_MACHINES))
+        settle()
+        assertEquals(ALL_MACHINES, store.state.value.stats?.machine)
+
+        store.load(30)
+        assertEquals(ALL_MACHINES, store.state.value.stats?.machine)
+        store.load(30, machine = LOCAL_MACHINE)
+        assertNull(store.state.value.stats)
+        assertEquals(2, store.state.value.machines.size)
+    }
+
+    @Test
+    fun `only this Mac's today feeds the usage rows`() = runTest {
+        val h = SessionHarness(this)
+        val socket = h.connectReady().also { link = it }
+        val usage = h.session.store<UsageStore>()
+        socket.receive(machineStats(days = 1, machine = ALL_MACHINES, sessions = 9))
+        settle()
+        assertNull(usage.state.value.today)
+
+        socket.receive(machineStats(days = 1, machine = LOCAL_MACHINE, sessions = 2))
+        settle()
+        assertEquals(2, usage.state.value.today?.sessions)
+    }
+
+    @Test
+    fun `pull to refresh asks for a fresh scan`() = runTest {
+        val h = SessionHarness(this)
+        val socket = h.connectReady().also { link = it }
+        val store = h.session.store<StatsStore>()
+        store.load(7)
+        assertNull(socket.sentOf("stats").last().bool("fresh"))
+
+        store.refresh()
+        assertEquals(true, socket.sentOf("stats").last().bool("fresh"))
     }
 
     private companion object {
