@@ -349,6 +349,12 @@ export function GitPushRebasing(cwd, flags) {
 export function GitStatus(cwd) {
   return invoke("git_status", { cwd });
 }
+export function GitDiffStat(cwd) {
+  return invoke("git_diff_stat", { cwd });
+}
+export function GitFileLineCounts(cwd) {
+  return invoke("git_file_line_counts", { cwd });
+}
 export function ImportConfig(overwrite) {
   return invoke("import_config", { overwrite });
 }

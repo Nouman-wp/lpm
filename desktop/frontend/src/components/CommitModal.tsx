@@ -22,6 +22,8 @@ import {
 import { main } from "../../bridge/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useAIPicker } from "../hooks/useAIPicker";
+import { useSelectedLineCounts } from "../hooks/useSelectedLineCounts";
+import { LineCounts } from "./LineCounts";
 import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { aiEffectiveEffort, aiEffectiveFast } from "../types";
 import { EventsEmit } from "../../bridge/runtime";
@@ -94,6 +96,7 @@ export function CommitModal({
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const loadedForOpen = useRef(false);
   const genPromise = useRef<Promise<string> | null>(null);
+  const selectedLines = useSelectedLineCounts(projectPath, files, selected);
 
   useEffect(() => {
     if (!open) return;
@@ -529,6 +532,11 @@ export function CommitModal({
                     {selected.size}/{files.length}
                   </span>
                 </span>
+                {selectedLines && (
+                  <span className="flex items-center gap-1 text-xs font-medium tabular-nums">
+                    <LineCounts added={selectedLines.added} removed={selectedLines.removed} />
+                  </span>
+                )}
               </span>
               {files.length > 0 && (
                 <button

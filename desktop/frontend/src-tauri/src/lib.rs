@@ -308,6 +308,7 @@ use label_probes::refresh_action_label;
 use pull_request::*;
 use gitfollow::{follow_list, follow_pause, follow_resume, follow_stop};
 use gitautopull::{git_auto_pull, git_auto_pull_last, git_auto_pull_undo, set_auto_pull};
+use gitlines::{git_diff_stat, git_file_line_counts};
 use gitorigin::git_origin_status;
 use gitpush::git_push_rebasing;
 use gitsync::{sync_project_cancel, sync_project_start};

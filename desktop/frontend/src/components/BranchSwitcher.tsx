@@ -41,6 +41,7 @@ import type { useGitStatus } from "../hooks/useGitStatus";
 import { useBranchSearch } from "../hooks/useBranchSearch";
 import { CreateBranchModal } from "./CreateBranchModal";
 import { CommitModal } from "./CommitModal";
+import { LineCounts } from "./LineCounts";
 import { AutoPRModal, type AutoPRAIParams } from "./AutoPRModal";
 import { MergeBranchDialog } from "./MergeBranchDialog";
 import { PRModal } from "./PRModal";
@@ -74,7 +75,7 @@ export function BranchSwitcher({
   pullRequest?: PullRequestInfo | null;
 }) {
   const openPr = pullRequest?.state === "OPEN" ? pullRequest : null;
-  const { status, branches, refresh } = gitState;
+  const { status, branches, diffStat, refresh } = gitState;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -459,12 +460,6 @@ export function BranchSwitcher({
           <span className="max-w-32 truncate font-mono">
             {status.branch || "detached"}
           </span>
-          {status.uncommitted > 0 && (
-            <span
-              className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent-blue)]"
-              title={`${status.uncommitted} uncommitted file${status.uncommitted === 1 ? "" : "s"}`}
-            />
-          )}
           <ChevronDownIcon />
         </button>
 
@@ -679,9 +674,16 @@ export function BranchSwitcher({
         >
           <CommitIcon />
           <span>Commit</span>
-          {status.uncommitted > 0 && (
-            <span className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent-blue)]" />
-          )}
+          {status.uncommitted > 0 &&
+            (diffStat && diffStat.linesAdded + diffStat.linesRemoved > 0 ? (
+              <LineCounts
+                added={diffStat.linesAdded}
+                removed={diffStat.linesRemoved}
+                className="ml-0.5"
+              />
+            ) : (
+              <span className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent-blue)]" />
+            ))}
         </button>
         <button
           onClick={() => setCommitMenuOpen(!commitMenuOpen)}

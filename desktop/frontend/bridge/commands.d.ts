@@ -110,6 +110,8 @@ export function GitPruneRemotes(...args: any[]): Promise<any>;
 export function GitPush(...args: any[]): Promise<any>;
 export function GitPushRebasing(...args: any[]): Promise<any>;
 export function GitStatus(...args: any[]): Promise<any>;
+export function GitDiffStat(...args: any[]): Promise<any>;
+export function GitFileLineCounts(...args: any[]): Promise<any>;
 export function ImportConfig(...args: any[]): Promise<any>;
 export function InstallCli(...args: any[]): Promise<any>;
 export function CliInstallStatus(...args: any[]): Promise<any>;

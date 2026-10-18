@@ -16,7 +16,9 @@ import {
   UndoIcon,
   UploadIcon,
 } from "./icons";
+import { DiffStatText } from "./DiffStatText";
 import {
+  GitDiffStat,
   GitFetchAll,
   GitPush,
   GitStatus as ApiGitStatus,
@@ -24,6 +26,7 @@ import {
   SetClipboardText,
 } from "../../bridge/commands";
 import { main } from "../../bridge/models";
+import type { DiffStat } from "../hooks/useGitStatus";
 import { getSettings } from "../store/settings";
 import {
   DEFAULT_PULL_CONFIG,
@@ -60,10 +63,11 @@ export function ProjectGitSubmenu(props: ProjectGitSubmenuProps) {
   const { projectPath } = props;
   const autoPullMode = useAutoPullMode(props.projectName);
   const [status, setStatus] = useState<main.GitStatus | null>(null);
+  const [diffStat, setDiffStat] = useState<DiffStat | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Fetched when the context menu opens (not on submenu hover) so the
-  // uncommitted-changes dot can show on the Git row before it is expanded.
+  // uncommitted changes can show on the Git row before it is expanded.
   useEffect(() => {
     if (!projectPath) {
       setLoading(false);
@@ -71,9 +75,21 @@ export function ProjectGitSubmenu(props: ProjectGitSubmenuProps) {
     }
     let cancelled = false;
     setLoading(true);
-    ApiGitStatus(projectPath)
-      .then((s) => { if (!cancelled) setStatus(s); })
-      .catch(() => { if (!cancelled) setStatus(null); })
+    Promise.all([
+      ApiGitStatus(projectPath),
+      // A paired Mac on an older lpm can't count lines; null keeps the plain dot.
+      (GitDiffStat(projectPath) as Promise<DiffStat>).catch(() => null),
+    ])
+      .then(([s, d]) => {
+        if (cancelled) return;
+        setStatus(s);
+        setDiffStat(d);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setStatus(null);
+        setDiffStat(null);
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [projectPath]);
@@ -85,12 +101,18 @@ export function ProjectGitSubmenu(props: ProjectGitSubmenuProps) {
       label={
         <span className="flex items-center gap-1.5">
           Git
-          {uncommitted > 0 && (
-            <span
-              className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent-blue)]"
-              title={`${uncommitted} uncommitted file${uncommitted === 1 ? "" : "s"}`}
-            />
-          )}
+          {uncommitted > 0 &&
+            (diffStat && diffStat.files > 0 ? (
+              <DiffStatText
+                stat={diffStat}
+                className="ml-0.5 text-[11px] font-medium text-[var(--text-muted)]"
+              />
+            ) : (
+              <span
+                className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent-blue)]"
+                title={`${uncommitted} uncommitted file${uncommitted === 1 ? "" : "s"}`}
+              />
+            ))}
         </span>
       }
       icon={<BranchIcon size={14} />}
