@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { dropMove, hostOp, slotAfterFolder, slotOf, translateHostFolders } from "./hostFolders";
+import {
+  dropMove,
+  foldedIds,
+  hostOp,
+  slotAfterFolder,
+  slotOf,
+  translateHostFolders,
+  withFolds,
+} from "./hostFolders";
 import { prefixName } from "./markers";
 
 const SLUG = "aaaaaaaa";
@@ -11,10 +19,10 @@ const layout = translateHostFolders(SLUG, {
 });
 
 describe("translateHostFolders", () => {
-  it("marks the host's project names and leaves folder tokens and collapse out", () => {
+  it("marks the host's project names and keeps folder tokens and folds", () => {
     expect(layout).toEqual({
       order: [name("web"), "group:a", name("cli")],
-      groups: [{ id: "a", name: "Work", members: [name("api"), name("db")] }],
+      groups: [{ id: "a", name: "Work", collapsed: true, members: [name("api"), name("db")] }],
     });
   });
 
@@ -23,6 +31,21 @@ describe("translateHostFolders", () => {
       translateHostFolders(SLUG, { order: ["web", 3], groups: [{ name: "no id" }, null] }),
     ).toEqual({ order: [name("web")], groups: [] });
     expect(translateHostFolders(SLUG, null)).toEqual({ order: [], groups: [] });
+  });
+});
+
+describe("folds", () => {
+  it("folds exactly the folders it is given", () => {
+    const two = translateHostFolders(SLUG, {
+      order: ["group:a", "group:b"],
+      groups: [
+        { id: "a", name: "A", collapsed: true, members: [] },
+        { id: "b", name: "B", members: [] },
+      ],
+    });
+    expect(foldedIds(two)).toEqual(new Set(["a"]));
+    expect(foldedIds(withFolds(two, new Set(["b"])))).toEqual(new Set(["b"]));
+    expect(foldedIds(withFolds(two, new Set()))).toEqual(new Set());
   });
 });
 

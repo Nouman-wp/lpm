@@ -4,19 +4,20 @@ import { parsePeerMarker, prefixName } from "./markers";
 
 // A paired machine's own sidebar folders, as its sidebar lays them out. They are
 // the host's — its window, its phones and every Mac showing its projects share
-// one layout — so this Mac shows them as they are and changes them one op at a
-// time (hostfolders.rs). Only collapsing a folder stays here: what one viewer
-// folds away is nobody else's business.
+// one layout, folded folders included — so this Mac shows them as they are and
+// changes them one op at a time (hostfolders.rs). A host that predates sharing
+// folds leaves folding its folders to each Mac.
 export interface HostFolders {
   /// Top-level slots: peer-marked project names and "group:<id>" tokens.
   order: string[];
-  /// Folders, their members peer-marked; `collapsed` is never set.
+  /// Folders, their members peer-marked.
   groups: ProjectGroup[];
 }
 
 export type HostFolderOp =
   | { op: "create"; name: string; members?: string[]; before?: string | null }
   | { op: "rename"; id: string; name: string }
+  | { op: "fold"; id: string; collapsed: boolean }
   | { op: "ungroup"; id: string }
   | { op: "move"; item: string; folder: string | null; before: string | null }
   | { op: "copies"; order: string[] };
@@ -43,6 +44,7 @@ export function translateHostFolders(slug: string, raw: unknown): HostFolders {
     groups.push({
       id: g.id,
       name: typeof g.name === "string" ? g.name : "",
+      ...(g.collapsed === true && { collapsed: true }),
       members: strings(g.members).map((name) => prefixName(slug, name)),
     });
   }
@@ -79,6 +81,18 @@ export async function readHostFolders(slug: string): Promise<HostFolders> {
 
 export async function editHostFolders(slug: string, op: HostFolderOp): Promise<HostFolders> {
   return translateHostFolders(slug, await PeerInvoke(slug, EDIT_CMD, hostOp(op)));
+}
+
+// The layout with the folders in `folded` folded and every other one open.
+export function withFolds(folders: HostFolders, folded: ReadonlySet<string>): HostFolders {
+  return {
+    ...folders,
+    groups: folders.groups.map((g) => ({ ...g, collapsed: folded.has(g.id) || undefined })),
+  };
+}
+
+export function foldedIds(folders: HostFolders): Set<string> {
+  return new Set(folders.groups.filter((g) => g.collapsed).map((g) => g.id));
 }
 
 export function groupOf(folders: HostFolders, name: string): ProjectGroup | undefined {

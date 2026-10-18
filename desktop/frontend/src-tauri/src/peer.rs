@@ -85,6 +85,7 @@ const HOST_FEATURES: &[&str] = &[
     crate::peersettings::HOST_SETTINGS_FEATURE,
     crate::peersettings::ALL_HOST_SETTINGS_FEATURE,
     crate::hostfolders::HOST_FOLDERS_FEATURE,
+    crate::hostfolders::HOST_FOLDER_FOLDS_FEATURE,
     crate::hostjobs::HOST_JOBS_FEATURE,
     crate::remote::relayed::PHONE_RELAY_FEATURE,
     crate::agent_limits_share::LIMITS_FEATURE,
@@ -2760,6 +2761,7 @@ mod tests {
     #[test]
     fn host_folders_are_advertised_and_kept_fresh() {
         assert!(HOST_FEATURES.contains(&crate::hostfolders::HOST_FOLDERS_FEATURE));
+        assert!(HOST_FEATURES.contains(&crate::hostfolders::HOST_FOLDER_FOLDS_FEATURE));
         assert!(FORWARDED_EVENTS.contains(&"sidebar-changed"));
     }
 

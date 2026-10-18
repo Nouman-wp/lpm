@@ -36,7 +36,10 @@ const shape = (rows: Row[]): unknown[] =>
     return `[${row.children.map((c) => c.label).join(",")}${row.pending.length ? ` +${row.pending.length}` : ""}${row.collapsed ? " folded" : ""}]`;
   });
 
-const folders = (order: string[], groups: { id: string; name: string; members: string[] }[]) => ({
+const folders = (
+  order: string[],
+  groups: { id: string; name: string; collapsed?: boolean; members: string[] }[],
+) => ({
   order: order.map((token) => (token.startsWith("group:") ? token : name(token))),
   groups: groups.map((g) => ({ ...g, members: g.members.map(name) })),
 });
@@ -100,8 +103,10 @@ describe("peerSectionRows", () => {
       [remote("api"), remote("web")],
       [],
       new Set(),
-      folders(["group:a", "api"], [{ id: "a", name: "Work", members: ["web", "gone"] }]),
-      new Set(["a"]),
+      folders(
+        ["group:a", "api"],
+        [{ id: "a", name: "Work", collapsed: true, members: ["web", "gone"] }],
+      ),
     );
 
     expect(shape(rows)).toEqual([{ "Work folded": ["web"] }, "api"]);

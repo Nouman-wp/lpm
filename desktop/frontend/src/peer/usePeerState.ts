@@ -62,6 +62,8 @@ export interface PeerClient {
   // The peer's build shares its sidebar folders, so its section shows and files
   // into them.
   supportsHostFolders?: boolean;
+  // ...and keeps which of them are folded, so they fold on every Mac at once.
+  supportsHostFolderFolds?: boolean;
   // ...and takes its shared automations (several projects, all, or none) from here.
   supportsHostJobs?: boolean;
   pinned?: boolean;

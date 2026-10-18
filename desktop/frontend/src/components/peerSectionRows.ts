@@ -41,13 +41,12 @@ export interface PeerSectionRows {
 const GROUP_PREFIX = "group:";
 
 // `projects` is the section in the order to show it, so a deck keeps its copies
-// in it. `collapsedFolders` holds the ids of `folders` folded on this Mac.
+// in it.
 export function peerSectionRows(
   projects: ProjectInfo[],
   pending: PendingDuplicate[],
   collapsedDecks: ReadonlySet<string>,
   folders?: HostFolders,
-  collapsedFolders: ReadonlySet<string> = new Set(),
 ): PeerSectionRows {
   const byName = new Map(projects.map((p) => [p.name, p]));
   // A copy filed into a folder of its own stands there, out of its parent's deck.
@@ -90,7 +89,7 @@ export function peerSectionRows(
   const shownFolders = new Set<string>();
   const showFolder = (group: ProjectGroup) => {
     shownFolders.add(group.id);
-    const collapsed = collapsedFolders.has(group.id);
+    const collapsed = !!group.collapsed;
     const members = group.members
       .map((name) => byName.get(name))
       .filter((p): p is ProjectInfo => p !== undefined && !placed.has(p.name));

@@ -175,6 +175,7 @@ the client can have the host install the latest lpm (see **Commands**);
 `hostSettings` = the host answers the settings frames (see **Commands**);
 `hostSettingsAll` = it shares every setting there, not only the first three;
 `hostFolders` = the host shares its sidebar folders (see **Commands**);
+`hostFolderFolds` = ...and which of them are folded (see **Commands**);
 `hostJobs` = the host takes its shared automations from the client (see **Commands**);
 `agentLimits` = the host trades Claude usage limits (see **Usage
 limits**). A host
@@ -298,7 +299,8 @@ answered in host Rust (a headless host has folders too), over the generic invoke
 - `{ "cmd": "host_folders_edit", "args": <op> }` → the layout afterwards, same
   shape. `op` is one of `{ "op": "create", "name", "members"?, "before"? }` (a
   new folder in the slot before `before`, or last, taking `members` with it),
-  `{ "op": "rename", "id", "name" }`, `{ "op": "ungroup", "id" }` (the folder
+  `{ "op": "rename", "id", "name" }`, `{ "op": "fold", "id", "collapsed" }`
+  (`hostFolderFolds` only), `{ "op": "ungroup", "id" }` (the folder
   goes, its projects take its slot), `{ "op": "move", "item", "folder", "before" }`
   (a project into folder `folder` before its member `before`, or with `folder:
   null` to the top level before the slot `before`; `item` may also be a
@@ -307,8 +309,10 @@ answered in host Rust (a headless host has folders too), over the generic invoke
   `projectOrder` holds). An unknown project or folder fails the op and writes
   nothing. On success the host emits `projects-changed` and `sidebar-changed`.
 
-Folding a folder is the viewer's own: the client ignores `collapsed` and keeps
-its own per host. Deleting the projects in a folder is not an op; a client only
+Which folders are folded is part of the layout on a host with
+`hostFolderFolds`: the client shows `collapsed` and folds with the `fold` op, so
+a folder folds on every Mac at once. Against a host without it, the client
+ignores `collapsed` and keeps its own per host. Deleting the projects in a folder is not an op; a client only
 ungroups. A client re-reads the layout on a forwarded `sidebar-changed` or
 `projects-changed`. A host without the feature has its section listed flat, in
 the order the client keeps for it.

@@ -5,9 +5,11 @@ import { EventsOn } from "../../bridge/runtime";
 import {
   dropMove,
   editHostFolders,
+  foldedIds,
   groupOf,
   readHostFolders,
   slotAfterFolder,
+  withFolds,
   type HostFolderOp,
   type HostFolders,
 } from "./hostFolders";
@@ -22,11 +24,16 @@ const COLLAPSED_KEY = "lpm-peer-folders-collapsed";
 const RELOAD_ON = new Set(["sidebar-changed", "projects-changed"]);
 
 interface HostFoldersState {
-  /// By peer slug, for each connected host that shares its folders.
+  /// By peer slug, for each connected host that shares its folders, folded as
+  /// the host keeps them (as this Mac keeps them, for a host that predates that).
   bySlug: Record<string, HostFolders>;
-  /// "<slug>/<group id>" for each host folder folded away on this Mac.
+  /// "<slug>/<group id>" for each folder folded away on this Mac, of the hosts
+  /// that leave folding to it.
   collapsed: Record<string, boolean>;
 }
+
+// The hosts that keep which of their folders are folded (hostFolderFolds).
+const foldingHosts = new Set<string>();
 
 function readCollapsed(): Record<string, boolean> {
   try {
@@ -41,7 +48,7 @@ export const useHostFolders = create<HostFoldersState>(() => ({
   collapsed: readCollapsed(),
 }));
 
-export function collapseKey(slug: string, groupId: string): string {
+function collapseKey(slug: string, groupId: string): string {
   return `${slug}/${groupId}`;
 }
 
@@ -57,7 +64,12 @@ function begin(slug: string): number {
 
 function adopt(slug: string, seq: number, folders: HostFolders) {
   if (latest.get(slug) !== seq) return;
-  useHostFolders.setState((s) => ({ bySlug: { ...s.bySlug, [slug]: folders } }));
+  useHostFolders.setState((s) => ({
+    bySlug: {
+      ...s.bySlug,
+      [slug]: foldingHosts.has(slug) ? folders : withFolds(folders, foldedHere(s.collapsed, slug)),
+    },
+  }));
 }
 
 async function reload(slug: string) {
@@ -75,6 +87,7 @@ export async function applyHostFolderOp(slug: string, op: HostFolderOp): Promise
     adopt(slug, seq, await editHostFolders(slug, op));
   } catch (err) {
     toast.error(`Couldn't change the folders there: ${err}`);
+    void reload(slug);
   }
 }
 
@@ -122,16 +135,24 @@ export function dropHostRow(
 
 export function toggleHostFolder(slug: string, groupId: string) {
   const { collapsed, bySlug } = useHostFolders.getState();
-  const key = collapseKey(slug, groupId);
+  const folders = bySlug[slug];
+  const group = folders?.groups.find((g) => g.id === groupId);
+  if (!folders || !group) return;
+  const fold = !group.collapsed;
+  const folded = foldedIds(folders);
+  if (fold) folded.add(groupId);
+  else folded.delete(groupId);
+  // Shown at once; a host that keeps folds answers with the same layout.
+  useHostFolders.setState((s) => ({ bySlug: { ...s.bySlug, [slug]: withFolds(folders, folded) } }));
+  if (foldingHosts.has(slug)) {
+    void applyHostFolderOp(slug, { op: "fold", id: groupId, collapsed: fold });
+    return;
+  }
   // Folders the host has since dropped go with this write, for this host only:
   // the others' folders aren't on hand to check against while they are away.
-  const live = new Set(bySlug[slug]?.groups.map((g) => collapseKey(slug, g.id)) ?? []);
   const next: Record<string, boolean> = {};
-  for (const k of Object.keys(collapsed)) {
-    if (!k.startsWith(`${slug}/`) || live.has(k)) next[k] = true;
-  }
-  if (collapsed[key]) delete next[key];
-  else next[key] = true;
+  for (const k of Object.keys(collapsed)) if (!k.startsWith(`${slug}/`)) next[k] = true;
+  for (const id of folded) next[collapseKey(slug, id)] = true;
   useHostFolders.setState({ collapsed: next });
   try {
     localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next));
@@ -143,13 +164,20 @@ export function toggleHostFolder(slug: string, groupId: string) {
 // Keep the folders of every connected host that shares them, re-read whenever
 // the host says they may have changed.
 export function useHostFoldersSync(peers: PeerClient[]) {
-  const key = peers
-    .filter((p) => p.connected && p.supportsHostFolders)
+  const sharing = peers.filter((p) => p.connected && p.supportsHostFolders);
+  const key = sharing
+    .map((p) => p.slug)
+    .sort()
+    .join(",");
+  const folding = sharing
+    .filter((p) => p.supportsHostFolderFolds)
     .map((p) => p.slug)
     .sort()
     .join(",");
   useEffect(() => {
     const slugs = key ? key.split(",") : [];
+    foldingHosts.clear();
+    for (const slug of folding ? folding.split(",") : []) foldingHosts.add(slug);
     useHostFolders.setState((s) => ({
       bySlug: Object.fromEntries(Object.entries(s.bySlug).filter(([slug]) => slugs.includes(slug))),
     }));
@@ -160,7 +188,7 @@ export function useHostFoldersSync(peers: PeerClient[]) {
       });
     });
     return () => offs.forEach((off) => off());
-  }, [key]);
+  }, [key, folding]);
 }
 
 // The folder menu and dialogs a host's folders open, rendered once by
@@ -178,7 +206,7 @@ export const useHostFolderDialogs = create<HostFolderDialogs>(() => ({
 }));
 
 // The ids of a host's folders folded away on this Mac.
-export function foldedHostFolders(collapsed: Record<string, boolean>, slug: string): Set<string> {
+function foldedHere(collapsed: Record<string, boolean>, slug: string): Set<string> {
   const prefix = `${slug}/`;
   return new Set(
     Object.keys(collapsed)

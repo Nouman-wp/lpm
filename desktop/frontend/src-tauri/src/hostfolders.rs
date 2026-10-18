@@ -4,7 +4,8 @@
 // projects shares — its own window, a phone, a paired Mac — so a Mac edits it
 // here one op at a time, applied to what is on disk now. It never writes back a
 // whole layout it read earlier, which would undo whatever changed in between.
-// Collapsing a folder is the viewer's own business and never comes here.
+// Which folders are folded is part of that layout: one folded on any Mac is
+// folded on all of them.
 use crate::config;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -12,6 +13,9 @@ use tauri::{AppHandle, Emitter};
 
 /// Advertised in `ready`: this host answers READ_CMD and EDIT_CMD.
 pub(crate) const HOST_FOLDERS_FEATURE: &str = "hostFolders";
+/// Advertised in `ready`: EDIT_CMD also takes `fold`. A Mac whose host lacks it
+/// folds that host's folders for itself alone.
+pub(crate) const HOST_FOLDER_FOLDS_FEATURE: &str = "hostFolderFolds";
 pub(crate) const READ_CMD: &str = "host_folders";
 pub(crate) const EDIT_CMD: &str = "host_folders_edit";
 
@@ -31,6 +35,7 @@ enum Op {
         before: Option<String>,
     },
     Rename { id: String, name: String },
+    Fold { id: String, collapsed: bool },
     /// Drop the folder; its projects take its slot.
     Ungroup { id: String },
     /// Put a project into `folder` before its member `before`, or at the top
@@ -130,6 +135,16 @@ fn apply(
             let at = group_index(groups, &id)?;
             if let Some(g) = groups[at].as_object_mut() {
                 g.insert("name".into(), json!(name));
+            }
+        }
+        Op::Fold { id, collapsed } => {
+            let at = group_index(groups, &id)?;
+            if let Some(g) = groups[at].as_object_mut() {
+                if collapsed {
+                    g.insert("collapsed".into(), json!(true));
+                } else {
+                    g.remove("collapsed");
+                }
             }
         }
         Op::Ungroup { id } => {
@@ -274,6 +289,18 @@ mod tests {
     }
 
     #[test]
+    fn fold_sets_and_clears_collapsed() {
+        let open = json!({ "id": "a", "name": "A", "members": ["api"] });
+        let folded = json!({ "id": "a", "name": "A", "collapsed": true, "members": ["api"] });
+        let fold = |group: &Value, collapsed: bool| {
+            let op = json!({ "op": "fold", "id": "a", "collapsed": collapsed });
+            run(&["group:a"], json!([group]), op).1.remove(0)
+        };
+        assert_eq!(fold(&open, true), folded);
+        assert_eq!(fold(&folded, false), open);
+    }
+
+    #[test]
     fn ungroup_spills_members_into_the_folder_slot() {
         let (order, groups) = run(
             &["web", "group:a", "cli"],
@@ -337,6 +364,7 @@ mod tests {
         refuse(&["group:a"], one.clone(), json!({ "op": "move", "item": "group:a", "folder": "a" }));
         refuse(&["group:a"], one.clone(), json!({ "op": "rename", "id": "a", "name": "  " }));
         refuse(&[], json!([]), json!({ "op": "ungroup", "id": "a" }));
+        refuse(&[], json!([]), json!({ "op": "fold", "id": "a", "collapsed": true }));
     }
 
     #[test]

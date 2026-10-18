@@ -120,7 +120,6 @@ import { PeerFolderMenus } from "./PeerFolderMenus";
 import {
   dropHostRow,
   fileHostProject,
-  foldedHostFolders,
   toggleHostFolder,
   useHostFolderDialogs,
   useHostFolders,
@@ -313,7 +312,6 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // into. How far each one is folded is this Mac's own.
   useHostFoldersSync(peerState.peers);
   const hostFolders = useHostFolders((s) => s.bySlug);
-  const hostCollapsed = useHostFolders((s) => s.collapsed);
   const hostFolderMenu = useHostFolderDialogs((s) => s.menu);
   // Followed projects, keyed by the local project the other Mac's work lands in.
   const { follows } = useFollowState();
@@ -524,7 +522,6 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           pendingDuplicates,
           collapsedDecks,
           hostFolders[slug],
-          foldedHostFolders(hostCollapsed, slug),
         );
         out.push({ kind: "peer", section, rows: peer.rows });
         ids.push(token, ...peer.ids);
@@ -572,7 +569,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       childProjectsOf: new Map([...childrenByParent, ...peerDecks]),
       childOf,
     };
-  }, [localProjects, groups, order, peerSections, pendingDuplicates, collapsedDecks, selectMode, hostFolders, hostCollapsed]);
+  }, [localProjects, groups, order, peerSections, pendingDuplicates, collapsedDecks, selectMode, hostFolders]);
   const childOfRef = useRef(childOf);
   childOfRef.current = childOf;
 
