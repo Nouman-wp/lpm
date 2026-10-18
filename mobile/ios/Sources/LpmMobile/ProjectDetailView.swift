@@ -156,7 +156,6 @@ struct ProjectDetail: View {
         .onAppear {
             model.loadTerminals(project.name)
             model.loadBackgroundRuns(project.name)
-            if model.canLaunchAgents { model.agentLaunch.loadOptions() }
         }
         .onChange(of: model.link.isReady) { _, ready in
             if ready { model.reloadTerminalsAfterReconnect(project.name) }
