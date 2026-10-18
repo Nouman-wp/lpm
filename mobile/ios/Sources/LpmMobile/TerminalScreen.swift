@@ -23,6 +23,8 @@ struct TerminalScreen: View {
     // when asked to; the screen carries on with it.
     @State private var successor: TerminalInfo?
     @State private var reopened = false
+    // The bar's middle, which the title keeps to whatever buttons flank it.
+    @State private var barAxis: CGFloat?
     // Phone-local terminal preferences (Settings → Terminal).
     @AppStorage(TerminalPrefs.fontSizeKey) private var fontSize = TerminalPrefs.defaultFontSize
     @AppStorage(TerminalPrefs.themeKey) private var themeRaw = TerminalPrefs.defaultTheme.rawValue
@@ -117,11 +119,13 @@ struct TerminalScreen: View {
             }
         }
             .background(theme.backgroundColor.ignoresSafeArea(.all, edges: .all))
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).midX } action: { barAxis = $0 }
             .navigationTitle(term.label)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .principal) { TerminalTitle(term: term) }
+                ToolbarItem(placement: .principal) { TerminalTitle(term: term, axis: barAxis) }
             }
+            .followsGitChanges(term.project)
             .projectMenuToolbar(project: liveProject, terminal: term, onSpawnedTerminal: { t in
                 // The new terminal is owned by the desktop that opened it; claim it
                 // for this phone before pushing so the pushed screen renders live

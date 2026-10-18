@@ -81,6 +81,8 @@ final class GitReviewStore {
     // Projects whose review screen is open (watching), so a snapshot only triggers a
     // prefetch of every file's diff while the review screen is actually showing.
     @ObservationIgnored private var watching: Set<String> = []
+    // Terminal headers open per project, each following its snapshot (see follow).
+    @ObservationIgnored private var followers: [String: Int] = [:]
     // Debounce per project for the git-changed push, so a burst of file writes
     // collapses into one refresh.
     @ObservationIgnored private var changedWork: [String: DispatchWorkItem] = [:]
@@ -279,6 +281,26 @@ final class GitReviewStore {
     }
     func unwatch(_ project: String) {
         watching.remove(project)
+        guard followers[project] == nil else { return }
+        changedWork[project]?.cancel()
+        changedWork[project] = nil
+        client?.unwatchGit(project: project)
+    }
+
+    /// A terminal header showing the project's changes: the snapshot follows the
+    /// working tree while one is open, without the review screen's diff prefetch.
+    func follow(_ project: String) {
+        followers[project, default: 0] += 1
+        if followers[project] == 1 && !watching.contains(project) {
+            client?.watchGit(project: project)
+        }
+        load(project)
+    }
+
+    func unfollow(_ project: String) {
+        guard let count = followers[project] else { return }
+        followers[project] = count > 1 ? count - 1 : nil
+        guard count == 1, !watching.contains(project) else { return }
         changedWork[project]?.cancel()
         changedWork[project] = nil
         client?.unwatchGit(project: project)

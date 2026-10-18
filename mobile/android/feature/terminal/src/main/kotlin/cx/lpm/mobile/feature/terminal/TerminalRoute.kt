@@ -5,8 +5,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -14,6 +16,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cx.lpm.mobile.core.data.terminals.TerminalHooks
@@ -59,6 +62,15 @@ internal fun TerminalRoute(
             modifier = modifier
         )
         return
+    }
+    var backgrounded by remember { mutableStateOf(false) }
+    DisposableEffect(viewModel) {
+        viewModel.appear()
+        onDispose { viewModel.disappear() }
+    }
+    LifecycleStartEffect(viewModel) {
+        if (backgrounded) viewModel.resume()
+        onStopOrDispose { backgrounded = true }
     }
     // A tab lpm reopened in this one's place gets a fresh web view and composer.
     androidx.compose.runtime.key(terminal.id) {

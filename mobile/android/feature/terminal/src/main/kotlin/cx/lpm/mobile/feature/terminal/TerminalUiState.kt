@@ -2,6 +2,8 @@ package cx.lpm.mobile.feature.terminal
 
 import cx.lpm.mobile.core.data.link.LinkStatusLine
 import cx.lpm.mobile.core.data.terminals.TerminalEnding
+import cx.lpm.mobile.core.model.AgentState
+import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.feature.terminal.settings.TerminalLook
@@ -27,6 +29,10 @@ data class TerminalUiState(
     val look: TerminalLook = TerminalLook(),
     /** How long the tab's agent has been at it; null for a plain shell. */
     val agent: AgentTiming? = null,
+    /** The project's working tree, for the title's changes line; null until it loads. */
+    val git: GitSnapshot? = null,
+    /** The project's snapshot is on its way. */
+    val gitLoading: Boolean = false,
     /** Changes on a Mac switch, when a missing terminal is asked for again. */
     val activeMacId: String? = null
 ) {
@@ -37,5 +43,8 @@ data class TerminalUiState(
     val endedHere: TerminalEnding? get() = ended?.takeIf { !it.restarted && listed }
 }
 
-/** Millis: when the agent's reading counts from, and when it froze once the turn ended. */
-data class AgentTiming(val since: Long, val until: Long?)
+/**
+ * What the tab's agent is doing, and in millis when its reading counts from and
+ * when it froze once the turn ended.
+ */
+data class AgentTiming(val state: AgentState, val since: Long, val until: Long?)

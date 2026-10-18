@@ -41,6 +41,9 @@ class GitStore(private val session: MacSession) : SessionStore {
     // Review screens open: only they prefetch every file's diff with the snapshot.
     private val watching = mutableSetOf<String>()
 
+    // Terminal headers open per project, each following its snapshot (see [follow]).
+    private val followers = mutableMapOf<String, Int>()
+
     // Projects whose next snapshot reconciles the loaded diffs against its stamps.
     private val pendingWatchRefresh = mutableSetOf<String>()
 
@@ -79,6 +82,7 @@ class GitStore(private val session: MacSession) : SessionStore {
         changedWork.values.forEach { it.cancel() }
         changedWork.clear()
         watching.clear()
+        followers.clear()
         pendingWatchRefresh.clear()
         mutable.value = GitState()
     }
@@ -117,6 +121,30 @@ class GitStore(private val session: MacSession) : SessionStore {
 
     fun unwatch(project: String) {
         watching -= project
+        if (project in followers) return
+        changedWork.remove(project)?.cancel()
+        client?.unwatchGit(project)
+    }
+
+    /**
+     * A terminal header showing the project's changes: the snapshot follows the
+     * working tree while one is open, without the review screen's diff prefetch.
+     */
+    fun follow(project: String) {
+        val count = (followers[project] ?: 0) + 1
+        followers[project] = count
+        if (count == 1 && project !in watching) client?.watchGit(project)
+        load(project)
+    }
+
+    fun unfollow(project: String) {
+        val count = followers[project] ?: return
+        if (count > 1) {
+            followers[project] = count - 1
+            return
+        }
+        followers -= project
+        if (project in watching) return
         changedWork.remove(project)?.cancel()
         client?.unwatchGit(project)
     }

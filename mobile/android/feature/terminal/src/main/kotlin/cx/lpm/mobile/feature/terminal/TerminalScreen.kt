@@ -95,12 +95,15 @@ internal fun TerminalScreen(
                     onClick = onBack
                 )
             },
-            trailing = trailing
+            trailing = trailing,
+            keepTitleCentered = true
         ) {
             TerminalTitle(
                 label = terminal.label,
                 statusLine = state.statusLine,
-                agent = state.agent
+                agent = state.agent,
+                git = state.git,
+                gitLoading = state.gitLoading
             )
         }
         Column(

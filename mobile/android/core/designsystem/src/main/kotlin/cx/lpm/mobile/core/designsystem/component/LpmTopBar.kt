@@ -47,7 +47,11 @@ fun LpmTopBar(
     }
 }
 
-/** [LpmTopBar] with a custom [title], such as a Mac switcher menu. */
+/**
+ * [LpmTopBar] with a custom [title], such as a Mac switcher menu. [keepTitleCentered]
+ * holds the title on the screen's middle even when the buttons crowd one side,
+ * narrowing it instead.
+ */
 @Composable
 fun LpmTopBar(
     modifier: Modifier = Modifier,
@@ -55,6 +59,7 @@ fun LpmTopBar(
     trailing: (@Composable RowScope.() -> Unit)? = null,
     containerColor: Color = Color.Transparent,
     windowInsets: WindowInsets = WindowInsets.statusBars,
+    keepTitleCentered: Boolean = false,
     title: @Composable () -> Unit
 ) {
     Layout(
@@ -76,8 +81,13 @@ fun LpmTopBar(
         val gap = TitleGap.roundToPx()
         val width = constraints.maxWidth
         val height = constraints.maxHeight
-        val minX = if (start.width > 0) start.width + gap else 0
-        val maxRight = if (end.width > 0) width - end.width - gap else width
+        var minX = if (start.width > 0) start.width + gap else 0
+        var maxRight = if (end.width > 0) width - end.width - gap else width
+        if (keepTitleCentered) {
+            val side = maxOf(minX, width - maxRight)
+            minX = side
+            maxRight = width - side
+        }
         val titlePlaceable = titleMeasurables.first().measure(
             loose.copy(maxWidth = (maxRight - minX).coerceAtLeast(0))
         )

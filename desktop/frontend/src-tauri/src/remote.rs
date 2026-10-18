@@ -3351,11 +3351,13 @@ fn handle_msg(
                                 })
                                 .collect();
                             let default_branch = crate::git::git_default_branch(cwd.clone());
+                            let (lines_added, lines_removed) = crate::gitlines::line_totals(&cwd, &changed);
                             let mut reply = json!({ "t": "git", "project": project, "ok": true, "isRepo": true,
                             "branch": st.branch, "detached": st.detached, "hasUpstream": st.has_upstream,
                             "ahead": st.ahead, "behind": st.behind,
                             "defaultBranch": default_branch,
-                            "ghCli": crate::git::check_ghcli(), "files": files });
+                            "ghCli": crate::git::check_ghcli(), "files": files,
+                            "linesAdded": lines_added, "linesRemoved": lines_removed });
                             // A branch with nowhere to push yet (a fresh worktree's) still
                             // has work only here: its commits not on the default branch.
                             if !st.has_upstream && !default_branch.is_empty() && default_branch != st.branch {

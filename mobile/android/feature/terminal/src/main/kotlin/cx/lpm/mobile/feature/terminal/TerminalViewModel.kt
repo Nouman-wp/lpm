@@ -2,6 +2,8 @@ package cx.lpm.mobile.feature.terminal
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cx.lpm.mobile.core.data.git.GitState
+import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.link.LinkView
 import cx.lpm.mobile.core.data.link.view
 import cx.lpm.mobile.core.data.prefs.AppPreferences
@@ -36,7 +38,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -60,6 +64,10 @@ class TerminalViewModel @AssistedInject constructor(
     private val session: MacSession? = sessions[key.session]
     private val terminals = session?.store<TerminalsStore>()
     private val projects = session?.store<ProjectsStore>()
+    private val git = session?.store<GitStore>()
+
+    // The screen is showing, so its title follows the project's changes.
+    private var following = false
 
     // The tab lpm reopened in this one's place after restarting: the screen carries on
     // with it, saying so for a moment. `lastSeen` is the terminal as its list last
@@ -75,18 +83,20 @@ class TerminalViewModel @AssistedInject constructor(
     private val currentId: String get() = successor.value?.id ?: key.terminalId
 
     val uiState: StateFlow<TerminalUiState> = if (session == null || terminals == null ||
-        projects == null
+        projects == null || git == null
     ) {
         // A machine visit that has ended: nothing will load.
         MutableStateFlow(TerminalUiState(listLoaded = true))
     } else {
         combine(
-            combine(session.state, session.link.views, ::Pair),
+            combine(session.state, session.link.views, git.state, ::Triple),
             terminals.state,
             projects.state,
             prefs.terminalLooks(),
             combine(lastSeen, reopened, successor) { seen, reopen, _ -> seen to reopen }
-        ) { (s, link), t, p, look, (seen, reopen) -> build(s, t, p, link, look, seen, reopen) }
+        ) { (s, link, g), t, p, look, (seen, reopen) ->
+            build(s, t, p, link, g, look, seen, reopen)
+        }
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(5_000),
@@ -95,6 +105,7 @@ class TerminalViewModel @AssistedInject constructor(
                     terminals.state.value,
                     projects.state.value,
                     session.link.view(),
+                    git.state.value,
                     prefs.terminalLook,
                     lastSeen.value,
                     reopened.value
@@ -115,7 +126,30 @@ class TerminalViewModel @AssistedInject constructor(
                 .distinctUntilChanged()
                 .onEach { awaiting -> if (awaiting) pollForReopen() else reopenPoll?.cancel() }
                 .launchIn(viewModelScope)
+            // The Mac's watch reports changes from when it starts, so whatever changed
+            // while the link was down is fetched once it's back.
+            session.state.map { it.isReady }
+                .distinctUntilChanged()
+                .drop(1)
+                .onEach { ready -> if (ready && following) git?.load(key.project) }
+                .launchIn(viewModelScope)
         }
+    }
+
+    /** The screen came up: its title follows the project's changes while it shows. */
+    fun appear() {
+        following = true
+        git?.follow(key.project)
+    }
+
+    fun disappear() {
+        following = false
+        git?.unfollow(key.project)
+    }
+
+    /** Back in the foreground: catch up on the changes made meanwhile. */
+    fun resume() {
+        if (following) git?.load(key.project)
     }
 
     private fun pollForReopen() {
@@ -163,6 +197,7 @@ class TerminalViewModel @AssistedInject constructor(
         t: TerminalsState,
         p: ProjectsState,
         link: LinkView,
+        g: GitState,
         look: TerminalLook,
         seen: TerminalInfo?,
         reopen: Boolean
@@ -185,6 +220,8 @@ class TerminalViewModel @AssistedInject constructor(
             statusLine = link.statusLine.takeUnless { s.demoMode || s.isReady },
             look = look,
             agent = agentTiming(project, id),
+            git = g.snapshots[key.project],
+            gitLoading = key.project in g.loading,
             activeMacId = s.activeMacId
         )
     }
@@ -194,7 +231,7 @@ class TerminalViewModel @AssistedInject constructor(
         project ?: return null
         val rows = projectAgentRows(project, clock.millis(), tabTitles = emptyMap())
         val agent = agentRowsByTerminal(rows)[terminalId]?.takeIf { it.state != AgentState.Idle }
-        return agent?.since?.let { AgentTiming(it, agent.until) }
+        return agent?.since?.let { AgentTiming(agent.state, it, agent.until) }
     }
 
     /** A screen showing the terminal appeared; it streams through `hooks` until [closeScreen]. */

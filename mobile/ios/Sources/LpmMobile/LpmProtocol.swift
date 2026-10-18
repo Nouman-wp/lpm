@@ -1903,6 +1903,9 @@ struct GitSnapshot {
     let aheadOfDefault: Int?
     let ghCli: Bool
     let files: [GitFile]
+    // Lines the changed files add and remove; nil from a Mac that doesn't count them.
+    let linesAdded: Int?
+    let linesRemoved: Int?
     let autoPulled: AutoPulled?
 
     init(_ o: [String: Any]) {
@@ -1916,6 +1919,8 @@ struct GitSnapshot {
         aheadOfDefault = o["aheadOfDefault"] as? Int
         ghCli = o["ghCli"] as? Bool ?? false
         files = (o["files"] as? [[String: Any]] ?? []).map(GitFile.init)
+        linesAdded = o["linesAdded"] as? Int
+        linesRemoved = o["linesRemoved"] as? Int
         autoPulled = AutoPulled(o["autoPulled"])
     }
 }

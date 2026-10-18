@@ -44,7 +44,10 @@ data class GitSnapshot(
     val aheadOfDefault: Int? = null,
     val ghCli: Boolean,
     val files: List<GitFile>,
-    val autoPulled: AutoPulled?
+    val autoPulled: AutoPulled?,
+    // Lines the changed files add and remove; null from a Mac that doesn't count them.
+    val linesAdded: Int? = null,
+    val linesRemoved: Int? = null
 ) {
     companion object {
         fun parse(o: JsonObject): GitSnapshot = GitSnapshot(
@@ -58,7 +61,9 @@ data class GitSnapshot(
             aheadOfDefault = o.int("aheadOfDefault"),
             ghCli = o.bool("ghCli") ?: false,
             files = o.list("files", GitFile::parse),
-            autoPulled = AutoPulled.parse(o["autoPulled"])
+            autoPulled = AutoPulled.parse(o["autoPulled"]),
+            linesAdded = o.int("linesAdded"),
+            linesRemoved = o.int("linesRemoved")
         )
     }
 }

@@ -8,7 +8,7 @@ extension DemoServer {
     func registerGitHandlers() {
         register("git") { [weak self] o in
             guard let self, let project = o["project"] as? String else { return }
-            self.pushAfter(0.3) { [weak self] in self?.world.gitSnapshotPayload(project) }
+            self.pushAfter(0.3) { [weak self] in self?.gitSnapshot(project) }
         }
         register("gitDiff") { [weak self] o in
             guard let self, let project = o["project"] as? String, let path = o["path"] as? String else { return }
@@ -229,6 +229,22 @@ extension DemoServer {
             guard let self, self.world.git[project]?.watched == true else { return nil }
             return ["t": "git-changed", "project": project]
         }
+    }
+
+    /// The snapshot with the line totals a Mac counts, taken from the diffs served.
+    private func gitSnapshot(_ project: String) -> [String: Any] {
+        var payload = world.gitSnapshotPayload(project)
+        guard let repo = world.git[project], repo.isRepo else { return payload }
+        var added = 0, removed = 0
+        for file in repo.files {
+            for line in demoDiff(project: project, path: file.path).split(separator: "\n") {
+                if line.hasPrefix("+") && !line.hasPrefix("+++") { added += 1 }
+                if line.hasPrefix("-") && !line.hasPrefix("---") { removed += 1 }
+            }
+        }
+        payload["linesAdded"] = added
+        payload["linesRemoved"] = removed
+        return payload
     }
 
     private func demoDiff(project: String, path: String) -> String {

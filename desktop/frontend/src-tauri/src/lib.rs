@@ -74,6 +74,7 @@ mod generated_commands;
 mod git;
 mod gitautopull;
 mod gitignore;
+mod gitlines;
 mod gitorigin;
 mod gitbring;
 mod gitbringapply;

@@ -9,7 +9,7 @@ package cx.lpm.mobile.core.demo
 internal fun DemoServer.registerGitHandlers() {
     register("git") { o ->
         val project = o.string("project") ?: return@register
-        pushAfter(0.3) { world.gitSnapshotPayload(project) }
+        pushAfter(0.3) { gitSnapshot(project) }
     }
     register("gitDiff") { o ->
         val project = o.string("project") ?: return@register
@@ -244,6 +244,21 @@ internal fun DemoServer.pushGitChanged(project: String) {
         if (world.git[project]?.watched != true) return@pushAfter null
         mapOf("t" to "git-changed", "project" to project)
     }
+}
+
+/** The snapshot with the line totals a Mac counts, taken from the diffs served. */
+private fun DemoServer.gitSnapshot(project: String): Dict {
+    val payload = world.gitSnapshotPayload(project)
+    val repo = world.git[project]?.takeIf { it.isRepo } ?: return payload
+    var added = 0
+    var removed = 0
+    for (file in repo.files) {
+        for (line in demoDiff(project, file.path).split('\n')) {
+            if (line.startsWith("+") && !line.startsWith("+++")) added++
+            if (line.startsWith("-") && !line.startsWith("---")) removed++
+        }
+    }
+    return payload + mapOf("linesAdded" to added, "linesRemoved" to removed)
 }
 
 private fun DemoServer.demoDiff(project: String, path: String): String {
