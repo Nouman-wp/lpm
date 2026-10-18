@@ -13,6 +13,7 @@ fn event(model: &str, total: u64, fast: bool) -> UsageEvent {
             ..Default::default()
         },
         fast,
+        long_context: false,
     }
 }
 

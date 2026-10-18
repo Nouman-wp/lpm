@@ -58,6 +58,8 @@ pub struct UsageBreakdown {
     pub(crate) provider: Option<String>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub(crate) fast: bool,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub(crate) long_context: bool,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -68,6 +70,8 @@ pub struct DailyModelUsage {
     pub(crate) tokens: TokenUsage,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub(crate) fast: bool,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub(crate) long_context: bool,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -126,6 +130,8 @@ pub(crate) struct UsageEvent {
     pub(crate) timestamp: i64,
     pub(crate) tokens: TokenUsage,
     pub(crate) fast: bool,
+    /// Billed at the model's long-context rates.
+    pub(crate) long_context: bool,
 }
 
 pub(crate) struct ProjectRoot {
@@ -257,6 +263,7 @@ struct GroupAggregate {
     sessions: HashSet<String>,
     provider: Option<&'static str>,
     fast: bool,
+    long_context: bool,
 }
 
 #[derive(Default)]
@@ -273,7 +280,7 @@ struct SessionAggregate {
 struct DailyAggregate {
     claude_tokens: u64,
     codex_tokens: u64,
-    models: BTreeMap<(String, String, bool), TokenUsage>,
+    models: BTreeMap<(String, String, bool, bool), TokenUsage>,
 }
 
 fn period_cutoff(days: i64) -> Result<Option<i64>, String> {
@@ -304,6 +311,7 @@ fn breakdowns(
             tokens: aggregate.tokens,
             provider: aggregate.provider.map(str::to_string),
             fast: aggregate.fast,
+            long_context: aggregate.long_context,
         })
         .collect();
     sort_breakdowns(&mut rows);
@@ -317,6 +325,7 @@ pub(crate) fn sort_breakdowns(rows: &mut [UsageBreakdown]) {
             .cmp(&a.tokens.total_tokens)
             .then_with(|| a.label.cmp(&b.label))
             .then_with(|| a.fast.cmp(&b.fast))
+            .then_with(|| a.long_context.cmp(&b.long_context))
     });
 }
 
@@ -324,7 +333,7 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
     let mut totals = TokenUsage::default();
     let mut provider_groups: HashMap<String, GroupAggregate> = HashMap::new();
     let mut project_groups: HashMap<String, GroupAggregate> = HashMap::new();
-    let mut model_groups: HashMap<(String, bool), GroupAggregate> = HashMap::new();
+    let mut model_groups: HashMap<(String, bool, bool), GroupAggregate> = HashMap::new();
     let mut sessions: HashMap<String, SessionAggregate> = HashMap::new();
     let mut daily: BTreeMap<String, DailyAggregate> = BTreeMap::new();
     for event in events {
@@ -342,12 +351,13 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
         project.tokens.add(event.tokens);
         project.sessions.insert(session_key.clone());
         let model = model_groups
-            .entry((event.model.clone(), event.fast))
+            .entry((event.model.clone(), event.fast, event.long_context))
             .or_default();
         model.tokens.add(event.tokens);
         model.sessions.insert(session_key.clone());
         model.provider.get_or_insert(event.provider);
         model.fast = event.fast;
+        model.long_context = event.long_context;
         let session = sessions
             .entry(session_key)
             .or_insert_with(|| SessionAggregate {
@@ -371,7 +381,12 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
             day.codex_tokens = day.codex_tokens.saturating_add(event.tokens.total_tokens);
         }
         day.models
-            .entry((event.provider.to_string(), event.model, event.fast))
+            .entry((
+                event.provider.to_string(),
+                event.model,
+                event.fast,
+                event.long_context,
+            ))
             .or_default()
             .add(event.tokens);
     }
@@ -408,7 +423,7 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
         models: breakdowns(
             model_groups
                 .into_iter()
-                .map(|((model, _), aggregate)| (model, aggregate)),
+                .map(|((model, _, _), aggregate)| (model, aggregate)),
             &HashMap::new(),
         ),
         daily: daily
@@ -421,12 +436,15 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
                 models: totals
                     .models
                     .into_iter()
-                    .map(|((provider, model, fast), tokens)| DailyModelUsage {
-                        provider,
-                        model,
-                        tokens,
-                        fast,
-                    })
+                    .map(
+                        |((provider, model, fast, long_context), tokens)| DailyModelUsage {
+                            provider,
+                            model,
+                            tokens,
+                            fast,
+                            long_context,
+                        },
+                    )
                     .collect(),
             })
             .collect(),

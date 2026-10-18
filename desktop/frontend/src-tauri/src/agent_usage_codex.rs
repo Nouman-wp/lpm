@@ -118,6 +118,7 @@ impl Thread {
             timestamp,
             tokens,
             fast: self.fast,
+            long_context: false,
         })
     }
 }

@@ -2151,7 +2151,8 @@ struct UsageTokens {
 }
 
 /// Tokens aggregated under one key — a provider, a project, or a model. Model rows
-/// carry their provider, and fast-mode usage arrives as its own row with `fast` set.
+/// carry their provider, and fast-mode usage arrives as its own row with `fast` set,
+/// as does usage billed at the model's long-context rates with `longContext`.
 struct UsageBreakdown: Identifiable {
     let key: String
     let label: String
@@ -2159,8 +2160,9 @@ struct UsageBreakdown: Identifiable {
     let tokens: UsageTokens
     let provider: String?
     let fast: Bool
+    let longContext: Bool
 
-    var id: String { fast ? "\(key)#fast" : key }
+    var id: String { key + (fast ? "#fast" : "") + (longContext ? "#long" : "") }
 
     init(_ o: [String: Any]) {
         key = o["key"] as? String ?? ""
@@ -2169,6 +2171,7 @@ struct UsageBreakdown: Identifiable {
         tokens = UsageTokens(o["tokens"] as? [String: Any] ?? [:])
         provider = o["provider"] as? String
         fast = o["fast"] as? Bool ?? false
+        longContext = o["longContext"] as? Bool ?? false
     }
 }
 

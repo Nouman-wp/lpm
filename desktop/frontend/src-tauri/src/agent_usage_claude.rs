@@ -119,6 +119,12 @@ fn claude_tokens(usage: &Value) -> TokenUsage {
     }
 }
 
+/// Haiku 5.5 bills a request at its long-context rates once the prompt, cache reads and writes
+/// included, passes 100K tokens.
+fn long_context(model: &str, tokens: &TokenUsage) -> bool {
+    model.contains("haiku-5-5") && tokens.input_tokens > 100_000
+}
+
 fn iteration_kind(iteration: &Value) -> &str {
     iteration.get("type").and_then(Value::as_str).unwrap_or("")
 }
@@ -126,18 +132,19 @@ fn iteration_kind(iteration: &Value) -> &str {
 /// Advisor calls, compactions and refusal-fallback hops are billed per iteration at that
 /// iteration's model, and the top-level usage leaves some of them out. A hop that was declined
 /// before any output is not billed for most refusal categories.
-fn usage_by_model<'a>(usage: &'a Value, model: &'a str) -> Vec<(&'a str, TokenUsage)> {
+fn usage_by_model<'a>(usage: &'a Value, model: &'a str) -> Vec<((&'a str, bool), TokenUsage)> {
     let Some(iterations) = usage
         .get("iterations")
         .and_then(Value::as_array)
         .filter(|iterations| !iterations.is_empty())
     else {
-        return vec![(model, claude_tokens(usage))];
+        let tokens = claude_tokens(usage);
+        return vec![((model, long_context(model, &tokens)), tokens)];
     };
     let fell_back = iterations
         .iter()
         .any(|iteration| iteration_kind(iteration) == "fallback_message");
-    let mut by_model: Vec<(&str, TokenUsage)> = Vec::new();
+    let mut by_model: Vec<((&str, bool), TokenUsage)> = Vec::new();
     for iteration in iterations {
         if fell_back
             && iteration_kind(iteration) == "message"
@@ -150,9 +157,10 @@ fn usage_by_model<'a>(usage: &'a Value, model: &'a str) -> Vec<(&'a str, TokenUs
             .and_then(Value::as_str)
             .unwrap_or(model);
         let tokens = claude_tokens(iteration);
-        match by_model.iter_mut().find(|(existing, _)| *existing == id) {
+        let group = (id, long_context(id, &tokens));
+        match by_model.iter_mut().find(|(existing, _)| *existing == group) {
             Some((_, total)) => total.add(tokens),
-            None => by_model.push((id, tokens)),
+            None => by_model.push((group, tokens)),
         }
     }
     by_model
@@ -219,7 +227,7 @@ pub(crate) fn parse_claude_file(
             .and_then(Value::as_str)
             .unwrap_or("Unknown model");
         let fast = usage.get("speed").and_then(Value::as_str) == Some("fast");
-        for (id, tokens) in usage_by_model(usage, model) {
+        for ((id, long_context), tokens) in usage_by_model(usage, model) {
             if tokens.is_empty() {
                 continue;
             }
@@ -231,8 +239,9 @@ pub(crate) fn parse_claude_file(
                 timestamp,
                 tokens,
                 fast: fast && id == model,
+                long_context,
             };
-            let key = format!("{message_id}\0{id}");
+            let key = format!("{message_id}\0{id}\0{long_context}");
             keep_latest(
                 &mut messages,
                 Candidate {

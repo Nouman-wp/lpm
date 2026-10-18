@@ -233,6 +233,47 @@ fn claude_skips_zero_usage_placeholders() {
     assert!(events.is_empty());
 }
 
+#[test]
+fn claude_flags_haiku_5_5_requests_past_its_long_context_threshold() {
+    let dir = tempfile::tempdir().unwrap();
+    let message = |id: &str, model: &str, cache_read: u64| {
+        assistant(
+            dir.path(),
+            "session",
+            id,
+            model,
+            serde_json::json!({
+                "input_tokens": 2,
+                "cache_creation_input_tokens": 1_000,
+                "cache_read_input_tokens": cache_read,
+                "output_tokens": 10
+            }),
+        )
+    };
+    let mut events = events_of(
+        dir.path(),
+        "session.jsonl",
+        &[
+            message("short", "claude-haiku-5-5", 98_998),
+            message("long", "claude-haiku-5-5", 98_999),
+            message("opus", "claude-opus-5-5", 400_000),
+        ],
+    );
+    events.sort_by_key(|event| event.tokens.input_tokens);
+    let flags: Vec<(&str, bool)> = events
+        .iter()
+        .map(|event| (event.model.as_str(), event.long_context))
+        .collect();
+    assert_eq!(
+        flags,
+        vec![
+            ("claude-haiku-5-5", false),
+            ("claude-haiku-5-5", true),
+            ("claude-opus-5-5", false),
+        ]
+    );
+}
+
 fn candidate(session: &str, written: i64) -> Candidate {
     Candidate {
         key: "msg_1\0claude-opus-5-5".into(),
@@ -249,6 +290,7 @@ fn candidate(session: &str, written: i64) -> Candidate {
                 ..Default::default()
             },
             fast: false,
+            long_context: false,
         },
     }
 }

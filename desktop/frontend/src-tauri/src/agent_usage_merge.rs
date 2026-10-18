@@ -48,15 +48,16 @@ pub(crate) fn merge(parts: Vec<(String, AgentUsageStats)>, days: i64) -> AgentUs
 
 fn fold_rows(rows: Vec<UsageBreakdown>) -> Vec<UsageBreakdown> {
     let mut folded: Vec<UsageBreakdown> = Vec::new();
-    let mut at: HashMap<(String, bool), usize> = HashMap::new();
+    let mut at: HashMap<(String, bool, bool), usize> = HashMap::new();
     for row in rows {
-        match at.get(&(row.key.clone(), row.fast)) {
+        let key = (row.key.clone(), row.fast, row.long_context);
+        match at.get(&key) {
             Some(&i) => {
                 folded[i].sessions += row.sessions;
                 folded[i].tokens.add(row.tokens);
             }
             None => {
-                at.insert((row.key.clone(), row.fast), folded.len());
+                at.insert(key, folded.len());
                 folded.push(row);
             }
         }
@@ -78,7 +79,10 @@ fn add_day(daily: &mut BTreeMap<String, DailyUsage>, day: DailyUsage) {
     into.total_tokens = into.total_tokens.saturating_add(day.total_tokens);
     for model in day.models {
         match into.models.iter_mut().find(|m| {
-            m.provider == model.provider && m.model == model.model && m.fast == model.fast
+            m.provider == model.provider
+                && m.model == model.model
+                && m.fast == model.fast
+                && m.long_context == model.long_context
         }) {
             Some(existing) => existing.tokens.add(model.tokens),
             None => into.models.push(model),

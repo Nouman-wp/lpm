@@ -119,11 +119,13 @@ struct Rate {
     let cacheRead: Double
     let output: Double
     let fast: Double
+    var longContext: Double = 1
 }
 
-private func anthropic(_ input: Double, _ output: Double, cacheRead: Double? = nil, fast: Double = 2) -> Rate {
+private func anthropic(_ input: Double, _ output: Double, cacheRead: Double? = nil, fast: Double = 2,
+                       longContext: Double = 1) -> Rate {
     Rate(input: input, cacheWrite: input * 1.25, cacheWrite1h: input * 2,
-         cacheRead: cacheRead ?? input * 0.1, output: output, fast: fast)
+         cacheRead: cacheRead ?? input * 0.1, output: output, fast: fast, longContext: longContext)
 }
 
 /// OpenAI bills a cache write as plain input unless the model lists a write rate, and
@@ -148,9 +150,12 @@ private let rateTable: [(tokens: [String], rate: Rate)] = [
     (["opus-4-6", "opus-4-7"], anthropic(5, 25, fast: 6)),
     (["opus-4-1", "opus-4-2025", "opus-4@"], anthropic(15, 75)),
     (["opus"], opusRate),
+    (["sonnet-5-5"], anthropic(2, 10, cacheRead: 0.1)),
     (["sonnet-5"], anthropic(2, 10)),
     (["sonnet"], anthropic(3, 15)),
     (["3-5-haiku"], anthropic(0.8, 4)),
+    // A prompt over 100K tokens bills every bucket at five times the rate.
+    (["haiku-5-5"], anthropic(0.1, 0.5, longContext: 5)),
     (["haiku"], anthropic(1, 5)),
     (["gpt-6.1-sol"], openai(2, 0.1, 10, cacheWrite: 2.5)),
     (["gpt-6-astra"], openai(10, 1, 50, cacheWrite: 12.5)),
@@ -171,7 +176,7 @@ private let rateTable: [(tokens: [String], rate: Rate)] = [
     (["gpt-5.1-codex-mini", "gpt-5-codex-mini"], openai(0.25, 0.025, 2)),
     (["gpt-5"], openai(1.25, 0.125, 10)),
     (["codex-mini"], openai(1.5, 0.375, 6)),
-    (["o4-mini"], openai(1.1, 0.275, 4.4)),
+    (["o4-mini"], openai(1.1, 0.275, 4.4, fast: 20 / 11)),
     (["o3-mini"], openai(1.1, 0.55, 4.4)),
     (["o3"], openai(2, 0.5, 8, fast: 1.75)),
 ]
@@ -188,9 +193,9 @@ func pickRate(_ modelId: String, provider: String? = nil) -> Rate {
 
 /// Estimated USD cost for one model's token usage. Fresh input is the input that
 /// was neither a cache write nor a cache read; each bucket is priced separately, and
-/// fast-mode usage is scaled by the model's fast multiplier.
+/// fast-mode and long-context usage are scaled by the model's multipliers for them.
 func estimateModelCost(_ tokens: UsageTokens, _ modelId: String, provider: String? = nil,
-                       fast: Bool = false) -> Double {
+                       fast: Bool = false, longContext: Bool = false) -> Double {
     let rate = pickRate(modelId, provider: provider)
     let freshInput = Double(max(0, tokens.inputTokens - tokens.cacheCreationInputTokens - tokens.cacheReadInputTokens))
     let cacheWrite1h = min(tokens.cacheCreation1hInputTokens, tokens.cacheCreationInputTokens)
@@ -199,12 +204,15 @@ func estimateModelCost(_ tokens: UsageTokens, _ modelId: String, provider: Strin
         + Double(cacheWrite1h) * rate.cacheWrite1h
         + Double(tokens.cacheReadInputTokens) * rate.cacheRead
         + Double(tokens.outputTokens) * rate.output
-    return cost * (fast ? rate.fast : 1) / 1_000_000
+    return cost * (fast ? rate.fast : 1) * (longContext ? rate.longContext : 1) / 1_000_000
 }
 
 /// Summed estimated cost across every per-model breakdown.
 func estimateTotalCost(_ models: [UsageBreakdown]) -> Double {
-    models.reduce(0) { $0 + estimateModelCost($1.tokens, $1.key, provider: $1.provider, fast: $1.fast) }
+    models.reduce(0) {
+        $0 + estimateModelCost($1.tokens, $1.key, provider: $1.provider, fast: $1.fast,
+                               longContext: $1.longContext)
+    }
 }
 
 /// USD for display: `$0` at or below zero, two decimals under $10, else a rounded

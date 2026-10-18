@@ -7,10 +7,19 @@ export interface Rate {
   cacheRead: number;
   output: number;
   fast: number;
+  longContext: number;
 }
 
 function anthropic(input: number, output: number, cacheRead = input * 0.1, fast = 2): Rate {
-  return { input, cacheWrite: input * 1.25, cacheWrite1h: input * 2, cacheRead, output, fast };
+  return {
+    input,
+    cacheWrite: input * 1.25,
+    cacheWrite1h: input * 2,
+    cacheRead,
+    output,
+    fast,
+    longContext: 1,
+  };
 }
 
 // OpenAI bills a cache write as plain input unless the model lists a write rate, and has no
@@ -22,7 +31,7 @@ function openai(
   cacheWrite = input,
   fast = 2,
 ): Rate {
-  return { input, cacheWrite, cacheWrite1h: cacheWrite, cacheRead, output, fast };
+  return { input, cacheWrite, cacheWrite1h: cacheWrite, cacheRead, output, fast, longContext: 1 };
 }
 
 const OPUS_RATE = anthropic(5, 25);
@@ -38,9 +47,12 @@ const RATE_TABLE: { tokens: string[]; rate: Rate }[] = [
   { tokens: ["opus-4-6", "opus-4-7"], rate: anthropic(5, 25, 0.5, 6) },
   { tokens: ["opus-4-1", "opus-4-2025", "opus-4@"], rate: anthropic(15, 75) },
   { tokens: ["opus"], rate: OPUS_RATE },
+  { tokens: ["sonnet-5-5"], rate: anthropic(2, 10, 0.1) },
   { tokens: ["sonnet-5"], rate: anthropic(2, 10) },
   { tokens: ["sonnet"], rate: anthropic(3, 15) },
   { tokens: ["3-5-haiku"], rate: anthropic(0.8, 4) },
+  // A prompt over 100K tokens bills every bucket at five times the rate.
+  { tokens: ["haiku-5-5"], rate: { ...anthropic(0.1, 0.5), longContext: 5 } },
   { tokens: ["haiku"], rate: anthropic(1, 5) },
   { tokens: ["gpt-6.1-sol"], rate: openai(2, 0.1, 10, 2.5) },
   { tokens: ["gpt-6-astra"], rate: openai(10, 1, 50, 12.5) },
@@ -61,7 +73,7 @@ const RATE_TABLE: { tokens: string[]; rate: Rate }[] = [
   { tokens: ["gpt-5.1-codex-mini", "gpt-5-codex-mini"], rate: openai(0.25, 0.025, 2) },
   { tokens: ["gpt-5"], rate: openai(1.25, 0.125, 10) },
   { tokens: ["codex-mini"], rate: openai(1.5, 0.375, 6) },
-  { tokens: ["o4-mini"], rate: openai(1.1, 0.275, 4.4) },
+  { tokens: ["o4-mini"], rate: openai(1.1, 0.275, 4.4, 1.1, 20 / 11) },
   { tokens: ["o3-mini"], rate: openai(1.1, 0.55, 4.4) },
   { tokens: ["o3"], rate: openai(2, 0.5, 8, 2, 1.75) },
 ];
@@ -81,6 +93,7 @@ export function estimateModelCost(
   modelId: string,
   provider?: string,
   fast?: boolean,
+  longContext?: boolean,
 ): number {
   const rate = pickRate(modelId, provider);
   const freshInput = Math.max(
@@ -97,13 +110,14 @@ export function estimateModelCost(
     cacheWrite1h * rate.cacheWrite1h +
     tokens.cacheReadInputTokens * rate.cacheRead +
     tokens.outputTokens * rate.output;
-  return (cost * (fast ? rate.fast : 1)) / 1_000_000;
+  return (cost * (fast ? rate.fast : 1) * (longContext ? rate.longContext : 1)) / 1_000_000;
 }
 
 export function estimateTotalCost(models: UsageBreakdown[]): number {
   return (models ?? []).reduce(
     (sum, model) =>
-      sum + estimateModelCost(model.tokens, model.key, model.provider, model.fast),
+      sum +
+      estimateModelCost(model.tokens, model.key, model.provider, model.fast, model.longContext),
     0,
   );
 }
@@ -113,7 +127,14 @@ export function estimateDailyCost(models: DailyModelUsage[], provider?: string):
     (sum, entry) =>
       provider && entry.provider !== provider
         ? sum
-        : sum + estimateModelCost(entry.tokens, entry.model, entry.provider, entry.fast),
+        : sum +
+          estimateModelCost(
+            entry.tokens,
+            entry.model,
+            entry.provider,
+            entry.fast,
+            entry.longContext,
+          ),
     0,
   );
 }

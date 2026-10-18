@@ -17,6 +17,7 @@ fn row(key: &str, sessions: usize, total: u64, fast: bool) -> UsageBreakdown {
         tokens: tokens(total),
         provider: Some("claude".into()),
         fast,
+        long_context: false,
     }
 }
 
@@ -31,6 +32,7 @@ fn day(date: &str, model: &str, total: u64) -> DailyUsage {
             model: model.into(),
             tokens: tokens(total),
             fast: false,
+            long_context: false,
         }],
     }
 }

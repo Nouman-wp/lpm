@@ -121,6 +121,31 @@ describe("estimateModelCost", () => {
     expect(estimateModelCost(usage, "claude-sonnet-4-5-20250929")).toBeCloseTo(3 + 15, 6);
   });
 
+  it("prices sonnet 5.5 cache reads at half the sonnet 5 rate", () => {
+    const usage = tokens({ inputTokens: 1_000_000, cacheReadInputTokens: 1_000_000 });
+    expect(estimateModelCost(usage, "claude-sonnet-5-5")).toBeCloseTo(0.1, 6);
+    expect(estimateModelCost(usage, "claude-sonnet-5")).toBeCloseTo(0.2, 6);
+  });
+
+  it("prices haiku 5.5 by prompt length rather than at the haiku 4.5 rate", () => {
+    const usage = tokens({
+      inputTokens: 3_000_000,
+      cacheCreationInputTokens: 1_000_000,
+      cacheReadInputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+    });
+    const short = 0.1 + 0.125 + 0.01 + 0.5;
+    expect(estimateModelCost(usage, "claude-haiku-5-5")).toBeCloseTo(short, 6);
+    expect(estimateModelCost(usage, "claude-haiku-5-5", "claude", false, true)).toBeCloseTo(
+      5 * short,
+      6,
+    );
+    expect(estimateModelCost(usage, "claude-haiku-4-5", "claude", false, true)).toBeCloseTo(
+      1 + 1.25 + 0.1 + 5,
+      6,
+    );
+  });
+
   it("keeps legacy claude models on their own rates", () => {
     const usage = tokens({ inputTokens: 1_000_000, outputTokens: 1_000_000 });
     expect(estimateModelCost(usage, "claude-opus-4-1-20250805")).toBeCloseTo(15 + 75, 6);
@@ -160,6 +185,7 @@ describe("estimateModelCost", () => {
       2.5 * (5 + 0.5 + 30),
       6,
     );
+    expect(estimateModelCost(usage, "o4-mini", "codex", true)).toBeCloseTo(2 + 0.5 + 8, 6);
   });
 
   it("prices gpt-6 models apart from their gpt-5.6 namesakes", () => {
@@ -230,6 +256,17 @@ describe("estimateTotalCost", () => {
     ];
     expect(estimateTotalCost(models)).toBeCloseTo(20 + 40, 6);
   });
+
+  it("prices a long-context row at the model's long-context rate", () => {
+    const models: UsageBreakdown[] = [
+      breakdown("claude-haiku-5-5", { outputTokens: 1_000_000 }, "claude"),
+      {
+        ...breakdown("claude-haiku-5-5", { outputTokens: 1_000_000 }, "claude"),
+        longContext: true,
+      },
+    ];
+    expect(estimateTotalCost(models)).toBeCloseTo(0.5 + 2.5, 6);
+  });
 });
 
 describe("estimateDailyCost", () => {
@@ -256,6 +293,18 @@ describe("estimateDailyCost", () => {
       },
     ];
     expect(estimateDailyCost(fast)).toBeCloseTo(50, 6);
+  });
+
+  it("prices a long-context entry at the long-context rate", () => {
+    const long: DailyModelUsage[] = [
+      {
+        provider: "claude",
+        model: "claude-haiku-5-5",
+        tokens: tokens({ outputTokens: 1_000_000 }),
+        longContext: true,
+      },
+    ];
+    expect(estimateDailyCost(long)).toBeCloseTo(2.5, 6);
   });
 
   it("treats a missing breakdown as free", () => {

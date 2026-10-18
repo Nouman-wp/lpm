@@ -6,28 +6,31 @@ import kotlin.math.roundToLong
 
 // Per-model cost estimation, the desktop's `statsCost.ts` through iOS `StatsFormat.swift`.
 
-/** USD per million tokens, and the multiplier fast mode bills at. */
+/** USD per million tokens, and the multipliers fast mode and long context bill at. */
 data class Rate(
     val input: Double,
     val cacheWrite: Double,
     val cacheWrite1h: Double,
     val cacheRead: Double,
     val output: Double,
-    val fast: Double
+    val fast: Double,
+    val longContext: Double = 1.0
 )
 
 private fun anthropic(
     input: Double,
     output: Double,
     cacheRead: Double? = null,
-    fast: Double = 2.0
+    fast: Double = 2.0,
+    longContext: Double = 1.0
 ) = Rate(
     input = input,
     cacheWrite = input * 1.25,
     cacheWrite1h = input * 2,
     cacheRead = cacheRead ?: (input * 0.1),
     output = output,
-    fast = fast
+    fast = fast,
+    longContext = longContext
 )
 
 /**
@@ -60,9 +63,12 @@ private val rateTable: List<Pair<List<String>, Rate>> = listOf(
     listOf("opus-4-6", "opus-4-7") to anthropic(5.0, 25.0, fast = 6.0),
     listOf("opus-4-1", "opus-4-2025", "opus-4@") to anthropic(15.0, 75.0),
     listOf("opus") to opusRate,
+    listOf("sonnet-5-5") to anthropic(2.0, 10.0, cacheRead = 0.1),
     listOf("sonnet-5") to anthropic(2.0, 10.0),
     listOf("sonnet") to anthropic(3.0, 15.0),
     listOf("3-5-haiku") to anthropic(0.8, 4.0),
+    // A prompt over 100K tokens bills every bucket at five times the rate.
+    listOf("haiku-5-5") to anthropic(0.1, 0.5, longContext = 5.0),
     listOf("haiku") to anthropic(1.0, 5.0),
     listOf("gpt-6.1-sol") to openai(2.0, 0.1, 10.0, cacheWrite = 2.5),
     listOf("gpt-6-astra") to openai(10.0, 1.0, 50.0, cacheWrite = 12.5),
@@ -83,7 +89,7 @@ private val rateTable: List<Pair<List<String>, Rate>> = listOf(
     listOf("gpt-5.1-codex-mini", "gpt-5-codex-mini") to openai(0.25, 0.025, 2.0),
     listOf("gpt-5") to openai(1.25, 0.125, 10.0),
     listOf("codex-mini") to openai(1.5, 0.375, 6.0),
-    listOf("o4-mini") to openai(1.1, 0.275, 4.4),
+    listOf("o4-mini") to openai(1.1, 0.275, 4.4, fast = 20.0 / 11),
     listOf("o3-mini") to openai(1.1, 0.55, 4.4),
     listOf("o3") to openai(2.0, 0.5, 8.0, fast = 1.75)
 )
@@ -101,13 +107,14 @@ fun pickRate(modelId: String, provider: String? = null): Rate {
 /**
  * Estimated USD cost for one model's token usage. Fresh input is the input that was
  * neither a cache write nor a cache read; each bucket is priced separately, and
- * fast-mode usage is scaled by the model's fast multiplier.
+ * fast-mode and long-context usage are scaled by the model's multipliers for them.
  */
 fun estimateModelCost(
     tokens: UsageTokens,
     modelId: String,
     provider: String? = null,
-    fast: Boolean = false
+    fast: Boolean = false,
+    longContext: Boolean = false
 ): Double {
     val rate = pickRate(modelId, provider)
     val freshInput = maxOf(
@@ -120,12 +127,13 @@ fun estimateModelCost(
         cacheWrite1h * rate.cacheWrite1h +
         tokens.cacheReadInputTokens * rate.cacheRead +
         tokens.outputTokens * rate.output
-    return cost * (if (fast) rate.fast else 1.0) / 1_000_000
+    return cost * (if (fast) rate.fast else 1.0) * (if (longContext) rate.longContext else 1.0) /
+        1_000_000
 }
 
 /** Summed estimated cost across every per-model breakdown. */
 fun estimateTotalCost(models: List<UsageBreakdown>): Double =
-    models.sumOf { estimateModelCost(it.tokens, it.key, it.provider, it.fast) }
+    models.sumOf { estimateModelCost(it.tokens, it.key, it.provider, it.fast, it.longContext) }
 
 /**
  * USD for display: `$0` at or below zero, two decimals under $10, else a rounded

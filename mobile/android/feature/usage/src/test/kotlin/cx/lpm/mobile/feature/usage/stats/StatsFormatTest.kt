@@ -102,6 +102,20 @@ class StatsFormatTest {
     }
 
     @Test
+    fun `haiku 5_5 is priced by prompt length, sonnet 5_5 reads its cache at half price`() {
+        val t = tokens(input = 1_000_000, cacheRead = 1_000_000, output = 1_000_000)
+        assertEquals(0.51, estimateModelCost(t, "claude-haiku-5-5"), 1e-9)
+        assertEquals(2.55, estimateModelCost(t, "claude-haiku-5-5", longContext = true), 1e-9)
+        assertEquals(5.1, estimateModelCost(t, "claude-haiku-4-5", longContext = true), 1e-9)
+        assertEquals(10.1, estimateModelCost(t, "claude-sonnet-5-5"), 1e-9)
+        val models = listOf(
+            UsageBreakdown("claude-haiku-5-5", "", 1, t, "claude", fast = false),
+            UsageBreakdown("claude-haiku-5-5", "", 1, t, "claude", false, longContext = true)
+        )
+        assertEquals(3.06, estimateTotalCost(models), 1e-9)
+    }
+
+    @Test
     fun `dollars round like the desktop`() {
         assertEquals("$0", formatUsd(0.0))
         assertEquals("$1.23", formatUsd(1.234))

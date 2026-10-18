@@ -44,7 +44,8 @@ data class UsageTokens(
 
 /**
  * Tokens aggregated under one key — a provider, a project, or a model. Model rows
- * carry their provider, and fast-mode usage arrives as its own row with `fast` set.
+ * carry their provider, and fast-mode usage arrives as its own row with `fast` set,
+ * as does usage billed at the model's long-context rates with `longContext`.
  */
 data class UsageBreakdown(
     val key: String,
@@ -52,9 +53,11 @@ data class UsageBreakdown(
     val sessions: Int,
     val tokens: UsageTokens,
     val provider: String?,
-    val fast: Boolean
+    val fast: Boolean,
+    val longContext: Boolean = false
 ) {
-    val id: String get() = if (fast) "$key#fast" else key
+    val id: String
+        get() = key + (if (fast) "#fast" else "") + (if (longContext) "#long" else "")
 
     companion object {
         fun parse(o: JsonObject): UsageBreakdown = UsageBreakdown(
@@ -63,7 +66,8 @@ data class UsageBreakdown(
             sessions = o.statInt("sessions"),
             tokens = o.tokens("tokens"),
             provider = o.string("provider"),
-            fast = o.bool("fast") ?: false
+            fast = o.bool("fast") ?: false,
+            longContext = o.bool("longContext") ?: false
         )
     }
 }

@@ -267,6 +267,7 @@ export interface UsageBreakdown {
   tokens: TokenUsage;
   provider?: string;
   fast?: boolean;
+  longContext?: boolean;
 }
 
 export interface DailyModelUsage {
@@ -274,6 +275,7 @@ export interface DailyModelUsage {
   model: string;
   tokens: TokenUsage;
   fast?: boolean;
+  longContext?: boolean;
 }
 
 export interface DailyUsage {
