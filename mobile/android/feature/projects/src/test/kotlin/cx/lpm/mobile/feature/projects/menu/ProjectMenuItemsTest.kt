@@ -68,6 +68,36 @@ class ProjectMenuItemsTest {
     }
 
     @Test
+    fun filesAndResumeFollowReviewChangesWhenTheMacOffersThem() {
+        compose.setContent {
+            LpmTheme {
+                Box {
+                    ContextMenu(expanded = true, onDismissRequest = {}) {
+                        ProjectMenuItems(
+                            state = ProjectMenuUiState(),
+                            project = storefront,
+                            actions = ProjectMenuActions(
+                                files = { events += "files" },
+                                resumeSession = { events += "resume" }
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        compose.onNodeWithText("Files").performClick()
+        compose.onNodeWithText("Resume Session…").performClick()
+        assertEquals(listOf("files", "resume"), events)
+    }
+
+    @Test
+    fun filesAndResumeHideWithoutTheirFlags() {
+        show(ProjectMenuUiState())
+        compose.onNodeWithText("Files").assertDoesNotExist()
+        compose.onNodeWithText("Resume Session…").assertDoesNotExist()
+    }
+
+    @Test
     fun statusPicksFromTheMacsOrder() {
         show(ProjectMenuUiState(statusChoices = builtInWorkStatuses))
         compose.onNodeWithText("Status").performScrollTo().performClick()

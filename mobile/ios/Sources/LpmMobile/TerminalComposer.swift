@@ -301,8 +301,7 @@ struct TerminalComposer: View {
             : AnyLayout(VStackLayout(spacing: 0))
         return layout {
             if terminalTools {
-                SpecialKeyBar(key: key, onPaste: pasteClipboard,
-                              answers: model.answerSource(terminal: termId, project: project))
+                SpecialKeyBar(key: key, answers: model.answerSource(terminal: termId, project: project))
                     .padding(.bottom, sideBySide ? 8 : 0)
             }
             if !sideBySide {
@@ -683,13 +682,6 @@ struct TerminalComposer: View {
         focused = true
     }
 
-    private func pasteClipboard() {
-        if let s = UIPasteboard.general.string, !s.isEmpty {
-            store.appendText(s)
-            focused = true
-        }
-    }
-
     private func loadPhotos(_ items: [PhotosPickerItem]) {
         // Reserve ordered placeholder chips on main so they keep selection order,
         // even though the loads/encodes below finish in arbitrary order.
@@ -1004,15 +996,13 @@ private struct ComposerMentionMenu: View {
     }
 }
 
-/// Horizontally scrolling row of control keys plus a clipboard Paste key. Each key
-/// sends its raw escape/control sequence to the terminal immediately — independent
-/// of the compose field — so Ctrl-C, Esc, and arrow navigation work without
-/// composing a message. Paste inserts the clipboard string into the field. While
-/// the keyboard is open, a key pinned at the end closes it. For an agent whose
-/// answers the Mac can read, the bar leads with a copy key.
+/// Horizontally scrolling row of control keys. Each key sends its raw
+/// escape/control sequence to the terminal immediately — independent of the
+/// compose field — so Ctrl-C, Esc, and arrow navigation work without composing a
+/// message. For an agent whose answers the Mac can read, the row ends with a copy
+/// key. While the keyboard is open, a key pinned at the end closes it.
 private struct SpecialKeyBar: View {
     let key: (String) -> Void
-    let onPaste: () -> Void
     let answers: AnswerSource?
     @StateObject private var keyboard = KeyboardObserver()
 
@@ -1020,10 +1010,6 @@ private struct SpecialKeyBar: View {
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    if let answers {
-                        CopyAnswerKey(source: answers)
-                        Divider().frame(height: 18)
-                    }
                     cap("esc") { key("\u{1b}") }
                     cap("tab") { key("\t") }
                     cap("⌃C") { key("\u{03}") }
@@ -1033,8 +1019,10 @@ private struct SpecialKeyBar: View {
                     arrow("chevron.down", "Down") { key("\u{1b}[B") }
                     arrow("chevron.left", "Left") { key("\u{1b}[D") }
                     arrow("chevron.right", "Right") { key("\u{1b}[C") }
-                    Divider().frame(height: 18)
-                    arrow("doc.on.clipboard", "Paste", action: onPaste)
+                    if let answers {
+                        Divider().frame(height: 18)
+                        CopyAnswerKey(source: answers)
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)

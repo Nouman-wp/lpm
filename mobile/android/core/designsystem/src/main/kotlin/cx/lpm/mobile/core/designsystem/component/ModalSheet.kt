@@ -24,6 +24,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -45,6 +46,7 @@ import cx.lpm.mobile.core.designsystem.theme.ElevatedColors
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.designsystem.theme.elevated
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -235,10 +237,15 @@ internal constructor(
     @OptIn(ExperimentalMaterial3Api::class)
     suspend fun hide() = sheet.hide()
 
-    /** Pull a [medium] sheet up to the large detent, as when its content grows. */
+    /**
+     * Pull a [medium] sheet up to the large detent, as when its content grows; one still
+     * coming up finishes doing so first.
+     */
     @OptIn(ExperimentalMaterial3Api::class)
     suspend fun expand() {
-        if (medium) sheet.expand()
+        if (!medium) return
+        snapshotFlow { sheet.currentValue }.first { it != SheetValue.Hidden }
+        sheet.expand()
     }
 }
 

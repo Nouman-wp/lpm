@@ -1,0 +1,39 @@
+# Go to File: Files' search reads the project's @-mention index, files only,
+# name matches first; a result opens in the preview.
+appId: cx.lpm.mobile
+name: 143-files-go-to
+tags: [demo, files]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Tabs"
+    timeout: 5000
+- tapOn: "More"
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn: "Files"
+      - extendedWaitUntil:
+          visible: "Go to File"
+          timeout: 10000
+- tapOn: "Go to File"
+- inputText: "Checkout"
+- extendedWaitUntil:
+    visible: "CheckoutForm.tsx"
+    timeout: 5000
+- assertVisible: "app/checkout"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-results
+- tapOn: "CheckoutForm.tsx"
+- extendedWaitUntil:
+    visible: ".*use client.*"
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-preview
+- tapOn: "Done"
+- extendedWaitUntil:
+    visible: "CheckoutForm.tsx"
+    timeout: 5000

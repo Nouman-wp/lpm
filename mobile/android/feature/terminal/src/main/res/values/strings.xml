@@ -34,7 +34,6 @@
     <string name="key_down">Down</string>
     <string name="key_left">Left</string>
     <string name="key_right">Right</string>
-    <string name="key_paste">Paste</string>
     <string name="key_hide_keyboard">Hide keyboard</string>
 
     <!-- Composer -->

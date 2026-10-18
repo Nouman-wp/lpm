@@ -117,7 +117,7 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `chevron.up` | `keyboard_arrow_up` | 22 dp | terminal key bar | "Up" |
 | `chevron.left` (key) | `chevron_left` | 22 dp | terminal key bar | "Left" |
 | `return` (⏎ cap) | `keyboard_return` | 17 dp | terminal key bar ⏎ (the platform font's ⏎ is thin) | "⏎" |
-| `doc.on.clipboard` | `content_paste` | 22 dp | key bar Paste, "Paste Image" | "Paste" |
+| `doc.on.clipboard` | `content_paste` | 22 dp | "Paste Image" | |
 | `keyboard.chevron.compact.down` | `keyboard_hide` | 22 dp | key bar, closes the keyboard | "Hide keyboard" |
 | `wand.and.stars` | `auto_fix_high` | 15–22 dp | "Rewrite", default rewrite action | |
 | `arrow.down.right.and.arrow.up.left` | `close_fullscreen` | 20 dp | "Make shorter" | |
@@ -184,3 +184,9 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `arrow.clockwise` (service) | `refresh` | 17 dp | an ended service's Restart button and long-press Restart, "Reopened after lpm restarted" banner | "Restart <service>" |
 | `stop.fill` (service menu) | `stop` (fill) | 24 dp | a service's long-press Stop | |
 | `exclamationmark.triangle.fill` (footnote) | `warning` (fill) | 15 dp | "An action couldn't be loaded" notice | |
+| `terminal` / `sparkle` (New Tab) | `terminal` / `auto_awesome` (fill) | 16 dp on a 28 dp tile | New Tab "Shell" and agent rows (no single four-point sparkle in Material Symbols) | |
+| `clock.arrow.circlepath` (agents) | `history` | 22 dp menu and row, 56 dp empty state | "Resume Session…", "Resume a Past Session…", "No Past Sessions" | |
+| `arrow.triangle.branch` (session row) | `call_split` | 1 em, inline | a past session's branch in Resume Session | |
+| `folder` (Files) | `folder` | 22 dp menu, 56 dp empty state | "Files", "Empty Folder" | |
+| `folder.fill` / `doc` (Files rows) | `folder` (fill) / `description` | 24 dp | Files folder and file rows, Go to File results | |
+| `eye` / `doc.on.doc` (Files menu) | `visibility` / `content_copy` | 22 dp | a Files row's long-press Preview, Copy Path, Copy Relative Path | |

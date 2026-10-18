@@ -50,10 +50,12 @@ mobile/ios/open.sh
 `open.sh` finds your signing team (`DEVELOPMENT_TEAM`, else an untracked
 `mobile/ios/.team`, else your Apple Development certificate), saves it to the
 untracked `Team.xcconfig` so every regenerated project keeps it, then regenerates
-and opens the project. `run.sh` and `deploy.sh` do the same. Then in Xcode select
-a **physical iPhone** as the destination (not the Simulator — it can't reach your
-Mac's LAN/tailnet), and ⌘R. The generated `LpmMobile.xcodeproj` and `Info.plist`
-are gitignored; regenerate them any time from `project.yml`.
+the project (only when `project.yml` or the sources changed), opens it in Xcode
+and runs it (⌘R) on your **physical iPhone** — the first connected one, else one
+paired over Wi-Fi; with neither around it only builds. `run.sh` and `deploy.sh`
+set up signing the same way. Run on an iPhone, not the Simulator — it can't reach
+your Mac's LAN/tailnet. The generated `LpmMobile.xcodeproj` and `Info.plist` are
+gitignored; regenerate them any time from `project.yml`.
 
 ### Manual path (no XcodeGen)
 

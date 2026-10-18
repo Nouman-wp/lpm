@@ -16,7 +16,7 @@ mobile/
 
 | | Build | Run |
 |---|---|---|
-| iOS | `mobile/ios/open.sh` | `mobile/ios/run.sh` (physical iPhone) |
+| iOS | `mobile/ios/open.sh` (opens Xcode, runs on your iPhone) | `mobile/ios/run.sh` (physical iPhone, no Xcode) |
 | Android | `cd mobile/android && ./gradlew assembleDebug` | `mobile/android/run.sh` (device or emulator) |
 | Both, compared | `node mobile/parity/parity.js all --open` | iPhone simulator + Android emulator, report with paired screenshots |
 

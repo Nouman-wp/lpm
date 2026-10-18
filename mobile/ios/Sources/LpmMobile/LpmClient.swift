@@ -1384,7 +1384,6 @@ final class LpmClient: NSObject {
             case .jobsChanged: self.onJobsChanged?()
             case .seed(let id, let c, let r, let d, let owner, let draftText, let draftRev, let off, let reset):
                 self.streamOffset[id] = off
-                NSLog("LPMDBG seed %@ %d", id, d.count)
                 self.awaitingSeed.remove(id)
                 self.onControl?(id, owner)
                 self.onSeed?(id, c, r, d, reset)

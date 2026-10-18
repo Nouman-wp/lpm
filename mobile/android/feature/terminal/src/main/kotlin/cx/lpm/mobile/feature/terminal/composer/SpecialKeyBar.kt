@@ -53,17 +53,15 @@ internal object TerminalKeys {
 }
 
 /**
- * A horizontally scrolling row of the keys the soft keyboard can't produce, plus
- * Paste. Each key sends its sequence to the terminal at once — independent of the
- * message field — so Ctrl-C, Esc and the arrows work without composing a message.
- * Paste puts the clipboard into the field. While the keyboard is open, a key
- * pinned at the end closes it.
+ * A horizontally scrolling row of the keys the soft keyboard can't produce. Each
+ * key sends its sequence to the terminal at once — independent of the message
+ * field — so Ctrl-C, Esc and the arrows work without composing a message. While
+ * the keyboard is open, a key pinned at the end closes it.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun SpecialKeyBar(
     onKey: (String) -> Unit,
-    onPaste: () -> Unit,
     onHideKeyboard: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -93,12 +91,6 @@ internal fun SpecialKeyBar(
             Arrows.forEach { (icon, label, sequence) ->
                 ArrowKey(icon, stringResource(label), onClick = { onKey(sequence) })
             }
-            ComposerDivider(vertical = true, alpha = 1f)
-            ArrowKey(
-                DesignR.drawable.ic_content_paste,
-                stringResource(R.string.key_paste),
-                onClick = onPaste
-            )
         }
         if (WindowInsets.isImeVisible) {
             ComposerDivider(vertical = true, alpha = 1f)

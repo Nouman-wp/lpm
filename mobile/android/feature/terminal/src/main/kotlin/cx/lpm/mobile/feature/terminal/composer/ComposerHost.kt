@@ -117,12 +117,6 @@ internal fun ComposerHost(
             onSend = send,
             onHideKeyboard = hideKeyboard,
             onKey = viewModel::key,
-            onPaste = {
-                context.clipboardText()?.let {
-                    viewModel.paste(it)
-                    focusField = true
-                }
-            },
             onSwitchTab = viewModel::switchTab,
             onCloseTab = viewModel::closeTab,
             onRetryUpload = viewModel::retryUpload,
@@ -262,12 +256,6 @@ internal fun ComposerHost(
 
 /** "Run in duplicates": the prompt to run and the total copies (this terminal is the first). */
 private class DuplicateSeed(val count: Int, val prompt: String)
-
-private fun Context.clipboardText(): String? {
-    val clip = getSystemService(ClipboardManager::class.java)?.primaryClip ?: return null
-    if (clip.itemCount == 0) return null
-    return clip.getItemAt(0).coerceToText(this)?.toString()?.takeIf { it.isNotEmpty() }
-}
 
 private fun Context.clipboardHasImage(): Boolean = getSystemService(
     ClipboardManager::class.java

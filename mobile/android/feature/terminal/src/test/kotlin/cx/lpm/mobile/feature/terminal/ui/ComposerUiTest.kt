@@ -47,7 +47,6 @@ class ComposerUiTest {
         onSend = { events += "send" },
         onHideKeyboard = { events += "hide" },
         onKey = { events += "key:" + it.map { c -> c.code }.joinToString(",") },
-        onPaste = { events += "paste" },
         onSwitchTab = { events += "switch:$it" },
         onCloseTab = { events += "close:$it" },
         onRetryUpload = {},
@@ -90,7 +89,7 @@ class ComposerUiTest {
             look = ComposerLook(Color.White, Color.LightGray, "Reply to this run")
         )
         compose.onNodeWithText("esc").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Paste").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Up").assertDoesNotExist()
         compose.onNodeWithText("This terminal's output").assertDoesNotExist()
         compose.onNodeWithText("web logs").assertExists()
     }
@@ -130,8 +129,8 @@ class ComposerUiTest {
         compose.onNodeWithText("⌃C").performClick()
         compose.onNodeWithContentDescription("⏎").performClick()
         compose.onNodeWithContentDescription("Up").performClick()
-        compose.onNodeWithContentDescription("Paste").performScrollTo().performClick()
-        assertEquals(listOf("key:27", "key:3", "key:13", "key:27,91,65", "paste"), events)
+        compose.onNodeWithContentDescription("Right").performScrollTo().performClick()
+        assertEquals(listOf("key:27", "key:3", "key:13", "key:27,91,65", "key:27,91,67"), events)
     }
 
     @Test

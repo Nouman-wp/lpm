@@ -41,7 +41,6 @@ internal class ComposerCallbacks(
     val onSend: () -> Unit,
     val onHideKeyboard: () -> Unit,
     val onKey: (String) -> Unit,
-    val onPaste: () -> Unit,
     val onSwitchTab: (Int) -> Unit,
     val onCloseTab: (Int) -> Unit,
     val onRetryUpload: (String) -> Unit,
@@ -122,7 +121,6 @@ private fun KeysAndInput(
     val keys = @Composable { modifier: Modifier ->
         SpecialKeyBar(
             onKey = callbacks.onKey,
-            onPaste = callbacks.onPaste,
             onHideKeyboard = callbacks.onHideKeyboard,
             modifier = modifier
         )

@@ -2,9 +2,9 @@
 #
 #   brew install xcodegen        # once
 #   mobile/ios/open.sh           # sets your signing team, regenerates, opens Xcode
+#                                # and runs on your iPhone
 #
-# Then run on a physical iPhone (the Simulator can't reach your Mac's
-# LAN/tailnet).
+# Run on a physical iPhone (the Simulator can't reach your Mac's LAN/tailnet).
 name: LpmMobile
 options:
   bundleIdPrefix: cx.lpm

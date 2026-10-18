@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -88,7 +89,11 @@ internal fun ProjectFileRow(
             if (entry.dir && entry.changed > 0) {
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = stringResource(R.string.files_changed, entry.changed),
+                    text = pluralStringResource(
+                        R.plurals.files_changed,
+                        entry.changed,
+                        entry.changed
+                    ),
                     style = LpmTheme.typography.subheadline,
                     color = colors.secondaryLabel,
                     maxLines = 1

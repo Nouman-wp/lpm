@@ -7,8 +7,9 @@ extension DemoServer {
     func registerFilesHandlers() {
         register("listDir") { [weak self] o in
             guard let self, let project = o["project"] as? String else { return }
-            let dir = (o["dir"] as? String ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            var reply: [String: Any] = ["t": "listDir", "project": project, "dir": dir]
+            let asked = o["dir"] as? String ?? ""
+            let dir = asked.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            var reply: [String: Any] = ["t": "listDir", "project": project, "dir": asked]
             if self.world.project(named: project)?.isRemote == true {
                 reply["ok"] = false
                 reply["error"] = "Files on an SSH host open on your Mac."

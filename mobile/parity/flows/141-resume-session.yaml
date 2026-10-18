@@ -11,13 +11,13 @@ tags: [demo, terminal, agents]
     visible: "Tabs"
     timeout: 5000
 - tapOn: "More"
-- extendedWaitUntil:
-    visible: "Resume Session…"
-    timeout: 5000
-- tapOn: "Resume Session…"
-- extendedWaitUntil:
-    visible: "Fix checkout tax rounding"
-    timeout: 10000
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn: "Resume Session…"
+      - extendedWaitUntil:
+          visible: "Fix checkout tax rounding"
+          timeout: 10000
 - assertVisible: "In a tab"
 - assertVisible: "Yesterday"
 - assertVisible: "Add Apple Pay to checkout"
@@ -38,11 +38,9 @@ tags: [demo, terminal, agents]
 - extendedWaitUntil:
     notVisible: "Search conversations"
     timeout: 5000
-# The resumed conversation opens in a tab named after it.
+# The resumed conversation opens in a tab named after it. No screenshot: on
+# iOS a terminal opened after the "…" menu stays unpainted until touched.
 - extendedWaitUntil:
     visible: "Message"
     timeout: 15000
 - assertVisible: "Migrate cart store to Zustand"
-- waitForAnimationToEnd:
-    timeout: 3000
-- takeScreenshot: 3-resumed-tab

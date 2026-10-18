@@ -62,7 +62,14 @@ class AgentSessionGroupsTest {
             groups.map { it.day }
         )
         assertEquals(
-            listOf(listOf("a", "b"), listOf("c"), listOf("d", "e"), listOf("f", "g"), listOf("h"), listOf("i")),
+            listOf(
+                listOf("a", "b"),
+                listOf("c"),
+                listOf("d", "e"),
+                listOf("f", "g"),
+                listOf("h"),
+                listOf("i")
+            ),
             groups.map { g -> g.rows.map { it.session.title } }
         )
         assertEquals("September 2026", SessionDay.Month(YearMonth.of(2026, 9)).label(Locale.US))

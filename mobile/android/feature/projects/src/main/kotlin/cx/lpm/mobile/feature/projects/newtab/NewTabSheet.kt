@@ -3,6 +3,7 @@ package cx.lpm.mobile.feature.projects.newtab
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -52,7 +53,8 @@ private fun NewTabContent(
     )
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val sheet = rememberModalSheetState(medium = true)
+    // A remembered agent opens the sheet at the large detent, as its rows need the room.
+    val sheet = rememberModalSheetState(medium = remember { state.pick.agent.isEmpty() })
     val pages = rememberSheetNavigator(NewTabPage.Form)
     val haptics = LocalHapticFeedback.current
     LaunchedEffect(viewModel) { viewModel.onAppear() }

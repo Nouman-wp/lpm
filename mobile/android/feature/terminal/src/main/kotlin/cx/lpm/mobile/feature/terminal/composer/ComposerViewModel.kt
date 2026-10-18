@@ -173,10 +173,6 @@ class ComposerViewModel @AssistedInject constructor(
         terminals?.input(target.termId, sequence)
     }
 
-    fun paste(text: String) {
-        if (text.isNotEmpty()) store?.appendText(text)
-    }
-
     // MARK: sending
 
     /**

@@ -30,6 +30,7 @@ extension DemoServer {
                     || $0.preview.localizedCaseInsensitiveContains(search)
             }
             self.pushAfter(0.4, ["t": "agentSessions", "project": project, "ok": true,
+                                 "search": o["search"] ?? "", "limit": limit,
                                  "hasMore": matching.count > limit,
                                  "sessions": matching.prefix(limit).map { self.sessionRow($0, project: project) }])
         }

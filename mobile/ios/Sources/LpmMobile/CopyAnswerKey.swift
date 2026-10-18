@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// The key bar's first key: copies the agent's last answer as the markdown it
+/// The key bar's last key: copies the agent's last answer as the markdown it
 /// wrote. Touch and hold for an earlier answer. Dimmed while the agent is
 /// producing the next one, rather than hidden, so the keys beside it never move.
 struct CopyAnswerKey: View {
