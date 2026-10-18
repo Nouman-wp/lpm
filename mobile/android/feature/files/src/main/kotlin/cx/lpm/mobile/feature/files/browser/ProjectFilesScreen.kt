@@ -122,7 +122,13 @@ private fun FolderList(state: ProjectFilesUiState, dir: String, actions: Project
                             entry = entry,
                             actions = FileRowActions(
                                 open = {
-                                    if (entry.dir) actions.openFolder(path) else actions.openFile(path)
+                                    if (entry.dir) {
+                                        actions.openFolder(
+                                            path
+                                        )
+                                    } else {
+                                        actions.openFile(path)
+                                    }
                                 },
                                 copyPath = root?.let { { actions.copy(projectPath(it, path)) } },
                                 copyRelativePath = { actions.copy(path) }

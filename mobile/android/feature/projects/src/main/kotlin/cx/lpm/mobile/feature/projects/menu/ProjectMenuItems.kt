@@ -27,6 +27,9 @@ class ProjectMenuActions(
     val start: (profile: String) -> Unit = {},
     val stop: () -> Unit = {},
     val reviewChanges: () -> Unit = {},
+    /** Null leaves the item out: the Mac can't answer it, or the project is on SSH. */
+    val files: (() -> Unit)? = null,
+    val resumeSession: (() -> Unit)? = null,
     val memory: () -> Unit = {},
     val notes: () -> Unit = {},
     val automations: () -> Unit = {},
@@ -39,7 +42,8 @@ class ProjectMenuActions(
 )
 
 /**
- * The project's "More" menu: Start/Stop, Review Changes, Git, Memory, Notes,
+ * The project's "More" menu: Start/Stop, Review Changes, Files, Resume Session, Git,
+ * Memory, Notes,
  * Automations, Claude Account, Status, its profiles, then Rename, Configure and
  * Terminal Settings.
  */
@@ -74,6 +78,20 @@ fun ColumnScope.ProjectMenuItems(
             null
         }
     )
+    actions.files?.let {
+        ContextMenuItem(
+            title = stringResource(ProjectsR.string.menu_files),
+            onClick = it,
+            icon = painterResource(R.drawable.ic_folder)
+        )
+    }
+    actions.resumeSession?.let {
+        ContextMenuItem(
+            title = stringResource(ProjectsR.string.menu_resume_session),
+            onClick = it,
+            icon = painterResource(R.drawable.ic_history)
+        )
+    }
     GitSubmenu(state, project, actions.git)
     // Memory is Mac-local: an SSH project's agents run on the other host. Notes are
     // stored per project on the Mac either way.

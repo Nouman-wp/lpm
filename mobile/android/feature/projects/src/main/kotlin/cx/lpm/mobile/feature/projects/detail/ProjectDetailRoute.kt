@@ -25,6 +25,7 @@ import cx.lpm.mobile.core.navigation.YamlConfigKey
 import cx.lpm.mobile.feature.projects.ProjectsSlots
 import cx.lpm.mobile.feature.projects.R
 import cx.lpm.mobile.feature.projects.menu.ProjectMenuToolbar
+import cx.lpm.mobile.feature.projects.newtab.NewTabSheet
 import cx.lpm.mobile.feature.projects.services.ServiceLogsSheet
 import cx.lpm.mobile.feature.projects.ui.SessionAlertsHost
 import kotlinx.coroutines.delay
@@ -48,6 +49,7 @@ fun ProjectDetailRoute(
     var renaming by remember { mutableStateOf<TerminalInfo?>(null) }
     var closing by remember { mutableStateOf<TerminalInfo?>(null) }
     var logsFor by remember { mutableStateOf<Service?>(null) }
+    var newTabOpen by remember { mutableStateOf(false) }
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
@@ -58,8 +60,16 @@ fun ProjectDetailRoute(
         if (state.live && !wasLive) viewModel.reloadAfterReconnect()
         wasLive = state.live
     }
+    LaunchedEffect(state.canLaunchAgents) {
+        if (state.canLaunchAgents) viewModel.loadAgentOptions()
+    }
     val openTerminal = { t: TerminalInfo ->
         onNavigate(TerminalKey(key.project, t.id, key.session))
+    }
+    // A terminal the Mac opened for the phone belongs to the desktop: claim it first.
+    val openSpawned = { t: TerminalInfo ->
+        viewModel.claimControl(t.id)
+        openTerminal(t)
     }
 
     ProjectDetailScreen(
@@ -77,7 +87,11 @@ fun ProjectDetailRoute(
         actions = ProjectDetailActions(
             back = onBack,
             openTerminal = openTerminal,
-            newTerminal = viewModel::newTerminal,
+            // With agents to offer, New tab asks what the tab starts with; otherwise it
+            // opens a shell as it always has.
+            newTerminal = {
+                if (state.canLaunchAgents) newTabOpen = true else viewModel.newTerminal()
+            },
             pin = { viewModel.pin(it.id) },
             rename = { renaming = it },
             // Whatever runs in the tab stops with it, so a close is confirmed first.
@@ -100,10 +114,7 @@ fun ProjectDetailRoute(
                 project = key.project,
                 session = key.session,
                 onNavigate = onNavigate,
-                onSpawnedTerminal = { t ->
-                    viewModel.claimControl(t.id)
-                    openTerminal(t)
-                },
+                onSpawnedTerminal = openSpawned,
                 slots = slots
             )
         },
@@ -124,6 +135,14 @@ fun ProjectDetailRoute(
             term = term,
             onClose = { viewModel.close(term.id) },
             onDismiss = { closing = null }
+        )
+    }
+    if (newTabOpen) {
+        NewTabSheet(
+            project = key.project,
+            session = key.session,
+            onOpen = openSpawned,
+            onDismiss = { newTabOpen = false }
         )
     }
     logsFor?.let { service ->

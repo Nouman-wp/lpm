@@ -1471,6 +1471,7 @@ final class AppModel {
     // a second copy of an open terminal gets its own fresh seed.
     func openTerminalScreen(_ id: String, key: AnyObject, hooks: TerminalHooks) {
         terminalScreens.open(id, key: key, hooks: hooks)
+        NSLog("LPMDBG open %@ %@", id, String(describing: ObjectIdentifier(key)))
         // Ask again rather than trust an old ending: a terminal lpm had lost while
         // restarting can be back. The Mac answers with a seed or another `exit`.
         // Deferred: this runs inside a SwiftUI update.
@@ -1480,6 +1481,7 @@ final class AppModel {
         client?.subscribe(id)
     }
     func closeTerminalScreen(_ id: String, key: AnyObject) {
+        NSLog("LPMDBG close %@ %@", id, String(describing: ObjectIdentifier(key)))
         switch terminalScreens.close(id, key: key) {
         case .covered: break
         // The copy underneath stopped receiving while the newer one was up.

@@ -61,7 +61,9 @@ data class ProjectDetailUiState(
     /** A Start/Stop is out for the whole project: Stop all waits. */
     val stopping: Boolean = false,
     /** The project has background runs listed under its services. */
-    val hasBackgroundRuns: Boolean = false
+    val hasBackgroundRuns: Boolean = false,
+    /** The Mac starts agents in new tabs, so New tab asks what the tab starts with. */
+    val canLaunchAgents: Boolean = false
 ) {
     val runningServices: Int get() = services.count { it.running }
 
@@ -87,6 +89,7 @@ data class DetailInputs(
     val linkText: String = "",
     val queued: List<QueuedAction> = emptyList(),
     val canStopServices: Boolean = false,
+    val canLaunchAgents: Boolean = false,
     val now: Long = 0
 )
 
@@ -107,7 +110,8 @@ fun ProjectsState.detail(
             live = inputs.live,
             queued = inputs.queued,
             tabs = terminals?.map { TabEntry(it, null) },
-            hasBackgroundRuns = inputs.hasBackgroundRuns
+            hasBackgroundRuns = inputs.hasBackgroundRuns,
+            canLaunchAgents = inputs.canLaunchAgents
         )
     val agents = agentRowsByTerminal(projectAgentRows(project, inputs.now, emptyMap()))
     // One that ended keeps its place among the started services until restarted or stopped.
@@ -140,6 +144,7 @@ fun ProjectsState.detail(
         },
         canStopServices = inputs.canStopServices,
         stopping = name in pendingRun,
-        hasBackgroundRuns = inputs.hasBackgroundRuns
+        hasBackgroundRuns = inputs.hasBackgroundRuns,
+        canLaunchAgents = inputs.canLaunchAgents
     )
 }

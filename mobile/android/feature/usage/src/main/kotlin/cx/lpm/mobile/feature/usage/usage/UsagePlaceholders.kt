@@ -37,10 +37,10 @@ import cx.lpm.mobile.core.designsystem.component.SkeletonBar
 import cx.lpm.mobile.core.designsystem.component.StatusDot
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.USAGE_GENERIC_ERROR
-import cx.lpm.mobile.feature.usage.R
-import cx.lpm.mobile.feature.usage.ui.groupedCard
 import cx.lpm.mobile.core.ui.providerMeta
 import cx.lpm.mobile.core.ui.tint
+import cx.lpm.mobile.feature.usage.R
+import cx.lpm.mobile.feature.usage.ui.groupedCard
 
 /**
  * Placeholder for a tool with nothing to show yet — dashed rather than solid so it

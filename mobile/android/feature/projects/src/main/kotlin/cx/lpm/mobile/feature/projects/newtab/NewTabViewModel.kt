@@ -65,7 +65,11 @@ class NewTabViewModel @AssistedInject constructor(
 
     val uiState: StateFlow<NewTabUiState> = sessions.session(sessionKey)
         .flatMapLatest { s -> s?.let(::newTabState) ?: flowOf(NewTabUiState(pick = pick.value)) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NewTabUiState(pick = pick.value))
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            NewTabUiState(pick = pick.value)
+        )
 
     init {
         // A pick the Mac no longer offers falls back as soon as it says what it offers.

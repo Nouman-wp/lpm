@@ -71,9 +71,7 @@ internal fun ProjectFileRow(
             .background(if (pressed) colors.gray4 else Color.Transparent),
         leading = {
             Icon(
-                painter = painterResource(
-                    if (entry.dir) DesignR.drawable.ic_folder_fill else DesignR.drawable.ic_description
-                ),
+                painter = painterResource(if (entry.dir) FolderIcon else FileIcon),
                 contentDescription = null,
                 tint = if (entry.dir) colors.blue else colors.secondaryLabel,
                 modifier = Modifier
@@ -138,4 +136,6 @@ internal fun ProjectFileRow(
 /** A file row's icon column: 24 dp wide, 12 dp from the name. */
 internal val FileIconSlot = ListLeadingSlot(width = 24.dp, spacing = 12.dp)
 
+private val FolderIcon = DesignR.drawable.ic_folder_fill
+private val FileIcon = DesignR.drawable.ic_description
 private const val IGNORED_ALPHA = 0.5f

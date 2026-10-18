@@ -24,10 +24,10 @@ import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.component.StatusDot
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.ProviderLimits
-import cx.lpm.mobile.feature.usage.R
-import cx.lpm.mobile.feature.usage.ui.groupedCard
 import cx.lpm.mobile.core.ui.providerMeta
 import cx.lpm.mobile.core.ui.tint
+import cx.lpm.mobile.feature.usage.R
+import cx.lpm.mobile.feature.usage.ui.groupedCard
 
 /**
  * One tool's usage card: who it is, when it last reported, and its weekly and 5-hour

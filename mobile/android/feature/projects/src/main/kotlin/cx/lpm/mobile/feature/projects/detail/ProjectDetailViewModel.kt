@@ -3,6 +3,7 @@ package cx.lpm.mobile.feature.projects.detail
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cx.lpm.mobile.core.data.actions.ActionsStore
+import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
@@ -57,6 +58,7 @@ class ProjectDetailViewModel @AssistedInject constructor(
             linkText = view.statusLine.text,
             queued = link.queued(key.project),
             canStopServices = s.store<ProjectsStore>().canRestartServices,
+            canLaunchAgents = s.store<AgentLaunchStore>().canLaunchAgents,
             now = clock.millis()
         )
         p.detail(key.project, inputs, listed)
@@ -74,6 +76,11 @@ class ProjectDetailViewModel @AssistedInject constructor(
 
     fun newTerminal() {
         terminals?.newTerminal(key.project)
+    }
+
+    /** What New Tab offers, asked for as the screen comes up so the sheet opens ready. */
+    fun loadAgentOptions() {
+        session?.store<AgentLaunchStore>()?.loadOptions()
     }
 
     /** A terminal an action spawned belongs to the desktop: claim it before showing it. */

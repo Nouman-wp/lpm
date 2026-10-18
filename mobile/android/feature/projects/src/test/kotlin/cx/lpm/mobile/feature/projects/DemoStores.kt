@@ -1,9 +1,11 @@
 package cx.lpm.mobile.feature.projects
 
 import cx.lpm.mobile.core.data.actions.ActionsStore
+import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.automations.AutomationsStore
 import cx.lpm.mobile.core.data.claude.ClaudeAccountsStore
 import cx.lpm.mobile.core.data.config.ProjectConfigStore
+import cx.lpm.mobile.core.data.files.ProjectFilesStore
 import cx.lpm.mobile.core.data.git.GitAutoStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.machines.MachineImporter
@@ -24,7 +26,9 @@ val ScreenStores: Set<SessionStore.Factory> = setOf(
     SessionStore.Factory(::ActionsStore),
     SessionStore.Factory(::ClaudeAccountsStore),
     SessionStore.Factory(::UsageStore),
-    SessionStore.Factory(::MachineImporter)
+    SessionStore.Factory(::MachineImporter),
+    SessionStore.Factory(::AgentLaunchStore),
+    SessionStore.Factory(::ProjectFilesStore)
 )
 
 /** A session in Demo Mode with the sample Mac's first answers in. */

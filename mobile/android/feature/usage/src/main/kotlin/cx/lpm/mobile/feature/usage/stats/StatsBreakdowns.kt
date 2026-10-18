@@ -23,10 +23,10 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.UsageBreakdown
 import cx.lpm.mobile.core.model.UsageDaily
 import cx.lpm.mobile.core.model.UsageSession
-import cx.lpm.mobile.feature.usage.R
-import cx.lpm.mobile.feature.usage.ui.groupedCard
 import cx.lpm.mobile.core.ui.providerMeta
 import cx.lpm.mobile.core.ui.tint
+import cx.lpm.mobile.feature.usage.R
+import cx.lpm.mobile.feature.usage.ui.groupedCard
 
 @Composable
 internal fun DailyActivityCard(daily: List<UsageDaily>, modifier: Modifier = Modifier) {

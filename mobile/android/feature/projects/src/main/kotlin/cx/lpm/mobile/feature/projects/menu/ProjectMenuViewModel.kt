@@ -2,8 +2,10 @@ package cx.lpm.mobile.feature.projects.menu
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.automations.AutomationsStore
 import cx.lpm.mobile.core.data.claude.ClaudeAccountsStore
+import cx.lpm.mobile.core.data.files.ProjectFilesStore
 import cx.lpm.mobile.core.data.git.GitAutoStore
 import cx.lpm.mobile.core.data.git.GitNotice
 import cx.lpm.mobile.core.data.git.GitOpError
@@ -53,7 +55,10 @@ data class ProjectMenuUiState(
     val opError: GitOpError? = null,
     val notice: GitNotice? = null,
     /** The project's Auto Commit / Auto Create PR run while one is going. */
-    val autoRunning: GitAutoKind? = null
+    val autoRunning: GitAutoKind? = null,
+    /** The Mac lists the project's folders (Files) and past conversations (Resume Session). */
+    val canBrowseFiles: Boolean = false,
+    val canResumeSessions: Boolean = false
 )
 
 /**
@@ -78,8 +83,9 @@ class ProjectMenuViewModel @AssistedInject constructor(
         s.store<ProjectsStore>().state,
         s.store<GitStore>().state,
         s.store<AutomationsStore>().state,
-        s.store<GitAutoStore>().state
-    ) { p, git, jobs, auto ->
+        s.store<GitAutoStore>().state,
+        s.state
+    ) { p, git, jobs, auto, _ ->
         val live = p.project(project)
         val snapshot = git.snapshots[project]
         ProjectMenuUiState(
@@ -99,7 +105,9 @@ class ProjectMenuViewModel @AssistedInject constructor(
             statusChoices = p.workStatusMenu,
             opError = git.opError[project],
             notice = git.notice[project],
-            autoRunning = auto.runs[project]?.takeIf { it.running }?.kind
+            autoRunning = auto.runs[project]?.takeIf { it.running }?.kind,
+            canBrowseFiles = live != null && s.store<ProjectFilesStore>().canBrowseFiles(live),
+            canResumeSessions = live != null && s.store<AgentLaunchStore>().canResumeSessions(live)
         )
     }
 

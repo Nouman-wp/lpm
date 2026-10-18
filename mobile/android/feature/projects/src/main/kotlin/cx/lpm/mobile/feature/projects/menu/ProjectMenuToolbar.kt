@@ -40,8 +40,10 @@ import cx.lpm.mobile.core.navigation.MemoryKey
 import cx.lpm.mobile.core.navigation.NotesKey
 import cx.lpm.mobile.core.navigation.ProjectActionsKey
 import cx.lpm.mobile.core.navigation.ProjectConfigKey
+import cx.lpm.mobile.core.navigation.ProjectFilesKey
 import cx.lpm.mobile.feature.projects.ProjectsSlots
 import cx.lpm.mobile.feature.projects.R as ProjectsR
+import cx.lpm.mobile.feature.projects.resume.ResumeSessionSheet
 import kotlinx.coroutines.launch
 
 /**
@@ -71,12 +73,23 @@ fun ProjectMenuToolbar(
     val live = state.project ?: return
     var menuOpen by remember { mutableStateOf(false) }
     var dialog by remember { mutableStateOf<MenuDialog?>(null) }
+    var resumeOpen by remember { mutableStateOf(false) }
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val actions = ProjectMenuActions(
         start = viewModel::start,
         stop = viewModel::stop,
         reviewChanges = { onNavigate(GitReviewKey(project, session)) },
+        files = if (state.canBrowseFiles) {
+            { onNavigate(ProjectFilesKey(project, session = session)) }
+        } else {
+            null
+        },
+        resumeSession = if (state.canResumeSessions) {
+            { resumeOpen = true }
+        } else {
+            null
+        },
         memory = { onNavigate(MemoryKey(project, session)) },
         notes = { onNavigate(NotesKey(project, session)) },
         automations = { onNavigate(AutomationsKey(project, session)) },
@@ -133,6 +146,14 @@ fun ProjectMenuToolbar(
         terminalSettings = slots.terminalSettingsSheet,
         onDismiss = { dialog = null }
     )
+    if (resumeOpen) {
+        ResumeSessionSheet(
+            project = project,
+            session = session,
+            onOpen = onSpawnedTerminal,
+            onDismiss = { resumeOpen = false }
+        )
+    }
     slots.claudeConsentPrompt(session, project)
     slots.actionRunner(session, project, onSpawnedTerminal)
 }

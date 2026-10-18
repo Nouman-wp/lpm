@@ -57,7 +57,9 @@ internal fun ResumeSessionRow(row: ResumeRow, onOpen: () -> Unit, modifier: Modi
                         text = stringResource(R.string.resume_in_tab),
                         contentColor = colors.green,
                         containerColor = colors.green.copy(alpha = IN_TAB_WASH),
-                        textStyle = LpmTheme.typography.caption2.copy(fontWeight = FontWeight.SemiBold),
+                        textStyle = LpmTheme.typography.caption2.copy(
+                            fontWeight = FontWeight.SemiBold
+                        ),
                         modifier = Modifier.padding(vertical = 1.dp)
                     )
                 }

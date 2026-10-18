@@ -1,6 +1,5 @@
 package cx.lpm.mobile.feature.git.review
 
-import cx.lpm.mobile.core.ui.GitStatusBadge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,6 +37,7 @@ import cx.lpm.mobile.core.designsystem.component.ModalSheet
 import cx.lpm.mobile.core.designsystem.component.TextFieldRow
 import cx.lpm.mobile.core.designsystem.component.rememberModalSheetState
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.ui.GitStatusBadge
 import cx.lpm.mobile.feature.git.R
 import cx.lpm.mobile.feature.git.ui.BarSpinner
 import cx.lpm.mobile.feature.git.ui.SheetBar

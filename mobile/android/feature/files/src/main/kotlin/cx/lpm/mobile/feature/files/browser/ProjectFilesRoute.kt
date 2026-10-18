@@ -60,7 +60,9 @@ fun ProjectFilesRoute(
                 onNavigate(FilePreviewKey(key.project, listOf(path), session = key.session))
             },
             copy = { text ->
-                scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(text, text))) }
+                scope.launch {
+                    clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(text, text)))
+                }
             },
             retry = viewModel::retry
         )

@@ -1,6 +1,5 @@
 package cx.lpm.mobile.feature.git.review
 
-import cx.lpm.mobile.core.ui.GitFileStatus
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -15,6 +14,7 @@ import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.ContextMenu
 import cx.lpm.mobile.core.designsystem.component.ContextMenuItem
 import cx.lpm.mobile.core.designsystem.component.GlassIconButton
+import cx.lpm.mobile.core.ui.GitFileStatus
 import cx.lpm.mobile.feature.git.R
 
 /**

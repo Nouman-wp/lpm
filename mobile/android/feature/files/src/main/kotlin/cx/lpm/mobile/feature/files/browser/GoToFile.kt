@@ -20,7 +20,8 @@ fun goToFileMatches(
             entry.path.contains(query, ignoreCase = true) -> byPath += entry
         }
     }
-    fun changedFirst(list: List<MentionEntry>) = list.filter { it.changed } + list.filterNot { it.changed }
+    fun changedFirst(list: List<MentionEntry>) =
+        list.filter { it.changed } + list.filterNot { it.changed }
     return (changedFirst(byName) + changedFirst(byPath)).take(limit)
 }
 

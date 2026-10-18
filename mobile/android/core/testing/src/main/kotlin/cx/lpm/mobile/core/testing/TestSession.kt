@@ -92,15 +92,20 @@ class TestSession(test: TestScope, stores: Set<SessionStore.Factory> = emptySet(
         return record
     }
 
-    /** Connect the session to a saved Mac and bring the link to `ready`. */
-    fun connectReady(record: MacRecord = savedMac()): FakeSocket {
+    /** Connect the session to a saved Mac and bring the link to `ready`, answering [features]. */
+    fun connectReady(
+        record: MacRecord = savedMac(),
+        features: List<String> = emptyList()
+    ): FakeSocket {
         session.bootstrap()
         scheduler.runCurrent()
         val socket = transport.last
         socket.open()
         scheduler.runCurrent()
+        val answers = features.joinToString(",") { "\"$it\"" }
         socket.receive(
-            """{"t":"ready","serverId":"${record.serverId}","serverName":"${record.name}"}"""
+            """{"t":"ready","serverId":"${record.serverId}","serverName":"${record.name}",""" +
+                """"features":[$answers]}"""
         )
         scheduler.runCurrent()
         check(session.state.value.connection == LpmClient.State.Ready)

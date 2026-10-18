@@ -154,7 +154,9 @@ private fun OlderRow(state: ResumeSessionUiState, actions: ResumeSessionActions)
 private fun Placeholder(state: ResumeSessionUiState, actions: ResumeSessionActions) {
     val error = state.list.error
     when {
-        state.list.loading || !state.list.loaded -> ListSection(spacing = ListSectionSpacing.Compact) {
+        state.list.loading || !state.list.loaded -> ListSection(
+            spacing = ListSectionSpacing.Compact
+        ) {
             SkeletonWidths.forEach { TwoLineRowSkeleton(it.dp, (it + 70).dp) }
         }
 

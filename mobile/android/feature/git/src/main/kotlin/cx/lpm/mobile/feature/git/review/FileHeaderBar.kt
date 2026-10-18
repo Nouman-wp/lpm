@@ -1,6 +1,5 @@
 package cx.lpm.mobile.feature.git.review
 
-import cx.lpm.mobile.core.ui.GitStatusBadge
 import android.content.ClipData
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -50,6 +49,7 @@ import cx.lpm.mobile.core.designsystem.component.ContextMenu
 import cx.lpm.mobile.core.designsystem.component.ContextMenuItem
 import cx.lpm.mobile.core.designsystem.component.clickableNoIndication
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.ui.GitStatusBadge
 import cx.lpm.mobile.feature.git.R
 import kotlinx.coroutines.launch
 

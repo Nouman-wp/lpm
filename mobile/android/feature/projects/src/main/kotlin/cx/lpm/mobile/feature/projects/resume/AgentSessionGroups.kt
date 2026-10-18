@@ -59,7 +59,8 @@ fun agentSessionGroups(
 fun agentSessionDay(updatedAt: Long, today: LocalDate, zone: ZoneId): SessionDay {
     if (updatedAt <= 0) return SessionDay.Older
     val at = Instant.ofEpochMilli(updatedAt)
-    fun since(daysBack: Long) = !at.isBefore(today.minusDays(daysBack).atStartOfDay(zone).toInstant())
+    fun since(daysBack: Long) =
+        !at.isBefore(today.minusDays(daysBack).atStartOfDay(zone).toInstant())
     return when {
         since(0) -> SessionDay.Today
         since(1) -> SessionDay.Yesterday

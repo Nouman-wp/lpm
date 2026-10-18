@@ -72,7 +72,8 @@ class ResumeSessionViewModel @AssistedInject constructor(
     private fun resumeState(s: MacSession) =
         combine(s.store<AgentLaunchStore>().state, filter, query) { launch, filter, query ->
             val list = launch.sessions[project] ?: AgentSessionList()
-            val rows = filter.provider?.let { p -> list.rows.filter { it.provider == p } } ?: list.rows
+            val rows =
+                filter.provider?.let { p -> list.rows.filter { it.provider == p } } ?: list.rows
             ResumeSessionUiState(
                 filter = filter,
                 query = query,
