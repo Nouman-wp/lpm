@@ -10,9 +10,15 @@ const { helper, readState, writeState, windows, phoneWindow, alive } = require("
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const PAD = 12;
 
-function captureRect(app, phone, screen) {
+// The menu bar's status items belong to other apps, yet they still show in the
+// capture, so the rectangle never reaches above it.
+function menuBarBottom(list) {
+  return list.filter((w) => w.layer === 24 && w.y === 0).reduce((m, w) => Math.max(m, w.h), 0);
+}
+
+function captureRect(app, phone, screen, top = 0) {
   const x = Math.max(0, Math.min(app.x, phone.x) - PAD);
-  const y = Math.max(0, Math.min(app.y, phone.y) - PAD);
+  const y = Math.max(top, Math.min(app.y, phone.y) - PAD);
   const r = Math.min(screen.w, Math.max(app.x + app.w, phone.x + phone.w) + PAD);
   const b = Math.min(screen.h, Math.max(app.y + app.h, phone.y + phone.h) + PAD);
   const even = (v) => Math.round(v / 2) * 2;
@@ -27,7 +33,7 @@ async function start({ fps = 30, scale = 2, log = console.log } = {}) {
   const phone = phoneWindow();
   const app = list.filter((w) => w.pid === state.pid && w.layer === 0).sort((a, b) => b.w * b.h - a.w * a.h)[0];
   if (!app) throw new Error("the review app has no window on screen");
-  const rect = captureRect(app, phone, screen);
+  const rect = captureRect(app, phone, screen, menuBarBottom(list));
   const file = path.join(state.out, "raw.mov");
   const startFile = path.join(state.out, "start.txt");
   fs.rmSync(startFile, { force: true });
