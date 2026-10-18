@@ -2,6 +2,7 @@ import { forEachAction } from "./actionTree";
 import type { AgentSessionProvider } from "./agentSession";
 import { mergeSessionRows } from "./agentSessions";
 import type { TerminalViewHandle } from "./components/TerminalView";
+import type { TerminalStartOpts } from "./hooks/terminals/types";
 import { findAICLI } from "./slashCommands";
 import { getProjectTerminals } from "./terminals";
 import { AI_CLI_OPTIONS, aiEfforts, type ActionInfo, type AICLI } from "./types";
@@ -53,35 +54,48 @@ export function agentLaunchAction(actions: ActionInfo[], cli: AICLI): ActionInfo
   return found;
 }
 
-// Opens the agent behind whatever this Mac shows: the project's own button for
-// it when there is one, else the CLI itself, pinned to the picked model and level.
+// The tab that opens an agent: the project's own button for it when there is
+// one, else the CLI itself, pinned to the picked model and level. Null for an
+// agent this Mac doesn't offer.
+export function agentTabCommand(
+  actions: ActionInfo[],
+  launch: RemoteAgentLaunch,
+): { label: string; cmd: string; opts: TerminalStartOpts } | null {
+  const cli = AI_CLI_OPTIONS.find((o) => o.value === launch.agent);
+  if (!cli) return null;
+  const launchModel = { model: launch.model ?? "", effort: launch.effort ?? "" };
+  const prompt = launch.prompt?.trim() || undefined;
+  const action = agentLaunchAction(actions, cli.value);
+  if (action) {
+    return {
+      label: action.label,
+      cmd: action.cmd,
+      opts: {
+        configName: action.name,
+        actionName: action.name,
+        emoji: action.emoji,
+        color: action.color,
+        prompt,
+        launchModel,
+      },
+    };
+  }
+  return { label: cli.label, cmd: cli.value, opts: { prompt, launchModel } };
+}
+
+// Opens the agent a phone asked for behind whatever this Mac shows.
 export function launchRemoteAgent(
   view: TerminalViewHandle | null,
   actions: ActionInfo[],
   launch: RemoteAgentLaunch,
 ): void {
   if (!view) return;
-  const cli = AI_CLI_OPTIONS.find((o) => o.value === launch.agent);
-  if (!cli) {
+  const tab = agentTabCommand(actions, launch);
+  if (!tab) {
     view.createTerminal(true);
     return;
   }
-  const launchModel = { model: launch.model ?? "", effort: launch.effort ?? "" };
-  const prompt = launch.prompt?.trim() || undefined;
-  const action = agentLaunchAction(actions, cli.value);
-  if (action) {
-    view.createTerminalWithCmd(action.label, action.cmd, {
-      configName: action.name,
-      actionName: action.name,
-      emoji: action.emoji,
-      color: action.color,
-      prompt,
-      launchModel,
-      background: true,
-    });
-  } else {
-    view.createTerminalWithCmd(cli.label, cli.value, { prompt, launchModel, background: true });
-  }
+  view.createTerminalWithCmd(tab.label, tab.cmd, { ...tab.opts, background: true });
 }
 
 function isProvider(value: string): value is AgentSessionProvider {

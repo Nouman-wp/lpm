@@ -3,6 +3,7 @@ import type { TerminalViewHandle } from "./components/TerminalView";
 import {
   agentLaunchAction,
   agentOptionsForRemote,
+  agentTabCommand,
   launchRemoteAgent,
   resumeRemoteSession,
 } from "./remoteAgentTabs";
@@ -107,6 +108,21 @@ describe("launchRemoteAgent", () => {
     const view = fakeView();
     launchRemoteAgent(asHandle(view), [], { agent: "someday" });
     expect(view.createTerminal).toHaveBeenCalledWith(true);
+  });
+});
+
+describe("agentTabCommand", () => {
+  it("opens in front, so + can put it in its own pane", () => {
+    const tab = agentTabCommand([], { agent: "codex", model: "gpt-6.1-sol", effort: "ultra", prompt: "go" });
+    expect(tab).toEqual({
+      label: "Codex",
+      cmd: "codex",
+      opts: { prompt: "go", launchModel: { model: "gpt-6.1-sol", effort: "ultra" } },
+    });
+  });
+
+  it("has nothing to open for an agent this build doesn't know", () => {
+    expect(agentTabCommand([], { agent: "someday" })).toBeNull();
   });
 });
 

@@ -57,6 +57,10 @@ import { registerProjectSubmit, useTerminalTargets } from "../store/terminalTarg
 import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
 import { TTSControls } from "./TTSControls";
 import { joinAbs } from "../path";
+import type { ActionInfo } from "../types";
+import { agentTabCommand, type RemoteAgentLaunch } from "../remoteAgentTabs";
+import { useNewTabRequest } from "../hooks/terminals/useNewTabRequest";
+import { NewTerminalButton } from "./terminal/NewTerminalButton";
 import { isPeerName } from "../peer/markers";
 import { retainPeerSession } from "../peer/retainedSessions";
 import { useHostFollows } from "../peer/useHostFollows";
@@ -88,11 +92,19 @@ interface TerminalViewProps {
   // its shortcuts belong to the focused one.
   keysActive?: boolean;
   onResumeSession?: () => void;
+  // The project's actions: an agent picked from + opens through the project's
+  // own button for it when there is one.
+  actions?: ActionInfo[];
   ref?: React.Ref<TerminalViewHandle>;
 }
 
 export interface TerminalViewHandle {
   createTerminal(background?: boolean): void;
+  // ⌘T. False when the "Pick agent and model on +" popup has no pane to open on
+  // and the caller's own empty state should show it.
+  openNewTab(): boolean;
+  // An agent picked from an empty state's popup, in the focused pane.
+  openAgent(launch: RemoteAgentLaunch): void;
   createTerminalWithCmd(label: string, cmd: string, opts?: TerminalStartOpts): void;
   // Adopt a peer-spawned pty as a tab (no new pty, no command injection).
   adoptTerminal(id: string, label?: string, opts?: AdoptedTabOpts): void;
@@ -124,7 +136,7 @@ export interface TerminalViewHandle {
   openAutomationsTab(): Promise<void>;
 }
 
-export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, paneStatus, visible = true, onScreen = visible, keysActive = true, onResumeSession, ref }: TerminalViewProps) {
+export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, paneStatus, visible = true, onScreen = visible, keysActive = true, onResumeSession, actions, ref }: TerminalViewProps) {
   const duplicateProject = useAppStore(
     (s) => s.projects.find((p) => p.name === projectName) ?? null,
   );
@@ -243,6 +255,19 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     visible && titlesHere,
   );
   noteMemoryRef.current = noteTerminalMemory;
+
+  const newTab = useNewTabRequest({ tree, focusedPaneId, visible, onScreen, createTerminal });
+  const launchAgentInPane = useCallback(
+    (paneId: string | undefined, launch: RemoteAgentLaunch) => {
+      const tab = agentTabCommand(actions ?? [], launch);
+      if (tab) void createTerminalWithCmd(tab.label, tab.cmd, { ...tab.opts, paneId });
+    },
+    [actions, createTerminalWithCmd],
+  );
+  const openAgent = useCallback(
+    (launch: RemoteAgentLaunch) => launchAgentInPane(undefined, launch),
+    [launchAgentInPane],
+  );
 
   const servicesKey = services.map((s) => s.name).join(",");
   const stableServices = useMemo(() => services, [servicesKey]);
@@ -1073,6 +1098,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     ref,
     () => ({
       createTerminal,
+      openNewTab: newTab.openNewTab,
+      openAgent,
       createTerminalWithCmd,
       adoptTerminal,
       resumeFromHistory,
@@ -1094,6 +1121,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     }),
     [
       createTerminal,
+      newTab.openNewTab,
+      openAgent,
       createTerminalWithCmd,
       adoptTerminal,
       resumeFromHistory,
@@ -1148,6 +1177,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onStopService={stopService}
             onRestartService={restartService}
             onAddTerminal={addTerminalToPane}
+            onLaunchAgent={launchAgentInPane}
+            newTabPaneId={newTab.newTabPaneId}
+            onNewTabHandled={newTab.clearPaneRequest}
             onAddBrowser={addBrowserToPane}
             onReviewChanges={(paneId) => showFilesView(paneId, "changes")}
             onAddToolkit={openToolkitInPane}
@@ -1188,13 +1220,17 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
           <TerminalIcon />
           <p className="text-xs">No terminals yet</p>
-          <button
-            onClick={() => createTerminal()}
+          <NewTerminalButton
+            onNewTerminal={() => void createTerminal()}
+            onOpenAgent={openAgent}
+            onResumeSession={onResumeSession}
+            openRequested={newTab.emptyAsked}
+            onOpenRequestHandled={newTab.clearEmptyRequest}
             className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85"
           >
             New Terminal
             <kbd className="ml-1 text-[10px] opacity-70">{chordLabel({ key: "t", meta: true })}</kbd>
-          </button>
+          </NewTerminalButton>
         </div>
       )}
       <TTSControls />

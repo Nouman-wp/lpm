@@ -19,7 +19,10 @@ export interface HoverPopup {
 // both the trigger and the panel, so it can cross the gap between them.
 // Given the trigger element, hover is ignored until the pointer is seen off it,
 // so a button that appears under a resting pointer doesn't pop open.
-export function useHoverPopup(waitOff?: RefObject<Element | null>): HoverPopup {
+export function useHoverPopup(
+  waitOff?: RefObject<Element | null>,
+  openDelay = OPEN_DELAY_MS,
+): HoverPopup {
   const [open, setOpenState] = useState(false);
   const openRef = useRef(false);
   const armed = useRef(!waitOff);
@@ -93,11 +96,11 @@ export function useHoverPopup(waitOff?: RefObject<Element | null>): HoverPopup {
         onPointerEnter: enter(() => {
           if (!armed.current) return;
           if (openRef.current) clear();
-          else later(OPEN_DELAY_MS, true);
+          else later(openDelay, true);
         }),
         onPointerLeave: leave,
       },
       panel: { onPointerEnter: enter(clear), onPointerLeave: leave },
     };
-  }, [open, show, hide, hold, clear, later]);
+  }, [open, show, hide, hold, clear, later, openDelay]);
 }

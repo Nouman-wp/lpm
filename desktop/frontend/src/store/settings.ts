@@ -113,6 +113,8 @@ export interface Settings {
   runInDuplicatesLayout?: SideBySideLayout;
   composerOpen?: boolean;
   autoCloseComposerOnSend?: boolean;
+  // + and ⌘T open the agent, model and level popup instead of a terminal.
+  pickAgentOnNewTab?: boolean;
   appTipsDismissed?: boolean;
   // The last Codex status line arranged by hand (no layout matches), kept so
   // switching to a layout and back doesn't lose it.
@@ -222,6 +224,7 @@ function normalize(s: main.Settings): Settings {
     composerOpen: s.composerOpen,
     autoCloseComposerOnSend:
       s.autoCloseComposerOnSend ?? defaults.autoCloseComposerOnSend,
+    pickAgentOnNewTab: s.pickAgentOnNewTab,
     appTipsDismissed: s.appTipsDismissed,
     codexStatusLineCustomItems: Array.isArray(s.codexStatusLineCustomItems)
       ? s.codexStatusLineCustomItems.filter(

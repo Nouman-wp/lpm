@@ -51,6 +51,8 @@ function PaneWithRowMenu() {
         onFooterContextMenu={onFooterContextMenu}
         onNewTerminal={() => {}}
         onEditConfig={() => {}}
+        newTabAsked={false}
+        onNewTabHandled={() => {}}
       />
       <output data-testid="menu">{JSON.stringify(menu)}</output>
     </>

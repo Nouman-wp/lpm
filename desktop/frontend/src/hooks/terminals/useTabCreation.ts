@@ -91,7 +91,8 @@ export function useTabCreation({
         applyTree(makePaneLeaf(paneId, [labeled], 0), paneId);
         return;
       }
-      const paneId = targetPaneId ?? focusedRef.current ?? firstPaneId(current);
+      const target = targetPaneId && findPane(current, targetPaneId) ? targetPaneId : undefined;
+      const paneId = target ?? focusedRef.current ?? firstPaneId(current);
       const next = mapPane(current, paneId, (p) => appendTerminal(p, labeled, background));
       if (background) applyTree(next);
       else applyTree(next, paneId);
@@ -205,7 +206,7 @@ export function useTabCreation({
           emoji: opts.emoji,
           color: opts.color,
         });
-        addTerminal(term, undefined, opts.background);
+        addTerminal(term, opts.paneId, opts.background);
         if (launch.startCmd) {
           // Fold into the injected command only; `term` persists the original
           // startCmd so a later restore relaunches without re-seeding the task.
@@ -241,7 +242,7 @@ export function useTabCreation({
           resumeCmd: opts?.resumeCmd,
           memory: opts?.memory,
         }),
-        undefined,
+        opts?.paneId,
         opts?.background,
       );
       const folded = foldAgentPrompt(cmd, opts?.prompt);

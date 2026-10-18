@@ -54,6 +54,7 @@ const SHARED: &[(&str, Kind)] = &[
     ("composerOpen", Kind::Flag),
     ("filesTreeSide", Kind::OneOf(&["left", "right"])),
     ("autoCloseComposerOnSend", Kind::Flag),
+    ("pickAgentOnNewTab", Kind::Flag),
     ("appTipsDismissed", Kind::Flag),
     ("hotkeys", Kind::Shortcuts),
     ("experimentalTTS", Kind::Flag),

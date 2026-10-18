@@ -21,6 +21,8 @@ import {
   getProjectTerminals,
 } from "../terminals";
 import { chordLabel } from "../keys";
+import type { RemoteAgentLaunch } from "../remoteAgentTabs";
+import { NewTerminalButton } from "./terminal/NewTerminalButton";
 
 interface GlobalTerminalsViewProps {
   visible?: boolean;
@@ -76,7 +78,17 @@ export function GlobalTerminalsView({
   const handleNewTerminal = useCallback(() => {
     terminalRef.current?.createTerminal();
   }, []);
-  useKeyboardShortcut({ key: "t", meta: true }, handleNewTerminal, visible);
+  // With no pane for ⌘T's popup to open on, the empty state shows it.
+  const [newTabAsked, setNewTabAsked] = useState(false);
+  const handleNewTab = useCallback(() => {
+    if (terminalRef.current?.openNewTab() === false) setNewTabAsked(true);
+  }, []);
+  const clearNewTabAsked = useCallback(() => setNewTabAsked(false), []);
+  const openAgent = useCallback(
+    (launch: RemoteAgentLaunch) => terminalRef.current?.openAgent(launch),
+    [],
+  );
+  useKeyboardShortcut({ key: "t", meta: true }, handleNewTab, visible);
 
   const { handleRunAction, runningAction, modals } = useProjectActions({
     projectName: GLOBAL_TERMINALS_KEY,
@@ -124,14 +136,17 @@ export function GlobalTerminalsView({
                 Quick shells for scripts, system commands, and anything that isn't tied to a single project.
               </p>
             </div>
-            <button
-              onClick={handleNewTerminal}
+            <NewTerminalButton
+              onNewTerminal={handleNewTerminal}
+              onOpenAgent={openAgent}
+              openRequested={newTabAsked}
+              onOpenRequestHandled={clearNewTabAsked}
               className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85"
             >
               <TerminalIcon />
               New Terminal
               <kbd className="ml-1 text-[10px] opacity-70">{chordLabel({ key: "t", meta: true })}</kbd>
-            </button>
+            </NewTerminalButton>
           </div>
         </div>
       )}
@@ -157,6 +172,7 @@ export function GlobalTerminalsView({
           paneStatus={paneStatus}
           visible={visible && !showEmptyState}
           onScreen={visible}
+          actions={actions}
         />
       </div>
 

@@ -43,6 +43,10 @@ interface TerminalPaneProps {
   onNewTerminal: () => void;
   onEditConfig: () => void;
   onResumeSession?: () => void;
+  actions?: ActionInfo[];
+  // ⌘T asked the empty state for the "Pick agent and model on +" popup.
+  newTabAsked: boolean;
+  onNewTabHandled: () => void;
 }
 
 export function TerminalPane({
@@ -72,6 +76,9 @@ export function TerminalPane({
   onNewTerminal,
   onEditConfig,
   onResumeSession,
+  actions,
+  newTabAsked,
+  onNewTabHandled,
 }: TerminalPaneProps) {
   return (
     <div
@@ -94,14 +101,18 @@ export function TerminalPane({
           onScreen={visible && active}
           keysActive={keysActive}
           onResumeSession={onResumeSession}
+          actions={actions}
         />
       </div>
       {showEmptyState && (
         <EmptyTerminalState
           projectLabel={projectLabel}
           onNewTerminal={onNewTerminal}
+          onOpenAgent={(launch) => terminalRef.current?.openAgent(launch)}
           onEditConfig={onEditConfig}
           onResumeSession={onResumeSession}
+          newTabAsked={newTabAsked}
+          onNewTabHandled={onNewTabHandled}
         />
       )}
       <TerminalFooter

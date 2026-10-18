@@ -117,6 +117,12 @@ export function TerminalPane() {
           <option value="left">Left</option>
         </SettingsSelect>
       </SettingsRow>
+      <SettingsRow {...rowProps("terminal.pickAgentOnNewTab")}>
+        <Toggle
+          enabled={settings.pickAgentOnNewTab ?? false}
+          onChange={(v) => void update({ pickAgentOnNewTab: v })}
+        />
+      </SettingsRow>
       <SettingsRow {...rowProps("terminal.autoCloseComposer")}>
         <Toggle
           enabled={settings.autoCloseComposerOnSend ?? true}

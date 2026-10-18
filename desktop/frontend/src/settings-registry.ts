@@ -334,6 +334,15 @@ export const ROWS = {
     description: "Which side of the Files tab holds the folder tree",
     keywords: ["files", "tree", "sidebar", "left", "right", "browser"],
   },
+  "terminal.pickAgentOnNewTab": {
+    kind: "row",
+    tab: "terminal",
+    id: "terminal.pickAgentOnNewTab",
+    reach: "attended",
+    label: "Pick agent and model on +",
+    description: `A tab's + and ${chordLabel({ key: "t", meta: true })} ask which agent, model and level to open, with a first prompt, instead of opening a terminal`,
+    keywords: ["new tab", "new terminal", "agent", "model", "effort", "level", "claude", "codex", "plus"],
+  },
   "terminal.autoCloseComposer": {
     kind: "row",
     tab: "terminal",

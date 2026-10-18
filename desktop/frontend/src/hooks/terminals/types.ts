@@ -31,6 +31,8 @@ export interface TerminalStartOpts {
   fixedAccount?: boolean;
   // Opened for someone else (a phone): added behind the tab in view, which stays.
   background?: boolean;
+  // The pane the tab opens in; the focused one when unset or gone.
+  paneId?: string;
 }
 
 export interface UseTerminalsResult {

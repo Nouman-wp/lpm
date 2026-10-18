@@ -1,6 +1,8 @@
 import { HistoryIcon, SettingsIcon, TerminalIcon } from "../icons";
 import { chordLabel } from "../../keys";
 import { isMac } from "../../platform";
+import type { RemoteAgentLaunch } from "../../remoteAgentTabs";
+import { NewTerminalButton } from "../terminal/NewTerminalButton";
 
 // Off macOS the chords are spelled out ("Ctrl+Shift+T"), so each label keeps to
 // one line and the box widens to hold both buttons side by side.
@@ -11,11 +13,22 @@ const NOWRAP = isMac ? "" : " whitespace-nowrap";
 interface EmptyTerminalStateProps {
   projectLabel: string;
   onNewTerminal: () => void;
+  onOpenAgent: (launch: RemoteAgentLaunch) => void;
   onEditConfig: () => void;
   onResumeSession?: () => void;
+  newTabAsked: boolean;
+  onNewTabHandled: () => void;
 }
 
-export function EmptyTerminalState({ projectLabel, onNewTerminal, onEditConfig, onResumeSession }: EmptyTerminalStateProps) {
+export function EmptyTerminalState({
+  projectLabel,
+  onNewTerminal,
+  onOpenAgent,
+  onEditConfig,
+  onResumeSession,
+  newTabAsked,
+  onNewTabHandled,
+}: EmptyTerminalStateProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">
       <div className={`flex ${BOX_WIDTH} flex-col items-center gap-5 text-center`}>
@@ -32,14 +45,18 @@ export function EmptyTerminalState({ projectLabel, onNewTerminal, onEditConfig, 
           </p>
         </div>
         <div className={BUTTON_ROW}>
-          <button
-            onClick={onNewTerminal}
+          <NewTerminalButton
+            onNewTerminal={onNewTerminal}
+            onOpenAgent={onOpenAgent}
+            onResumeSession={onResumeSession}
+            openRequested={newTabAsked}
+            onOpenRequestHandled={onNewTabHandled}
             className={`flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85${NOWRAP}`}
           >
             <TerminalIcon />
             New Terminal
             <kbd className="ml-1 text-[10px] opacity-70">{chordLabel({ key: "t", meta: true })}</kbd>
-          </button>
+          </NewTerminalButton>
           <button
             onClick={onEditConfig}
             className={`flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]${NOWRAP}`}

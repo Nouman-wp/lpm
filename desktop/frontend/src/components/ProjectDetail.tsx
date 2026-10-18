@@ -199,7 +199,14 @@ export function ProjectDetail({
     switchDetailView("terminal");
     terminalRef.current?.createTerminal();
   }, [switchDetailView]);
-  useKeyboardShortcut({ key: "t", meta: true }, handleNewTerminal, keysActive);
+  // With no pane for ⌘T's popup to open on, the empty state shows it.
+  const [newTabAsked, setNewTabAsked] = useState(false);
+  const handleNewTab = useCallback(() => {
+    switchDetailView("terminal");
+    if (terminalRef.current?.openNewTab() === false) setNewTabAsked(true);
+  }, [switchDetailView]);
+  const clearNewTabAsked = useCallback(() => setNewTabAsked(false), []);
+  useKeyboardShortcut({ key: "t", meta: true }, handleNewTab, keysActive);
 
   const projectActions = useProjectActions({
     projectName: project.name,
@@ -654,6 +661,9 @@ export function ProjectDetail({
     actionsModel.nextFooterPosition,
   );
   const showEmptyState = !project.running && detailView === "terminal" && terminalCount === 0;
+  useEffect(() => {
+    if (!showEmptyState) setNewTabAsked(false);
+  }, [showEmptyState, newTabAsked]);
 
   // project.zones is a new array on every refresh and preview; keying the
   // wrap check on the zone shape keeps it from re-measuring each time.
@@ -853,6 +863,9 @@ export function ProjectDetail({
           keysActive={focused}
           showEmptyState={showEmptyState}
           onNewTerminal={handleNewTerminal}
+          actions={project.actions}
+          newTabAsked={newTabAsked}
+          onNewTabHandled={clearNewTabAsked}
           onEditConfig={() => switchDetailView("config")}
           themeStyle={themeStyle}
           terminalRef={terminalRef}

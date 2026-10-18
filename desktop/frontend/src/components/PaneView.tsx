@@ -28,6 +28,7 @@ import {
   ShrinkIcon,
 } from "./terminal/icons";
 import { AddTerminalButton } from "./terminal/AddTerminalButton";
+import type { RemoteAgentLaunch } from "../remoteAgentTabs";
 import { PaneMenuButton } from "./terminal/PaneMenuButton";
 import { PaneToolbar } from "./terminal/PaneToolbar";
 import { usePaneToolbar } from "../hooks/usePaneToolbar";
@@ -166,6 +167,11 @@ export interface PaneViewProps {
   onStopService: (serviceName: string) => void;
   onRestartService: (serviceName: string) => void;
   onAddTerminal: (paneId: string) => void;
+  // An agent picked from the + popup, opened in this pane.
+  onLaunchAgent: (paneId: string, launch: RemoteAgentLaunch) => void;
+  // The pane ⌘T asked to show its + popup, until it has.
+  newTabPaneId: string | null;
+  onNewTabHandled: () => void;
   onAddBrowser: (paneId: string) => void;
   onReviewChanges: (paneId: string) => void;
   onAddToolkit: (paneId: string) => void;
@@ -248,6 +254,9 @@ function PaneViewImpl(props: PaneViewProps) {
     onStopService,
     onRestartService,
     onAddTerminal,
+    onLaunchAgent,
+    newTabPaneId,
+    onNewTabHandled,
     onAddBrowser,
     onReviewChanges,
     onAddToolkit,
@@ -542,7 +551,13 @@ function PaneViewImpl(props: PaneViewProps) {
               );
             })}
           </TabStrip>
-          <AddTerminalButton onAddTerminal={() => onAddTerminal(pane.id)} />
+          <AddTerminalButton
+            onAddTerminal={() => onAddTerminal(pane.id)}
+            onOpenAgent={(launch) => onLaunchAgent(pane.id, launch)}
+            onResumeSession={onResumeSession}
+            openRequested={newTabPaneId === pane.id}
+            onOpenRequestHandled={onNewTabHandled}
+          />
           </div>
           <ScrollFadeEdges
             canScrollLeft={canScrollLeft}

@@ -11,7 +11,14 @@ describe("EmptyTerminalState", () => {
     const root = createRoot(container);
     act(() =>
       root.render(
-        <EmptyTerminalState projectLabel="wt-one" onNewTerminal={() => {}} onEditConfig={() => {}} />,
+        <EmptyTerminalState
+          projectLabel="wt-one"
+          onNewTerminal={() => {}}
+          onOpenAgent={() => {}}
+          onEditConfig={() => {}}
+          newTabAsked={false}
+          onNewTabHandled={() => {}}
+        />,
       ),
     );
     expect(container.textContent).toContain("start working on wt-one,");
