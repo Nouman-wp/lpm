@@ -28,7 +28,11 @@ data class AgentWidgetRow(
 data class AgentWidgetMac(
     /** The Mac's server id, or its local id for a Mac too old to send one. */
     val id: String,
-    val rows: List<AgentWidgetRow>
+    val rows: List<AgentWidgetRow>,
+    /** The Mac's name as the phone shows it; null until the app has seen it live. */
+    val name: String? = null,
+    /** Millis the phone last heard this Mac's agents. */
+    val seenAt: Long? = null
 )
 
 /** A row and the Mac it runs on, in the order the widget lists them. */
@@ -70,3 +74,13 @@ fun agentWidgetItems(macs: List<AgentWidgetMac>): List<AgentWidgetItem> =
                 { it.row.key }
             )
         )
+
+/**
+ * Whether the widget's readings move with the clock: a time still counting, or a
+ * quiet list saying how long ago it was updated.
+ */
+fun agentWidgetTicks(macs: List<AgentWidgetMac>): Boolean {
+    val items = agentWidgetItems(macs)
+    return items.any { it.row.since != null && it.row.until == null } ||
+        (items.isEmpty() && macs.any { it.seenAt != null })
+}

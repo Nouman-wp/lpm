@@ -108,7 +108,9 @@
     <!-- Token activity widget -->
     <string name="token_activity_title">Token activity</string>
     <string name="token_activity_description">Tokens and estimated cost over the last 7, 14 or 30 days.</string>
-    <string name="token_activity_empty">Open lpm to load token activity.</string>
+    <string name="token_activity_empty_title">No numbers yet</string>
+    <string name="token_activity_empty_body">Open lpm while your Mac is connected to load your token use.</string>
+    <string name="token_activity_empty_action">Open lpm</string>
     <string name="token_activity_range">%1$dD</string>
     <plurals name="token_activity_range_label">
         <item quantity="one">%1$d day</item>
@@ -125,5 +127,9 @@
     <plurals name="token_activity_bars_empty">
         <item quantity="one">No tokens in this %1$d day</item>
         <item quantity="other">No tokens in these %1$d days</item>
+    </plurals>
+    <plurals name="token_activity_none_recent">
+        <item quantity="one">No tokens in the last %1$d day</item>
+        <item quantity="other">No tokens in the last %1$d days</item>
     </plurals>
 </resources>

@@ -17,8 +17,9 @@ class AgentWidgetStoreTest {
     val dir = TemporaryFolder()
 
     private var refreshes = 0
+    private var clock = 900L
 
-    private fun store() = AgentWidgetStore(dir.root) { refreshes++ }
+    private fun store() = AgentWidgetStore(dir.root, { clock }) { refreshes++ }
 
     private fun push(status: String, ts: Long, target: String = "terminal") =
         Json.parseToJsonElement(
@@ -44,7 +45,8 @@ class AgentWidgetStoreTest {
             listOf(
                 AgentWidgetMac(
                     "mac",
-                    listOf(working.copy(state = AgentState.NeedsYou, since = 500))
+                    listOf(working.copy(state = AgentState.NeedsYou, since = 500)),
+                    seenAt = 900
                 )
             ),
             store.macs.value
@@ -79,7 +81,10 @@ class AgentWidgetStoreTest {
         store.publish(AgentWidgetMac("other", listOf(working)))
         store.apply(PushClear("mac", setOf(StatusIdentity("storefront", "claude_code_1"))))
         assertEquals(
-            listOf(AgentWidgetMac("mac", emptyList()), AgentWidgetMac("other", listOf(working))),
+            listOf(
+                AgentWidgetMac("mac", emptyList(), seenAt = 900),
+                AgentWidgetMac("other", listOf(working), seenAt = 900)
+            ),
             store.macs.value
         )
     }
@@ -92,5 +97,18 @@ class AgentWidgetStoreTest {
         assertEquals(1, refreshes)
         reopened.remove(setOf("mac"))
         assertEquals(emptyList<AgentWidgetMac>(), store().macs.value)
+    }
+
+    @Test
+    fun `leaving the app stamps an unchanged list as seen again`() {
+        val store = store()
+        val mac = AgentWidgetMac("mac", emptyList(), name = "MacBook Pro")
+        store.publish(mac)
+        clock = 1_500
+        store.publish(mac)
+        assertEquals(900L, store.macs.value.single().seenAt)
+        store.confirm(mac)
+        assertEquals(listOf(mac.copy(seenAt = 1_500)), store.macs.value)
+        assertEquals(2, refreshes)
     }
 }

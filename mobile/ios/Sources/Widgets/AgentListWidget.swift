@@ -24,29 +24,38 @@ struct AgentListWidget: Widget {
 
 struct AgentListEntry: TimelineEntry {
     let date: Date
+    let macs: [AgentWidgetMac]
     let items: [AgentWidgetItem]
 }
 
 struct AgentListProvider: TimelineProvider {
     func placeholder(in context: Context) -> AgentListEntry {
-        AgentListEntry(date: Date(), items: Self.sample())
+        AgentListEntry(date: Date(), macs: [], items: Self.sample())
     }
 
     func getSnapshot(in context: Context, completion: @escaping (AgentListEntry) -> Void) {
-        let items = AgentWidgetStore.items(AgentWidgetStore.load())
-        completion(AgentListEntry(date: Date(), items: items.isEmpty && context.isPreview ? Self.sample() : items))
+        let macs = AgentWidgetStore.load()
+        let items = AgentWidgetStore.items(macs)
+        completion(AgentListEntry(date: Date(), macs: macs,
+                                  items: items.isEmpty && context.isPreview ? Self.sample() : items))
     }
 
-    /// A reading a minute for the next hour while something is still counting,
-    /// then a fresh read; a list with nothing counting waits for the next write.
+    /// A reading a minute for the next hour while something is still counting, or
+    /// while a quiet list says how long ago it was updated, then a fresh read; any
+    /// other list waits for the next write.
     func getTimeline(in context: Context, completion: @escaping (Timeline<AgentListEntry>) -> Void) {
-        let items = AgentWidgetStore.items(AgentWidgetStore.load())
+        let macs = AgentWidgetStore.load()
+        let items = AgentWidgetStore.items(macs)
         let start = Date()
-        guard items.contains(where: { $0.row.since != nil && $0.row.until == nil }) else {
-            completion(Timeline(entries: [AgentListEntry(date: start, items: items)], policy: .never))
+        let counting = items.contains { $0.row.since != nil && $0.row.until == nil }
+        let aging = items.isEmpty && macs.contains { $0.seenAt != nil }
+        guard counting || aging else {
+            completion(Timeline(entries: [AgentListEntry(date: start, macs: macs, items: items)], policy: .never))
             return
         }
-        let entries = (0...60).map { AgentListEntry(date: start.addingTimeInterval(Double($0) * 60), items: items) }
+        let entries = (0...60).map {
+            AgentListEntry(date: start.addingTimeInterval(Double($0) * 60), macs: macs, items: items)
+        }
         completion(Timeline(entries: entries, policy: .atEnd))
     }
 

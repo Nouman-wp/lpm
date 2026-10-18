@@ -97,7 +97,29 @@ class AgentWidgetTest {
     @Test
     fun `the saved rows read back as written`() {
         val serializer = ListSerializer(AgentWidgetMac.serializer())
-        val macs = listOf(AgentWidgetMac("a", listOf(row("x", AgentState.NeedsYou, 5))))
+        val macs = listOf(
+            AgentWidgetMac(
+                "a",
+                listOf(row("x", AgentState.NeedsYou, 5)),
+                name = "Studio",
+                seenAt = 9
+            )
+        )
         assertEquals(macs, Json.decodeFromString(serializer, Json.encodeToString(serializer, macs)))
+    }
+
+    @Test
+    fun `the widget ticks while a time counts or a quiet list ages`() {
+        assertEquals(
+            true,
+            agentWidgetTicks(listOf(AgentWidgetMac("a", listOf(row("x", AgentState.Working, 5)))))
+        )
+        assertEquals(
+            false,
+            agentWidgetTicks(listOf(AgentWidgetMac("a", listOf(row("x", AgentState.Done, 0, 4)))))
+        )
+        assertEquals(true, agentWidgetTicks(listOf(AgentWidgetMac("a", emptyList(), seenAt = 5))))
+        assertEquals(false, agentWidgetTicks(listOf(AgentWidgetMac("a", emptyList()))))
+        assertEquals(false, agentWidgetTicks(emptyList()))
     }
 }

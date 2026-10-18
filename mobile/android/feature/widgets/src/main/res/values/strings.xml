@@ -2,8 +2,23 @@
 <resources>
     <string name="widget_agents_title">Agents</string>
     <string name="widget_agents_description">Your agents\' tabs: who needs you, who\'s working, and for how long.</string>
-    <string name="widget_agents_empty_title">No agents running</string>
-    <string name="widget_agents_empty_body">Agents you start on your Mac show up here.</string>
+    <string name="widget_agents_pair_title">Pair your Mac</string>
+    <string name="widget_agents_pair_body_short">Your agents show up here.</string>
+    <string name="widget_agents_pair_body">Scan the code in lpm on your Mac to follow your agents from here.</string>
+    <string name="widget_agents_pair_action">Pair Mac</string>
+    <string name="widget_agents_quiet_title">All quiet</string>
+    <string name="widget_agents_quiet_body_short">Nothing running on %1$s</string>
+    <string name="widget_agents_quiet_body">Agents you start show up here, with who needs you and for how long.</string>
+    <string name="widget_agents_place_one">your Mac</string>
+    <string name="widget_agents_place_all">your Macs</string>
+    <plurals name="widget_agents_macs">
+        <item quantity="one">%1$d Mac</item>
+        <item quantity="other">%1$d Macs</item>
+    </plurals>
+    <string name="widget_agents_updated_now">Updated just now</string>
+    <string name="widget_agents_updated_minutes">Updated %1$dm ago</string>
+    <string name="widget_agents_updated_hours">Updated %1$dh ago</string>
+    <string name="widget_agents_updated_days">Updated %1$dd ago</string>
     <plurals name="widget_agents_need_you">
         <item quantity="one">%1$d need you</item>
         <item quantity="other">%1$d need you</item>

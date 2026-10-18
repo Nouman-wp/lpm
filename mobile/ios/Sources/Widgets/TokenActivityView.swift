@@ -7,32 +7,46 @@ struct TokenActivityView: View {
     let entry: TokenActivityEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
+        Group {
             if let window = entry.window {
-                totals(window)
-                    .padding(.top, 4)
-                Spacer(minLength: 6)
-                TokenActivityBars(days: window.days)
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    totals(window)
+                        .padding(.top, 4)
+                    Spacer(minLength: 6)
+                    Group {
+                        if window.tokens > 0 {
+                            TokenActivityBars(days: window.days)
+                        } else {
+                            TokenActivityNone(window: window)
+                        }
+                    }
                     .frame(height: 58)
-                axis(window)
-                    .padding(.top, 4)
+                    axis(window)
+                        .padding(.top, 4)
+                }
             } else {
-                Spacer(minLength: 0)
-                Text("Open lpm to load token activity.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
+                WidgetEmptyState(
+                    symbol: "chart.bar.xaxis", tone: .action, title: "No numbers yet",
+                    message: "Open lpm while your Mac is connected to load your token use.",
+                    hint: "Open lpm"
+                ) {
+                    title
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .containerBackground(.background, for: .widget)
     }
 
+    private var title: some View {
+        Text("Token activity")
+            .font(.system(size: 13, weight: .semibold))
+    }
+
     private var header: some View {
         HStack(spacing: 4) {
-            Text("Token activity")
-                .font(.system(size: 13, weight: .semibold))
+            title
             Spacer(minLength: 8)
             ForEach(TokenActivityStore.ranges, id: \.self) { days in
                 let picked = days == entry.range
@@ -51,16 +65,19 @@ struct TokenActivityView: View {
         }
     }
 
+    /// The range's totals, held back to grey when it has none.
     private func totals(_ window: TokenActivityWindow) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
+        let none = window.tokens == 0
+        return HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text(formatTokenCount(window.tokens))
                 .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(none ? Color.secondary : Color.primary)
             Text("tokens")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
             Text(formatUsd(window.cost))
                 .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(Color.tokenCost)
+                .foregroundStyle(none ? Color.secondary : Color.tokenCost)
                 .padding(.leading, 8)
             Text("est.")
                 .font(.system(size: 11))
@@ -126,6 +143,34 @@ private struct TokenActivityBars: View {
         guard let busiest, busiest.totalTokens > 0 else { return "No tokens in these \(days.count) days" }
         return "Tokens per day over \(days.count) days; busiest \(shortUsageDate(busiest.date)), "
             + "\(formatTokenCount(busiest.totalTokens)) for \(formatUsd(busiest.cost))"
+    }
+}
+
+/// A range without a token: says so where the bars would stand, over a dashed baseline.
+private struct TokenActivityNone: View {
+    let window: TokenActivityWindow
+
+    var body: some View {
+        Text(window.endsToday ? "No tokens in the last \(window.days.count) days"
+            : "No tokens in these \(window.days.count) days")
+            .font(.system(size: 12))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .bottom) {
+                DashedLine()
+                    .stroke(style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                    .foregroundStyle(.tertiary)
+                    .frame(height: 1)
+            }
+    }
+}
+
+private struct DashedLine: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path { path in
+            path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        }
     }
 }
 

@@ -10,7 +10,6 @@ import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.provideContent
-import cx.lpm.mobile.core.model.agentWidgetItems
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -30,7 +29,7 @@ class AgentListWidget : GlanceAppWidget() {
         provideContent {
             val macs by store.macs.collectAsState()
             val now by entry.clock().now.collectAsState()
-            AgentListContent(agentWidgetItems(macs), now)
+            AgentListContent(macs, now)
         }
     }
 }

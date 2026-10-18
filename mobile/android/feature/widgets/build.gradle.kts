@@ -10,6 +10,7 @@ dependencies {
     implementation(projects.core.push)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.lifecycle.process)
 
     testImplementation(projects.core.testing)
     testImplementation(libs.androidx.glance.appwidget.testing)

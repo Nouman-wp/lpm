@@ -17,7 +17,7 @@ extension AppModel {
                                    title: $0.title, state: $0.state, since: $0.since, until: $0.until)
                 }
         }
-        return AgentWidgetMac(id: agentWidgetId(record), rows: rows)
+        return AgentWidgetMac(id: agentWidgetId(record), name: record.displayName, rows: rows)
     }
 
     func agentWidgetId(_ record: MacRecord) -> String {
@@ -45,17 +45,24 @@ extension AppModel {
 }
 
 /// Keeps the Agents widget in step with the live Mac, writing its rows once they
-/// have settled for a second so a burst of status changes is one write.
+/// have settled for a second so a burst of status changes is one write. Leaving the
+/// app stamps them as seen then, the last the phone hears of the Mac until it's back.
 struct AgentWidgetPublisher: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         let mac = model.agentWidgetMac
-        Color.clear.task(id: mac) {
-            guard let mac else { return }
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-            guard !Task.isCancelled else { return }
-            await Task.detached(priority: .utility) { AgentWidgetStore.publish(mac) }.value
-        }
+        Color.clear
+            .task(id: mac) {
+                guard let mac else { return }
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard !Task.isCancelled else { return }
+                await Task.detached(priority: .utility) { AgentWidgetStore.publish(mac) }.value
+            }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .inactive, let mac else { return }
+                Task.detached(priority: .utility) { AgentWidgetStore.confirm(mac) }
+            }
     }
 }

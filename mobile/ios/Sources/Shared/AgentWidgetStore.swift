@@ -25,7 +25,11 @@ struct AgentWidgetRow: Codable, Equatable {
 struct AgentWidgetMac: Codable, Equatable {
     /// The Mac's server id, or its local id for a Mac too old to send one.
     var id: String
+    /// The Mac's name as the phone shows it; nil until the app has seen it live.
+    var name: String? = nil
     var rows: [AgentWidgetRow]
+    /// Millis the phone last heard this Mac's agents.
+    var seenAt: Int? = nil
 }
 
 /// A row and the Mac it runs on, in the order the widget lists them.
@@ -66,13 +70,27 @@ enum AgentWidgetStore {
 
     /// Replace one Mac's agents with what the live link shows.
     static func publish(_ mac: AgentWidgetMac) {
+        save(mac, confirming: false)
+    }
+
+    /// Publish, stamped as seen now even when nothing changed: the app is leaving a
+    /// live Mac, so a quiet list it last showed still reads as current.
+    static func confirm(_ mac: AgentWidgetMac) {
+        save(mac, confirming: true)
+    }
+
+    private static func save(_ mac: AgentWidgetMac, confirming: Bool) {
         update { macs in
+            var seen = mac
+            seen.seenAt = nowMillis()
             guard let index = macs.firstIndex(where: { $0.id == mac.id }) else {
-                macs.append(mac)
+                macs.append(seen)
                 return true
             }
-            guard macs[index] != mac else { return false }
-            macs[index] = mac
+            guard confirming || macs[index].rows != mac.rows || macs[index].name != mac.name else {
+                return false
+            }
+            macs[index] = seen
             return true
         }
     }
@@ -119,6 +137,7 @@ enum AgentWidgetStore {
                 row.until = nil
             }
             if let existing { mac.rows[existing] = row } else { mac.rows.append(row) }
+            mac.seenAt = nowMillis()
             macs.removeAll { $0.id == macId }
             macs.append(mac)
             return true
@@ -141,7 +160,9 @@ enum AgentWidgetStore {
                 macs[m].rows.removeAll {
                     gone.contains(PushPayload.statusIdentity(project: $0.project, statusKey: $0.key))
                 }
-                changed = changed || macs[m].rows.count != before
+                guard macs[m].rows.count != before else { continue }
+                macs[m].seenAt = nowMillis()
+                changed = true
             }
             return changed
         }
@@ -161,6 +182,10 @@ enum AgentWidgetStore {
             changed = (try? data.write(to: url, options: .atomic)) != nil
         }
         if changed { WidgetCenter.shared.reloadTimelines(ofKind: kind) }
+    }
+
+    private static func nowMillis() -> Int {
+        Int(Date().timeIntervalSince1970 * 1000)
     }
 }
 

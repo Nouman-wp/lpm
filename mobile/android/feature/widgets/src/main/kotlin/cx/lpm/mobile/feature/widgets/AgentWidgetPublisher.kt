@@ -1,5 +1,8 @@
 package cx.lpm.mobile.feature.widgets
 
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import cx.lpm.mobile.core.data.di.ApplicationScope
 import cx.lpm.mobile.core.data.link.LinkState
 import cx.lpm.mobile.core.data.mac.MacRecord
@@ -28,7 +31,8 @@ import kotlinx.coroutines.withContext
 /**
  * Keeps the Agents widget in step with the live Mac (iOS `AgentWidgetPublisher`):
  * writes its rows once they've settled for a second, so a burst of status changes
- * is one write, and drops the rows of Macs the phone no longer has.
+ * is one write, and drops the rows of Macs the phone no longer has. Leaving the app
+ * stamps them as seen then, the last the phone hears of the Mac until it's back.
  */
 @Singleton
 class AgentWidgetPublisher @Inject constructor(
@@ -36,6 +40,8 @@ class AgentWidgetPublisher @Inject constructor(
     private val store: AgentWidgetStore,
     @param:ApplicationScope private val scope: CoroutineScope
 ) {
+    private var live: AgentWidgetMac? = null
+
     fun start() {
         scope.launch {
             combine(
@@ -45,11 +51,20 @@ class AgentWidgetPublisher @Inject constructor(
                 session.store<TerminalsStore>().state,
                 ::liveMac
             ).distinctUntilChanged().collectLatest { mac ->
+                live = mac
                 mac ?: return@collectLatest
                 delay(SETTLE_MS)
                 withContext(Dispatchers.IO) { store.publish(mac) }
             }
         }
+        ProcessLifecycleOwner.get().lifecycle.addObserver(
+            object : DefaultLifecycleObserver {
+                override fun onStop(owner: LifecycleOwner) {
+                    val mac = live ?: return
+                    scope.launch(Dispatchers.IO) { store.confirm(mac) }
+                }
+            }
+        )
         scope.launch {
             session.state
                 .filterNot { it.demoMode }
@@ -91,7 +106,8 @@ internal fun liveMac(
             projects.projects,
             terminals.terminalTitles,
             System.currentTimeMillis()
-        )
+        ),
+        name = record.displayName
     )
 }
 

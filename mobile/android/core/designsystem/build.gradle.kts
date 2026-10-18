@@ -6,4 +6,5 @@ plugins {
 dependencies {
     api(libs.androidx.compose.material3)
     api(libs.androidx.compose.ui)
+    implementation(libs.androidx.glance.appwidget)
 }

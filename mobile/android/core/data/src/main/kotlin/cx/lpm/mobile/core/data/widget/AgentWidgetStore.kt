@@ -35,13 +35,14 @@ fun interface AgentWidgetSurface {
 @Singleton
 class AgentWidgetStore internal constructor(
     private val dir: File,
+    private val now: () -> Long = System::currentTimeMillis,
     private val surface: AgentWidgetSurface
 ) {
     @Inject
     constructor(
         @ApplicationContext context: Context,
         surface: AgentWidgetSurface
-    ) : this(context.filesDir, surface)
+    ) : this(context.filesDir, surface = surface)
 
     private val json = Json { ignoreUnknownKeys = true }
     private val serializer = ListSerializer(AgentWidgetMac.serializer())
@@ -52,12 +53,21 @@ class AgentWidgetStore internal constructor(
     val macs: StateFlow<List<AgentWidgetMac>> get() = mutableMacs
 
     /** Replace one Mac's agents with what the live link shows. */
-    fun publish(mac: AgentWidgetMac) = update { macs ->
+    fun publish(mac: AgentWidgetMac) = save(mac, confirming = false)
+
+    /**
+     * Publish, stamped as seen now even when nothing changed: the app is leaving a
+     * live Mac, so a quiet list it last showed still reads as current.
+     */
+    fun confirm(mac: AgentWidgetMac) = save(mac, confirming = true)
+
+    private fun save(mac: AgentWidgetMac, confirming: Boolean) = update { macs ->
+        val seen = mac.copy(seenAt = now())
         val index = macs.indexOfFirst { it.id == mac.id }
         when {
-            index < 0 -> macs + mac
-            macs[index] == mac -> null
-            else -> macs.toMutableList().also { it[index] = mac }
+            index < 0 -> macs + seen
+            !confirming && macs[index].rows == mac.rows && macs[index].name == mac.name -> null
+            else -> macs.toMutableList().also { it[index] = seen }
         }
     }
 
@@ -69,21 +79,18 @@ class AgentWidgetStore internal constructor(
     /** An agent status push: its tab now waits on you, hit a problem, or finished. */
     fun apply(push: JsonObject) {
         val news = AgentPush.parse(push) ?: return
-        update { macs -> macs.with(news) }
+        update { macs -> macs.with(news, now()) }
     }
 
     /** A withdrawal of statuses the Mac cleared: their rows go too. */
     fun apply(clear: PushClear) = update { macs ->
         val next = macs.map { mac ->
-            if (!serverIdsMatch(mac.id, clear.serverId)) {
-                mac
+            val rows = if (serverIdsMatch(mac.id, clear.serverId)) {
+                mac.rows.filterNot { StatusIdentity(it.project, it.key) in clear.entries }
             } else {
-                mac.copy(
-                    rows = mac.rows.filterNot {
-                        StatusIdentity(it.project, it.key) in clear.entries
-                    }
-                )
+                mac.rows
             }
+            if (rows.size == mac.rows.size) mac else mac.copy(rows = rows, seenAt = now())
         }
         next.takeIf { it != macs }
     }
@@ -147,7 +154,7 @@ private data class AgentPush(
     }
 }
 
-private fun List<AgentWidgetMac>.with(news: AgentPush): List<AgentWidgetMac> {
+private fun List<AgentWidgetMac>.with(news: AgentPush, now: Long): List<AgentWidgetMac> {
     val mac = firstOrNull { it.id == news.macId } ?: AgentWidgetMac(news.macId, emptyList())
     val previous = mac.rows.firstOrNull { it.project == news.project && it.key == news.key }
     val base = previous ?: AgentWidgetRow(
@@ -180,5 +187,5 @@ private fun List<AgentWidgetMac>.with(news: AgentPush): List<AgentWidgetMac> {
     } else {
         mac.rows.map { if (it === previous) row else it }
     }
-    return filterNot { it.id == news.macId } + mac.copy(rows = rows)
+    return filterNot { it.id == news.macId } + mac.copy(rows = rows, seenAt = now)
 }

@@ -10,7 +10,7 @@ import androidx.glance.appwidget.updateAll
 import cx.lpm.mobile.core.data.di.ApplicationScope
 import cx.lpm.mobile.core.data.widget.AgentWidgetStore
 import cx.lpm.mobile.core.data.widget.AgentWidgetSurface
-import cx.lpm.mobile.core.model.agentWidgetItems
+import cx.lpm.mobile.core.model.agentWidgetTicks
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.EntryPoint
@@ -57,9 +57,7 @@ class GlanceAgentWidgetSurface @Inject constructor(
                 return@launch
             }
             AgentListWidget().updateAll(context)
-            val counting = agentWidgetItems(store.get().macs.value)
-                .any { it.row.since != null && it.row.until == null }
-            AgentWidgetTicker.set(context, counting)
+            AgentWidgetTicker.set(context, agentWidgetTicks(store.get().macs.value))
         }
     }
 }

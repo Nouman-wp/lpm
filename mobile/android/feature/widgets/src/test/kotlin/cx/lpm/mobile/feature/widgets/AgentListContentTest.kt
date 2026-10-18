@@ -9,7 +9,7 @@ import androidx.glance.testing.unit.hasText
 import androidx.glance.testing.unit.hasTextEqualTo
 import androidx.test.core.app.ApplicationProvider
 import cx.lpm.mobile.core.model.AgentState
-import cx.lpm.mobile.core.model.AgentWidgetItem
+import cx.lpm.mobile.core.model.AgentWidgetMac
 import cx.lpm.mobile.core.model.AgentWidgetRow
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,24 +21,30 @@ class AgentListContentTest {
     private val minute = 60_000L
     private val now = 10 * minute
 
-    private fun item(title: String, state: AgentState, since: Long, until: Long? = null) =
-        AgentWidgetItem(
-            macId = "mac",
-            row = AgentWidgetRow(
-                project = "storefront",
-                key = title,
-                terminalId = "t",
-                title = title,
-                state = state,
-                since = since,
-                until = until
-            )
+    private fun row(title: String, state: AgentState, since: Long, until: Long? = null) =
+        AgentWidgetRow(
+            project = "storefront",
+            key = title,
+            terminalId = "t",
+            title = title,
+            state = state,
+            since = since,
+            until = until
         )
 
     private val agents = listOf(
-        item("Migrate cart store", AgentState.NeedsYou, since = 0),
-        item("Write e2e tests", AgentState.Working, since = 7 * minute),
-        item("Cart badge", AgentState.Done, since = 0, until = 4 * minute)
+        AgentWidgetMac(
+            "mac",
+            listOf(
+                row("Migrate cart store", AgentState.NeedsYou, since = 0),
+                row("Write e2e tests", AgentState.Working, since = 7 * minute),
+                row("Cart badge", AgentState.Done, since = 0, until = 4 * minute)
+            )
+        )
+    )
+
+    private val quiet = listOf(
+        AgentWidgetMac("mac", emptyList(), name = "MacBook Pro", seenAt = now - 2 * minute)
     )
 
     @Test
@@ -71,12 +77,38 @@ class AgentListContentTest {
     }
 
     @Test
-    fun `with no agents it says so`() = runGlanceAppWidgetUnitTest {
+    fun `with no Mac it asks to pair one`() = runGlanceAppWidgetUnitTest {
         setAppWidgetSize(DpSize(340.dp, 160.dp))
         setContext(context)
         provideComposable { AgentListContent(emptyList(), now) }
 
-        onNode(hasText("No agents running")).assertExists()
-        onNode(hasText("Agents you start on your Mac show up here.")).assertExists()
+        onNode(hasText("Pair your Mac")).assertExists()
+        onNode(hasText("Scan the code in lpm on your Mac to follow your agents from here."))
+            .assertExists()
+        onNode(hasText("Pair Mac")).assertExists()
+    }
+
+    @Test
+    fun `medium with nothing running names the Mac and when it last heard from it`() =
+        runGlanceAppWidgetUnitTest {
+            setAppWidgetSize(DpSize(340.dp, 160.dp))
+            setContext(context)
+            provideComposable { AgentListContent(quiet, now) }
+
+            onNode(hasText("All quiet")).assertExists()
+            onNode(hasText("MacBook Pro")).assertExists()
+            onNode(hasText("Updated 2m ago")).assertExists()
+        }
+
+    @Test
+    fun `small with nothing running says where`() = runGlanceAppWidgetUnitTest {
+        setAppWidgetSize(DpSize(160.dp, 160.dp))
+        setContext(context)
+        provideComposable {
+            AgentListContent(quiet + AgentWidgetMac("studio", emptyList()), now)
+        }
+
+        onNode(hasText("Nothing running on your Macs")).assertExists()
+        onAllNodes(hasText("Updated 2m ago")).assertCountEquals(0)
     }
 }

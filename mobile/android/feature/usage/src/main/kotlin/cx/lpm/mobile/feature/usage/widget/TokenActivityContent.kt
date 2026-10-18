@@ -8,7 +8,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.glance.ColorFilter
 import androidx.glance.GlanceModifier
+import androidx.glance.Image
+import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.LocalSize
 import androidx.glance.action.actionParametersOf
@@ -22,6 +25,7 @@ import androidx.glance.color.ColorProvider
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
+import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxHeight
@@ -35,6 +39,9 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import cx.lpm.mobile.core.designsystem.R as DesignR
+import cx.lpm.mobile.core.designsystem.widget.WidgetEmptyState
+import cx.lpm.mobile.core.designsystem.widget.WidgetEmptyTone
 import cx.lpm.mobile.feature.usage.R
 import cx.lpm.mobile.feature.usage.stats.formatTokenCount
 import cx.lpm.mobile.feature.usage.stats.formatUsd
@@ -53,36 +60,38 @@ internal fun TokenActivityContent(range: Int, window: TokenActivityWindow?, laun
         .background(Palette.background)
         .padding(16.dp)
     Column(if (launch != null) root.clickable(actionStartActivity(launch)) else root) {
-        Header(range)
         if (window == null) {
-            Box(
-                GlanceModifier.fillMaxWidth().defaultWeight(),
-                contentAlignment = Alignment.CenterStart
+            WidgetEmptyState(
+                icon = DesignR.drawable.ic_bar_chart,
+                tone = WidgetEmptyTone.Action,
+                title = string(R.string.token_activity_empty_title),
+                message = string(R.string.token_activity_empty_body),
+                hint = string(R.string.token_activity_empty_action)
             ) {
-                Text(
-                    string(R.string.token_activity_empty),
-                    style = TextStyle(Palette.secondary, 13.sp)
-                )
+                Header(range, pills = false)
             }
         } else {
+            Header(range, pills = true)
             Totals(window)
             Spacer(GlanceModifier.defaultWeight())
-            Bars(window.days, barArea())
+            if (window.tokens > 0) Bars(window.days, barArea()) else NoTokens(window, barArea())
             Axis(window)
         }
     }
 }
 
 @Composable
-private fun Header(range: Int) {
+private fun Header(range: Int, pills: Boolean) {
     Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             string(R.string.token_activity_title),
             style = TextStyle(Palette.primary, 13.sp, FontWeight.Medium),
             maxLines = 1
         )
-        Spacer(GlanceModifier.defaultWeight())
-        TokenActivityRepository.RANGES.forEach { days -> Pill(days, picked = days == range) }
+        if (pills) {
+            Spacer(GlanceModifier.defaultWeight())
+            TokenActivityRepository.RANGES.forEach { days -> Pill(days, picked = days == range) }
+        }
     }
 }
 
@@ -117,19 +126,29 @@ private fun Pill(days: Int, picked: Boolean) {
     }
 }
 
+/** The range's totals, held back to grey when it has none. */
 @Composable
 private fun Totals(window: TokenActivityWindow) {
+    val none = window.tokens == 0L
     Row(GlanceModifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.Bottom) {
         Text(
             formatTokenCount(window.tokens),
-            style = TextStyle(Palette.primary, 22.sp, FontWeight.Bold),
+            style = TextStyle(
+                if (none) Palette.secondary else Palette.primary,
+                22.sp,
+                FontWeight.Bold
+            ),
             maxLines = 1
         )
         Caption(string(R.string.token_activity_tokens))
         Text(
             formatUsd(window.cost),
             modifier = GlanceModifier.padding(start = 12.dp),
-            style = TextStyle(Palette.cost, 22.sp, FontWeight.Bold),
+            style = TextStyle(
+                if (none) Palette.secondary else Palette.cost,
+                22.sp,
+                FontWeight.Bold
+            ),
             maxLines = 1
         )
         Caption(string(R.string.token_activity_estimated))
@@ -227,6 +246,39 @@ private fun Bars(days: List<TokenActivityDay>, area: Dp) {
     }
 }
 
+/** A range without a token: says so where the bars would stand, over a dashed baseline. */
+@Composable
+private fun NoTokens(window: TokenActivityWindow, area: Dp) {
+    val days = window.days.size
+    Column {
+        Box(
+            GlanceModifier.fillMaxWidth().height(area - 1.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                plural(
+                    if (window.endsToday) {
+                        R.plurals.token_activity_none_recent
+                    } else {
+                        R.plurals.token_activity_bars_empty
+                    },
+                    days,
+                    days
+                ),
+                style = TextStyle(Palette.secondary, 12.sp),
+                maxLines = 1
+            )
+        }
+        Image(
+            provider = ImageProvider(R.drawable.token_activity_dashed_line),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(Palette.dash),
+            contentScale = ContentScale.FillBounds,
+            modifier = GlanceModifier.fillMaxWidth().height(1.dp)
+        )
+    }
+}
+
 @Composable
 private fun barsSummary(days: List<TokenActivityDay>): String {
     val busiest = days.maxBy { it.totalTokens }
@@ -285,6 +337,7 @@ private object Palette {
     val secondary = ColorProvider(day = Color(0xFF8A8A8E), night = Color(0xFF98989F))
     val pill = ColorProvider(day = Color(0xFFEBEBEB), night = Color(0xFF313133))
     val baseline = ColorProvider(day = Color(0xFFE3E3E8), night = Color(0xFF3A3A3C))
+    val dash = ColorProvider(day = Color(0xFFC7C7CC), night = Color(0xFF545457))
     val cost = ColorProvider(day = Color(0xFF1F6FD1), night = Color(0xFF7DB7FF))
     val claude = ColorProvider(Color(0xFFD97757))
     val codex = ColorProvider(Color(0xFF10A37F))

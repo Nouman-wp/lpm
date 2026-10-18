@@ -41,6 +41,8 @@ import cx.lpm.mobile.core.designsystem.theme.DarkLpmColors
 import cx.lpm.mobile.core.designsystem.theme.LightLpmColors
 import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.model.AgentWidgetItem
+import cx.lpm.mobile.core.model.AgentWidgetMac
+import cx.lpm.mobile.core.model.agentWidgetItems
 import cx.lpm.mobile.core.push.PushNotifier
 
 private const val PADDING_DP = 16f
@@ -49,15 +51,17 @@ private const val SHOWN = 4
 
 /**
  * The Agents widget: a header, then up to four agent tabs, most urgent first. Small
- * opens the top agent's terminal; medium opens whichever row is tapped.
+ * opens the top agent's terminal; medium opens whichever row is tapped. With no
+ * agent to list, either size opens the app.
  */
 @Composable
-internal fun AgentListContent(items: List<AgentWidgetItem>, now: Long) {
+internal fun AgentListContent(macs: List<AgentWidgetMac>, now: Long) {
     val context = LocalContext.current
     val small = LocalSize.current.width.value < MEDIUM_MIN_WIDTH_DP
+    val items = agentWidgetItems(macs)
     val shown = items.take(SHOWN)
     val rowWidth = LocalSize.current.width.value - 2 * PADDING_DP
-    val open = if (small) open(context, shown.firstOrNull()) else null
+    val open = if (small || items.isEmpty()) open(context, shown.firstOrNull()) else null
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
@@ -73,11 +77,11 @@ internal fun AgentListContent(items: List<AgentWidgetItem>, now: Long) {
             .padding(PADDING_DP.dp)
             .then(open?.let { GlanceModifier.clickable(it) } ?: GlanceModifier)
     ) {
-        Header(items, small)
-        Spacer(GlanceModifier.height(if (small) 8.dp else 6.dp))
         if (items.isEmpty()) {
-            Empty(small)
+            AgentListEmpty(macs, now, small)
         } else {
+            Header(items, small)
+            Spacer(GlanceModifier.height(if (small) 8.dp else 6.dp))
             shown.forEachIndexed { index, item ->
                 if (!small && index > 0) {
                     Box(
@@ -149,25 +153,6 @@ private fun Summary(items: List<AgentWidgetItem>) {
             }
             ToneText(words, state, text, sizeSp = 12f)
         }
-    }
-}
-
-@Composable
-private fun Empty(small: Boolean) {
-    val context = LocalContext.current
-    Column {
-        Text(
-            text = context.getString(R.string.widget_agents_empty_title),
-            style = TextStyle(
-                color = Palette.label,
-                fontSize = if (small) 12.sp else 14.sp,
-                fontWeight = FontWeight.Medium
-            )
-        )
-        Text(
-            text = context.getString(R.string.widget_agents_empty_body),
-            style = TextStyle(color = Palette.secondary, fontSize = 12.sp)
-        )
     }
 }
 
@@ -300,7 +285,7 @@ private val AgentState.tone: ColorProvider
     }
 
 /** The app's palette, light and dark; the widget sits on the system background, as on iOS. */
-private object Palette {
+internal object Palette {
     val background =
         ColorProvider(
             day = LightLpmColors.systemBackground,

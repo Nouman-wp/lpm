@@ -12,19 +12,21 @@ struct AgentListView: View {
     private var shown: [AgentWidgetItem] { Array(entry.items.prefix(4)) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: small ? 8 : 6) {
-            header
+        Group {
             if entry.items.isEmpty {
-                empty
+                AgentListEmpty(macs: entry.macs, now: now, small: small)
             } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(shown.enumerated()), id: \.offset) { index, item in
-                        if !small && index > 0 { Divider() }
-                        row(item)
+                VStack(alignment: .leading, spacing: small ? 8 : 6) {
+                    header
+                    VStack(spacing: 0) {
+                        ForEach(Array(shown.enumerated()), id: \.offset) { index, item in
+                            if !small && index > 0 { Divider() }
+                            row(item)
+                        }
                     }
+                    Spacer(minLength: 0)
                 }
             }
-            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .widgetURL(small ? shown.first.flatMap(link) : nil)
@@ -67,15 +69,6 @@ struct AgentListView: View {
         guard var line = parts.first else { return Text("") }
         for part in parts.dropFirst() { line = line + separator + part }
         return line
-    }
-
-    private var empty: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("No agents running").font(.system(size: small ? 12 : 14, weight: .semibold))
-            Text("Agents you start on your Mac show up here.")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-        }
     }
 
     @ViewBuilder
