@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// The terminal title's bottom line: the lines the project's uncommitted changes
-/// add and remove, across how many files. Faded while the Mac is away, as the tree
-/// may have moved on since.
+/// add and remove, across how many files; empty while the tree is clean. Faded while
+/// the Mac is away, as the tree may have moved on since.
 struct TerminalChangesLine: View {
     @Environment(AppModel.self) private var model
     let project: String
@@ -11,7 +11,7 @@ struct TerminalChangesLine: View {
     var body: some View {
         ZStack {
             if let snapshot = model.git.snapshots[project] {
-                if snapshot.isRepo { summary(snapshot) }
+                if snapshot.isRepo && !snapshot.files.isEmpty { summary(snapshot) }
             } else if model.git.loading.contains(project) {
                 Capsule()
                     .fill(.quaternary)
@@ -26,19 +26,15 @@ struct TerminalChangesLine: View {
         .opacity(stale ? 0.5 : 1)
     }
 
-    @ViewBuilder private func summary(_ snapshot: GitSnapshot) -> some View {
+    private func summary(_ snapshot: GitSnapshot) -> some View {
         let added = snapshot.linesAdded ?? 0
         let removed = snapshot.linesRemoved ?? 0
         let files = snapshot.files.count
-        if files == 0 {
-            Text("No changes")
-        } else {
-            HStack(spacing: 3) {
-                if added > 0 { Text("+\(compactCount(added))").foregroundStyle(.green) }
-                if removed > 0 { Text("−\(compactCount(removed))").foregroundStyle(.red) }
-                if added + removed > 0 { Text("·").accessibilityHidden(true) }
-                Text(files == 1 ? "1 file" : "\(files) files")
-            }
+        return HStack(spacing: 3) {
+            if added > 0 { Text("+\(compactCount(added))").foregroundStyle(.green) }
+            if removed > 0 { Text("−\(compactCount(removed))").foregroundStyle(.red) }
+            if added + removed > 0 { Text("·").accessibilityHidden(true) }
+            Text(files == 1 ? "1 file" : "\(files) files")
         }
     }
 }

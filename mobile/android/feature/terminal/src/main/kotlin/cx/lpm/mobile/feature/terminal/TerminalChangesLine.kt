@@ -20,15 +20,15 @@ import cx.lpm.mobile.core.model.GitSnapshot
 
 /**
  * The terminal title's bottom line: the lines the project's uncommitted changes add
- * and remove, across how many files. Faded while the Mac is away, as the tree may
- * have moved on since.
+ * and remove, across how many files; empty while the tree is clean. Faded while the
+ * Mac is away, as the tree may have moved on since.
  */
 @Composable
 internal fun TerminalChangesLine(git: GitSnapshot?, loading: Boolean, stale: Boolean) {
     val colors = LpmTheme.colors
     Box(Modifier.alpha(if (stale) STALE_ALPHA else 1f)) {
         when {
-            git != null -> if (git.isRepo) ChangesSummary(git)
+            git != null -> if (git.isRepo && git.files.isNotEmpty()) ChangesSummary(git)
 
             loading -> Box(
                 Modifier
@@ -46,10 +46,6 @@ private fun ChangesSummary(git: GitSnapshot) {
     val added = git.linesAdded ?: 0
     val removed = git.linesRemoved ?: 0
     val files = git.files.size
-    if (files == 0) {
-        Part("No changes", colors.secondaryLabel)
-        return
-    }
     Row(
         horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.CenterVertically
