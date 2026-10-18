@@ -120,4 +120,42 @@ class GitStoreTest {
         settle(200)
         assertEquals(1, socket.sentOf("git").size)
     }
+
+    @Test
+    fun `a terminal header keeps the Mac watching once the review screen closes`() = runTest {
+        val h = SessionHarness(this)
+        val socket = h.connectReady()
+        val git = h.session.store<GitStore>()
+        git.follow("storefront")
+        git.follow("storefront")
+        assertEquals(1, socket.sentOf("gitWatch").size)
+        assertEquals(1, socket.sentOf("git").size)
+
+        git.watch("storefront")
+        git.unwatch("storefront")
+        git.unfollow("storefront")
+        assertTrue(socket.sentOf("gitUnwatch").isEmpty())
+
+        git.unfollow("storefront")
+        assertEquals(1, socket.sentOf("gitUnwatch").size)
+    }
+
+    @Test
+    fun `a snapshot carries the lines its changes add and remove`() = runTest {
+        val h = SessionHarness(this)
+        val socket = h.connectReady()
+        val git = h.session.store<GitStore>()
+        git.load("storefront")
+        socket.receive(
+            """{"t":"git","ok":true,"project":"storefront","isRepo":true,"files":[],""" +
+                """"linesAdded":656,"linesRemoved":187}"""
+        )
+        settle()
+        val snapshot = git.state.value.snapshots.getValue("storefront")
+        assertEquals(656, snapshot.linesAdded)
+        assertEquals(187, snapshot.linesRemoved)
+        socket.snapshot(files = 1)
+        settle()
+        assertNull(git.state.value.snapshots.getValue("storefront").linesAdded)
+    }
 }

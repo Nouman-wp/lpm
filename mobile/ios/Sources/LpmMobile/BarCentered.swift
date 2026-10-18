@@ -20,7 +20,9 @@ private struct BarCentered: ViewModifier {
         content
             .frame(width: half.map { $0 * 2 })
             .offset(x: middle.map { $0 - room.midX } ?? 0)
-            .frame(maxWidth: .infinity)
+            // The bar sizes the title to what it asks for, so ask for more than any
+            // bar has: it then gets all the room between the buttons to work in.
+            .frame(idealWidth: 10_000, maxWidth: .infinity)
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { room = $0 }
     }
 }

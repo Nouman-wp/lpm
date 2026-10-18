@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.terminal
 
+import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.navigation.TerminalKey
 import cx.lpm.mobile.core.testing.FakeSocket
@@ -40,7 +41,8 @@ class TabRestoreViewModelTest {
             stores = setOf(
                 SessionStore.Factory {
                     ComposerSessions(it, media, io, "phone") { testScheduler.currentTime }
-                }
+                },
+                SessionStore.Factory(::GitStore)
             )
         )
         val socket = t.connectReady()

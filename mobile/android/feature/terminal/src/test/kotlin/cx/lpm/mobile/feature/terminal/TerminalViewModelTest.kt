@@ -1,7 +1,10 @@
 package cx.lpm.mobile.feature.terminal
 
+import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
+import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.data.terminals.TerminalHooks
+import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.navigation.TerminalKey
 import cx.lpm.mobile.core.testing.FakeSocket
 import cx.lpm.mobile.core.testing.MainDispatcherRule
@@ -25,8 +28,11 @@ class TerminalViewModelTest {
 
     private val key = TerminalKey("storefront", "t1")
 
+    private fun TestScope.session() =
+        TestSession(this, stores = setOf(SessionStore.Factory(::GitStore)))
+
     private fun TestScope.ready(): Pair<TestSession, FakeSocket> {
-        val t = TestSession(this)
+        val t = session()
         val socket = t.connectReady()
         socket.receive("""{"t":"projects","projects":[{"name":"storefront","running":true}]}""")
         socket.receive(
@@ -56,7 +62,7 @@ class TerminalViewModelTest {
 
     @Test
     fun `a terminal missing from a loaded list is unavailable, not loading`() = runTest {
-        val t = TestSession(this)
+        val t = session()
         val socket = t.connectReady()
         val vm = viewModel(t)
         assertFalse(vm.uiState.value.listLoaded)
@@ -152,7 +158,7 @@ class TerminalViewModelTest {
 
         socket.status(entry("Running", "t1", timestamp = now - 5_000, turnStart = now - 65_000))
         testScheduler.runCurrent()
-        assertEquals(AgentTiming(now - 65_000, null), vm.uiState.value.agent)
+        assertEquals(AgentTiming(AgentState.Working, now - 65_000, null), vm.uiState.value.agent)
 
         socket.status(
             entry(
@@ -165,15 +171,42 @@ class TerminalViewModelTest {
             )
         )
         testScheduler.runCurrent()
-        assertEquals(AgentTiming(now - 65_000, now - 2_000), vm.uiState.value.agent)
+        assertEquals(
+            AgentTiming(AgentState.Done, now - 65_000, now - 2_000),
+            vm.uiState.value.agent
+        )
 
         socket.status(entry("Waiting", "t1", timestamp = now + 60_000))
         testScheduler.runCurrent()
-        assertEquals(AgentTiming(now, null), vm.uiState.value.agent)
+        assertEquals(AgentTiming(AgentState.NeedsYou, now, null), vm.uiState.value.agent)
 
         socket.status(entry("Idle", "t1", timestamp = now), entry("Running", "t2", timestamp = now))
         testScheduler.runCurrent()
         assertNull(vm.uiState.value.agent)
+    }
+
+    @Test
+    fun `the title follows the project's changes while the screen shows`() = runTest {
+        val (t, socket) = ready()
+        val vm = viewModel(t)
+        vm.appear()
+        testScheduler.runCurrent()
+        assertEquals(1, socket.sentOf("gitWatch").size)
+        assertTrue(vm.uiState.value.gitLoading)
+
+        socket.receive(
+            """{"t":"git","project":"storefront","ok":true,"isRepo":true,""" +
+                """"files":[{"path":"a.ts","status":"modified"}],"linesAdded":12,"linesRemoved":3}"""
+        )
+        testScheduler.runCurrent()
+        val git = vm.uiState.value.git
+        assertEquals(12, git?.linesAdded)
+        assertEquals(3, git?.linesRemoved)
+        assertEquals(1, git?.files?.size)
+
+        vm.disappear()
+        testScheduler.runCurrent()
+        assertEquals(1, socket.sentOf("gitUnwatch").size)
     }
 
     @Test
@@ -201,7 +234,7 @@ class TerminalViewModelTest {
 
     @Test
     fun `Demo Mode opens its scripted terminal`() = runTest {
-        val t = TestSession(this)
+        val t = session()
         t.enterDemo()
         testScheduler.advanceTimeBy(2_000)
         testScheduler.runCurrent()
