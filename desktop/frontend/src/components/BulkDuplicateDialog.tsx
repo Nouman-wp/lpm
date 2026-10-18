@@ -26,6 +26,7 @@ import {
 import { getSettings, saveSettings } from "../store/settings";
 import { useAppStore } from "../store/app";
 import { usePeerState } from "../peer/usePeerState";
+import { useHostFolders } from "../peer/useHostFolders";
 import { isPeerName, peerSlugOf, stripMarker } from "../peer/markers";
 import { detectAICLI } from "../slashCommands";
 import { findActionByPath, flattenRunnableActions } from "../actionTree";
@@ -118,9 +119,8 @@ interface BulkDuplicateDialogProps {
   // "copy" creates standalone copies; "worktree" creates linked Git worktrees.
   // Chosen by the caller (a separate menu item / entry point), not toggled here.
   mode: DuplicateMode;
-  // The target lives on a paired Mac. Sidebar folders are a local-only concept
-  // (peer projects render in their own flat section), so the folder-grouping
-  // field is hidden — the copies are created on the host.
+  // The target lives on a paired Mac: the copies are created there, and go in
+  // its folders when it shares them.
   remote?: boolean;
   folderNames: string[];
   // Opened from a composer's "run in duplicates": pre-fill the shared prompt,
@@ -208,6 +208,7 @@ export function BulkDuplicateDialog({
   const runnableActions = flattenRunnableActions(actionTree);
 
   const { state: peerState } = usePeerState();
+  const hostFolders = useHostFolders((s) => s.bySlug);
   const sourceName = project?.name ?? "";
   const rawName = stripMarker(sourceName);
   const targets = useMemo<CopyTargetOption[]>(() => {
@@ -389,12 +390,18 @@ export function BulkDuplicateDialog({
   // one it falls back to the source-level `remote` prop.
   const targetOf = (c: CopyDraft) => c.target || sourceName;
   const anyRemoteCopy = showTargets ? copies.some((c) => isPeerName(targetOf(c))) : remote;
-  const anyLocalCopy = showTargets ? copies.some((c) => !isPeerName(targetOf(c))) : !remote;
+  // A copy can go in a folder of the machine it is made on: this Mac, or a
+  // paired one that shares its folders.
+  const copyFolders = (c: CopyDraft) => {
+    const slug = peerSlugOf(targetOf(c));
+    return slug ? hostFolders[slug]?.groups.map((g) => g.name) : folderNames;
+  };
+  const anyGroupableCopy = copies.some((c) => copyFolders(c) !== undefined);
   const folderOptions = Array.from(
-    new Set(folderNames.map((n) => n.trim()).filter(Boolean)),
+    new Set(copies.flatMap((c) => copyFolders(c) ?? []).map((n) => n.trim()).filter(Boolean)),
   );
   const trimmedGroup = groupName.trim();
-  const hasGroup = !single && anyLocalCopy && trimmedGroup.length > 0;
+  const hasGroup = !single && anyGroupableCopy && trimmedGroup.length > 0;
   // Hold submit while any prompt — the shared default or a per-copy override —
   // still has an image saving to disk.
   const imagesPending =
@@ -577,7 +584,7 @@ export function BulkDuplicateDialog({
         const t = targetOf(c);
         return valid.size === 0 || valid.has(t) ? t : fallback;
       }),
-      groupName: single || !anyLocalCopy ? "" : trimmedGroup,
+      groupName: single || !anyGroupableCopy ? "" : trimmedGroup,
       sideBySide: seeded && sideBySide,
       sideBySideLayout,
     });
@@ -753,7 +760,7 @@ export function BulkDuplicateDialog({
               </div>
             ) : (
               <div>
-                {!single && anyLocalCopy && (
+                {!single && anyGroupableCopy && (
                   <div className="relative">
                     <Folder
                       size={14}
@@ -869,7 +876,7 @@ export function BulkDuplicateDialog({
                 <p className={`mt-2 ${HELPER_TEXT}`}>
                   {seeded
                     ? `Run #1 is ${currentName} — the prompt runs in its existing terminal; the rest are fresh copies.`
-                    : anyRemoteCopy && !anyLocalCopy
+                    : !anyGroupableCopy
                       ? showTargets
                         ? `The copies are created on the chosen ${MACHINE.noun}, from its own copy of the project.`
                         : `The copies are created on the connected ${MACHINE.noun}.`
@@ -877,7 +884,7 @@ export function BulkDuplicateDialog({
                         ? `The copies are grouped under “${trimmedGroup}” in the sidebar.`
                         : "Name a folder above to keep the copies together in the sidebar, or leave it blank."}
                   {anyRemoteCopy &&
-                    (anyLocalCopy || seeded) &&
+                    (anyGroupableCopy || seeded) &&
                     ` Copies set to ${MACHINE.anotherMachine} are created there, from that ${MACHINE.noun}'s own copy of the project.`}{" "}
                   Use the menu beside a copy to run a different action or command
                   on it.

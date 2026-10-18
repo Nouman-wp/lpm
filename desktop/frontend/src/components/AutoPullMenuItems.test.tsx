@@ -6,7 +6,6 @@ import type { ProjectInfo } from "../types";
 
 const mocks = vi.hoisted(() => ({
   projects: [] as ProjectInfo[],
-  settings: { autoPull: "all" } as Record<string, unknown>,
   setProjectAutoPull: vi.fn(async () => true),
 }));
 
@@ -14,11 +13,9 @@ vi.mock("../../bridge/runtime", () => ({ EventsOn: vi.fn(() => () => {}) }));
 vi.mock("../store/app", () => ({
   useAppStore: (select: (state: unknown) => unknown) => select({ projects: mocks.projects }),
 }));
-vi.mock("../store/settings", () => ({
-  useSettingsStore: (select: (state: unknown) => unknown) => select(mocks.settings),
-}));
 vi.mock("../autoPullRun", () => ({ setProjectAutoPull: mocks.setProjectAutoPull }));
 
+import type { AutoPullMode } from "../autoPull";
 import { AutoPullMenuItems } from "./AutoPullMenuItems";
 
 const project = (over: Partial<ProjectInfo>): ProjectInfo => ({ name: "web", root: "/p/web", ...over }) as ProjectInfo;
@@ -30,7 +27,6 @@ const onClose = vi.fn();
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
-  mocks.settings = { autoPull: "all" };
   mocks.projects = [project({}), project({ name: "web-2", root: "/p/web-2", parentName: "web" })];
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -42,7 +38,8 @@ afterEach(() => {
   container.remove();
 });
 
-const render = (name: string) => act(() => root.render(<AutoPullMenuItems projectName={name} onClose={onClose} />));
+const render = (name: string, mode: AutoPullMode = "all") =>
+  act(() => root.render(<AutoPullMenuItems projectName={name} mode={mode} onClose={onClose} />));
 const items = () => [...container.querySelectorAll("button")];
 const item = (label: string) => items().find((b) => b.textContent === label)!;
 const checked = () => items().filter((b) => b.querySelector("svg")).map((b) => b.textContent);
@@ -77,8 +74,7 @@ describe("AutoPullMenuItems", () => {
   });
 
   it("is greyed out while Settings has auto pull off everywhere", () => {
-    mocks.settings = { autoPull: "off" };
-    render("web");
+    render("web", "off");
     expect(items().every((b) => b.disabled)).toBe(true);
   });
 });

@@ -214,7 +214,7 @@ export function ProjectContextMenu({
       <ProjectGitSubmenu
         projectPath={projectPath}
         projectName={projectName}
-        autoPull={!remote && !sshRemote}
+        autoPull={!sshRemote}
         onCommit={onGitCommit}
         onCreatePR={onGitCreatePR}
         onSwitchBranch={onGitSwitchBranch}
@@ -322,20 +322,19 @@ export function ProjectContextMenu({
           onClick={close(item.onClick)}
         />
       ))}
-      {!remote &&
-        (isDetached ? (
-          <ContextMenuItem
-            label="Attach to main window"
-            icon={<DetachIcon />}
-            onClick={close(onAttach)}
-          />
-        ) : (
-          <ContextMenuItem
-            label="Detach to new window"
-            icon={<DetachIcon />}
-            onClick={close(onDetach)}
-          />
-        ))}
+      {isDetached ? (
+        <ContextMenuItem
+          label="Attach to main window"
+          icon={<DetachIcon />}
+          onClick={close(onAttach)}
+        />
+      ) : (
+        <ContextMenuItem
+          label="Detach to new window"
+          icon={<DetachIcon />}
+          onClick={close(onDetach)}
+        />
+      )}
       {groups && (
         <MoveToFolderSubmenu
           groups={groups}
@@ -346,7 +345,7 @@ export function ProjectContextMenu({
           onClose={onClose}
         />
       )}
-      {!remote && canSelect && (
+      {canSelect && (
         <ContextMenuItem
           label="Select"
           icon={<CheckSquareIcon />}

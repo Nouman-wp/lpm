@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   dropMove,
   foldedIds,
+  folderNamed,
   hostOp,
+  slotAfter,
   slotAfterFolder,
   slotOf,
   translateHostFolders,
@@ -73,6 +75,28 @@ describe("slots", () => {
     expect(slotOf(layout, name("db"))).toBe("group:a");
     expect(slotOf(layout, name("gone"))).toBeNull();
     expect(slotAfterFolder(layout, "a")).toBe(name("cli"));
+  });
+
+  it("finds the slot below a project, or none at the end", () => {
+    expect(slotAfter(layout, name("web"))).toBe("group:a");
+    expect(slotAfter(layout, name("api"))).toBe(name("cli"));
+    expect(slotAfter(layout, name("cli"))).toBeNull();
+    expect(slotAfter(layout, name("gone"))).toBeNull();
+  });
+});
+
+describe("folderNamed", () => {
+  it("matches a folder's name exactly first, then ignoring case", () => {
+    const two = translateHostFolders(SLUG, {
+      order: ["group:a", "group:b"],
+      groups: [
+        { id: "a", name: "work", members: [] },
+        { id: "b", name: "Work", members: [] },
+      ],
+    });
+    expect(folderNamed(two, " Work ")?.id).toBe("b");
+    expect(folderNamed(layout, "WORK")?.id).toBe("a");
+    expect(folderNamed(layout, "Play")).toBeUndefined();
   });
 });
 

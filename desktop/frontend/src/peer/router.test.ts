@@ -146,6 +146,10 @@ describe("translateResult", () => {
     ]);
   });
 
+  it("prefixes the names a batch removal couldn't remove", () => {
+    expect(translateResult("remove_projects", A, ["app-2"])).toEqual([prefixName(A, "app-2")]);
+  });
+
   it("prefixes the name an adopted folder landed under", () => {
     expect(translateResult("create_project", A, { name: "app-2", existing: false })).toEqual({
       name: prefixName(A, "app-2"),
@@ -331,6 +335,11 @@ describe("isLocalOnlyCommand", () => {
     expect(isLocalOnlyCommand("open_file_in_editor")).toBe(true);
     expect(isLocalOnlyCommand("open_path_in_default_app")).toBe(true);
     expect(isLocalOnlyCommand("reveal_in_finder")).toBe(true);
+  });
+
+  it("opens a paired machine's project's window on this Mac", () => {
+    expect(isLocalOnlyCommand("detach_project")).toBe(true);
+    expect(isLocalOnlyCommand("attach_project")).toBe(true);
   });
 
   it("reads a paired machine's file from here, in chunks", () => {

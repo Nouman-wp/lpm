@@ -52,15 +52,14 @@ export function levelOf(map: LevelMap, id: string): ActionLevel | null {
   return map.get(parsePath(id)[0]) ?? null;
 }
 
-// A paired Mac's project only has its own file within reach: the global file
-// read from here would be this Mac's, and the host refuses a repo save. Its
-// other buttons get no level, so they can't be nested or restructured.
+// A paired Mac's global file is out of reach: the one read from here would be
+// this Mac's. Its global buttons get no level, so they can't be nested or
+// restructured.
 export async function loadLevelMap(projectName: string): Promise<LevelMap> {
-  const peer = isPeerName(projectName);
   const [project, repo, global] = await Promise.all([
     projectLayer(projectName).read().catch(() => ""),
-    peer ? "" : repoLayer(projectName).read().catch(() => ""),
-    peer ? "" : globalLayer.read().catch(() => ""),
+    repoLayer(projectName).read().catch(() => ""),
+    isPeerName(projectName) ? "" : globalLayer.read().catch(() => ""),
   ]);
   return buildLevelMap({ project, repo, global });
 }

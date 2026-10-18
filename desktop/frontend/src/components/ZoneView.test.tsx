@@ -123,8 +123,8 @@ describe("collapsing a zone", () => {
     expect(h.setZoneCollapsed).toHaveBeenCalledWith("app", zone, true);
   });
 
-  it("offers no corner button on a peer project's shared zone", () => {
-    const zone: ZoneInfo = { name: "ship", label: "Ship", rows: 1, source: "repo" };
+  it("offers no corner button on a peer project's global zone", () => {
+    const zone: ZoneInfo = { name: "ship", label: "Ship", rows: 1, source: "global" };
     const frame = mount(zone, "header", [{ key: "ship", layer: null, ids: ["prod"], actions: [action("prod")] }], "peer-0123abcd-web");
     expect(frame.querySelector('[aria-label="Collapse zone"]')).toBeNull();
   });

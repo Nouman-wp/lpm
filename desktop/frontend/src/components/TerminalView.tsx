@@ -123,13 +123,15 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   const duplicateProject = useAppStore(
     (s) => s.projects.find((p) => p.name === projectName) ?? null,
   );
-  // Sessions on this Mac only — a peer-hosted or SSH-remote project's
-  // transcripts and duplicates live on the other machine.
-  const localSessions =
-    !isPeerName(projectName) && !(duplicateProject?.isRemote ?? false);
-  // The scheduler runs jobs for projects on this Mac only — not for the global
-  // terminals, a peer's projects or an SSH project.
-  const hasAutomations = localSessions && duplicateProject !== null;
+  // An SSH project's transcripts and duplicates live on its server, out of
+  // reach. A paired machine's are read and made through that machine.
+  const sessionsReachable = !(duplicateProject?.isRemote ?? false);
+  // Titles are worked out here for this Mac's own projects only: a paired
+  // machine titles the tabs it keeps for every Mac showing them.
+  const localSessions = sessionsReachable && !isPeerName(projectName);
+  // Jobs run where the project is, this Mac or a paired one — not for the
+  // global terminals or an SSH project.
+  const hasAutomations = sessionsReachable && duplicateProject !== null;
   const [outputs, setOutputs] = useState<string[]>([]);
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null);
   const [searchPaneId, setSearchPaneId] = useState<string | null>(null);
@@ -1032,7 +1034,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     setDuplicateNonce((n) => n + 1);
   }, []);
 
-  const canForkIntoCopy = localSessions;
+  const canForkIntoCopy = sessionsReachable;
   const [forkCopyRequest, setForkCopyRequest] = useState<{
     paneId: string;
     termId: string;
@@ -1196,7 +1198,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onOpenMemorySession={openMemorySession}
             onDetachMemory={detachTerminalMemory}
             memoryTarget={memoryTarget}
-            localAgentSessions={localSessions}
+            agentSessionsReadable={sessionsReachable}
             onRatioChange={setRatio}
             onFindInPane={findInPane}
             onFilterInPane={filterInPane}

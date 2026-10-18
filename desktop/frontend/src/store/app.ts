@@ -82,6 +82,7 @@ import {
   removePersistedTabById,
 } from "../terminals";
 import { isPeerName, peerSlugOf, prefixName, prefixRoot } from "../peer/markers";
+import { fileCopiesOnHosts } from "../peer/useHostFolders";
 import {
   adoptedProject,
   adoptionNotice,
@@ -1551,10 +1552,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         opts.onCreated?.(copyName);
         if (created.length === 1 && !opts.keepSelection) set({ selected: copyName, view: "projects" });
       }
-      // Grouping mutates the LOCAL sidebar layout/groups; peer projects live in
-      // their own flat section (groups are local-only), so only the copies
-      // created on this Mac are grouped — a host groups its own.
+      // This Mac's copies go into a folder of its own sidebar layout; a paired
+      // machine's into that machine's folders, which every Mac showing it shares.
       const folderName = opts.groupName?.trim();
+      const sources = Array.from({ length: count }, (_, i) => sourceAt(i));
       if (folderName && createdLocal.length > 0) {
         try {
           let layout: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
@@ -1567,10 +1568,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             group = { id: crypto.randomUUID(), name: folderName, members: [] };
             // Drop the new folder directly below the local project the copies
             // came from, not at the bottom of the sidebar.
-            const anchor =
-              Array.from({ length: count }, (_, i) => sourceAt(i)).find(
-                (s) => !isPeerName(s),
-              ) ?? name;
+            const anchor = sources.find((s) => !isPeerName(s)) ?? name;
             const atIndex = topLevelIndexOfProject(layout, anchor) + 1;
             layout = addGroupToLayout(layout, group, atIndex);
           }
@@ -1580,6 +1578,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           toast.error(`Couldn't add copies to folder: ${err}`);
         }
       }
+      if (folderName) await fileCopiesOnHosts(folderName, created, sources);
       if (created.length === 0) {
         toast.error(`Failed to duplicate ${name}`, { id: toastId });
       } else if (created.length < count) {

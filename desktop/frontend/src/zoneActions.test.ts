@@ -320,22 +320,22 @@ describe("setZoneCollapsed", () => {
     expect(saved("project").zones.build).toEqual({ position: 2 });
   });
 
-  it("leaves a peer project's repo and global files alone when it unfolds", async () => {
+  it("leaves a peer project's global file alone when it unfolds", async () => {
     const note = "zones:\n  build:\n    collapsed: true\n";
     files.global = note;
     files.repo = note;
     files.project = note;
     await setZoneCollapsed("peer-0123abcd-web", zone({ source: "global" }), false);
-    expect(layerSaves).toEqual(["project"]);
-    expect(files.repo).toBe(note);
+    expect(layerSaves).toEqual(["project", "repo"]);
     expect(files.global).toBe(note);
   });
 
-  it("clears a peer project's own zone when it unfolds", async () => {
+  it("clears a peer project's own and repo zone when it unfolds", async () => {
     files.project = "zones:\n  build:\n    rows: 1\n    collapsed: true\n";
     files.repo = "zones:\n  build:\n    collapsed: true\n";
     await setZoneCollapsed("peer-0123abcd-web", zone({ source: "project" }), false);
-    expect(layerSaves).toEqual(["project"]);
+    expect(layerSaves).toEqual(["project", "repo"]);
     expect(saved("project").zones.build).toEqual({ rows: 1 });
+    expect(saved("repo").zones.build).toEqual({});
   });
 });

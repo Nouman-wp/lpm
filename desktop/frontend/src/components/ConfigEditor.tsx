@@ -62,12 +62,12 @@ export function ConfigEditor({
 }: ConfigEditorProps) {
   const onSavedRef = useRef(onSaved);
   onSavedRef.current = onSaved;
-  // A paired machine's project edits only its own config there: that machine's
-  // shared layers aren't this Mac's to show or write, and generating one runs
-  // longer than a call to it may.
+  // A paired machine's project edits its own and its repo config there. The
+  // global layer read from here would be this Mac's, and generating one runs
+  // longer than a call to that machine may.
   const onPeer = isPeerName(projectName);
   const targets = onPeer
-    ? [USER_TARGET]
+    ? [USER_TARGET, REPO_TARGET]
     : isRemote
       ? [USER_TARGET, GLOBAL_TARGET]
       : [USER_TARGET, REPO_TARGET, GLOBAL_TARGET];

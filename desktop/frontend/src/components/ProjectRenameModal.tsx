@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Modal } from "./ui/Modal";
 import { ChevronRightIcon, FolderIcon } from "./icons";
+import { RemoteFolderBrowserModal } from "./RemoteFolderBrowserModal";
 import { BrowseFolder } from "../../bridge/commands";
 import { modalInputDefaults } from "../forms/styles";
 import { basename, folderName, isAbsolutePath, joinPath } from "../path";
+import { isWindowsHostPath } from "../peer/markers";
+import { isWindows } from "../platform";
 
 interface ProjectRenameModalProps {
   open: boolean;
@@ -11,6 +14,9 @@ interface ProjectRenameModalProps {
   currentRoot: string;
   canRenameFolder: boolean;
   folderBusy: boolean;
+  // The paired machine the project is on. `currentRoot` is then its path there,
+  // and the folder is browsed and moved there.
+  host?: { slug: string; alias: string };
   onClose: () => void;
   onRenameLabel: (value: string) => void;
   onMoveFolder: (newRoot: string) => Promise<void>;
@@ -22,6 +28,7 @@ export function ProjectRenameModal({
   currentRoot,
   canRenameFolder,
   folderBusy,
+  host,
   onClose,
   onRenameLabel,
   onMoveFolder,
@@ -30,6 +37,7 @@ export function ProjectRenameModal({
   const [expanded, setExpanded] = useState(false);
   const [root, setRoot] = useState(currentRoot);
   const [submitting, setSubmitting] = useState(false);
+  const [browsingHost, setBrowsingHost] = useState(false);
   const labelRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLInputElement>(null);
 
@@ -39,11 +47,14 @@ export function ProjectRenameModal({
     setExpanded(false);
     setRoot(currentRoot);
     setSubmitting(false);
+    setBrowsingHost(false);
     requestAnimationFrame(() => {
       labelRef.current?.focus();
       labelRef.current?.select();
     });
   }, [open, displayName, currentRoot]);
+
+  const win = host ? isWindowsHostPath(currentRoot) : isWindows;
 
   useEffect(() => {
     if (!expanded) return;
@@ -51,14 +62,14 @@ export function ProjectRenameModal({
       const el = rootRef.current;
       if (!el) return;
       el.focus();
-      el.setSelectionRange(currentRoot.length - basename(currentRoot).length, currentRoot.length);
+      el.setSelectionRange(currentRoot.length - basename(currentRoot, win).length, currentRoot.length);
     });
-  }, [expanded, currentRoot]);
+  }, [expanded, currentRoot, win]);
 
   const labelTrim = label.trim();
   const labelChanged = labelTrim.length > 0 && labelTrim !== displayName.trim();
   const rootTrim = root.trim();
-  const looksAbsolute = isAbsolutePath(rootTrim);
+  const looksAbsolute = isAbsolutePath(rootTrim, win);
   const folderChanged =
     expanded &&
     canRenameFolder &&
@@ -67,10 +78,15 @@ export function ProjectRenameModal({
     rootTrim !== currentRoot.trim();
   const canSubmit = !submitting && (labelChanged || folderChanged);
 
+  const moveInto = (parent: string) => setRoot(joinPath(parent, folderName(currentRoot, win), win));
+
   const browse = async () => {
+    if (host) {
+      setBrowsingHost(true);
+      return;
+    }
     const parent = await BrowseFolder();
-    if (!parent) return;
-    setRoot(joinPath(parent, folderName(currentRoot)));
+    if (parent) moveInto(parent);
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -151,7 +167,7 @@ export function ProjectRenameModal({
                     </button>
                   </div>
                   <p className="mt-1.5 pl-0.5 text-[11px] text-[var(--text-muted)]">
-                    Moves the folder on your computer.
+                    Moves the folder on {host ? host.alias : "your computer"}.
                   </p>
                 </div>
               ))}
@@ -175,6 +191,20 @@ export function ProjectRenameModal({
           </button>
         </div>
       </form>
+      {host && (
+        <RemoteFolderBrowserModal
+          open={browsingHost}
+          slug={host.slug}
+          alias={host.alias}
+          title="Choose parent folder"
+          confirmLabel="Move here"
+          onChoose={(parent) => {
+            setBrowsingHost(false);
+            moveInto(parent);
+          }}
+          onClose={() => setBrowsingHost(false)}
+        />
+      )}
     </Modal>
   );
 }

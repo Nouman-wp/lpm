@@ -119,3 +119,13 @@ export function peerSectionRows(
   for (const project of projects) if (loose(project)) rows.push(...place(project, true));
   return { rows, ids, decks };
 }
+
+// The projects the rows show, top to bottom: the axis a shift-click range is
+// measured along. A folded folder's or deck's projects aren't on screen.
+export function visiblePeerRowNames(rows: PeerRowItem[]): string[] {
+  const shown = (row: PeerMemberRow) =>
+    row.kind === "project" ? [row.project.name] : row.collapsed ? [] : row.children.map((c) => c.name);
+  return rows.flatMap((row) =>
+    row.kind !== "folder" ? shown(row) : row.collapsed ? [] : row.rows.flatMap(shown),
+  );
+}

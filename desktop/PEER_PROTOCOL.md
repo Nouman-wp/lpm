@@ -216,12 +216,13 @@ Host dispatch has two tiers:
 
 **Denylist.** The host refuses to dispatch app-meta commands and returns an error
 result: any `peer_*` / `remote_*` command, window/dock/detached-window focus, app
-settings + config import/export, updater/installers, account/login, host-local
-audio/voice, the host browser overlay, the folder picker that saves a note's
-attachment (the client reads the attachment and saves it itself), and vault key
-material. Project-scoped
-operations are allowed. The client router carries the same guard (defense in
-depth). See `is_denied` in `peer.rs`.
+settings, the global config and config import/export, updater/installers,
+account/login, host-local audio/voice, the host browser overlay, the folder
+picker that saves a note's attachment (the client reads the attachment and saves
+it itself), and vault key material. Project-scoped operations are allowed, a
+project's repo config (`<root>/.lpm.yml`) among them. The client router carries
+the same guard (defense in depth), and opens a detached window for a host's
+project on the client. See `is_denied` in `peer.rs`.
 
 **Video preview** (`mediaRange` feature). The client's `lpm-media://` handler
 forwards each byte range a `<video>` asks for about a peer-marked path as

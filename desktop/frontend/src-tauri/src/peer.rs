@@ -1907,10 +1907,10 @@ fn is_denied(cmd: &str) -> bool {
             | "detach_project"
             | "attach_project"
             | "save_window_size"
-            // app settings + config import/export
+            // app settings, the global config, config import/export. A project's
+            // repo config (`<root>/.lpm.yml`) is project-scoped and allowed.
             | "save_settings"
             | "save_global_config"
-            | "save_repo_config"
             | "import_config"
             | "export_config"
             // updater / installers
@@ -2573,6 +2573,7 @@ mod tests {
         assert!(!is_denied("start_project"));
         assert!(!is_denied("run_action"));
         assert!(!is_denied("start_terminal"));
+        assert!(!is_denied("save_repo_config"));
     }
 
     #[test]

@@ -6,13 +6,16 @@ import {
   dropMove,
   editHostFolders,
   foldedIds,
+  folderNamed,
   groupOf,
   readHostFolders,
+  slotAfter,
   slotAfterFolder,
   withFolds,
   type HostFolderOp,
   type HostFolders,
 } from "./hostFolders";
+import { peerSlugOf } from "./markers";
 import { parseCollapsedMap } from "./peerSectionCollapse";
 import { movePeerRow } from "../components/peerRowOrder";
 import type { PeerClient } from "./usePeerState";
@@ -108,6 +111,30 @@ export function fileHostProject(slug: string, name: string, groupId: string | nu
     folder: null,
     before: slotAfterFolder(folders, current.id),
   });
+}
+
+// Copies just made on paired machines, each filed into its own machine's
+// folder called `name`: the one it has, or a new one just below the project the
+// copies came from there. This Mac's own copies are left to its own sidebar.
+export async function fileCopiesOnHosts(name: string, copies: string[], sources: string[]): Promise<void> {
+  const bySlug = new Map<string, string[]>();
+  for (const copy of copies) {
+    const slug = peerSlugOf(copy);
+    if (slug) bySlug.set(slug, [...(bySlug.get(slug) ?? []), copy]);
+  }
+  for (const [slug, onHost] of bySlug) {
+    const folders = useHostFolders.getState().bySlug[slug];
+    if (!folders) continue;
+    const folder = folderNamed(folders, name);
+    if (!folder) {
+      const source = sources.find((s) => peerSlugOf(s) === slug) ?? onHost[0];
+      await applyHostFolderOp(slug, { op: "create", name, members: onHost, before: slotAfter(folders, source) });
+      continue;
+    }
+    for (const item of onHost) {
+      await applyHostFolderOp(slug, { op: "move", item, folder: folder.id, before: null });
+    }
+  }
 }
 
 // A row of a host's section dropped onto another; `rows` is every row of the

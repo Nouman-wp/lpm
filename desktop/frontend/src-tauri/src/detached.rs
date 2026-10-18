@@ -44,6 +44,12 @@ fn label_for(name: &str) -> String {
     format!("{LABEL_PREFIX}{safe}-{:08x}", hasher.finish())
 }
 
+/// A paired machine's project, named as this Mac lists it (`peer-<slug>-<name>`).
+/// Its window opens here too; the project itself is that machine's to check.
+fn is_peer_project(name: &str) -> bool {
+    crate::peerclient::parse_prefixed(name).is_some()
+}
+
 // ---- commands ---------------------------------------------------------------
 
 // Building a window from a command running on the main thread deadlocks on
@@ -58,7 +64,7 @@ pub fn detach_project(
     if project_name.is_empty() {
         return Err("empty project name".into());
     }
-    if !config::project_exists(&project_name) {
+    if !is_peer_project(&project_name) && !config::project_exists(&project_name) {
         return Err(format!("project not found: {project_name}"));
     }
     // Already open -> focus and return.
@@ -139,6 +145,12 @@ pub fn restore_impl(app: &AppHandle, state: &DetachedState) {
         None => return,
     };
     for name in to_open {
+        // A paired machine isn't connected yet at launch, so its project comes
+        // back attached; the window's bounds stay saved for its next detach.
+        if is_peer_project(&name) {
+            persist_detached_flag(&name, false);
+            continue;
+        }
         if !config::project_exists(&name) {
             clear_detached_entry(&name);
             continue;

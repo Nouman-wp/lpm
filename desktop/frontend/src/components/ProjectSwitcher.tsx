@@ -1,15 +1,19 @@
 import { useLayoutEffect, useRef } from "react";
 import { Modal } from "./ui/Modal";
 import { useAppStore } from "../store/app";
+import { peerSlugOf } from "../peer/markers";
+import { peerAlias, type PeerClient } from "../peer/usePeerState";
 import { ProjectNameDisplay, findParentProject } from "./ProjectNameDisplay";
 
 interface ProjectSwitcherProps {
   active: boolean;
   list: string[];
   index: number;
+  // Paired machines, to name the one a project is on.
+  peers: PeerClient[];
 }
 
-export function ProjectSwitcher({ active, list, index }: ProjectSwitcherProps) {
+export function ProjectSwitcher({ active, list, index, peers }: ProjectSwitcherProps) {
   const projects = useAppStore((s) => s.projects);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -35,22 +39,30 @@ export function ProjectSwitcher({ active, list, index }: ProjectSwitcherProps) {
         <div ref={listRef} className="flex max-h-[60vh] flex-col gap-0.5 overflow-y-auto">
           {list.map((name, i) => {
             const project = projects.find((p) => p.name === name);
+            const slug = peerSlugOf(name);
             return (
               <div
                 key={name}
-                className={`shrink-0 truncate rounded-lg px-3 py-2 text-sm ${
+                className={`flex shrink-0 items-baseline gap-2 rounded-lg px-3 py-2 text-sm ${
                   i === index
                     ? "bg-[var(--bg-hover)] text-[var(--text-primary)] ring-1 ring-inset ring-[var(--accent-cyan)]/40"
                     : "text-[var(--text-secondary)]"
                 }`}
               >
-                {project ? (
-                  <ProjectNameDisplay
-                    project={project}
-                    parent={findParentProject(project, projects)}
-                  />
-                ) : (
-                  name
+                <span className="min-w-0 truncate">
+                  {project ? (
+                    <ProjectNameDisplay
+                      project={project}
+                      parent={findParentProject(project, projects)}
+                    />
+                  ) : (
+                    name
+                  )}
+                </span>
+                {slug && (
+                  <span className="ml-auto shrink-0 text-[11px] text-[var(--text-muted)]">
+                    {peerAlias(peers, slug)}
+                  </span>
                 )}
               </div>
             );

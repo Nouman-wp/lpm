@@ -39,7 +39,7 @@ import { SidebarDeckRun } from "./SidebarDeckRun";
 import { SidebarDeckPullRow } from "./SidebarDeckPullRow";
 import { SidebarDuplicateSkeletonRow } from "./SidebarDuplicateSkeletonRow";
 import { ROW_BASE_CLASS, ROW_INDENT_CLASS, ROW_TWO_LINE_CLASS, rowTrailing } from "./sidebarRowClass";
-import { peerSectionRows, type PeerRowItem } from "./peerSectionRows";
+import { peerSectionRows, visiblePeerRowNames, type PeerRowItem } from "./peerSectionRows";
 import { deckKindLabel, deckLabel, deckRunDomId } from "./sidebarDeck";
 import { SidebarAgentRows } from "./SidebarAgentRows";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
@@ -150,6 +150,8 @@ const ROW_TWO_LINE_HALF = "14px";
 const MUTED_STYLE = { color: "var(--text-muted)" } as const;
 const EMPTY_FOLDER_CLASS = `mb-0.5 rounded-md px-3 py-1.5 text-[11px] italic text-[var(--text-muted)] ${ROW_INDENT_CLASS}`;
 const DONE_STYLE = { color: "var(--accent-blue)" } as const;
+// Select mode deals every deck out, a paired Mac's as well as this one's.
+const NO_DECKS: ReadonlySet<string> = new Set();
 
 const UNTAME_DOM_ID = /[^a-zA-Z0-9_-]/g;
 
@@ -237,9 +239,8 @@ type TreeItem =
   | { kind: "empty"; group: ProjectGroup }
   | { kind: "peer"; section: PeerSection; rows: PeerRowItem[] };
 
-// A row in a paired Mac's section. It stays out of any selection, and a synced
-// copy there can go by the name the project has on that Mac and wear the mark
-// of the copy it keeps here.
+// A row in a paired Mac's section. A synced copy there can go by the name the
+// project has on that Mac and wear the mark of the copy it keeps here.
 interface PeerRowOptions {
   label?: string;
   mark?: React.ReactNode;
@@ -271,6 +272,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   } | null>(null);
   const [gitModal, setGitModal] = useState<GitModalTarget | null>(null);
   const [selectMode, setSelectMode] = useState(false);
+  // The machine a selection is on: a paired one's slug, or null for this Mac.
+  // A selection stays on one machine, so its bulk actions go to one place.
+  const [selectScope, setSelectScope] = useState<string | null>(null);
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
   // Anchor row for shift-click range selection; range spans anchor → clicked.
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
@@ -359,6 +363,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // A host's project files into that host's folders, when it shares them.
   const contextSlug = contextMenu && isPeerName(contextMenu.name) ? peerSlugOf(contextMenu.name) : null;
   const contextHostFolders = contextSlug ? hostFolders[contextSlug] : undefined;
+  const selectionHostFolders = selectScope ? hostFolders[selectScope] : undefined;
   const sideBySideColumns = useSideBySideColumns(selected);
   const sideBySideItems = useSideBySideMenu(
     contextMenu?.name ?? null,
@@ -519,8 +524,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         // also renders (section.strays) stay put.
         const peer = peerSectionRows(
           section.projects,
-          pendingDuplicates,
-          collapsedDecks,
+          selectMode ? [] : pendingDuplicates,
+          selectMode ? NO_DECKS : collapsedDecks,
           hostFolders[slug],
         );
         out.push({ kind: "peer", section, rows: peer.rows });
@@ -581,6 +586,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       items.flatMap((it) => {
         if (it.kind === "project") return [it.project.name];
         if (it.kind === "deck") return it.collapsed ? [] : it.children.map((c) => c.name);
+        if (it.kind === "peer") return visiblePeerRowNames(it.rows);
         return [];
       }),
     [items],
@@ -604,8 +610,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // Removing an original also removes its duplicates (matching the single
   // cascade delete), so expand the pending set before partitioning.
   const removalProjects = useMemo(
-    () => expandRemovalSet(projects, projectByName, selectedForDelete),
-    [selectedForDelete, projects, projectByName],
+    () => expandRemovalSet(projects, allByName, selectedForDelete),
+    [selectedForDelete, projects, allByName],
   );
 
   // Originals only lose their lpm entry (source folder stays), so their removal
@@ -617,6 +623,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const enterSelectMode = (preselect?: string) => {
     setSelectedForDelete(preselect ? new Set([preselect]) : new Set());
     setSelectionAnchor(preselect ?? null);
+    setSelectScope(preselect ? peerSlugOf(preselect) : null);
     setSelectMode(true);
   };
   const exitSelectMode = () => {
@@ -640,15 +647,23 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // rows (which only focus a window) and across non-project views.
   const handleRowClick = (name: string, e: React.MouseEvent) => {
     if (e.shiftKey) {
-      const anchor = selectionAnchor ?? name;
-      const range = rangeBetween(visualProjectNames, anchor, name);
+      const scope = selectMode ? selectScope : peerSlugOf(name);
+      const onScope = (n: string) => peerSlugOf(n) === scope;
+      if (!onScope(name)) return;
+      const anchor = selectionAnchor && onScope(selectionAnchor) ? selectionAnchor : name;
+      const range = rangeBetween(visualProjectNames, anchor, name).filter(onScope);
       const add = range.length > 0 ? range : [name];
       setSelectedForDelete((prev) => new Set([...prev, ...add]));
-      if (!selectMode) setSelectMode(true);
+      if (!selectMode) {
+        setSelectScope(scope);
+        setSelectMode(true);
+      }
       // Keep extending from the original anchor across shift-clicks, but
       // re-seed to the clicked row once that anchor is gone (e.g. its project
       // was removed) so range selection can't get stuck.
-      setSelectionAnchor((prev) => (prev && visualProjectNames.includes(prev) ? prev : name));
+      setSelectionAnchor((prev) =>
+        prev && onScope(prev) && visualProjectNames.includes(prev) ? prev : name,
+      );
       return;
     }
     if (selectMode) {
@@ -700,6 +715,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const renamingHasWorktrees = projects.some(
     (project) => project.parentName === renamingProject?.name && project.worktree,
   );
+  const renamingSlug = peerSlugOf(renamingName);
+  const renamingHost = renamingSlug
+    ? { slug: renamingSlug, alias: peerAlias(peerState.peers, renamingSlug) }
+    : undefined;
   const renamingGroup = renamingGroupId ? groups.find((g) => g.id === renamingGroupId) : undefined;
   const deletingGroup = deletingGroupId ? groups.find((g) => g.id === deletingGroupId) : undefined;
 
@@ -947,8 +966,15 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // so the elbow a folder draws into it has to know as well as the row does.
   const hasNoteLine = (project: ProjectInfo) => workStatusNote(project.workStatus) !== null;
 
+  // A row in its machine's own list: this Mac's, or a paired Mac's section. A
+  // synced copy shown in that section is this Mac's project, in neither.
+  const inOwnList = (name: string, inPeerSection: boolean) => inPeerSection === isPeerName(name);
+  // A row the selection can tick: one in the own list of the machine it is on.
+  const isSelecting = (name: string, inPeerSection: boolean) =>
+    selectMode && inOwnList(name, inPeerSection) && peerSlugOf(name) === selectScope;
+
   const renderProjectRow = (project: ProjectInfo, indented: boolean, peerRow?: PeerRowOptions) => {
-    const selecting = selectMode && !peerRow;
+    const selecting = isSelecting(project.name, Boolean(peerRow));
     const status = computeProjectStatus(project.statusEntries);
     const isDetached = detached.has(project.name);
     const isSelf = project.name === detachedSelf;
@@ -1060,7 +1086,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           <button
             id={projectRowDomId(project.name)}
             data-project-row={project.name}
-            onClick={(e) => (peerRow ? onSelect(project.name) : handleRowClick(project.name, e))}
+            onClick={(e) =>
+              (selectMode ? selecting : inOwnList(project.name, Boolean(peerRow)))
+                ? handleRowClick(project.name, e)
+                : onSelect(project.name)
+            }
             onDoubleClick={
               selecting
                 ? undefined
@@ -1204,7 +1234,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   };
 
   const showsOrigin = (project: ProjectInfo, inPeerSection = false) =>
-    !(selectMode && !inPeerSection) &&
+    !isSelecting(project.name, inPeerSection) &&
     !project.isRemote &&
     !project.configError &&
     !duplicatingNames.includes(project.name) &&
@@ -1272,7 +1302,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     }));
     // Inside a folder the trunk runs on through this row, unless the deck ends
     // the folder and its last copy has already closed it.
-    const pullRow = !(selectMode && !inPeerSection) && (
+    const pullRow = !isSelecting(parent.name, inPeerSection) && (
       <div key="pull-deck" className="relative">
         {connector && !endsBlock && (
           <span aria-hidden className={`pointer-events-none absolute ${TREE_X} inset-y-0 z-10 w-px ${TRUNK_BG}`} />
@@ -1674,8 +1704,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             y={contextMenu.y}
             count={selectedForDelete.size}
             busy={removingNames.size > 0}
-            groups={groups}
-            anyInGroup={[...selectedForDelete].some((n) => memberOf.has(n))}
+            groups={selectScope ? (selectionHostFolders?.groups ?? null) : groups}
+            anyInGroup={[...selectedForDelete].some((n) =>
+              selectScope ? Boolean(selectionHostFolders && groupOf(selectionHostFolders, n)) : memberOf.has(n),
+            )}
             onOpenSideBySide={
               selectedForDelete.size >= 2 && selectedForDelete.size <= MAX_SIDE_BY_SIDE
                 ? () => {
@@ -1690,11 +1722,14 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             deleteShortcut={deleteShortcut}
             onMoveToGroup={(groupId) => {
               const names = [...selectedForDelete];
-              if (names.length > 0) onMoveProjectsToGroup(names, groupId);
+              if (selectScope) names.forEach((name) => fileHostProject(selectScope, name, groupId));
+              else if (names.length > 0) onMoveProjectsToGroup(names, groupId);
               exitSelectMode();
             }}
             onCreateGroupWith={() => {
-              setCreateFolder({ initialMembers: [...selectedForDelete] });
+              const members = [...selectedForDelete];
+              if (selectScope) useHostFolderDialogs.setState({ creating: { slug: selectScope, members } });
+              else setCreateFolder({ initialMembers: members });
               exitSelectMode();
             }}
             onCancel={exitSelectMode}
@@ -1961,15 +1996,15 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         displayName={
           renamingProject ? projectDisplayName(renamingProject, renamingParent) : ""
         }
-        currentRoot={renamingProject?.root ?? ""}
+        currentRoot={stripMarker(renamingProject?.root ?? "")}
         canRenameFolder={
           Boolean(renamingProject) &&
           !renamingProject?.isRemote &&
           !renamingProject?.worktree &&
-          !renamingHasWorktrees &&
-          !isPeerName(renamingName ?? "")
+          !renamingHasWorktrees
         }
         folderBusy={Boolean(renamingProject?.running)}
+        host={renamingHost}
         onClose={() => setRenamingName(null)}
         onRenameLabel={(value) => {
           if (renamingName) onRenameProject(renamingName, value);

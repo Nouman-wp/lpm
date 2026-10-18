@@ -35,6 +35,9 @@ const LOCAL_ONLY_EXACT = new Set<string>([
   "vault_import_key",
   "get_platform",
   "get_version",
+  // A window opens on the Mac the person is at, a paired machine's project's too.
+  "detach_project",
+  "attach_project",
   // Terminal control ownership is contended LOCALLY between this Mac's windows
   // over the mirrored terminal, even for a peer-prefixed id; the host denies
   // these and resolves its own ownership from the peer's sub/claim instead.
@@ -241,7 +244,9 @@ export function translateResult(cmd: string, slug: string, result: unknown): unk
   ) {
     return prefixName(slug, result);
   }
-  if (cmd === "duplicate_projects" && Array.isArray(result)) {
+  // A batch duplicate answers with the copies' names, a batch removal with the
+  // names it couldn't remove.
+  if ((cmd === "duplicate_projects" || cmd === "remove_projects") && Array.isArray(result)) {
     return result.map((n) => (typeof n === "string" ? prefixName(slug, n) : n));
   }
   // Adopting a folder answers with the name it landed under (the folder's own

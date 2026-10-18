@@ -35,12 +35,13 @@ import {
   type GitPullConfig,
 } from "../gitOptions";
 import { toastPullError } from "../gitPullErrors";
+import type { AutoPullMode } from "../autoPull";
+import { useAutoPullMode } from "../hooks/useAutoPullMode";
 
 interface ProjectGitSubmenuProps {
   projectPath: string | null;
   projectName: string;
-  // Auto pull runs on this Mac's own projects only: not a paired Mac's or an
-  // SSH host's.
+  // Auto pull runs on the machine a project is on: not for an SSH host's.
   autoPull: boolean;
   onCommit: () => void;
   onCreatePR: () => void;
@@ -52,10 +53,12 @@ interface ProjectGitSubmenuProps {
 interface GitSubmenuItemsProps extends ProjectGitSubmenuProps {
   status: main.GitStatus | null;
   loading: boolean;
+  autoPullMode: AutoPullMode | null;
 }
 
 export function ProjectGitSubmenu(props: ProjectGitSubmenuProps) {
   const { projectPath } = props;
+  const autoPullMode = useAutoPullMode(props.projectName);
   const [status, setStatus] = useState<main.GitStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -93,7 +96,7 @@ export function ProjectGitSubmenu(props: ProjectGitSubmenuProps) {
       icon={<BranchIcon size={14} />}
       disabled={!projectPath}
     >
-      <GitSubmenuItems {...props} status={status} loading={loading} />
+      <GitSubmenuItems {...props} status={status} loading={loading} autoPullMode={autoPullMode} />
     </ContextMenuSubmenu>
   );
 }
@@ -102,6 +105,7 @@ function GitSubmenuItems({
   projectPath,
   projectName,
   autoPull,
+  autoPullMode,
   onCommit,
   onCreatePR,
   onSwitchBranch,
@@ -185,10 +189,10 @@ function GitSubmenuItems({
           })
         }
       />
-      {autoPull && (
+      {autoPull && autoPullMode && (
         <>
           <ContextMenuSeparator />
-          <AutoPullMenuItems projectName={projectName} onClose={onClose} />
+          <AutoPullMenuItems projectName={projectName} mode={autoPullMode} onClose={onClose} />
           <UndoAutoPullItem projectPath={projectPath} projectName={projectName} onClose={onClose} />
         </>
       )}

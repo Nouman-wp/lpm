@@ -11,7 +11,8 @@ interface SelectionContextMenuProps {
   y: number;
   count: number;
   busy: boolean;
-  groups: ProjectGroup[];
+  // Null when the selection's machine doesn't share its folders.
+  groups: ProjectGroup[] | null;
   anyInGroup: boolean;
   onOpenSideBySide?: () => void;
   onDelete: () => void;
@@ -54,14 +55,16 @@ export function SelectionContextMenu({
           onClick={close(onOpenSideBySide)}
         />
       )}
-      <MoveToFolderSubmenu
-        groups={groups}
-        showRemove={anyInGroup}
-        disabled={count === 0 || busy}
-        onMoveToGroup={onMoveToGroup}
-        onCreateGroupWith={onCreateGroupWith}
-        onClose={onClose}
-      />
+      {groups && (
+        <MoveToFolderSubmenu
+          groups={groups}
+          showRemove={anyInGroup}
+          disabled={count === 0 || busy}
+          onMoveToGroup={onMoveToGroup}
+          onCreateGroupWith={onCreateGroupWith}
+          onClose={onClose}
+        />
+      )}
       <ContextMenuSeparator />
       <ContextMenuItem
         destructive

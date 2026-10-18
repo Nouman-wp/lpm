@@ -215,10 +215,10 @@ export interface PaneViewProps {
   onOpenMemorySession: (sessionId: string) => void;
   onDetachMemory: (terminalId: string) => void;
   memoryTarget: { name: string; seq: number } | null;
-  // Whether agent transcripts live on this Mac. False for peer-hosted and
-  // SSH-remote projects, whose sessions can't be read here — hides the
+  // Whether the project's agent transcripts can be read: on this Mac, or on the
+  // paired machine the project is on. False for SSH-remote projects — hides the
   // terminal's copy-last-answer overlay.
-  localAgentSessions: boolean;
+  agentSessionsReadable: boolean;
   onFindInPane: (paneId: string, query: string, direction: "next" | "prev") => boolean;
   filterMode: boolean;
   matchCount: number;
@@ -277,7 +277,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onOpenMemorySession,
     onDetachMemory,
     memoryTarget,
-    localAgentSessions,
+    agentSessionsReadable,
     onFindInPane,
     filterMode,
     matchCount,
@@ -358,19 +358,13 @@ function PaneViewImpl(props: PaneViewProps) {
   );
   const composerForkable = composerTab !== null && canForkSession(composerTab.resumeCmd);
   // The agent conversation behind the active terminal, when its transcript is
-  // readable on this Mac.
+  // readable: a connected computer's terminal too, since the project's marked
+  // name sends each read to the machine both are on.
+  const projectPeer = peerSlugOf(projectName);
   const composerSession =
-    localAgentSessions && composerTab && peerSlugOf(composerTab.id) === null
+    agentSessionsReadable && composerTab && peerSlugOf(composerTab.id) === projectPeer
       ? agentSessionOf(composerTab)
       : null;
-  // What both copy-last-answer buttons act on. A connected computer's terminal
-  // copies too: the project's marked name sends the transcript read there.
-  const projectPeer = peerSlugOf(projectName);
-  const copySession =
-    composerSession ??
-    (composerTab && projectPeer !== null && peerSlugOf(composerTab.id) === projectPeer
-      ? agentSessionOf(composerTab)
-      : null);
 
   // A finish that lands on the tab already in front is the easiest one to miss:
   // it arrives while the user is somewhere else entirely. So the badge stays put
@@ -741,13 +735,13 @@ function PaneViewImpl(props: PaneViewProps) {
           );
         })}
       </div>
-      {copySession && (
+      {composerSession && (
         // Zero-height rail on the seam between the terminal and the composer,
         // so the pill can hang below the terminal's clipped content box.
         <div className="relative h-0">
           <TerminalCopyAnswerOverlay
             projectName={projectName}
-            session={copySession}
+            session={composerSession}
             // Hidden only while the agent is visibly producing the next
             // answer. Anything else — waiting, done, error, or no status
             // reported at all — leaves the last answer worth copying.

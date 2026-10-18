@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { peerSectionRows } from "./peerSectionRows";
+import { peerSectionRows, visiblePeerRowNames } from "./peerSectionRows";
 import { peerRowToken } from "./peerRowOrder";
 import { prefixName, prefixRoot } from "../peer/markers";
 import type { PendingDuplicate, ProjectInfo } from "../types";
@@ -135,5 +135,22 @@ describe("peerSectionRows", () => {
     );
 
     expect(shape(rows)).toEqual(["api", { Later: [] }]);
+  });
+});
+
+describe("visiblePeerRowNames", () => {
+  it("lists the projects on screen, leaving out folded folders and decks", () => {
+    const projects = [remote("web"), remote("web-2", "web"), remote("api"), remote("api-2", "api"), remote("db")];
+    const { rows } = peerSectionRows(
+      projects,
+      [],
+      new Set([name("api")]),
+      folders(["web", "group:a", "group:b"], [
+        { id: "a", name: "Work", members: ["api"] },
+        { id: "b", name: "Old", collapsed: true, members: ["db"] },
+      ]),
+    );
+
+    expect(visiblePeerRowNames(rows)).toEqual(["web", "web-2", "api"].map(name));
   });
 });

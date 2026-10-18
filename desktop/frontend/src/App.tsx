@@ -194,12 +194,9 @@ export default function App() {
     if (project) selectProject(project.name);
   });
 
-  const localProjectNames = useMemo(
-    () => projects.filter((p) => !isPeerName(p.name)).map((p) => p.name),
-    [projects],
-  );
+  const projectNames = useMemo(() => projects.map((p) => p.name), [projects]);
   const switcher = useProjectSwitcher({
-    projectNames: localProjectNames,
+    projectNames,
     mru: mruProjects,
     current: selected,
     onCommit: handleSelect,
@@ -409,6 +406,7 @@ export default function App() {
         active={switcher.active}
         list={switcher.list}
         index={switcher.index}
+        peers={peerState.peers}
       />
     </div>
   );

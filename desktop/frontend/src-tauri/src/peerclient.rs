@@ -2481,7 +2481,7 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
 
 /// Split a peer-prefixed terminal id `peer-{8hex}-{rawId}` into (slug, rawId).
 /// Returns None for a malformed id or a non-hex slug.
-fn parse_prefixed(id: &str) -> Option<(String, String)> {
+pub(crate) fn parse_prefixed(id: &str) -> Option<(String, String)> {
     let rest = id.strip_prefix("peer-")?;
     if rest.len() < 9 {
         return None;

@@ -1,17 +1,24 @@
-import { followLabel, normalizeAutoPullMode } from "../autoPull";
+import { followLabel, type AutoPullMode } from "../autoPull";
 import { setProjectAutoPull } from "../autoPullRun";
 import { useAppStore } from "../store/app";
-import { useSettingsStore } from "../store/settings";
 import { CheckIcon } from "./icons";
 import { displayNameForProjectName } from "./ProjectNameDisplay";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 
 // The Git menu's Auto pull choices, listed in place: follow (the Settings
 // default, or the parent for a copy), On or Off for this project alone. A
-// submenu would sit inside the Git panel's scroll area, which clips it.
-export function AutoPullMenuItems({ projectName, onClose }: { projectName: string; onClose: () => void }) {
+// submenu would sit inside the Git panel's scroll area, which clips it. `mode`
+// is the Settings default of the machine the project is on.
+export function AutoPullMenuItems({
+  projectName,
+  mode,
+  onClose,
+}: {
+  projectName: string;
+  mode: AutoPullMode;
+  onClose: () => void;
+}) {
   const projects = useAppStore((s) => s.projects);
-  const mode = useSettingsStore((s) => normalizeAutoPullMode(s.autoPull));
   const project = projects.find((p) => p.name === projectName);
   if (!project) return null;
 
