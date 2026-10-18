@@ -154,6 +154,10 @@ const FORWARDED_EVENTS: &[&str] = &[
     // accounts on a paired Mac. Not re-emitted there under this name: they
     // aren't that Mac's readings.
     crate::agent_limits::CHANGED_EVENT,
+    // Its account switching, for its notes and menus on a paired Mac, which
+    // keeps them apart from its own.
+    crate::claude_pool::CHANGED_EVENT,
+    crate::claude_pool::SWITCHED_EVENT,
 ];
 
 // --- persisted config (~/.lpm/peer.json, shared with peerclient.rs) -----------
@@ -680,6 +684,18 @@ fn cancel_nudge(app: &AppHandle, id: &str) {
     }
 }
 
+/// Send `frame` to every connection of the paired Mac `device_id`; false when it
+/// has none, or none with room for it.
+pub(crate) fn send_to_device(app: &AppHandle, device_id: &str, frame: &str) -> bool {
+    let hub = app.state::<PeerHub>();
+    let clients = hub.inner.clients.lock().unwrap();
+    let mut sent = false;
+    for c in clients.values().filter(|c| c.device_id == device_id) {
+        sent |= c.tx.try_send(frame.to_string()).is_ok();
+    }
+    sent
+}
+
 fn broadcast(hub: &PeerHub, val: Value) {
     let payload = val.to_string();
     let clients = hub.inner.clients.lock().unwrap();
@@ -710,6 +726,7 @@ fn apply_peer_control(hub: &PeerHub, app: &AppHandle, device_id: &str, id: &str,
     let who = peer_owner(hub, device_id);
     let (owner, changed) = match op {
         "claim" if terminal_alive(app, id) => {
+            crate::statusroute::used_from(device_id);
             let (owner, changed) = state.claim(id, who);
             (Some(owner), changed)
         }
@@ -1033,6 +1050,7 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
     hub.inner.clients.lock().unwrap().remove(&conn_id);
     crate::agent_limits_share::drop_conn(conn_id); // stop sending it usage limits
     crate::gitwatchhost::drop_conn(conn_id); // stop watching folders for a gone follower
+    crate::gitwatch::drop_conn(&app, conn_id); // and the projects its review panes watched
     crate::porttunnel::drop_host_conn(conn_id); // close the streams it had open here
     crate::remote::relayed::drop_conn(conn_id); // end the phones it was carrying here
                                              // Release any terminal control this peer held so ownership transfers back to a
@@ -1482,7 +1500,19 @@ fn handle_msg(
             let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
             let cmd = str_field("cmd").unwrap_or_default();
             let args = v.get("args").cloned().unwrap_or_else(|| json!({}));
-            dispatch_invoke(hub, app, out, req_id, &cmd, args);
+            if cmd == crate::gitwatch::START_CMD || cmd == crate::gitwatch::STOP_CMD {
+                answer_soon(QUICK_FOR);
+                let (app, out) = (app.clone(), out.clone());
+                std::thread::spawn(move || {
+                    let frame = match crate::gitwatch::serve_peer(&app, conn_id, &cmd, &args) {
+                        Ok(value) => result_frame(&req_id, true, value),
+                        Err(e) => result_frame(&req_id, false, Value::String(e)),
+                    };
+                    let _ = out.try_send(frame);
+                });
+            } else {
+                dispatch_invoke(hub, app, out, req_id, &cmd, args);
+            }
         }
         // Config sync — dedicated frames that never touch the generic invoke
         // proxy (nor its denylist). The client only sends these after seeing the

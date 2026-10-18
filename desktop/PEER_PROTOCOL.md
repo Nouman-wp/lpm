@@ -370,6 +370,17 @@ Both emit `job-status` (`project: ""`) on the host. A client doesn't send them t
 a host without the feature and asks for an update instead; listing and the
 per-project commands work with any host.
 
+**Review-pane watches** (`gitwatch.rs`). A window's review pane keeps a live
+watch on its project's working tree, which emits `git-changed`:
+`start_watching_project { path, owner }` and `stop_watching_project { path,
+owner }`, where `owner` is the window (`main`, `detached:<project>`) and `path`
+names the project, which routes the call to its machine. Every window has a
+watch of its own and windows on the same project share one watcher, so no
+window's watch replaces another's. A stop for a project the window has since
+left is ignored. The host answers both in Rust, filing a paired Mac's watches
+under its connection, and ends them when that connection closes. A host that
+predates owners keeps one watch for everyone, and the last start wins.
+
 **Host Claude accounts** (`hostClaudeAccounts` feature, `hostclaude.rs`). A
 client manages a host's Claude accounts as the host's own Settings does: the
 account commands (`save_claude_accounts`, `remove_claude_account`,
@@ -532,11 +543,19 @@ drops and the client re-syncs):
 
 `projects-changed`, `status-changed`, `git-changed`, `ports-changed`,
 `port-auto-forwarded`, `port-forward-failed`, `action-output`, `action-done`, `action-bg-output`, `templates-changed`,
-`sidebar-changed`, `job-status`, `job-seen`, `memory-changed`, and the lines a
-coding agent prints while it generates something (`commit-msg-progress`,
-`pr-title-progress`, `pr-description-progress`, `branch-name-progress`,
-`merge-conflict-progress`, `action-yaml-progress`, `composer-transform-progress`,
-`statusline-gen-progress`, `ai-generate-output`, `skill-gen-progress`).
+`sidebar-changed`, `job-status`, `job-seen`, `memory-changed`, `clone-done`,
+`duplicate-done`, `terminals-changed`, `agent-session` and `agent-session-ended`
+(a terminal's agent conversation started or was quit, `{ project, paneId, … }`),
+and the lines a coding agent prints while it generates something
+(`commit-msg-progress`, `pr-title-progress`, `pr-description-progress`,
+`branch-name-progress`, `merge-conflict-progress`, `action-yaml-progress`,
+`composer-transform-progress`, `statusline-gen-progress`, `ai-generate-output`,
+`skill-gen-progress`).
+
+`action-output` `{ runId?, line }` and `action-done` `{ runId?, success, error? }`
+name the run they belong to: the client passes `runId` to `run_action` and its
+output modal shows only that run's lines. A host that predates it sends neither,
+and the client takes those for its own.
 
 The client re-emits each on a single per-peer wrapper channel `peer-evt-{slug}`
 with payload `{ name, payload }`; the TS shim demultiplexes, translates
@@ -547,6 +566,22 @@ would.
 `agent-limits-changed` (the host's Claude and Codex readings) is forwarded too,
 but not re-emitted under its own name: those aren't the client's readings. The
 client reads it off `peer-evt-{slug}` for the meters beside the host's accounts.
+So are `claude-pool-changed` (the host's account switching state, as
+`claude_pool_state` answers it) and `claude-account-switched` (`{ key, project,
+from, to, pick }`, one automatic move of a pool's new sessions): the client keeps
+the host's state apart from its own, marks its pools' project names, shows its
+switching notes in the sidebar under the host's name, and toasts its moves.
+Taking a suggestion there is `accept_claude_pool_pick { key }` over the generic
+invoke.
+
+**Agent chimes and banners.** `status-sound` (`{ value, project, terminal }`)
+carries a done, waiting or error transition to a Mac that plays the chime and
+posts the banner under its own settings. A headless host forwards every one to
+every Mac. Any other host announces a transition itself while one of its windows
+is in front, or when it was used after the paired Macs; otherwise it sends the
+transition only to the Mac that last took control of one of its terminals (a
+`ctl` `claim`), and stays quiet itself. Without a connection to that Mac it
+announces it itself.
 
 ## Config sync
 
@@ -826,11 +861,6 @@ Frontend-facing events: `peer-state-changed`, `peer-invoke` (host dispatcher),
   host Mac*. Pair only Macs you control. The denylist (`is_denied` in `peer.rs`)
   blocks app-meta, control-ownership, and global-mutator commands as defense in
   depth, but is not a sandbox.
-- **Git working-tree watching is a single global watch on the host.** A peer
-  opening a review pane starts host-side file watching for that project; because
-  the host keeps one active watch, a peer's review can replace the watch the host
-  user's own review pane had active (and vice-versa). Diffs stay correct — only
-  the live auto-refresh follows the most recent watcher.
 - **The client never shows a "Take control" placeholder.** The host doesn't
   push ownership changes to the client, so a client window keeps rendering a
   terminal a host window has taken, until it is focused again and re-claims.

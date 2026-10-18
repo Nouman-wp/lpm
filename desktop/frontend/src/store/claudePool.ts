@@ -83,7 +83,7 @@ export interface ConsentRequest {
   host?: { slug: string; pool: ClaudePool; accounts: ClaudeAccount[] };
 }
 
-interface Switched {
+export interface Switched {
   key: string;
   project: string | null;
   from: string;
@@ -199,19 +199,28 @@ const offSettings = useSettingsStore.subscribe((s, prev) => {
   if (s.claudeLimitsEnabled !== prev.claudeLimitsEnabled) void useClaudePoolStore.getState().hydrate();
 });
 
-// Automatic mode moved a pool's new sessions; say where and why. Sessions
-// already running stay where they are, so the toast speaks of new ones.
-const offSwitched = EventsOn("claude-account-switched", (raw) => {
-  const s = raw as Switched;
-  const pool = useClaudePoolStore.getState().pool;
-  const to = accountLabel(s.to, pool);
+/** Automatic mode moved a pool's new sessions; say where and why. Sessions
+ *  already running stay where they are, so the toast speaks of new ones.
+ *  `where` names the pool's project or machine; `accounts` label a paired
+ *  machine's accounts. */
+export function announceSwitch(
+  s: Switched,
+  pool: ClaudePool | null,
+  where: string,
+  accounts?: ClaudeAccount[],
+): void {
+  const to = accountLabel(s.to, pool, accounts);
   const reason = s.pick.skipped.find((k) => k.id === s.from);
-  const where = s.project ? ` in ${s.project}` : "";
   toast(`New Claude sessions${where} now use ${to}`, {
     description: reason
-      ? `${skipSentence(s.from, reason.skip, pool)}.`
-      : `${accountLabel(s.to, pool)} is first in the list and has room.`,
+      ? `${skipSentence(s.from, reason.skip, pool, Date.now(), accounts)}.`
+      : `${to} is first in the list and has room.`,
   });
+}
+
+const offSwitched = EventsOn("claude-account-switched", (raw) => {
+  const s = raw as Switched;
+  announceSwitch(s, useClaudePoolStore.getState().pool, s.project ? ` in ${s.project}` : "");
 });
 
 import.meta.hot?.dispose(() => {

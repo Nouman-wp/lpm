@@ -214,8 +214,9 @@ export function useProjectActions({
     }
     let capture: ActionRunCapture | null = null;
     try {
-      capture = await captureActionRun();
-      await RunAction(projectName, action.name, inputValues);
+      const runId = crypto.randomUUID();
+      capture = await captureActionRun(runId);
+      await RunAction(projectName, action.name, inputValues, runId);
       showRun(action, capture);
     } catch (err) {
       capture?.dispose();

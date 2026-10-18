@@ -1153,8 +1153,7 @@ pub(crate) fn publish(app: &AppHandle, store: &StatusStore, project: &str, entry
     }
     if !store.is_closing(pane_id) {
         let _ = app.emit("status-changed", project);
-        crate::sound::announce_status(app, project, &stored.value, pane_id);
-        crate::statusnotify::notify_status(app, project, &stored.value, pane_id);
+        crate::statusroute::announce(app, project, &stored.value, pane_id);
     }
     if watched {
         crate::agentturn::nudge();

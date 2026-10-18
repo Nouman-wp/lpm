@@ -86,6 +86,7 @@ mod gitfollowrun;
 mod gitfollowstore;
 mod gitpush;
 mod gitsync;
+mod gitwatch;
 mod gitmoved;
 mod gitwatchhost;
 mod gitworkstate;
@@ -213,6 +214,7 @@ mod statusfwd;
 mod statusnotify;
 #[cfg(any(windows, test))]
 mod statusrelay;
+mod statusroute;
 mod syncbatch;
 mod syncstate;
 mod syncsurface;
@@ -299,6 +301,7 @@ use fonts::*;
 #[allow(unused_imports)]
 use generated_commands::*;
 use git::*;
+use gitwatch::{start_watching_project, stop_watching_project};
 use label_probes::refresh_action_label;
 use pull_request::*;
 use gitfollow::{follow_list, follow_pause, follow_resume, follow_stop};
@@ -470,7 +473,7 @@ pub fn run() {
         .manage(pty::PtyState::default())
         .manage(services::ServiceState::default())
         .manage(log_streaming::LogState::default())
-        .manage(git::WatchState::default())
+        .manage(gitwatch::WatchState::default())
         .manage(detached::DetachedState::default())
         .manage(control::ControlState::default())
         .manage(notes_cmds::NotesState::default())
@@ -490,6 +493,9 @@ pub fn run() {
         .manage(peer_client_hub)
         .on_menu_event(menu::handle_event)
         .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Focused(_) = event {
+                statusroute::used_here();
+            }
             // Closing the main window hides it instead of quitting, so terminals,
             // port forwards, sync watchers and the status socket keep running
             // (matches the Wails app). Detached project windows close normally.

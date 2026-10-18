@@ -202,6 +202,12 @@ describe("shortPath", () => {
   it("leaves a path outside home alone", () => {
     expect(shortPath("/repo/proj/.mcp.json")).toBe("/repo/proj/.mcp.json");
   });
+
+  it("shows a paired machine's path as that machine writes it", () => {
+    expect(shortPath("/@peer-abcdef12/Users/ada/.claude/skills/x/SKILL.md")).toBe(
+      "~/.claude/skills/x/SKILL.md",
+    );
+  });
 });
 
 // The estimate is the pane's headline number. Getting it visibly wrong — by

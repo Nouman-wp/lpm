@@ -166,7 +166,7 @@ export function ClaudeAccountPoolDialog() {
             className="text-[var(--text-secondary)] underline-offset-2 hover:underline"
             onClick={() => {
               close();
-              openClaudeAccountSettings();
+              openClaudeAccountSettings(slug);
             }}
           >
             Turn it on in Settings

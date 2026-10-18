@@ -23,7 +23,7 @@ export interface MachineClaudeAccounts {
 const READ_CMD = "host_claude_accounts";
 
 // A host's pools are named by its own projects; here they go by this Mac's names.
-function translatePool(slug: string, raw: unknown): ClaudePool | null {
+export function translatePool(slug: string, raw: unknown): ClaudePool | null {
   if (!raw || typeof raw !== "object") return null;
   const pool = raw as ClaudePool;
   return {

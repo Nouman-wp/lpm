@@ -65,7 +65,7 @@ export function SidebarUsageAccountMenu({ account, label, x, y, onOpenUsage, onC
       />
       <ContextMenuSeparator />
       <ContextMenuItem label="Open usage" icon={<StatsIcon />} onClick={then(onOpenUsage)} />
-      <ContextMenuItem label="Claude accounts…" icon={<SettingsIcon />} onClick={then(openClaudeAccountSettings)} />
+      <ContextMenuItem label="Claude accounts…" icon={<SettingsIcon />} onClick={then(() => openClaudeAccountSettings())} />
     </ContextMenuShell>
   );
 }

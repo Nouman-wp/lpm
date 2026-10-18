@@ -3,21 +3,17 @@ import {
   StartWatchingProject,
   StopWatchingProject,
 } from "../../bridge/commands";
+import { REALM } from "../mirror";
 
-// Drives the backend's file watcher to the given root. The backend
-// watcher is a singleton, so when both windows want to watch different
-// roots the most recent caller wins and the other window's git status
-// goes stale until its own selection changes again — acceptable for
-// now since the multi-window case is rare.
+// Drives the file watch this window keeps on the given root. Each window has
+// its own, on the machine the project lives on; naming the root on stop routes
+// it there and keeps a late stop from ending the watch that replaced it.
 export function useProjectWatcher(root: string | null | undefined): void {
   useEffect(() => {
-    if (!root) {
-      StopWatchingProject().catch(() => {});
-      return;
-    }
-    StartWatchingProject(root).catch(() => {});
+    if (!root) return;
+    StartWatchingProject(root, REALM.id).catch(() => {});
     return () => {
-      StopWatchingProject().catch(() => {});
+      StopWatchingProject(root, REALM.id).catch(() => {});
     };
   }, [root]);
 }

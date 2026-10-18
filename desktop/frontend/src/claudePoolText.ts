@@ -33,13 +33,14 @@ export function skipSentence(
   skip: PoolSkip,
   pool?: ClaudePool | null,
   now = Date.now(),
+  accounts?: ClaudeAccount[],
 ): string {
-  const name = accountLabel(id, pool);
+  const name = accountLabel(id, pool, accounts);
   switch (skip.kind) {
     case "signedOut":
       return `${name} is signed out`;
     case "sameAccount":
-      return `${name} is signed in as the same Claude account as ${accountLabel(skip.as, pool)}`;
+      return `${name} is signed in as the same Claude account as ${accountLabel(skip.as, pool, accounts)}`;
     case "notAllowed":
       return `${name} is a team or work seat you haven't allowed`;
     case "unconfirmed":

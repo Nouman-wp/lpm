@@ -75,6 +75,8 @@ export function isLocalOnlyCommand(cmd: string): boolean {
     cmd.startsWith("peer_") ||
     cmd.startsWith("remote_") ||
     cmd.startsWith("tailnet_") ||
+    // What was typed is kept on the Mac it was typed on, a peer terminal's too.
+    cmd.startsWith("message_history_") ||
     LOCAL_ONLY_EXACT.has(cmd)
   );
 }
@@ -105,6 +107,7 @@ export const GLOBAL_PEER_EVENTS = new Set<string>([
   "clone-done",
   "duplicate-done",
   "agent-session",
+  "agent-session-ended",
   "terminals-changed",
   "job-status",
   "job-seen",
@@ -192,6 +195,15 @@ function translateJob(slug: string, row: unknown): unknown {
   };
 }
 
+function markPath(slug: string, entry: unknown): unknown {
+  const path = entry && typeof entry === "object" ? (entry as { path?: unknown }).path : undefined;
+  return typeof path === "string" && path ? { ...(entry as object), path: prefixRoot(slug, path) } : entry;
+}
+
+function markPaths(slug: string, list: unknown): unknown {
+  return Array.isArray(list) ? list.map((entry) => markPath(slug, entry)) : list;
+}
+
 // Rewrite host identifiers in a routed command's result into their prefixed
 // client-side form. Default is passthrough; start_terminal ids are handled by
 // the caller (they also trigger an attach).
@@ -246,6 +258,18 @@ export function translateResult(cmd: string, slug: string, result: unknown): unk
       };
     }
   }
+  // Agent skills and settings files are named by their host path, which the
+  // Toolkit then reads, saves and opens — so those calls must reach the host.
+  if (cmd === "list_agent_capabilities" && result && typeof result === "object") {
+    const r = result as { items?: unknown; roots?: unknown };
+    return {
+      ...result,
+      items: markPaths(slug, r.items),
+      roots: markPaths(slug, r.roots),
+    };
+  }
+  if (cmd === "read_agent_capability") return markPath(slug, result);
+  if (cmd === "create_agent_skill" && typeof result === "string") return prefixRoot(slug, result);
   // Duplicate commands return freshly created host project name(s); prefix them
   // so the client selects / marks / spawns against the id it can actually see.
   if (
@@ -331,8 +355,9 @@ export function translatePeerEventPayload(
       }
       return payload;
     case "agent-session":
-      // { project, paneId, provider, sessionId } — a peer tab's id is the host's
-      // pty id prefixed, so both names need the marker to find the tab here.
+    case "agent-session-ended":
+      // { project, paneId, … } — a peer tab's id is the host's pty id prefixed,
+      // so both names need the marker to find the tab here.
       if (payload && typeof payload === "object") {
         const p = payload as { project?: unknown; paneId?: unknown };
         if (typeof p.project === "string" && typeof p.paneId === "string") {

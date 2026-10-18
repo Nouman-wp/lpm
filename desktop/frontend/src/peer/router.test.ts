@@ -242,6 +242,17 @@ describe("translatePeerEventPayload", () => {
     });
   });
 
+  // Without it a peer tab whose agent was quit resumes that conversation again.
+  it("prefixes the project and pane of an agent-session-ended event", () => {
+    expect(
+      translatePeerEventPayload("agent-session-ended", A, {
+        project: "app",
+        paneId: "app-3",
+        sessionId: "abc-123",
+      }),
+    ).toEqual({ project: prefixName(A, "app"), paneId: prefixName(A, "app-3"), sessionId: "abc-123" });
+  });
+
   it("leaves a malformed agent-session payload untouched", () => {
     expect(translatePeerEventPayload("agent-session", A, { project: "app" })).toEqual({
       project: "app",
@@ -311,6 +322,26 @@ describe("a host project's files", () => {
     ).toEqual({ dir: prefixRoot(SLUG, "/Users/them/.lpm/memory/web"), sessions: [] });
   });
 
+  // The Toolkit reads, saves and opens a skill by its path, which must reach the host.
+  it("marks the host paths of its agent skills and settings", () => {
+    const skill = "/Users/them/.claude/skills/x/SKILL.md";
+    const listed = translateResult("list_agent_capabilities", SLUG, {
+      items: [{ id: "x", path: skill }],
+      roots: [{ cli: "claude", path: "/Users/them/.claude/skills" }, { cli: "codex", path: "" }],
+      remote: false,
+    });
+    expect(listed).toEqual({
+      items: [{ id: "x", path: prefixRoot(SLUG, skill) }],
+      roots: [{ cli: "claude", path: prefixRoot(SLUG, "/Users/them/.claude/skills") }, { cli: "codex", path: "" }],
+      remote: false,
+    });
+    expect(translateResult("create_agent_skill", SLUG, skill)).toBe(prefixRoot(SLUG, skill));
+    expect(translateResult("read_agent_capability", SLUG, { path: skill, content: "" })).toEqual({
+      path: prefixRoot(SLUG, skill),
+      content: "",
+    });
+  });
+
   it("forwards the host's memory saves under the project's name here", () => {
     expect(GLOBAL_PEER_EVENTS.has("memory-changed")).toBe(true);
     expect(translatePeerEventPayload("memory-changed", SLUG, "web")).toBe(prefixName(SLUG, "web"));
@@ -322,12 +353,22 @@ describe("GLOBAL_PEER_EVENTS", () => {
     expect(GLOBAL_PEER_EVENTS.has("agent-session")).toBe(true);
   });
 
+  it("forwards agent-session-ended so a quit agent isn't resumed on a peer tab", () => {
+    expect(GLOBAL_PEER_EVENTS.has("agent-session-ended")).toBe(true);
+  });
+
   it("forwards terminals-changed so a host's new tab opens here", () => {
     expect(GLOBAL_PEER_EVENTS.has("terminals-changed")).toBe(true);
   });
 });
 
 describe("isLocalOnlyCommand", () => {
+  // Sends to a peer terminal are recorded here, so clearing them must happen here too.
+  it("keeps message history on this Mac", () => {
+    expect(isLocalOnlyCommand("message_history_clear")).toBe(true);
+    expect(isLocalOnlyCommand("message_history_add")).toBe(true);
+  });
+
   it("never routes peer/remote transport or app-meta commands", () => {
     expect(isLocalOnlyCommand("peer_invoke")).toBe(true);
     expect(isLocalOnlyCommand("peer_term_attach")).toBe(true);

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { accountLabel } from "../claudePoolText";
 import { updateHostPool } from "../peer/hostClaude";
-import { isPeerName } from "../peer/markers";
+import { peerSlugOf } from "../peer/markers";
 import { useAppStore } from "../store/app";
 import { useClaudePoolStore } from "../store/claudePool";
 import type { ProjectInfo } from "../types";
@@ -11,8 +11,10 @@ import { Modal } from "./ui/Modal";
 
 const SHOWN_PROJECTS = 6;
 
-function followsMainAccounts(p: ProjectInfo, projects: ProjectInfo[]): boolean {
-  if (p.isRemote || isPeerName(p.name)) return false;
+// Whether `p`, on the machine `machine` (null for this Mac), starts on that
+// machine's main accounts.
+function followsMainAccounts(p: ProjectInfo, projects: ProjectInfo[], machine: string | null): boolean {
+  if (p.isRemote || peerSlugOf(p.name) !== machine) return false;
   const own = p.claudeAccount !== undefined || p.claudeAccounts !== undefined;
   if (own) return p.claudeAccount === undefined && (p.claudeAccounts?.length ?? 0) === 0;
   const parent = p.parentName ? projects.find((q) => q.name === p.parentName) : undefined;
@@ -44,7 +46,8 @@ export function ClaudePoolConsentDialog() {
   const members = [...new Set([...asked, ...listed])].filter(
     (id) => pool.accounts.find((a) => a.id === id)?.signedIn,
   );
-  const affected = turningOn ? projects.filter((p) => followsMainAccounts(p, projects)) : [];
+  const machine = request.host?.slug ?? null;
+  const affected = turningOn ? projects.filter((p) => followsMainAccounts(p, projects, machine)) : [];
   const allMine = members.length > 0 && members.every((id) => mine[id]);
 
   const confirm = async () => {

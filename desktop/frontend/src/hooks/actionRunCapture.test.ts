@@ -21,14 +21,23 @@ describe("captureActionRun", () => {
   });
 
   it("keeps output and the result that arrive before anything renders", async () => {
-    const run = await captureActionRun();
+    const run = await captureActionRun("run-1");
     handlers.get("action-output")?.({ line: "quick-out" });
     handlers.get("action-done")?.({ success: true, error: "" });
     expect(run.snapshot()).toEqual({ lines: ["quick-out"], done: { success: true, error: "" } });
   });
 
+  // Every window and paired Mac hears every run; a modal shows only its own.
+  it("ignores another run's output and result", async () => {
+    const run = await captureActionRun("run-1");
+    handlers.get("action-output")?.({ runId: "run-2", line: "theirs" });
+    handlers.get("action-done")?.({ runId: "run-2", success: false, error: "exit status 1" });
+    handlers.get("action-output")?.({ runId: "run-1", line: "mine" });
+    expect(run.snapshot()).toEqual({ lines: ["mine"], done: null });
+  });
+
   it("tells subscribers about each change and stops listening once disposed", async () => {
-    const run = await captureActionRun();
+    const run = await captureActionRun("run-1");
     const seen = vi.fn();
     const unsubscribe = run.subscribe(seen);
     handlers.get("action-output")?.({ line: "a" });
@@ -49,7 +58,7 @@ describe("captureActionRun output limits", () => {
   });
 
   it("keeps only the newest lines and counts the rest", async () => {
-    const run = await captureActionRun();
+    const run = await captureActionRun("run-1");
     for (let i = 1; i <= MAX_LINES + 5; i++) handlers.get("action-output")?.({ line: `line ${i}` });
     const snap = run.snapshot();
     expect(snap.lines).toHaveLength(MAX_LINES);
@@ -61,7 +70,7 @@ describe("captureActionRun output limits", () => {
   it("coalesces a burst into one notification per window", async () => {
     vi.useFakeTimers();
     try {
-      const run = await captureActionRun();
+      const run = await captureActionRun("run-1");
       const seen = vi.fn();
       run.subscribe(seen);
       for (let i = 0; i < 1000; i++) handlers.get("action-output")?.({ line: `x${i}` });
@@ -76,7 +85,7 @@ describe("captureActionRun output limits", () => {
   });
 
   it("returns the same snapshot until something changes", async () => {
-    const run = await captureActionRun();
+    const run = await captureActionRun("run-1");
     handlers.get("action-output")?.({ line: "a" });
     expect(run.snapshot()).toBe(run.snapshot());
     run.dispose();

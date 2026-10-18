@@ -1775,7 +1775,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             parentClaudeChoice={projects.find((p) => p.name === contextProject?.parentName)}
             onPickClaudeAccount={(choice) => void setClaudeAccountChoice(contextMenu.name, choice)}
             onChooseClaudeAccounts={() => useClaudePoolStore.getState().openListDialog(contextMenu.name)}
-            onManageClaudeAccounts={openClaudeAccountSettings}
+            onManageClaudeAccounts={() => openClaudeAccountSettings(peerSlugOf(contextMenu.name))}
             onEditConfig={() => onOpenProjectView(contextMenu.name, "config")}
             onOpenNotes={() => onOpenProjectView(contextMenu.name, "notes")}
             onOpenAI={() => onOpenProjectView(contextMenu.name, "ai")}

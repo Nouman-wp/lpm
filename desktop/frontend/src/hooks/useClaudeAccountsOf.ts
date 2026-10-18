@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { readHostClaude, type MachineClaudeAccounts } from "../peer/hostClaude";
+import { useEffect, useMemo } from "react";
+import type { MachineClaudeAccounts } from "../peer/hostClaude";
 import { peerSlugOf } from "../peer/markers";
 import { useAccountsStore } from "../store/accounts";
 import { useClaudePoolStore } from "../store/claudePool";
+import { useMachineClaudeStore } from "../store/machineClaude";
 
 // The Claude accounts a project's sessions can use: this Mac's, or those of the
 // paired machine it is on. Null while a machine's are loading, or from one too
@@ -13,21 +14,12 @@ export function useClaudeAccountsOf(projectName: string | null): MachineClaudeAc
   const statuses = useAccountsStore((s) => s.statuses);
   const usage = useAccountsStore((s) => s.usage);
   const pool = useClaudePoolStore((s) => s.pool);
-  const [host, setHost] = useState<MachineClaudeAccounts | null>(null);
+  const host = useMachineClaudeStore((s) => (slug ? s.machines[slug] : undefined)) ?? null;
+  const load = useMachineClaudeStore((s) => s.load);
 
   useEffect(() => {
-    setHost(null);
-    if (!slug) return;
-    let cancelled = false;
-    readHostClaude(slug)
-      .then((found) => {
-        if (!cancelled) setHost(found);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [slug]);
+    if (slug) load(slug).catch(() => {});
+  }, [slug, load]);
 
   const local = useMemo(() => ({ accounts, statuses, usage, pool }), [accounts, statuses, usage, pool]);
   return slug ? host : local;

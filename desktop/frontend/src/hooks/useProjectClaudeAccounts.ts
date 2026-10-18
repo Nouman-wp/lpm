@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ClaudeLimitsAccount } from "../../bridge/commands";
 import { MAIN_LOGIN } from "../claudePoolText";
+import { isPeerName } from "../peer/markers";
 import { projectAccount, projectPool } from "../claudeProjectPool";
 import { useAccountsStore } from "../store/accounts";
 import { useAppStore } from "../store/app";
@@ -13,8 +14,9 @@ export interface ProjectClaudeAccounts {
   standby: string[];
 }
 
-/** Which Claude account a local project's new sessions run on. Remote projects
- *  run on the far side's login, so they have none here. Pins and pools resolve
+/** Which Claude account a local project's new sessions run on. An SSH project
+ *  runs on the far side's login and a paired machine's on that machine's, so
+ *  neither has one here. Pins and pools resolve
  *  from local state, so switching projects never waits on the backend; only
  *  lpm's own login is asked for, once, and it is the same for every project. */
 export function useProjectClaudeAccounts(name: string | null): ProjectClaudeAccounts | null {
@@ -24,7 +26,7 @@ export function useProjectClaudeAccounts(name: string | null): ProjectClaudeAcco
   const [ambient, setAmbient] = useState<string | null>(null);
 
   const project = name ? projects.find((p) => p.name === name) : undefined;
-  const local = project && !project.isRemote ? project : undefined;
+  const local = project && !project.isRemote && !isPeerName(project.name) ? project : undefined;
   const derived = local
     ? projectAccount(
         local,

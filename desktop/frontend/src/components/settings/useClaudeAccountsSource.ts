@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { ApplyClaudeLimits, PeerSettingsSet, StartClaudeLogin } from "../../../bridge/commands";
 import {
-  readHostClaude,
   removeHostAccount,
   resumeHostPool,
   saveHostAccounts,
@@ -12,6 +11,7 @@ import {
 } from "../../peer/hostClaude";
 import { useAccountsStore } from "../../store/accounts";
 import { useClaudePoolStore, type ConsentRequest, type PoolPatch } from "../../store/claudePool";
+import { useMachineClaudeStore } from "../../store/machineClaude";
 import { useSettingsStore } from "../../store/settings";
 import type { ClaudeAccount } from "../../types";
 
@@ -20,7 +20,7 @@ import type { ClaudeAccount } from "../../types";
 export interface ClaudeAccountsSource extends MachineClaudeAccounts {
   // The paired machine's slug; null for this Mac.
   host: string | null;
-  // Suggestions the person put off, which only this Mac keeps.
+  // Suggestions the person put off here.
   dismissed: Record<string, string>;
   refresh: () => Promise<void>;
   add: (label: string) => Promise<ClaudeAccount>;
@@ -83,15 +83,17 @@ function useLocalSource(): ClaudeAccountsSource {
 }
 
 function useHostSource(slug: string | null): ClaudeAccountsSource | null {
-  const [found, setFound] = useState<MachineClaudeAccounts | null>(null);
+  const found = useMachineClaudeStore((s) => (slug ? s.machines[slug] : undefined)) ?? null;
+  const dismissed = useMachineClaudeStore((s) => (slug ? s.dismissed[slug] : undefined)) ?? NOTHING_DISMISSED;
+  const load = useMachineClaudeStore((s) => s.load);
+  const setPool = useMachineClaudeStore((s) => s.setPool);
   const askConsent = useClaudePoolStore((s) => s.askConsent);
 
   const refresh = useCallback(async () => {
-    if (slug) setFound(await readHostClaude(slug));
-  }, [slug]);
+    if (slug) await load(slug);
+  }, [slug, load]);
 
   useEffect(() => {
-    setFound(null);
     refresh().catch(() => {});
   }, [refresh]);
 
@@ -100,8 +102,7 @@ function useHostSource(slug: string | null): ClaudeAccountsSource | null {
     // A pool change is reported here, as this Mac's store reports its own.
     const changePool = async (change: () => Promise<MachineClaudeAccounts["pool"]>) => {
       try {
-        const pool = await change();
-        setFound((current) => current && { ...current, pool });
+        setPool(slug, await change());
       } catch (err) {
         toast.error(String(err));
         throw err;
@@ -110,7 +111,7 @@ function useHostSource(slug: string | null): ClaudeAccountsSource | null {
     return {
       ...found,
       host: slug,
-      dismissed: NOTHING_DISMISSED,
+      dismissed,
       refresh,
       add: async (label) => {
         const account = { id: crypto.randomUUID(), label };
@@ -149,7 +150,7 @@ function useHostSource(slug: string | null): ClaudeAccountsSource | null {
         await refresh();
       },
     };
-  }, [slug, found, refresh, askConsent]);
+  }, [slug, found, dismissed, refresh, setPool, askConsent]);
 }
 
 // The accounts of this Mac, or of the paired machine `host`. Null while a

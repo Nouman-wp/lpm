@@ -5,6 +5,11 @@ export interface ActionDone {
   error?: string;
 }
 
+// Absent from an lpm that predates run ids, whose events can't be told apart.
+interface RunEvent {
+  runId?: string;
+}
+
 export interface ActionRunSnapshot {
   lines: string[];
   done: ActionDone | null;
@@ -41,7 +46,7 @@ export function cleanOutputLine(line: string): string {
 // process, and a fast one is finished before RunAction even returns. Listening
 // only once the output modal mounts loses those events, leaving the modal on
 // "Running..." with no output, so the capture attaches before the run starts.
-export async function captureActionRun(): Promise<ActionRunCapture> {
+export async function captureActionRun(runId: string): Promise<ActionRunCapture> {
   const lines: string[] = [];
   let dropped = 0;
   let done: ActionDone | null = null;
@@ -65,8 +70,11 @@ export async function captureActionRun(): Promise<ActionRunCapture> {
     else timer = setTimeout(notifyNow, wait);
   };
 
+  const ours = (data: RunEvent) => !data.runId || data.runId === runId;
+
   const offs = await Promise.all([
-    EventsOnReady("action-output", (data: { line: string }) => {
+    EventsOnReady("action-output", (data: RunEvent & { line: string }) => {
+      if (!ours(data)) return;
       lines.push(cleanOutputLine(data.line));
       if (lines.length > MAX_LINES) {
         const over = lines.length - MAX_LINES;
@@ -75,7 +83,8 @@ export async function captureActionRun(): Promise<ActionRunCapture> {
       }
       notify();
     }),
-    EventsOnReady("action-done", (data: ActionDone) => {
+    EventsOnReady("action-done", (data: RunEvent & ActionDone) => {
+      if (!ours(data)) return;
       done = data;
       stale = true;
       notifyNow();

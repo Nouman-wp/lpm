@@ -135,13 +135,21 @@ pub fn list_background_runs(project: &str) -> Vec<BgRunSnapshot> {
     out
 }
 
+// `run_id` names the run these belong to: they reach every window and every
+// paired Mac, and each output modal shows only its own run.
 #[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 struct ActionOutput {
+    #[serde(skip_serializing_if = "String::is_empty")]
+    run_id: String,
     line: String,
 }
 
 #[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 struct ActionDone {
+    #[serde(skip_serializing_if = "String::is_empty")]
+    run_id: String,
     success: bool,
     #[serde(skip_serializing_if = "String::is_empty")]
     error: String,
@@ -364,7 +372,9 @@ pub fn run_action(
     project_name: String,
     action_name: String,
     input_values: HashMap<String, String>,
+    run_id: Option<String>,
 ) -> Result<(), String> {
+    let run_id = run_id.unwrap_or_default();
     let mut plan = resolve_action_command(&app, &project_name, &action_name, &input_values, true)?;
     ports::format_action_port(&action_name, &plan.ports)?; // pre-check; no spawn on conflict
     let on_exit = plan.on_exit.take();
@@ -378,8 +388,9 @@ pub fn run_action(
         // tail — matches Go bufio.Scanner default.
         for line in output_lines(stdout, login_shell) {
             match line {
-                Ok(l) => {
-                    let _ = app2.emit("action-output", ActionOutput { line: l });
+                Ok(line) => {
+                    let run_id = run_id.clone();
+                    let _ = app2.emit("action-output", ActionOutput { run_id, line });
                 }
                 Err(_) => break,
             }
@@ -391,7 +402,14 @@ pub fn run_action(
         } else {
             exit_status_string(status)
         };
-        let _ = app2.emit("action-done", ActionDone { success, error });
+        let _ = app2.emit(
+            "action-done",
+            ActionDone {
+                run_id,
+                success,
+                error,
+            },
+        );
         if let Some(f) = on_exit {
             f(); // e.g. push the sync mirror back to the remote
         }

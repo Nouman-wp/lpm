@@ -255,8 +255,9 @@ fn attach_events(app: &AppHandle, project_name: &str, label: &str, win: &tauri::
             // detached window never strands ownership (its React unmount may not
             // run when the webview is torn down abruptly). Ownership transfers to
             // a remaining presenter (e.g. the main window).
-            let realm =
-                crate::control::Owner::new("window", crate::control::detached_window_id(&name), "");
+            let realm_id = crate::control::detached_window_id(&name);
+            app.state::<crate::gitwatch::WatchState>().release(&realm_id);
+            let realm = crate::control::Owner::new("window", realm_id, "");
             for (id, owner) in app
                 .state::<crate::control::ControlState>()
                 .drop_surface(&realm)

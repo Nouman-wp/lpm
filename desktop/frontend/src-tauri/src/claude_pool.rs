@@ -366,6 +366,11 @@ pub struct PoolState {
     pub pools: Vec<PoolView>,
 }
 
+/// The pool state after any change, and each automatic move of a pool's new
+/// sessions. A paired Mac shows both for this machine's accounts.
+pub const CHANGED_EVENT: &str = "claude-pool-changed";
+pub const SWITCHED_EVENT: &str = "claude-account-switched";
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct Switched {
@@ -492,9 +497,9 @@ fn publish() {
     let state = state_of(&store::load(), pools);
     if let Some(app) = APP.get() {
         for s in &switched {
-            let _ = app.emit("claude-account-switched", s);
+            let _ = app.emit(SWITCHED_EVENT, s);
         }
-        let _ = app.emit("claude-pool-changed", &state);
+        let _ = app.emit(CHANGED_EVENT, &state);
     }
 }
 

@@ -2,6 +2,7 @@
 // actually load in a directory, and why a capability that looks installed may
 // not be.
 
+import { stripMarker } from "./peer/markers";
 import { isWindows } from "./platform";
 
 export type CapabilityKind =
@@ -100,8 +101,9 @@ export const CLI_LABELS: Record<string, string> = {
 // Absolute paths are long and mostly prefix. Home shortens to "~" the way every
 // terminal in the app already shows it.
 export function shortPath(path: string, home = ""): string {
-  const h = home || guessHome(path);
-  return h && path.startsWith(h) ? `~${path.slice(h.length)}` : path;
+  const raw = stripMarker(path);
+  const h = home || guessHome(raw);
+  return h && raw.startsWith(h) ? `~${raw.slice(h.length)}` : raw;
 }
 
 const WIN_HOME_RE = /^[A-Za-z]:[\\/]Users[\\/][^\\/]+/i;

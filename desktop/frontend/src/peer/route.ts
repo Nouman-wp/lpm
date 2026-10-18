@@ -25,7 +25,10 @@ export { GLOBAL_PEER_EVENTS };
 interface PeerMeta {
   slug: string;
   connected: boolean;
+  alias: string;
 }
+
+export type ConnectedPeer = Pick<PeerMeta, "slug" | "alias">;
 
 let peers: PeerMeta[] = [];
 // Last good translated project list per peer and when it came, served when a
@@ -57,8 +60,14 @@ async function refreshPeers(): Promise<void> {
     const list = ((state as { peers?: unknown[] } | null)?.peers ?? []) as {
       slug: string;
       connected: boolean;
+      alias?: string;
+      host?: string;
     }[];
-    peers = list.map((p) => ({ slug: p.slug, connected: !!p.connected }));
+    peers = list.map((p) => ({
+      slug: p.slug,
+      connected: !!p.connected,
+      alias: p.alias || p.host || "another Mac",
+    }));
     const present = new Set(peers.map((p) => p.slug));
     for (const slug of [...peerListCache.keys()]) {
       if (!present.has(slug)) peerListCache.delete(slug);
@@ -259,12 +268,33 @@ export function routedInvoke(cmd: string, args?: unknown): Promise<unknown> {
 }
 
 // Event demultiplexing for bridge/runtime.js. For a subscription to one of the
-// forwarded global events, also tap every connected peer's `peer-evt-{slug}`
-// wrapper stream, filter to this event, translate the payload, and invoke the
-// same callback. Taps are reconciled as peers connect/disconnect.
+// forwarded global events, also tap every connected peer's stream and invoke
+// the same callback with the payload translated.
 export function subscribePeerGlobalEvent(
   name: string,
   callback: (payload: unknown) => void,
+): () => void {
+  return subscribeEveryPeer(name, (slug, payload) =>
+    callback(translatePeerEventPayload(name, slug, payload)),
+  );
+}
+
+// Calls `callback` with the connected peers now, once they are known, and
+// whenever they change.
+export function watchConnectedPeers(callback: (peers: ConnectedPeer[]) => void): () => void {
+  const notify = () =>
+    callback(peers.filter((p) => p.connected).map(({ slug, alias }) => ({ slug, alias })));
+  const off = onPeersChanged(notify);
+  if (registryLoaded) notify();
+  return off;
+}
+
+// Taps every connected peer's `peer-evt-{slug}` wrapper stream for one event,
+// untranslated, naming the peer it came from. Taps are reconciled as peers
+// connect/disconnect.
+export function subscribeEveryPeer(
+  name: string,
+  callback: (slug: string, payload: unknown) => void,
 ): () => void {
   ensureRegistry();
   if (typeof window === "undefined") return () => {};
@@ -278,7 +308,7 @@ export function subscribePeerGlobalEvent(
     listen(`peer-evt-${slug}`, (event) => {
       const d = event.payload as { name?: string; payload?: unknown } | null;
       if (!d || d.name !== name) return;
-      callback(translatePeerEventPayload(name, slug, d.payload));
+      callback(slug, d.payload);
     })
       .then((un) => {
         if (disposed || !taps.has(slug)) un();

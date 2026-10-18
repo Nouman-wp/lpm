@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::RecvTimeoutError;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter};
 
 // ---- helpers ----------------------------------------------------------------
 
@@ -1542,66 +1542,54 @@ fn coalesce(
     Some((files, unknown))
 }
 
-struct ActiveWatch {
-    path: String,
+/// One running watch: a notify watcher, or for an SSH project a poll thread.
+/// Dropping it ends the watch.
+pub(crate) struct ActiveWatch {
     stop: Arc<AtomicBool>,
     // None for a remote project: a poll thread (gated by `stop`) stands in for the
     // notify watcher, which can't observe a filesystem on the SSH host.
     _watcher: Option<notify::RecommendedWatcher>,
 }
 
-pub struct WatchState {
-    inner: Mutex<Option<ActiveWatch>>,
-}
-
-impl Default for WatchState {
-    fn default() -> Self {
-        Self {
-            inner: Mutex::new(None),
+#[cfg(test)]
+impl ActiveWatch {
+    pub(crate) fn idle() -> Self {
+        ActiveWatch {
+            stop: Arc::new(AtomicBool::new(false)),
+            _watcher: None,
         }
     }
 }
 
-#[tauri::command(async)]
-pub fn start_watching_project(
-    app: AppHandle,
-    state: State<'_, WatchState>,
-    path: String,
-) -> Result<(), String> {
-    use notify::{RecursiveMode, Watcher};
+impl Drop for ActiveWatch {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+    }
+}
 
-    // A remote project's `path` is a directory on the SSH host: it can't be
-    // canonicalized or notify-watched locally, so keep it verbatim and poll.
-    let remote = crate::sshexec::remote_project_for_path(&path);
-    // Local only — a remote path has no local form to resolve.
-    let path = if path.is_empty() || remote.is_some() {
+/// The path a project's changes are reported under. A remote project's `path`
+/// is a directory on the SSH host: it can't be canonicalized locally, so it
+/// stays verbatim.
+pub(crate) fn watch_path(path: String) -> String {
+    if path.is_empty() || crate::sshexec::remote_project_for_path(&path).is_some() {
         path
     } else {
         watch_root(path)
-    };
+    }
+}
 
-    let mut guard = state.inner.lock().unwrap();
-    if let Some(active) = guard.as_ref() {
-        if active.path == path {
-            return Ok(()); // already watching this path
-        }
-    }
-    if let Some(old) = guard.take() {
-        old.stop.store(true, Ordering::SeqCst);
-    }
-    if path.is_empty() {
-        return Ok(()); // empty path => just stop
-    }
+/// Watch `path`, as `watch_path` gives it, emitting `git-changed` for it.
+pub(crate) fn spawn_watch(app: AppHandle, path: &str) -> Result<ActiveWatch, String> {
+    use notify::{RecursiveMode, Watcher};
 
-    if let Some(ssh) = remote {
+    let path = path.to_string();
+    if let Some(ssh) = crate::sshexec::remote_project_for_path(&path) {
         let stop = Arc::new(AtomicBool::new(false));
-        spawn_remote_poll(app, ssh, path.clone(), stop.clone());
-        *guard = Some(ActiveWatch {
-            path,
+        spawn_remote_poll(app, ssh, path, stop.clone());
+        return Ok(ActiveWatch {
             stop,
             _watcher: None,
         });
-        return Ok(());
     }
 
     let stop = Arc::new(AtomicBool::new(false));
@@ -1665,12 +1653,10 @@ pub fn start_watching_project(
         let _ = app.emit("git-changed", &payload);
     });
 
-    *guard = Some(ActiveWatch {
-        path,
+    Ok(ActiveWatch {
         stop,
         _watcher: Some(watcher),
-    });
-    Ok(())
+    })
 }
 
 // Poll interval for the remote git watcher; total sleep is checked against the
@@ -1738,14 +1724,6 @@ fn spawn_remote_poll(
             }
         }
     });
-}
-
-#[tauri::command(async)]
-pub fn stop_watching_project(state: State<'_, WatchState>) -> Result<(), String> {
-    if let Some(old) = state.inner.lock().unwrap().take() {
-        old.stop.store(true, Ordering::SeqCst);
-    }
-    Ok(())
 }
 
 #[cfg(test)]

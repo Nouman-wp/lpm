@@ -803,8 +803,8 @@ export function RestoreDetachedWindows() {
 export function ResumeTTS() {
   return invoke("resume_tts");
 }
-export function RunAction(projectName, actionName, inputValues) {
-  return invoke("run_action", { projectName, actionName, inputValues });
+export function RunAction(projectName, actionName, inputValues, runId) {
+  return invoke("run_action", { projectName, actionName, inputValues, runId });
 }
 export function RunActionBackground(projectName, actionName, inputValues, runId) {
   return invoke("run_action_background", { projectName, actionName, inputValues, runId });
@@ -955,8 +955,8 @@ export function OpenAITTSSpeak(text) {
 export function StartTTS(text) {
   return invoke("start_tts", { text });
 }
-export function StartWatchingProject(path) {
-  return invoke("start_watching_project", { path });
+export function StartWatchingProject(path, owner) {
+  return invoke("start_watching_project", { path, owner });
 }
 export function StopAll() {
   return invoke("stop_all");
@@ -976,8 +976,8 @@ export function StopTerminal(id) {
 export function StopTTS() {
   return invoke("stop_tts");
 }
-export function StopWatchingProject() {
-  return invoke("stop_watching_project");
+export function StopWatchingProject(path, owner) {
+  return invoke("stop_watching_project", { path, owner });
 }
 export function StopProjectService(name, serviceName) {
   return invoke("stop_project_service", { name, serviceName });

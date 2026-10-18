@@ -34,6 +34,16 @@ impl StatusSound {
         }
         serde_json::from_value(payload.clone()).ok()
     }
+
+    /// A transition worth hearing, with the names this machine shows for it.
+    pub fn of(app: &AppHandle, project: &str, value: &str, pane_id: &str) -> Option<Self> {
+        status_meta(value)?;
+        Some(Self {
+            value: value.to_string(),
+            project: config::project_display_name(project),
+            terminal: crate::remote::terminal_label(app, pane_id).unwrap_or_default(),
+        })
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -101,12 +111,7 @@ fn status_meta(value: &str) -> Option<(&'static str, &'static str)> {
 pub fn announce_status(app: &AppHandle, project: &str, value: &str, pane_id: &str) {
     if cfg!(target_os = "macos") || !crate::sys::headless() {
         play_status_sound(value);
-    } else if status_meta(value).is_some() {
-        let sound = StatusSound {
-            value: value.to_string(),
-            project: config::project_display_name(project),
-            terminal: crate::remote::terminal_label(app, pane_id).unwrap_or_default(),
-        };
+    } else if let Some(sound) = StatusSound::of(app, project, value, pane_id) {
         let _ = app.emit(STATUS_SOUND_EVENT, sound);
     }
 }
