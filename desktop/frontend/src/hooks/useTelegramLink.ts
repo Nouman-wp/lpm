@@ -1,27 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import {
-  TelegramConnect,
-  TelegramDisconnect,
-  TelegramFindChats,
-  TelegramRemoveChat,
-  TelegramTest,
-} from "../../bridge/commands";
+import { machineCommands } from "../components/settings/machineCommands";
 import { targetId, type SendToTarget } from "../sendTo";
-import { useSendToStatus } from "../store/sendToStatus";
+import { telegramLinkOf, useSendToStatus } from "../store/sendToStatus";
 
 const FIND_CHATS_EVERY_MS = 2500;
 
-// Linking Telegram, wherever it's done: save the bot's token, then keep looking
-// for chats — the user's first message to the bot, or the bot being added to a
-// group or channel — while lpm is waiting for one or `watch` asks it to.
-// `onAdded` hears the destination ids of each chat that turns up.
+// Linking Telegram on a machine (`host`, null for this one), wherever it's done:
+// save the bot's token, then keep looking for chats — the user's first message
+// to the bot, or the bot being added to a group or channel — while lpm is
+// waiting for one or `watch` asks it to. `onAdded` hears the destination ids of
+// each chat that turns up.
 export function useTelegramLink({
+  host,
   watch = false,
   onAdded,
-}: { watch?: boolean; onAdded?: (ids: string[]) => void } = {}) {
-  const status = useSendToStatus((s) => s.telegram);
-  const refresh = useSendToStatus((s) => s.refresh);
+}: { host: string | null; watch?: boolean; onAdded?: (ids: string[]) => void }) {
+  const status = useSendToStatus((s) => telegramLinkOf(s, host));
+  const refreshStatus = useSendToStatus((s) => s.refresh);
+  const telegram = machineCommands(host).telegram;
+  const refresh = useCallback(() => refreshStatus(host), [refreshStatus, host]);
   const [busy, setBusy] = useState(false);
   const onAddedRef = useRef(onAdded);
   onAddedRef.current = onAdded;
@@ -37,7 +35,8 @@ export function useTelegramLink({
     if (!looking) return;
     let stopped = false;
     const look = () =>
-      TelegramFindChats()
+      telegram
+        .findChats()
         .then((added: SendToTarget[]) => {
           if (stopped || !Array.isArray(added) || added.length === 0) return;
           toast.success(
@@ -55,7 +54,7 @@ export function useTelegramLink({
       stopped = true;
       clearInterval(timer);
     };
-  }, [looking, refresh]);
+  }, [looking, refresh, telegram]);
 
   const run = async (work: () => Promise<unknown>, failure: string) => {
     setBusy(true);
@@ -77,22 +76,22 @@ export function useTelegramLink({
     // `text` is the token, or anything holding it.
     connect: (text: string) =>
       run(async () => {
-        await TelegramConnect(text);
+        await telegram.connect(text);
         await refresh();
       }, "Couldn't connect Telegram"),
     disconnect: () =>
       run(async () => {
-        await TelegramDisconnect();
+        await telegram.disconnect();
         await refresh();
       }, "Couldn't disconnect Telegram"),
     test: (key?: string) =>
       run(async () => {
-        await TelegramTest(key);
+        await telegram.test(key);
         toast.success("Test message sent");
       }, "Couldn't send the test message"),
     removeChat: (key: string) =>
       run(async () => {
-        await TelegramRemoveChat(key);
+        await telegram.removeChat(key);
         await refresh();
       }, "Couldn't remove the chat"),
   };

@@ -63,7 +63,7 @@ export function MergeBranchDialog({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
-  const gen = useAIGeneration();
+  const gen = useAIGeneration(projectName);
   const aiBusy = gen.generating;
   const [progressLine, setProgressLine] = useState("");
   const [commitCount, setCommitCount] = useState<number | null>(null);
@@ -72,7 +72,7 @@ export function MergeBranchDialog({
   const searchRef = useRef<HTMLInputElement>(null);
   const initRef = useRef(false);
 
-  const ai = useAIPicker(open);
+  const ai = useAIPicker(open, projectName);
 
   const excludeCurrent = useMemo(
     () => (b: main.Branch) => b.name !== currentBranch || !!b.remote,

@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  TailnetSetEnabled,
-  TailnetSignIn,
-  TailnetSignOut,
-  TailnetState as FetchTailnetState,
-} from "../../bridge/commands";
 import { BrowserOpenURL, EventsOn } from "../../bridge/runtime";
+import { LOCAL_TAILNET, type TailnetCommands } from "../components/settings/mobileCommands";
 import { DEFAULT_TAILNET_STATE, type TailnetState } from "../tailnetStatus";
+
+// A connected machine's changes don't arrive as events, so its state is read
+// again this often while shown.
+const POLL_MS = 3000;
 
 export type TailnetBusy = "toggle" | "signIn" | "signOut" | null;
 
@@ -18,14 +17,16 @@ export interface Tailnet {
   failure: string | null;
   /** This pane opened a sign-in page that the user hasn't finished yet. */
   opened: boolean;
-  setEnabled: (on: boolean) => Promise<void>;
   /** Turn on if needed and open the sign-in page when one is waiting. */
   signIn: () => Promise<void>;
-  signOut: () => Promise<void>;
+  /** Absent where the machine keeps them its own (see TailnetCommands). */
+  setEnabled?: (on: boolean) => Promise<void>;
+  signOut?: () => Promise<void>;
 }
 
-/** Built-in Tailscale's state, kept live, and the actions on it. */
-export function useTailnetState(): Tailnet {
+/** Built-in Tailscale's state on a machine (this one by default), kept live,
+ *  and the actions on it. */
+export function useTailnetState(commands: TailnetCommands = LOCAL_TAILNET): Tailnet {
   const [state, setState] = useState<TailnetState>(DEFAULT_TAILNET_STATE);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState<TailnetBusy>(null);
@@ -45,14 +46,21 @@ export function useTailnetState(): Tailnet {
   }, []);
 
   useEffect(() => {
-    FetchTailnetState()
-      .then(take)
-      .catch(() => {});
+    const read = () =>
+      commands
+        .state()
+        .then(take)
+        .catch(() => {});
+    void read();
+    if (commands !== LOCAL_TAILNET) {
+      const timer = setInterval(read, POLL_MS);
+      return () => clearInterval(timer);
+    }
     const off = EventsOn("tailnet-changed", take);
     return () => {
       if (typeof off === "function") off();
     };
-  }, [take]);
+  }, [take, commands]);
 
   const run = useCallback(
     async (kind: Exclude<TailnetBusy, null>, action: () => Promise<unknown>) => {
@@ -72,26 +80,39 @@ export function useTailnetState(): Tailnet {
     [take],
   );
 
+  const { setEnabled: toggle, signOut: leave } = commands;
+
   const setEnabled = useCallback(
     async (on: boolean) => {
+      if (!toggle) return;
       if (!on) setOpened(false);
-      await run("toggle", () => TailnetSetEnabled(on));
+      await run("toggle", () => toggle(on));
     },
-    [run],
+    [run, toggle],
   );
 
   const signIn = useCallback(async () => {
-    const s = await run("signIn", TailnetSignIn);
+    const s = await run("signIn", commands.signIn);
     if (s?.state === "needsLogin" && s.authUrl) {
       BrowserOpenURL(s.authUrl);
       setOpened(true);
     }
-  }, [run]);
+  }, [run, commands]);
 
   const signOut = useCallback(async () => {
+    if (!leave) return;
     setOpened(false);
-    await run("signOut", TailnetSignOut);
-  }, [run]);
+    await run("signOut", leave);
+  }, [run, leave]);
 
-  return { state, loaded, busy, failure, opened, setEnabled, signIn, signOut };
+  return {
+    state,
+    loaded,
+    busy,
+    failure,
+    opened,
+    signIn,
+    setEnabled: toggle && setEnabled,
+    signOut: leave && signOut,
+  };
 }

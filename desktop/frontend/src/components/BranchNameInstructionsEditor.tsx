@@ -1,17 +1,17 @@
-import { ReadBranchNameInstructions, SaveBranchNameInstructions } from "../../bridge/commands";
 import { InstructionsEditor } from "./InstructionsEditor";
-import { DEFAULT_BRANCH_NAME_INSTRUCTIONS, withDefault } from "../aiInstructions";
+import type { MachineScope } from "./settings/machineCommands";
+import { instructionsScope, useMachineInstructions } from "./settings/useMachineInstructions";
+import { DEFAULT_BRANCH_NAME_INSTRUCTIONS } from "../aiInstructions";
 
-const load = withDefault(ReadBranchNameInstructions, DEFAULT_BRANCH_NAME_INSTRUCTIONS);
-
-export function BranchNameInstructionsEditor({ onBack }: { onBack: () => void }) {
+export function BranchNameInstructionsEditor({ machine, onBack }: { machine: MachineScope; onBack: () => void }) {
+  const { load, save } = useMachineInstructions(machine.commands, "branchName", DEFAULT_BRANCH_NAME_INSTRUCTIONS);
   return (
     <InstructionsEditor
       title="Branch Name Instructions"
-      description="Custom instructions for AI-generated branch names. Applied globally to all projects."
+      description={`Custom instructions for AI-generated branch names. ${instructionsScope(machine.name)}`}
       placeholder={DEFAULT_BRANCH_NAME_INSTRUCTIONS}
       load={load}
-      save={SaveBranchNameInstructions}
+      save={save}
       onBack={onBack}
     />
   );

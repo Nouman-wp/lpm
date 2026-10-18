@@ -56,8 +56,8 @@ export function ToolkitAiDraft({
 }: ToolkitAiDraftProps) {
   const [progress, setProgress] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const ai = useAIPicker(true);
-  const generation = useAIGeneration();
+  const ai = useAIPicker(true, cwd);
+  const generation = useAIGeneration(cwd);
 
   useEffect(() => {
     if (!generation.generating) return;

@@ -61,10 +61,10 @@ export function PRModal({
   const [commits, setCommits] = useState<BranchCommit[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
-  const titleGen = useAIGeneration();
-  const descGen = useAIGeneration();
+  const titleGen = useAIGeneration(projectName);
+  const descGen = useAIGeneration(projectName);
   const [ghAvailable, setGhAvailable] = useState(true);
-  const ai = useAIPicker(open);
+  const ai = useAIPicker(open, projectName);
   const [baseMenuOpen, setBaseMenuOpen] = useState(false);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [baseQuery, setBaseQuery] = useState("");

@@ -15,6 +15,7 @@ vi.mock("../hooks/useTerminalTheme", () => ({
 }));
 
 const { StatusLineRowPreview } = await import("./StatusLineRowPreview");
+const { LOCAL_STATUS_LINE } = await import("./settings/statusLineCommands");
 const { notifyStatusLineChanged } = await import("./statusLineChanges");
 
 let container: HTMLDivElement;
@@ -37,7 +38,7 @@ afterEach(async () => {
 
 async function render(agent: "claude" | "codex") {
   await act(async () => {
-    root.render(<StatusLineRowPreview agent={agent} />);
+    root.render(<StatusLineRowPreview agent={agent} statusLine={LOCAL_STATUS_LINE} />);
     await Promise.resolve();
     await Promise.resolve();
   });

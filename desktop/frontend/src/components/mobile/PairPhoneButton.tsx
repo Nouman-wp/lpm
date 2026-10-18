@@ -6,7 +6,7 @@ import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { SECONDARY_BUTTON } from "./styles";
 import type { PeerClient } from "../../peer/usePeerState";
 import { isLinuxHost } from "../../peer/platform";
-import { MACHINE } from "../../machineWords";
+import { useMachineWords } from "../settings/useMachineWords";
 
 /** "Pair a device". With other machines connected it asks where: a device
  *  paired with one of them connects to it directly. */
@@ -21,6 +21,7 @@ export function PairPhoneButton({
   onPairHere: () => void;
   onPairPeer: (slug: string, name: string) => void;
 }) {
+  const words = useMachineWords();
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const label = busy ? "Preparing…" : "Pair a device";
 
@@ -61,7 +62,7 @@ export function PairPhoneButton({
             <p className="px-3 pb-1 pt-1.5 text-[11px] text-[var(--text-muted)]">Pair a device with</p>
             <ContextMenuItem
               icon={<Laptop size={14} />}
-              label={MACHINE.ThisMachine}
+              label={words.ThisMachine}
               description="Recommended"
               onClick={pick(onPairHere)}
             />
@@ -74,7 +75,7 @@ export function PairPhoneButton({
                   label={name}
                   description={
                     p.connected
-                      ? `Keeps working while ${MACHINE.thisMachine} is off`
+                      ? `Keeps working while ${words.thisMachine} is off`
                       : "Not connected. Reconnect it under Connections."
                   }
                   disabled={!p.connected}

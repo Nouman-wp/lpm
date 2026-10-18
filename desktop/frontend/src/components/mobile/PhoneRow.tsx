@@ -4,7 +4,7 @@ import { RowMenu } from "../connections/RowMenu";
 import { RenameModal } from "../RenameModal";
 import { QUIET_BUTTON, TILE_STYLE } from "./styles";
 import { phoneSubtitle, type PhoneDevice } from "../../mobile/phoneStatus";
-import { MACHINE } from "../../machineWords";
+import { useMachineWords } from "../settings/useMachineWords";
 
 /** A paired phone: who it is, whether it's here, and the rare actions on it
  *  behind a menu, with Revoke confirmed in place. */
@@ -19,10 +19,11 @@ export function PhoneRow({
   onRename: (id: string, name: string) => void;
   onRevoke: (id: string) => void;
 }) {
+  const words = useMachineWords();
   const [confirming, setConfirming] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const name = device.name || device.phoneName || "Device";
-  const sub = phoneSubtitle(device, now, MACHINE.thisMachine);
+  const sub = phoneSubtitle(device, now, words.thisMachine);
 
   return (
     <div>
@@ -76,7 +77,7 @@ export function PhoneRow({
       <RenameModal
         open={renaming}
         title="Rename device"
-        description={`Only ${MACHINE.thisMachine} uses this name. Nothing changes on the device.`}
+        description={`Only ${words.thisMachine} uses this name. Nothing changes on the device.`}
         initialValue={name}
         placeholder={device.phoneName || "iPhone"}
         allowEmpty

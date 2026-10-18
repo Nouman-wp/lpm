@@ -6,7 +6,7 @@
 //! files lpm can author safely (see `write`).
 
 mod edit;
-mod generate;
+pub(crate) mod generate;
 mod mcp;
 mod plugins;
 mod remote;

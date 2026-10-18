@@ -64,25 +64,21 @@ describe("levelOf", () => {
 });
 
 describe("loadLevelMap", () => {
-  it("gives a paired Mac's project no level from the global file", async () => {
+  it("reads every layer of the machine the project is on", async () => {
     vi.resetModules();
     const read = (content: string) => ({ read: vi.fn().mockResolvedValue(content) });
-    const globalRead = read(global);
-    const repoRead = read(repo);
+    const projectGlobalLayer = vi.fn(() => read(global));
     vi.doMock("./yamlQueue", () => ({
       projectLayer: () => read(project),
-      repoLayer: () => repoRead,
-      globalLayer: globalRead,
+      repoLayer: () => read(repo),
+      projectGlobalLayer,
     }));
     const { loadLevelMap, levelOf: level } = await import("./actionLevels");
     const map = await loadLevelMap("peer-0123abcd-app");
+    expect(projectGlobalLayer).toHaveBeenCalledWith("peer-0123abcd-app");
     expect(level(map, "proj_only")).toBe("project");
-    expect(level(map, "global_only")).toBeNull();
+    expect(level(map, "global_only")).toBe("global");
     expect(level(map, "repo_menu:child_a")).toBe("repo");
-    expect(globalRead.read).not.toHaveBeenCalled();
-    expect(repoRead.read).toHaveBeenCalled();
-    const local = await loadLevelMap("app");
-    expect(level(local, "global_only")).toBe("global");
     vi.doUnmock("./yamlQueue");
   });
 });

@@ -40,9 +40,9 @@ export function CreateBranchModal({
   onClose,
   onCreate,
 }: CreateBranchModalProps) {
-  const gen = useAIGeneration();
+  const gen = useAIGeneration(projectName);
   const generating = gen.generating;
-  const ai = useAIPicker(open);
+  const ai = useAIPicker(open, projectName);
   const openRef = useRef(open);
   const initialNameRef = useRef(initialName);
   initialNameRef.current = initialName;

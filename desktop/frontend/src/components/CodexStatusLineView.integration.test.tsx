@@ -21,6 +21,7 @@ vi.mock("../hooks/useTerminalFontSize", () => ({
 }));
 
 const { CodexStatusLineView } = await import("./CodexStatusLineView");
+const { THIS_MACHINE } = await import("./settings/machineCommands");
 
 const defaultState = {
   items: ["model-with-reasoning", "current-dir", "thread-name"],
@@ -53,7 +54,7 @@ afterEach(async () => {
 
 async function renderView() {
   await act(async () => {
-    root.render(<CodexStatusLineView onBack={vi.fn()} />);
+    root.render(<CodexStatusLineView machine={THIS_MACHINE} onBack={vi.fn()} />);
     await Promise.resolve();
   });
 }

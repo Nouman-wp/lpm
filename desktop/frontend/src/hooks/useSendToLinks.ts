@@ -1,16 +1,17 @@
 import { useEffect, useMemo } from "react";
 import type { SendToLinks } from "../sendTo";
-import { sendToLinks, useSendToStatus } from "../store/sendToStatus";
+import { sendToLinks, telegramLinkOf, useSendToStatus } from "../store/sendToStatus";
 
-// What every outside destination is linked to, asked for once on mount and kept
-// current by whichever view links or unlinks one.
-export function useSendToLinks(): SendToLinks {
-  const telegram = useSendToStatus((s) => s.telegram);
+// What every outside destination is linked to on the machine a job runs on
+// (`host`, null for this one), asked for once and kept current by whichever view
+// links or unlinks one.
+export function useSendToLinks(host: string | null): SendToLinks {
+  const telegram = useSendToStatus((s) => telegramLinkOf(s, host));
   const refresh = useSendToStatus((s) => s.refresh);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void refresh(host);
+  }, [refresh, host]);
 
-  return useMemo(() => sendToLinks({ telegram, refresh }), [telegram, refresh]);
+  return useMemo(() => sendToLinks(telegram), [telegram]);
 }

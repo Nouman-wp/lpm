@@ -39,6 +39,7 @@ const SHARED: &[(&str, Kind)] = &[
     ("doubleClickToToggle", Kind::Flag),
     ("checkOrigin", Kind::Flag),
     ("autoPull", Kind::OneOf(&["off", "chosen", "all"])),
+    ("updateChannel", Kind::OneOf(&["stable", "beta"])),
     ("defaultProjectDirectory", Kind::Path),
     ("systemNotifications", Kind::Flag),
     ("soundNotifications", Kind::Flag),
@@ -198,7 +199,13 @@ pub async fn peer_settings_set(
 ) -> Result<Value, String> {
     let hub = hub.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        request(&hub, &slug, json!({ "t": "settingsSet", "patch": patch }))
+        let sets_channel = patch.get("updateChannel").is_some();
+        let stored = request(&hub, &slug, json!({ "t": "settingsSet", "patch": patch }))?;
+        if sets_channel {
+            let beta = stored.get("updateChannel").and_then(Value::as_str) == Some("beta");
+            hub.note_update_channel(&slug, beta);
+        }
+        Ok(stored)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -265,6 +272,7 @@ mod tests {
         let patch = json!({
             "theme": "light",
             "autoPull": "chosen",
+            "updateChannel": "beta",
             "doneSound": "/Users/me/ding.aiff",
             "terminalFontFamily": "JetBrains Mono",
             "terminalFontSize": 14,

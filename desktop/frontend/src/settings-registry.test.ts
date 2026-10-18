@@ -109,12 +109,12 @@ describe("a connected machine's settings", () => {
   });
 
   it("lists only the pages with something to change on a Mac someone uses", () => {
-    expect(tabs(studio)).toEqual(["general", "notifications", "terminal", "shortcuts"]);
+    expect(tabs(studio)).toEqual(["general", "notifications", "terminal", "shortcuts", "ai", "templates", "global-config", "mobile"]);
     expect(tabs(studio, true)).toContain("tts");
   });
 
   it("lists only what a machine nobody sits at runs by", () => {
-    expect(tabs(server, true)).toEqual(["general", "notifications"]);
+    expect(tabs(server, true)).toEqual(["general", "notifications", "ai", "templates", "global-config", "mobile"]);
   });
 
   it("searches only the rows the machine has", () => {
@@ -124,8 +124,8 @@ describe("a connected machine's settings", () => {
     );
     expect(onStudio).not.toContain("general.removeApp");
     expect(onStudio).not.toContain("backup.export");
-    expect(onStudio).not.toContain("tts.openaiKey");
-    expect(onStudio).not.toContain("global-config");
+    expect(onStudio).toContain("tts.openaiKey");
+    expect(onStudio).toContain("global-config");
     expect(onStudio).not.toContain("usage");
 
     const onServer = ids(buildSearchEntries({ experimentalTTS: true, mac: true, machine: server }));
@@ -135,5 +135,6 @@ describe("a connected machine's settings", () => {
     expect(onServer).not.toContain("general.theme");
     expect(onServer).not.toContain("terminal.fontSize");
     expect(onServer).not.toContain("shortcut.renameProject");
+    expect(onServer).not.toContain("tts.openaiKey");
   });
 });

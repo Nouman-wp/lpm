@@ -100,7 +100,7 @@ export function BranchSwitcher({
   const pruningRef = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const ai = useAIPicker(commitMenuOpen);
+  const ai = useAIPicker(commitMenuOpen, projectName);
 
   const commitMenuRef = useOutsideClick<HTMLDivElement>(
     () => setCommitMenuOpen(false),

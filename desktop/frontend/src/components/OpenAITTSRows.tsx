@@ -1,11 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import {
-  ClearOpenAIKey,
-  HasOpenAIKey,
-  OpenAIVoices,
-  SetOpenAIKey,
-} from "../../bridge/commands";
+import { useSettingsTarget } from "./settings/settingsTarget";
 import { SettingsRow } from "./SettingsRow";
 import { SettingsSelect } from "./SettingsSelect";
 import { BTN_SECONDARY } from "./ui/buttons";
@@ -16,23 +11,27 @@ import { isMac } from "../platform";
 /// back. Once saved, the field shows a placeholder and the only actions are
 /// replace or remove.
 export function OpenAIKeyRow() {
+  const { machine, commands } = useSettingsTarget();
   const [saved, setSaved] = useState<boolean | null>(null);
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
+  const keychain = machine.kind === "local" ? isMac : machine.mac;
+  const where = machine.kind === "local" ? "on this computer" : `on ${machine.name}`;
 
   useEffect(() => {
-    HasOpenAIKey()
-      .then((has: boolean) => setSaved(Boolean(has)))
+    commands
+      .hasOpenAiKey()
+      .then(setSaved)
       .catch(() => setSaved(false));
-  }, []);
+  }, [commands]);
 
   const save = async () => {
     try {
-      await SetOpenAIKey(value.trim());
+      await commands.setOpenAiKey(value.trim());
       setValue("");
       setEditing(false);
       setSaved(true);
-      toast.success(isMac ? "OpenAI key saved to the Keychain" : "OpenAI key saved");
+      toast.success(keychain ? "OpenAI key saved to the Keychain" : "OpenAI key saved");
     } catch (err) {
       toast.error(`Couldn't save key: ${String(err)}`);
     }
@@ -40,7 +39,7 @@ export function OpenAIKeyRow() {
 
   const clear = async () => {
     try {
-      await ClearOpenAIKey();
+      await commands.clearOpenAiKey();
       setSaved(false);
       toast.success("OpenAI key removed");
     } catch (err) {
@@ -52,9 +51,9 @@ export function OpenAIKeyRow() {
     saved === null
       ? "Checking…"
       : saved
-        ? isMac
+        ? keychain
           ? "Saved in the Keychain"
-          : "Saved on this computer"
+          : `Saved ${where}`
         : "Required for the OpenAI engine";
 
   return (
@@ -99,13 +98,15 @@ export function OpenAIVoiceRow({
   value: string;
   onChange: (voice: string) => void;
 }) {
+  const { commands } = useSettingsTarget();
   const [voices, setVoices] = useState<string[]>([]);
 
   useEffect(() => {
-    OpenAIVoices()
-      .then((v: string[]) => setVoices(Array.isArray(v) ? v : []))
+    commands
+      .openAiVoices()
+      .then(setVoices)
       .catch(() => setVoices([]));
-  }, []);
+  }, [commands]);
 
   return (
     <SettingsRow id="tts.openaiVoice" label="OpenAI Voice" description="OpenAI voice">

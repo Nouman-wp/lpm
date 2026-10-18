@@ -1748,7 +1748,6 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             isWorktree={Boolean(contextProject?.worktree)}
             isDetached={detached.has(contextMenu.name)}
             canSelect={projects.length > 1}
-            remote={isPeerName(contextMenu.name)}
             peerViaSsh={contextSlug !== null && peerState.peers.some((p) => p.slug === contextSlug && !!p.sshHost)}
             sshRemote={contextProject?.isRemote ?? false}
             projectName={contextMenu.name}

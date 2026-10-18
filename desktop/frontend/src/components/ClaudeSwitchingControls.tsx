@@ -1,8 +1,6 @@
-import { toast } from "sonner";
-import { ApplyClaudeLimits } from "../../bridge/commands";
 import { accountLabel } from "../claudePoolText";
-import { useClaudePoolStore, type ClaudePool } from "../store/claudePool";
-import { useSettingsStore } from "../store/settings";
+import type { ClaudePool } from "../store/claudePool";
+import type { ClaudeAccountsSource } from "./settings/useClaudeAccountsSource";
 import { BTN_SECONDARY } from "./ui/buttons";
 import { SegmentedControl } from "./ui/SegmentedControl";
 import { Toggle } from "./ui/Toggle";
@@ -17,36 +15,22 @@ const UNAVAILABLE: Record<string, string> = {
 
 interface ClaudeSwitchingControlsProps {
   pool: ClaudePool;
+  source: ClaudeAccountsSource;
   busy: boolean;
   run: (fn: () => Promise<void>) => Promise<void>;
 }
 
 /** The switching rows at the top of Settings → Claude accounts: the on/off
  *  switch, what happens near a limit, and why switching is held back. */
-export function ClaudeSwitchingControls({ pool, busy, run }: ClaudeSwitchingControlsProps) {
-  const hydrate = useClaudePoolStore((s) => s.hydrate);
-  const update = useClaudePoolStore((s) => s.update);
-  const resume = useClaudePoolStore((s) => s.resume);
-  const askConsent = useClaudePoolStore((s) => s.askConsent);
-  const updateSettings = useSettingsStore((s) => s.update);
+export function ClaudeSwitchingControls({ pool, source, busy, run }: ClaudeSwitchingControlsProps) {
+  const { updatePool, resumePool, askConsent, turnOnReadings } = source;
 
   // Turning on always asks: it confirms every account that will take turns,
   // including ones added to a project's own list while switching was off.
   const toggle = () => {
-    if (pool.enabled) return void run(() => update({ enabled: false }));
+    if (pool.enabled) return void run(() => updatePool({ enabled: false }));
     askConsent({ patch: { enabled: true } });
   };
-
-  const turnOnReadings = () =>
-    run(async () => {
-      try {
-        await ApplyClaudeLimits(true);
-        await updateSettings({ claudeLimitsEnabled: true });
-      } catch (err) {
-        toast.error(String(err));
-      }
-      await hydrate();
-    });
 
   return (
     <>
@@ -98,7 +82,7 @@ export function ClaudeSwitchingControls({ pool, busy, run }: ClaudeSwitchingCont
               { value: "ask", label: "Ask me first", tooltip: "lpm asks in the sidebar before new sessions move to the next account." },
               { value: "auto", label: "Switch on its own", tooltip: "New sessions move to the next account and lpm tells you." },
             ]}
-            onChange={(mode) => void run(() => update({ mode }))}
+            onChange={(mode) => void run(() => updatePool({ mode }))}
           />
         </div>
       )}
@@ -109,18 +93,20 @@ export function ClaudeSwitchingControls({ pool, busy, run }: ClaudeSwitchingCont
             <div className="text-sm font-medium text-[var(--text-primary)]">Switching is paused</div>
             <div className="text-[11px] text-[var(--text-muted)]">
               {pool.paused === "hold"
-                ? `${accountLabel(pool.held ?? "", pool)} was put on hold. lpm won't move sessions between accounts until you turn this back on. You can still choose an account for a project yourself.`
+                ? `${accountLabel(pool.held ?? "", pool, source.accounts)} was put on hold. lpm won't move sessions between accounts until you turn this back on. You can still choose an account for a project yourself.`
                 : "Usage readings are off, so lpm can't tell when an account is close to a limit."}
             </div>
           </div>
           {pool.paused === "hold" ? (
-            <button type="button" className={BTN_SECONDARY} disabled={busy} onClick={() => void run(resume)}>
+            <button type="button" className={BTN_SECONDARY} disabled={busy} onClick={() => void run(resumePool)}>
               Hold lifted? Turn back on
             </button>
           ) : (
-            <button type="button" className={BTN_SECONDARY} disabled={busy} onClick={() => void turnOnReadings()}>
-              Turn on usage readings
-            </button>
+            turnOnReadings && (
+              <button type="button" className={BTN_SECONDARY} disabled={busy} onClick={() => void run(turnOnReadings)}>
+                Turn on usage readings
+              </button>
+            )
           )}
         </div>
       )}

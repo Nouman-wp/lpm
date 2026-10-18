@@ -1,12 +1,17 @@
 import { resetText } from "./components/stats/limitsFormat";
 import { useAccountsStore } from "./store/accounts";
 import type { ClaudePool, PoolSkip } from "./store/claudePool";
+import type { ClaudeAccount } from "./types";
 
 export const MAIN_LOGIN = "default";
 
-export function accountLabel(id: string, pool?: ClaudePool | null): string {
+export function accountLabel(
+  id: string,
+  pool?: ClaudePool | null,
+  accounts: ClaudeAccount[] = useAccountsStore.getState().accounts,
+): string {
   if (id === MAIN_LOGIN) return "Main login";
-  const account = useAccountsStore.getState().accounts.find((a) => a.id === id);
+  const account = accounts.find((a) => a.id === id);
   if (account) return account.label;
   return pool?.accounts.find((a) => a.id === id)?.email || "Removed account";
 }

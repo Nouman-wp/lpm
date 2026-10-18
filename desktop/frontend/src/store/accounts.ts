@@ -13,7 +13,7 @@ export interface ClaudeAccountStatus {
   email: string;
 }
 
-function normalizeAccounts(raw: unknown): ClaudeAccount[] {
+export function normalizeAccounts(raw: unknown): ClaudeAccount[] {
   const list = (raw as { accounts?: unknown })?.accounts;
   if (!Array.isArray(list)) return [];
   return list
@@ -21,7 +21,7 @@ function normalizeAccounts(raw: unknown): ClaudeAccount[] {
     .map((a) => ({ id: a.id, label: a.label }));
 }
 
-function normalizeStatuses(raw: unknown): Record<string, ClaudeAccountStatus> {
+export function normalizeStatuses(raw: unknown): Record<string, ClaudeAccountStatus> {
   const list = (raw as { statuses?: unknown })?.statuses;
   if (!Array.isArray(list)) return {};
   const out: Record<string, ClaudeAccountStatus> = {};
@@ -35,7 +35,7 @@ function normalizeStatuses(raw: unknown): Record<string, ClaudeAccountStatus> {
   return out;
 }
 
-function normalizeUsage(raw: unknown): Record<string, string[]> {
+export function normalizeUsage(raw: unknown): Record<string, string[]> {
   const usage = (raw as { usage?: unknown })?.usage;
   if (!usage || typeof usage !== "object") return {};
   const out: Record<string, string[]> = {};

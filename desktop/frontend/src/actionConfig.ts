@@ -2,10 +2,10 @@ import YAML from "yaml";
 import {
   type ConfigLayer,
   editFirstLayer,
-  editGlobalDoc,
   editProjectDoc,
+  editProjectGlobalDoc,
   editRepoDoc,
-  globalLayer,
+  projectGlobalLayer,
   projectLayer,
   queueWrite,
   repoLayer,
@@ -17,7 +17,7 @@ type ActionDoc = ReturnType<typeof YAML.parseDocument>;
 
 function layerFor(projectName: string, layer: ActionConfigLayer): ConfigLayer {
   if (layer === "repo") return repoLayer(projectName);
-  if (layer === "global") return globalLayer;
+  if (layer === "global") return projectGlobalLayer(projectName);
   return projectLayer(projectName);
 }
 
@@ -49,7 +49,7 @@ export function hasActionBody(entry: unknown): boolean {
 }
 
 function actionLayers(projectName: string): readonly ConfigLayer[] {
-  return [projectLayer(projectName), repoLayer(projectName), globalLayer];
+  return [projectLayer(projectName), repoLayer(projectName), projectGlobalLayer(projectName)];
 }
 
 export function appendActionToLayer(
@@ -67,7 +67,7 @@ export function appendActionToLayer(
     if (YAML.isMap(actions)) actions.set(key, payload);
   };
   if (layer === "repo") return editRepoDoc(projectName, mutate);
-  if (layer === "global") return editGlobalDoc(mutate);
+  if (layer === "global") return editProjectGlobalDoc(projectName, mutate);
   return editProjectDoc(projectName, mutate);
 }
 
@@ -82,7 +82,7 @@ export async function findActionSource(
   const candidates: Array<[ActionConfigLayer, ConfigLayer]> = [
     ["project", projectLayer(projectName)],
     ["repo", repoLayer(projectName)],
-    ["global", globalLayer],
+    ["global", projectGlobalLayer(projectName)],
   ];
   for (const [name, layer] of candidates) {
     try {

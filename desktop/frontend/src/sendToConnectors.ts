@@ -9,6 +9,8 @@ export type ConnectIntent = "connect" | "add";
 
 export interface ConnectorProps {
   intent: ConnectIntent;
+  // The machine linked: a connected one's slug, or null for this one.
+  host: string | null;
   // Destination ids of targets that turned up while the dialog was open.
   onAdded: (ids: string[]) => void;
 }

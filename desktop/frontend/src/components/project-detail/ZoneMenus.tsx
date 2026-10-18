@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { type ActionsLayout, type ZoneInfo, zoneDisplayOf } from "../../types";
 import { editZone, removeZone, setZoneCollapsed } from "../../zoneActions";
 import { useOpenLayer } from "../../store/zoneLayers";
-import { isZoneEditable } from "../../zoneEditable";
 import { type ZoneDetails, zoneDetailsOf } from "../../zoneConfig";
 import { addLayer, layersUnchanged, removeLayer, saveLayers } from "../../zoneLayerActions";
 import type { LayerDraft } from "../../zoneLayerConfig";
@@ -103,7 +102,6 @@ export function ZoneMenus({ projectName, layout, menu, onClose }: ZoneMenusProps
         <ZoneContextMenu
           x={menu.x}
           y={menu.y}
-          editable={isZoneEditable(projectName, menu.zone)}
           canRemoveLayer={layersOf(menu.zone).length >= 2}
           collapsed={!!menu.zone.collapsed}
           layerLabel={openLayer ? layerLabelOf(menu.zone, openLayer) : undefined}

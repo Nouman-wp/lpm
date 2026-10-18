@@ -1,17 +1,17 @@
-import { ReadCommitInstructions, SaveCommitInstructions } from "../../bridge/commands";
 import { InstructionsEditor } from "./InstructionsEditor";
-import { DEFAULT_COMMIT_INSTRUCTIONS, withDefault } from "../aiInstructions";
+import type { MachineScope } from "./settings/machineCommands";
+import { instructionsScope, useMachineInstructions } from "./settings/useMachineInstructions";
+import { DEFAULT_COMMIT_INSTRUCTIONS } from "../aiInstructions";
 
-const load = withDefault(ReadCommitInstructions, DEFAULT_COMMIT_INSTRUCTIONS);
-
-export function CommitInstructionsEditor({ onBack }: { onBack: () => void }) {
+export function CommitInstructionsEditor({ machine, onBack }: { machine: MachineScope; onBack: () => void }) {
+  const { load, save } = useMachineInstructions(machine.commands, "commit", DEFAULT_COMMIT_INSTRUCTIONS);
   return (
     <InstructionsEditor
       title="Commit Instructions"
-      description="Custom instructions for AI-generated commit messages. Applied globally to all projects."
+      description={`Custom instructions for AI-generated commit messages. ${instructionsScope(machine.name)}`}
       placeholder={DEFAULT_COMMIT_INSTRUCTIONS}
       load={load}
-      save={SaveCommitInstructions}
+      save={save}
       onBack={onBack}
     />
   );

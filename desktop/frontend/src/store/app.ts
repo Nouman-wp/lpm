@@ -21,8 +21,6 @@ import {
   CreateProject,
   CreateProjectFromClone,
   CreateSSHProject,
-  CreateTemplate,
-  DeleteTemplate,
   DetachProject,
   DuplicateProject,
   DuplicateStatus,
@@ -36,7 +34,6 @@ import {
   RemoveProject,
   RemoveProjectCascade,
   RemoveProjects,
-  RenameTemplate,
   ResolvePortConflict,
   SetProjectLabel,
   SetWorkStatus,
@@ -101,7 +98,7 @@ import {
   buildLayoutUpdates,
   patchLayoutDoc,
 } from "../actionsLayoutUpdates";
-import { editGlobalDoc, editProjectDoc, editRepoDoc } from "../yamlQueue";
+import { editProjectDoc, editProjectGlobalDoc, editRepoDoc } from "../yamlQueue";
 import { type StructuralContext, applyOpToDoc, dropPlacementNote } from "../actionsStructural";
 import { menuChildOrderFor } from "../actionTree";
 import { applyMove } from "../components/actionsDndLayout";
@@ -114,7 +111,7 @@ import { deferRefresh, holdRefresh, refreshHeld } from "./refreshHold";
 
 export type ProjectDetailTarget = "config" | "notes" | "ai" | "memory" | "automations";
 
-export type RemoteTerminalOp = "close" | "rename" | "pin" | "reorder" | "title";
+export type RemoteTerminalOp = "close" | "rename" | "pin" | "reorder" | "title" | "restart";
 
 export type View =
   | "projects"
@@ -209,6 +206,7 @@ interface AppState {
   detached: Set<string>;
 
   setView: (view: View) => void;
+  navigateSettings: (view: View) => void;
   toggleAgentOverview: () => void;
   setSettingsTab: (tab: SettingsTab) => void;
   setSettingsMachine: (slug: string | null) => void;
@@ -226,9 +224,6 @@ interface AppState {
   refreshProjects: () => Promise<void>;
   refreshTemplates: () => Promise<void>;
   selectTemplate: (name: string) => void;
-  createTemplate: (name: string) => Promise<void>;
-  removeTemplate: (name: string) => Promise<void>;
-  renameTemplate: (oldName: string, newName: string) => Promise<void>;
 
   startProject: (name: string, profile: string) => Promise<void>;
   stopProject: (name: string) => Promise<void>;
@@ -488,15 +483,16 @@ function isEmptyButton(action: ActionInfo): boolean {
 
 // Nesting a button declared in a shared file leaves behind the position notes
 // drags wrote for it in project files, and alone each would show as an empty
-// button. Every local project the shared file reaches, where the button now
-// resolves to one, loses its note: all of them for the global file, the ones
-// in the same checkout for a repo's.
+// button. Every project the shared file reaches, where the button now resolves
+// to one, loses its note: those on the same machine for the global file, the
+// ones in the same checkout for a repo's.
 async function clearLeftoverNotes(get: AppGet, key: string, level: ActionLevel, projectName: string): Promise<void> {
-  if (level === "project" || isPeerName(projectName)) return;
+  if (level === "project") return;
+  const machine = peerSlugOf(projectName);
   const root = get().projects.find((p) => p.name === projectName)?.root;
   const left = get().projects.filter(
     (p) =>
-      !isPeerName(p.name) &&
+      peerSlugOf(p.name) === machine &&
       (level === "global" || p.root === root) &&
       (p.actions ?? []).some((a) => a.name === key && isEmptyButton(a)),
   );
@@ -824,6 +820,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Any view, Settings included, opens on this machine; openMachineSettings is
   // the way to a connected one's.
   setView: (view) => set({ view, settingsMachine: null }),
+  // Between Settings and the pages it opens, staying on the machine it shows.
+  navigateSettings: (view) => set({ view }),
   toggleAgentOverview: () =>
     set((state) => ({
       view: state.view === "fleet" ? "projects" : "fleet",
@@ -953,44 +951,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectTemplate: (name) =>
     set({ selectedTemplate: name, settingsTab: "templates", view: "template" }),
 
-  createTemplate: async (name) => {
-    try {
-      await CreateTemplate(name);
-      await get().refreshTemplates();
-      set({ selectedTemplate: name, view: "template" });
-    } catch (err) {
-      toast.error(`Failed to create template: ${err}`);
-      throw err;
-    }
-  },
-
-  removeTemplate: async (name) => {
-    try {
-      await DeleteTemplate(name);
-      await get().refreshTemplates();
-      set((s) =>
-        s.selectedTemplate === name
-          ? { selectedTemplate: null, view: s.view === "template" ? "projects" : s.view }
-          : s,
-      );
-    } catch (err) {
-      toast.error(`Failed to delete template: ${err}`);
-    }
-  },
-
-  renameTemplate: async (oldName, newName) => {
-    if (oldName === newName) return;
-    try {
-      await RenameTemplate(oldName, newName);
-      await get().refreshTemplates();
-      set((s) =>
-        s.selectedTemplate === oldName ? { selectedTemplate: newName } : s,
-      );
-    } catch (err) {
-      toast.error(`Failed to rename template: ${err}`);
-      throw err;
-    }
-  },
 
   startProject: async (name, profile) => {
     const label = displayNameForProjectName(name, get().projects);
@@ -1939,7 +1899,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const context = structuralContext(get, projectName);
     const mutate = (doc: ReturnType<typeof YAML.parseDocument>) => applyOpToDoc(doc, op, context);
     try {
-      if (level === "global") await editGlobalDoc(mutate);
+      if (level === "global") await editProjectGlobalDoc(projectName, mutate);
       else if (level === "repo") await editRepoDoc(projectName, mutate);
       else await editProjectDoc(projectName, mutate);
       await get().refreshProjects();

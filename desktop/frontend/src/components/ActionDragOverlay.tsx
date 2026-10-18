@@ -11,7 +11,6 @@ import {
   zoneOfGroup,
 } from "./actionsDndLayout";
 import { openListKey } from "../store/zoneLayers";
-import { isZoneEditable } from "../zoneEditable";
 import { ActionView } from "./ActionView";
 import { CollapsedZonePreview } from "./CollapsedZonePreview";
 import { InBar } from "./InBar";
@@ -88,7 +87,7 @@ function OverlayBody({
     const found = zoneNamed(model, zoneNameOfItem(id));
     if (!found) return null;
     if (found.zone.collapsed) {
-      return <CollapsedZonePreview zone={found.zone} display={display} editable={isZoneEditable(projectName, found.zone)} />;
+      return <CollapsedZonePreview zone={found.zone} display={display} />;
     }
     const openKey = openListKey(projectName, found.zone);
     const shown = (found.layers.find((layer) => layer.key === openKey) ?? found.layers[0])?.actions ?? [];

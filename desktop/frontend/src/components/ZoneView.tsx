@@ -4,7 +4,6 @@ import type { ActionInfo, ZoneDisplay, ZoneInfo } from "../types";
 import { useLayerSwipe } from "../hooks/useLayerSwipe";
 import { openLayerOfListKey, useOpenLayer } from "../store/zoneLayers";
 import { setZoneCollapsed } from "../zoneActions";
-import { isZoneEditable } from "../zoneEditable";
 import { zoneListKey } from "../zoneLayers";
 import { useActionsActiveId, useActionsDragOrigin, useActionsOverGroup, useExtractGroup } from "./ActionsDnd";
 import { ActionsGroup } from "./ActionsGroup";
@@ -61,7 +60,6 @@ export function ZoneView({
   const ownsDrag = zoneOwnsDrag(zone.name, layers, activeId, origin);
   const { state, holdsButtons } = zoneFrameState({ ids: open.ids, activeId, overGroup, group, origin });
   const extracting = extractGroup === group;
-  const editable = isZoneEditable(projectName, zone);
   const showLayer = (key: string) => openLayerOfListKey(projectName, key);
   const layerAt = (dir: 1 | -1) => layers[openIndex + dir];
   const swipe = useLayerSwipe(
@@ -171,7 +169,7 @@ export function ZoneView({
       {zone.collapsed && buttonDrag && (
         <Remeasure on={open.ids.join("\n")} ids={[groupDropId(group), zoneDotsId(zone.name)]} />
       )}
-      {!zone.collapsed && editable && activeId === null && (
+      {!zone.collapsed && activeId === null && (
         <ZoneCollapseButton display={display} onCollapse={() => void setZoneCollapsed(projectName, zone, true)} />
       )}
     </ZoneFrame>
@@ -181,7 +179,6 @@ export function ZoneView({
     <CollapsedZone
       zone={zone}
       display={display}
-      editable={editable}
       dragging={activeId !== null}
       buttonDrag={buttonDrag}
       ownsDrag={ownsDrag}

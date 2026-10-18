@@ -39,6 +39,7 @@ export function JobScopeRow({
   problem,
   onConnect,
   machine,
+  host,
 }: {
   draft: JobDraft;
   patch: (values: Partial<JobDraft>) => void;
@@ -51,6 +52,8 @@ export function JobScopeRow({
   // Opens the dialog that links an outside service, or adds one of its chats,
   // without leaving the job.
   onConnect: (service: string, intent: ConnectIntent) => void;
+  // The machine the job runs on: a connected one's slug, or null for this one.
+  host: string | null;
   // The machine the job runs on, where there is more than one to pick from.
   machine?: {
     value: string;
@@ -58,7 +61,7 @@ export function JobScopeRow({
     onChange: (value: string) => void;
   };
 }) {
-  const links = useSendToLinks();
+  const links = useSendToLinks(host);
   const unready = draft.sendTo.filter((id) => sendToReady(id, links) === false);
   const notes = [
     skippedCopies.length > 0 &&

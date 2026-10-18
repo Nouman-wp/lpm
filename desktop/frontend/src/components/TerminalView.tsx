@@ -109,6 +109,7 @@ export interface TerminalViewHandle {
   remoteRestoreTitle(id: string): void;
   remoteTogglePin(id: string): void;
   remoteReorderTerminals(order: string[]): void;
+  remoteRestartTerminal(id: string): void;
   // Bring one of this project's terminals on screen, addressed by terminal id.
   focusTerminalById(id: string): void;
   // Agent conversations live in this project's tabs, as session id → terminal id.
@@ -1113,6 +1114,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       remoteRestoreTitle,
       remoteTogglePin,
       remoteReorderTerminals,
+      remoteRestartTerminal: restartTerminal,
       focusTerminalById,
       liveAgentSessions,
       openMemory,
@@ -1130,6 +1132,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       remoteRestoreTitle,
       remoteTogglePin,
       remoteReorderTerminals,
+      restartTerminal,
       focusTerminalById,
       liveAgentSessions,
       openMemory,

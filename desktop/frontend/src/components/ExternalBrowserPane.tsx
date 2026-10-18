@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { toast } from "sonner";
 import { BrowserOpenURL } from "../../bridge/runtime";
+import { projectAddress } from "../peer/projectPorts";
 import { toTarget } from "./browserTarget";
 import { GlobeIcon } from "./icons";
 
 interface ExternalBrowserPaneProps {
   id: string;
+  projectName: string;
   active: boolean;
 }
 
@@ -18,7 +21,7 @@ function hostOf(addr: string): string {
 
 /** A browser tab whose pages open in the system browser, for platforms where a
  *  page can't be shown inside the pane. */
-export function ExternalBrowserPane({ active }: ExternalBrowserPaneProps) {
+export function ExternalBrowserPane({ projectName, active }: ExternalBrowserPaneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [address, setAddress] = useState("");
   const [opened, setOpened] = useState("");
@@ -27,12 +30,17 @@ export function ExternalBrowserPane({ active }: ExternalBrowserPaneProps) {
     if (active) inputRef.current?.focus();
   }, [active]);
 
-  const go = (e: FormEvent) => {
+  const go = async (e: FormEvent) => {
     e.preventDefault();
-    const target = toTarget(address);
-    if (!target || target.startsWith("about:")) return;
-    BrowserOpenURL(target);
-    setOpened(target);
+    const typed = toTarget(address);
+    if (!typed || typed.startsWith("about:")) return;
+    try {
+      const target = await projectAddress(projectName, typed);
+      BrowserOpenURL(target);
+      setOpened(target);
+    } catch (err) {
+      toast.error(`Couldn't open ${typed}: ${err}`);
+    }
   };
 
   return (

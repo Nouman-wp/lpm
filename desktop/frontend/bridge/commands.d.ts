@@ -366,6 +366,7 @@ export function PeerUpdateMac(...args: any[]): Promise<any>;
 export function PeerCancelMacUpdate(...args: any[]): Promise<any>;
 export function PeerSettingsGet(...args: any[]): Promise<any>;
 export function PeerSettingsSet(...args: any[]): Promise<any>;
+export function PeerPortForward(...args: any[]): Promise<any>;
 export function PeerUninstallHost(...args: any[]): Promise<any>;
 export function PeerRemove(...args: any[]): Promise<any>;
 export function PeerSetEnabled(...args: any[]): Promise<any>;

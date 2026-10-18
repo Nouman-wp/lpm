@@ -107,15 +107,6 @@ export function slotOf(folders: HostFolders, name: string): string | null {
   return group ? `${GROUP_PREFIX}${group.id}` : null;
 }
 
-// The folder called `name`: exactly, else ignoring case.
-export function folderNamed(folders: HostFolders, name: string): ProjectGroup | undefined {
-  const wanted = name.trim();
-  return (
-    folders.groups.find((g) => g.name.trim() === wanted) ??
-    folders.groups.find((g) => g.name.trim().toLowerCase() === wanted.toLowerCase())
-  );
-}
-
 // The top-level slot just below the one `name` holds; null (last) when it
 // holds none.
 export function slotAfter(folders: HostFolders, name: string): string | null {

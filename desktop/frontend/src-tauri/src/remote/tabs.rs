@@ -153,8 +153,9 @@ fn leaf_has_tabs(node: &Value) -> bool {
 }
 
 /// A tab op another Mac asks this one to run on its own tab tree — the relay a
-/// phone's rename, pin or reorder takes — so the host stays the one place a
-/// project's tabs are named and ordered.
+/// phone's rename, pin or reorder takes, and a paired Mac's restart of an ended
+/// terminal — so the host stays the one place a project's tabs are named,
+/// ordered and run.
 #[tauri::command]
 pub fn terminal_tab_op(
     app: AppHandle,
@@ -165,7 +166,10 @@ pub fn terminal_tab_op(
     emoji: Option<String>,
     order: Option<Vec<String>>,
 ) -> Result<(), String> {
-    if !matches!(op.as_str(), "rename" | "pin" | "reorder" | "title") {
+    if !matches!(
+        op.as_str(),
+        "rename" | "pin" | "reorder" | "title" | "restart"
+    ) {
         return Err(format!("unknown tab op {op:?}"));
     }
     app.emit(

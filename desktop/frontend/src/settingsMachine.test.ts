@@ -30,6 +30,11 @@ describe("peerMachine", () => {
     expect(linuxDesktop.attended).toBe(true);
   });
 
+  it("takes a machine's own word on whether it runs headless", () => {
+    expect(peerMachine(peer({ platform: "macos", headless: true })).attended).toBe(false);
+    expect(peerMachine(peer({ platform: "linux", headless: false })).attended).toBe(true);
+  });
+
   it("takes an entry too old to report its platform for a Mac", () => {
     expect(peerMachine(peer()).mac).toBe(true);
     expect(linuxDesktop.mac).toBe(false);

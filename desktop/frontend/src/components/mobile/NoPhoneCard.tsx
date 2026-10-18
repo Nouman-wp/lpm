@@ -4,7 +4,7 @@ import { AppleIcon } from "./AppleIcon";
 import { PRIMARY_BUTTON, QUIET_BUTTON, SECONDARY_BUTTON } from "./styles";
 import { BrowserOpenURL } from "../../../bridge/runtime";
 import { APP_STORE_URL } from "../../mobile/links";
-import { MACHINE } from "../../machineWords";
+import { useMachineWords } from "../settings/useMachineWords";
 
 /** First run, as three steps: get the app, set up Tailscale so the pairing code
  *  works from anywhere, then pair. Skipping Tailscale stays one click, and the
@@ -22,6 +22,7 @@ export function NoPhoneCard({
   onPair: () => void;
   onSetUpAway: () => void;
 }) {
+  const words = useMachineWords();
   const [skipped, setSkipped] = useState(false);
   const ready = awayReady || skipped;
 
@@ -42,8 +43,8 @@ export function NoPhoneCard({
           awayReady
             ? "Done · the pairing code will work from anywhere."
             : skipped
-              ? `Skipped · your device will connect only on ${MACHINE.thisMachine}'s network.`
-              : `So your device reaches ${MACHINE.thisMachine} from anywhere, not just this network.`
+              ? `Skipped · your device will connect only on ${words.thisMachine}'s network.`
+              : `So your device reaches ${words.thisMachine} from anywhere, not just this network.`
         }
       >
         {!awayReady && !skipped && (

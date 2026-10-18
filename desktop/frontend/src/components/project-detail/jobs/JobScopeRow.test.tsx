@@ -35,6 +35,7 @@ function Harness({ initial, lockedScope }: { initial: JobDraft; lockedScope?: st
   latest = draft;
   return (
     <JobScopeRow
+      host={null}
       draft={draft}
       patch={(values) => setDraft((d) => ({ ...d, ...values }))}
       onScope={(targets) => setDraft((d) => ({ ...d, targets }))}

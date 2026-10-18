@@ -177,6 +177,8 @@ the client can have the host install the latest lpm (see **Commands**);
 `hostFolders` = the host shares its sidebar folders (see **Commands**);
 `hostFolderFolds` = ...and which of them are folded (see **Commands**);
 `hostJobs` = the host takes its shared automations from the client (see **Commands**);
+`portTunnel` = the host opens its web servers on the client's localhost (see **Port tunnel**);
+`hostClaudeAccounts` = the host answers `host_claude_accounts` (see **Commands**);
 `agentLimits` = the host trades Claude usage limits (see **Usage
 limits**). A host
 missing a feature simply never receives frames that depend on it. The full list
@@ -211,18 +213,27 @@ Host dispatch has two tiers:
    as a Tauri event `peer-invoke` `{ reqId, cmd, args }`; the host frontend runs
    the real `invoke(cmd, args)` and calls the `peer_dispatch_reply({ reqId, ok,
    value })` command; Rust correlates `reqId` back to the waiting connection and
-   sends the `result` frame. A 30s deadline yields an error result; a missing
-   main window yields an immediate `host UI unavailable` error.
+   sends the `result` frame. A 30s deadline yields an error result — longer for a
+   command that runs a coding agent, installs the voice engine or signs in to
+   Tailscale (`dispatch_timeout` in `peer.rs`), which the client waits out as well; a missing main window yields an immediate
+   `host UI unavailable` error. A generation's id carries the host's marker, so
+   `cancel_ai_generate` with it reaches the host the run is on.
 
 **Denylist.** The host refuses to dispatch app-meta commands and returns an error
-result: any `peer_*` / `remote_*` command, window/dock/detached-window focus, app
-settings, the global config and config import/export, updater/installers,
-account/login, host-local audio/voice, the host browser overlay, the folder
-picker that saves a note's attachment (the client reads the attachment and saves
-it itself), and vault key material. Project-scoped operations are allowed, a
-project's repo config (`<root>/.lpm.yml`) among them. The client router carries
-the same guard (defense in depth), and opens a detached window for a host's
-project on the client. See `is_denied` in `peer.rs`.
+result: any `peer_*` command; the `remote_*` / `tailnet_*` commands except the
+host's own phone and Tailscale settings (`HOST_MOBILE_COMMANDS` in `peer.rs`:
+devices, keep awake, the server switch, Tailscale's state and sign-in — never
+switching the tailnet off or signing out, which could cut off a host reached only
+over it); window/dock/detached-window focus; app settings and config
+import/export; the updater and the CLI installer (the voice engine and agent
+skills install from a paired Mac); host-local audio/voice; the
+host browser overlay; the folder picker that saves a note's attachment (the
+client reads the attachment and saves it itself); and vault key material.
+Project-scoped operations are allowed, and so are the host's global and repo
+configs (`global.yml`, `<root>/.lpm.yml`) and its Claude accounts, which the
+client edits as the host's own windows do. The client router carries the same guard (defense in depth), and
+opens a detached window for a host's project on the client. See `is_denied` in
+`peer.rs`.
 
 **Video preview** (`mediaRange` feature). The client's `lpm-media://` handler
 forwards each byte range a `<video>` asks for about a peer-marked path as
@@ -233,6 +244,16 @@ at most 1 MB per reply. It answers `{ len, start, end, partial, mime, data }`, w
 `data` in base64, or `{ len, unsatisfiable: true }`. A failure is the HTTP status
 as a string (`"404"`). A client doesn't send it to a host without the feature, and
 the viewer asks for an update instead.
+
+**Opening a host's file in an app here** (`peeropen.rs`). The app starts on the
+client. A VS Code-family editor opens the host's own file over Remote-SSH when
+the client reaches the host over SSH; otherwise the client fetches a copy (a
+chunk at a time) and opens that. A text file opened in an editor keeps its copy
+in step: each save is sent back as `write_file_if_unchanged { absPath,
+expectedContent, content }`, with `expectedContent` what the host's file held as
+of the copy or the last save. A host file that changed in between isn't
+overwritten — the copy turns read-only and the client says so. Any other copy is
+read-only.
 
 **Phone pairing** (`remotePair` feature). The one thing a client needs from the
 host's mobile server gets a dedicated frame rather than a hole in that denylist:
@@ -272,8 +293,8 @@ gets dedicated frames:
 **Host settings** (`hostSettings` / `hostSettingsAll` features). `save_settings`
 stays on the denylist, so the client's Settings view reaches the host's settings
 through these frames, which touch only the fields that view shows (`SHARED` in
-`peersettings.rs`: theme, sidebar, Git, notification, terminal, shortcut and
-speech settings). Window geometry, sidebar order and the rest of what the host keeps
+`peersettings.rs`: theme, sidebar, Git, notification, terminal, shortcut,
+speech and update-channel settings). Window geometry, sidebar order and the rest of what the host keeps
 for itself are out of reach. A `hostSettings` host without `hostSettingsAll`
 shares only `defaultProjectDirectory`, `checkOrigin` and `doubleClickToToggle`;
 the client asks the user to update it rather than send it the frames.
@@ -339,6 +360,46 @@ reach only its `jobs:`:
 Both emit `job-status` (`project: ""`) on the host. A client doesn't send them to
 a host without the feature and asks for an update instead; listing and the
 per-project commands work with any host.
+
+**Host Claude accounts** (`hostClaudeAccounts` feature, `hostclaude.rs`). A
+client manages a host's Claude accounts as the host's own Settings does: the
+account commands (`save_claude_accounts`, `remove_claude_account`,
+`set_claude_pool`, `resume_claude_pool`, …) reach it over the generic invoke —
+`accounts.json` holds labels, not credentials. A project's account is picked
+through the project (`set_claude_account_choice`). For reading, one command
+answered in host Rust gathers what the project menu and Settings show:
+
+- `{ "cmd": "host_claude_accounts", "args": {} }` → `{ accounts: [{ id, label }],
+  statuses: [{ id, signedIn, email }], usage, pool }` — `pool` is the host's
+  switching state as its own Settings reads it; the client marks its pools'
+  project names.
+
+Signing in runs `claude /login` in a terminal on the host: the client sends
+`start_claude_login { accountId, machine: "peer-<slug>-" }` (the marked, empty
+`machine` is what routes a command that takes no project), and attaches the
+terminal it answers with like any host terminal.
+
+## Port tunnel
+
+`portTunnel` feature (`porttunnel.rs`). The client opens a host project's web
+server as if it ran on its own localhost: `peer_port_forward(slug, port)` listens
+on the client's loopback — on `port` itself when it is free there, any free port
+otherwise — and answers with that local port. Each connection to it becomes a
+stream, by an `id` the client picks:
+
+- client → `{ "t": "tcpOpen", "id", "port" }` — the host dials `127.0.0.1:port`
+  on its own loopback. Bytes sent before the dial completes wait for it.
+- either way → `{ "t": "tcpData", "id", "d" }` — `d` is base64, at most 32 KiB raw.
+- either way → `{ "t": "tcpClose", "id", "error"? }` — no more bytes from the
+  sender. The receiver half-closes its socket once what it queued is written, so a
+  request that ends in a half-close still gets its response. A failed dial is a
+  `tcpClose` with `error`.
+
+Data frames wait for room in the connection's queue instead of being dropped as
+terminal output may be: a byte stream can't be reseeded. A dropped connection ends
+its streams on both sides; the client's listener stays open and carries new
+connections once the host is back. A client doesn't open a tunnel to a host
+without the feature and asks for an update instead.
 
 ## Terminal streaming
 
@@ -427,6 +488,9 @@ host lists them (its pane layout stays its own). A rename, pin, reorder or "use
 conversation title" made on the client goes to the host as `terminal_tab_op
 { projectName, op: "rename"|"pin"|"reorder"|"title", id?, label?, emoji?, order? }`
 (the same relay a phone's tab edits take), and comes back with the next listing.
+So does restarting a terminal whose process ended (`op: "restart"`, by `id`): the
+host runs it again in its own tab, and the client's tab is replaced by the new
+one in the next listing. A host that predates it answers `unknown tab op`.
 After a host restart (a new `run`) the client asks `terminal_exists` about each
 of its tabs the host no longer lists and closes the ones that are gone; the host's
 restored tabs open in their place.
@@ -455,7 +519,11 @@ drops and the client re-syncs):
 
 `projects-changed`, `status-changed`, `git-changed`, `ports-changed`,
 `action-output`, `action-done`, `action-bg-output`, `templates-changed`,
-`sidebar-changed`, `job-status`, `job-seen`, `memory-changed`.
+`sidebar-changed`, `job-status`, `job-seen`, `memory-changed`, and the lines a
+coding agent prints while it generates something (`commit-msg-progress`,
+`pr-title-progress`, `pr-description-progress`, `branch-name-progress`,
+`merge-conflict-progress`, `action-yaml-progress`, `composer-transform-progress`,
+`statusline-gen-progress`, `ai-generate-output`, `skill-gen-progress`).
 
 The client re-emits each on a single per-peer wrapper channel `peer-evt-{slug}`
 with payload `{ name, payload }`; the TS shim demultiplexes, translates

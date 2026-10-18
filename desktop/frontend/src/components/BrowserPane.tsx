@@ -16,12 +16,16 @@ import { useBrowserUrls } from "../store/browserUrls";
 import { getSettings, saveSettings } from "../store/settings";
 import { isDarkTheme } from "../theme";
 import { isLinux, isWindows } from "../platform";
+import { toast } from "sonner";
+import { projectAddress } from "../peer/projectPorts";
 import { toTarget } from "./browserTarget";
 import { ExternalBrowserPane } from "./ExternalBrowserPane";
 import { ChevronLeftIcon, ChevronRightIcon, RefreshIcon, SunIcon, MoonIcon, GlobeIcon } from "./icons";
 
 interface BrowserPaneProps {
   id: string;
+  // A paired machine's project browses that machine's localhost.
+  projectName: string;
   active: boolean;
 }
 
@@ -37,7 +41,7 @@ function hostOf(addr: string): string {
   }
 }
 
-function EmbeddedBrowserPane({ id, active }: BrowserPaneProps) {
+function EmbeddedBrowserPane({ id, projectName, active }: BrowserPaneProps) {
   const holeRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const openedRef = useRef(false);
@@ -120,10 +124,16 @@ function EmbeddedBrowserPane({ id, active }: BrowserPaneProps) {
     [id],
   );
 
-  const go = (e: FormEvent) => {
+  const go = async (e: FormEvent) => {
     e.preventDefault();
-    const target = toTarget(address);
+    let target = toTarget(address);
     if (!target) return;
+    try {
+      target = await projectAddress(projectName, target);
+    } catch (err) {
+      toast.error(`Couldn't open ${target}: ${err}`);
+      return;
+    }
     if (openedRef.current) {
       NavigateBrowser(id, target);
       return;

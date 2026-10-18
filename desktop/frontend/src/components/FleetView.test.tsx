@@ -454,7 +454,7 @@ describe("FleetView service links", () => {
     await render();
     const link = button(":4000");
     expect(link).toBeDefined();
-    act(() => link?.click());
+    await act(async () => link?.click());
     expect(mocks.browserOpenURL).toHaveBeenCalledWith("http://localhost:4000");
   });
 
@@ -462,7 +462,7 @@ describe("FleetView service links", () => {
     mocks.projects = [withServices(5173)];
     mocks.detectServicePorts.mockResolvedValue([]);
     await render();
-    act(() => button(":5173")?.click());
+    await act(async () => button(":5173")?.click());
     expect(mocks.browserOpenURL).toHaveBeenCalledWith("http://localhost:5173");
   });
 

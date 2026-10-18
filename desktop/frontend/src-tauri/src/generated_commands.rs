@@ -262,6 +262,7 @@ macro_rules! all_command_handlers {
             peer_cancel_mac_update,
             peer_settings_get,
             peer_settings_set,
+            peer_port_forward,
             peer_uninstall_host,
             peer_remove,
             peer_set_enabled,

@@ -1,21 +1,16 @@
-import {
-  ReadPRTitleInstructions,
-  SavePRTitleInstructions,
-  ReadPRDescriptionInstructions,
-  SavePRDescriptionInstructions,
-} from "../../bridge/commands";
 import { PRInstructionsForm } from "./PRInstructionsForm";
 import { ChevronLeftIcon } from "./icons";
-import {
-  DEFAULT_PR_TITLE_INSTRUCTIONS,
-  DEFAULT_PR_DESCRIPTION_INSTRUCTIONS,
-  withDefault,
-} from "../aiInstructions";
+import type { MachineScope } from "./settings/machineCommands";
+import { instructionsScope, useMachineInstructions } from "./settings/useMachineInstructions";
+import { DEFAULT_PR_TITLE_INSTRUCTIONS, DEFAULT_PR_DESCRIPTION_INSTRUCTIONS } from "../aiInstructions";
 
-const titleLoad = withDefault(ReadPRTitleInstructions, DEFAULT_PR_TITLE_INSTRUCTIONS);
-const descLoad = withDefault(ReadPRDescriptionInstructions, DEFAULT_PR_DESCRIPTION_INSTRUCTIONS);
-
-export function PRInstructionsEditor({ onBack }: { onBack: () => void }) {
+export function PRInstructionsEditor({ machine, onBack }: { machine: MachineScope; onBack: () => void }) {
+  const title = useMachineInstructions(machine.commands, "prTitle", DEFAULT_PR_TITLE_INSTRUCTIONS);
+  const description = useMachineInstructions(
+    machine.commands,
+    "prDescription",
+    DEFAULT_PR_DESCRIPTION_INSTRUCTIONS,
+  );
   return (
     <div className="flex flex-1 flex-col pt-6">
       <div className="flex items-center gap-3">
@@ -29,14 +24,14 @@ export function PRInstructionsEditor({ onBack }: { onBack: () => void }) {
         <h1 className="text-lg font-semibold tracking-tight">PR Instructions</h1>
       </div>
       <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-        Custom instructions for AI-generated pull request titles and descriptions. Applied globally to all projects.
+        Custom instructions for AI-generated pull request titles and descriptions. {instructionsScope(machine.name)}
       </p>
 
       <PRInstructionsForm
-        titleLoad={titleLoad}
-        titleSave={SavePRTitleInstructions}
-        descLoad={descLoad}
-        descSave={SavePRDescriptionInstructions}
+        titleLoad={title.load}
+        titleSave={title.save}
+        descLoad={description.load}
+        descSave={description.save}
       />
     </div>
   );

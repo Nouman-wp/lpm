@@ -83,7 +83,16 @@ describe("PeerSettings", () => {
   it("offers the pages a Mac someone uses has, and none of this one's own", async () => {
     mocks.settingsGet.mockResolvedValue({});
     await render();
-    expect(navTabs()).toEqual(["General", "Notifications", "Terminal", "Shortcuts"]);
+    expect(navTabs()).toEqual([
+      "General",
+      "Notifications",
+      "Terminal",
+      "Shortcuts",
+      "AI & Integrations",
+      "Templates",
+      "Global Config",
+      "Mobile devices",
+    ]);
     expect(buttonNamed("Remove")).toBeUndefined();
   });
 
@@ -128,7 +137,14 @@ describe("PeerSettings", () => {
   it("leaves how a screen looks off a machine nobody sits at", async () => {
     mocks.settingsGet.mockResolvedValue({});
     await render({ platform: "linux", headless: true });
-    expect(navTabs()).toEqual(["General", "Notifications"]);
+    expect(navTabs()).toEqual([
+      "General",
+      "Notifications",
+      "AI & Integrations",
+      "Templates",
+      "Global Config",
+      "Mobile devices",
+    ]);
     expect(toggle("Check for new commits")).toBeTruthy();
     expect(toggle("Double-click to start/stop")).toBeNull();
     expect(buttonNamed("Light")).toBeUndefined();

@@ -474,6 +474,7 @@ export function JobEditorModal({
                   />
                 )}
                 <JobScopeRow
+                  host={machine.host ?? null}
                   draft={draft}
                   patch={patch}
                   onScope={setScope}
@@ -578,6 +579,7 @@ export function JobEditorModal({
       )}
       <SendToConnectModal
         destination={connecting?.service ?? null}
+        host={machine.host ?? null}
         intent={connecting?.intent}
         onClose={() => setConnecting(null)}
         onAdded={(ids) => {

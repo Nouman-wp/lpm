@@ -30,10 +30,10 @@ export function AIActionModal({
   onGenerated,
 }: AIActionModalProps) {
   const [prompt, setPrompt] = useState("");
-  const gen = useAIGeneration();
+  const gen = useAIGeneration(projectName);
   const generating = gen.generating;
   const [progress, setProgress] = useState("");
-  const ai = useAIPicker(open);
+  const ai = useAIPicker(open, projectName);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {

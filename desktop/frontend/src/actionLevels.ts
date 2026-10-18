@@ -5,8 +5,7 @@ import {
   hasActionBody,
 } from "./actionConfig";
 import { parsePath } from "./actionIds";
-import { isPeerName } from "./peer/markers";
-import { globalLayer, projectLayer, repoLayer } from "./yamlQueue";
+import { projectGlobalLayer, projectLayer, repoLayer } from "./yamlQueue";
 
 export type ActionLevel = ActionConfigLayer; // "project" | "repo" | "global"
 
@@ -52,14 +51,12 @@ export function levelOf(map: LevelMap, id: string): ActionLevel | null {
   return map.get(parsePath(id)[0]) ?? null;
 }
 
-// A paired Mac's global file is out of reach: the one read from here would be
-// this Mac's. Its global buttons get no level, so they can't be nested or
-// restructured.
+// Every layer of the machine the project is on, a paired one's too.
 export async function loadLevelMap(projectName: string): Promise<LevelMap> {
   const [project, repo, global] = await Promise.all([
     projectLayer(projectName).read().catch(() => ""),
     repoLayer(projectName).read().catch(() => ""),
-    isPeerName(projectName) ? "" : globalLayer.read().catch(() => ""),
+    projectGlobalLayer(projectName).read().catch(() => ""),
   ]);
   return buildLevelMap({ project, repo, global });
 }

@@ -44,11 +44,6 @@ interface ProjectContextMenuProps {
   isWorktree: boolean;
   isDetached: boolean;
   canSelect: boolean;
-  // A project living on a paired Mac. Hides items that would act on the wrong
-  // machine or a local-only concept (browser, detach, select, Claude account);
-  // Git / Duplicate / Rename / Copy path / Remove and its project files stay
-  // and route to the peer.
-  remote: boolean;
   // That Mac is reached over SSH, so a Remote-SSH editor can open the project.
   peerViaSsh: boolean;
   // An SSH project (root lives on an SSH host). Limits "Open with" to editors
@@ -117,7 +112,6 @@ export function ProjectContextMenu({
   isWorktree,
   isDetached,
   canSelect,
-  remote,
   peerViaSsh,
   sshRemote,
   projectName,
@@ -203,14 +197,12 @@ export function ProjectContextMenu({
           ))}
         </ContextMenuSubmenu>
       )}
-      {!remote && (
-        <OpenInBrowserSubmenu
-          projectName={projectName}
-          running={running}
-          services={services}
-          onClose={onClose}
-        />
-      )}
+      <OpenInBrowserSubmenu
+        projectName={projectName}
+        running={running}
+        services={services}
+        onClose={onClose}
+      />
       <ProjectGitSubmenu
         projectPath={projectPath}
         projectName={projectName}
@@ -240,8 +232,9 @@ export function ProjectContextMenu({
           <ContextMenuItem label="Memory" icon={<BrainIcon />} shortcut={chordLabel({ key: "m", meta: true, shift: true })} onClick={close(onOpenMemory)} />
         )}
       </ContextMenuSubmenu>
-      {!remote && !sshRemote && (
+      {!sshRemote && (
         <ClaudeAccountSubmenu
+          projectName={projectName}
           own={claudeChoice}
           isCopy={isDuplicate}
           parent={parentClaudeChoice}

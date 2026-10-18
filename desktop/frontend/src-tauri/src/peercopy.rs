@@ -119,6 +119,22 @@ fn keep_copy(tmp: NamedTempFile, dest: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Let an editor save into a copy whose saves go back to the host
+/// (peercopysync.rs), or keep it read-only.
+pub(crate) fn set_writable(copy: &Path, writable: bool) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = if writable { 0o644 } else { 0o444 };
+        std::fs::set_permissions(copy, std::fs::Permissions::from_mode(mode))
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(windows)]
+    {
+        crate::fsatomic::set_readonly(copy, !writable).map_err(|e| e.to_string())
+    }
+}
+
 fn same_contents(a: &Path, b: &Path) -> bool {
     let len = |p: &Path| std::fs::metadata(p).map(|m| m.len()).ok();
     if len(a).is_none() || len(a) != len(b) {

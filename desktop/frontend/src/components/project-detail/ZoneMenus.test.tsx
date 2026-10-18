@@ -77,12 +77,7 @@ function setValue(el: HTMLInputElement, value: string) {
 }
 
 describe("ZoneMenus", () => {
-  it("keeps a peer project's global zone read-only", () => {
-    open(PEER_PROJECT, zone({ source: "global" }));
-    expect([button("Edit zone…")?.disabled, button("Remove zone")?.disabled]).toEqual([true, true]);
-  });
-
-  it.each(["project", "repo"] as const)("lets a peer project edit its %s zone", (source) => {
+  it.each(["project", "repo", "global"] as const)("lets a peer project edit its %s zone", (source) => {
     open(PEER_PROJECT, zone({ source }));
     expect([button("Edit zone…")?.disabled, button("Remove zone")?.disabled]).toEqual([false, false]);
   });
@@ -218,21 +213,11 @@ describe("ZoneMenus", () => {
     expect(h.setZoneCollapsed).toHaveBeenCalledWith("web", z, false);
   });
 
-  it("keeps Collapse zone off a peer project's global zone", () => {
-    open(PEER_PROJECT, zone({ source: "global" }));
-    expect(button("Collapse zone")?.disabled).toBe(true);
-  });
-
   it("names the open layer in Remove layer when it has a label", () => {
     open("web", layered());
     expect(button("Remove layer “Dev”")).toBeDefined();
     act(() => useZoneLayers.getState().setOpen("web", "build", "ops"));
     expect(button("Remove layer")).toBeDefined();
-  });
-
-  it("keeps New layer and Remove layer off a peer project's global zone", () => {
-    open(PEER_PROJECT, layered({ source: "global" }));
-    expect([button("New layer")?.disabled, button("Remove layer “Dev”")?.disabled]).toEqual([true, true]);
   });
 
   it("adds a layer", () => {

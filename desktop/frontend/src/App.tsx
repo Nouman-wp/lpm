@@ -51,7 +51,9 @@ import { duplicateBeside } from "./store/sideBySide";
 import type { BulkDuplicateOptions } from "./components/BulkDuplicateDialog";
 import { usePeerDispatcher } from "./peer/usePeerDispatcher";
 import { usePeerAutoSyncToasts } from "./peer/usePeerAutoSyncToasts";
+import { usePeerFileSaveNotices } from "./peer/usePeerFileSaveNotices";
 import { usePeerState } from "./peer/usePeerState";
+import { useSettingsMachine } from "./components/settings/useSettingsMachine";
 import { peerStatus } from "./peer/peerStatus";
 import { isPeerName, peerSlugOf } from "./peer/markers";
 import { publishPeerSnapshot } from "./peer/retainedSessions";
@@ -80,6 +82,8 @@ export default function App() {
   const checkOrigin = useSettingsStore((s) => s.checkOrigin ?? true);
 
   const setView = useAppStore((s) => s.setView);
+  const navigateSettings = useAppStore((s) => s.navigateSettings);
+  const backToSettings = () => navigateSettings("settings");
   const focusProjectTerminal = useAppStore((s) => s.focusProjectTerminal);
   const toggleAgentOverview = useAppStore((s) => s.toggleAgentOverview);
   const settingsTab = useAppStore((s) => s.settingsTab);
@@ -148,7 +152,9 @@ export default function App() {
   useEffect(() => startSendLaterRunner(), []);
   usePeerDispatcher();
   const { state: peerState, loaded: peersLoaded } = usePeerState();
+  const settingsMachine = useSettingsMachine(peerState.peers);
   usePeerAutoSyncToasts(peerState.peers);
+  usePeerFileSaveNotices();
   useSshStatusWarnings();
   useActionErrorToasts();
   const isFullscreen = useIsFullscreen();
@@ -333,7 +339,7 @@ export default function App() {
               />
             </div>
           )}
-          {view === "settings" && <Settings onNavigate={setView} />}
+          {view === "settings" && <Settings onNavigate={navigateSettings} />}
           {isFleetView && (
             <FleetView
               onExit={() => setView("projects")}
@@ -343,28 +349,29 @@ export default function App() {
           {isStatsView && <StatsView />}
           {isScheduledView && <ScheduledView />}
           {view === "global-config" && (
-            <GlobalConfigEditor onBack={() => setView("settings")} />
+            <GlobalConfigEditor machine={settingsMachine} onBack={backToSettings} />
           )}
           {view === "claude-statusline" && (
-            <ClaudeStatusLineView onBack={() => setView("settings")} />
+            <ClaudeStatusLineView machine={settingsMachine} onBack={backToSettings} />
           )}
           {view === "codex-statusline" && (
-            <CodexStatusLineView onBack={() => setView("settings")} />
+            <CodexStatusLineView machine={settingsMachine} onBack={backToSettings} />
           )}
           {view === "commit-instructions" && (
-            <CommitInstructionsEditor onBack={() => setView("settings")} />
+            <CommitInstructionsEditor machine={settingsMachine} onBack={backToSettings} />
           )}
           {view === "pr-instructions" && (
-            <PRInstructionsEditor onBack={() => setView("settings")} />
+            <PRInstructionsEditor machine={settingsMachine} onBack={backToSettings} />
           )}
           {view === "branch-instructions" && (
-            <BranchNameInstructionsEditor onBack={() => setView("settings")} />
+            <BranchNameInstructionsEditor machine={settingsMachine} onBack={backToSettings} />
           )}
           {view === "template" && selectedTemplate && (
             <TemplateEditor
               key={selectedTemplate}
               name={selectedTemplate}
-              onBack={() => setView("settings")}
+              machine={settingsMachine}
+              onBack={backToSettings}
             />
           )}
           <ProjectColumns

@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { CancelAIGenerate } from "../../bridge/commands";
+import { peerSlugOf, prefixName } from "../peer/markers";
 
 // What the backend rejects a stopped run with. Callers stay silent on it: the
 // user asked for the stop, so it isn't a failure worth reporting.
@@ -22,7 +23,14 @@ export interface AIGeneration {
 /// One cancellable AI generation slot: mints the run's id, tracks it while it's
 /// in flight, and turns a stop into a `canceled` rejection so callers can tell
 /// it apart from a real failure even when the CLI managed to answer first.
-export function useAIGeneration(): AIGeneration {
+/// `scope` is the project name or folder the generation runs in: a paired
+/// machine's marks the ids, so a stop goes where the run is.
+export function useAIGeneration(scope?: string | null): AIGeneration {
+  const slug = peerSlugOf(scope);
+  const mintId = useCallback(() => {
+    const id = crypto.randomUUID();
+    return slug ? prefixName(slug, id) : id;
+  }, [slug]);
   const [generating, setGenerating] = useState(false);
   const live = useRef<Set<string>>(new Set());
   const stopped = useRef(false);
@@ -46,18 +54,18 @@ export function useAIGeneration(): AIGeneration {
 
   const run = useCallback(
     <T,>(fn: (genId: string) => Promise<T>) => {
-      const id = crypto.randomUUID();
+      const id = mintId();
       return track([id], () => fn(id));
     },
-    [track],
+    [track, mintId],
   );
 
   const runAll = useCallback(
     <T,>(count: number, fn: (genIds: string[]) => Promise<T>) => {
-      const ids = Array.from({ length: Math.max(1, count) }, () => crypto.randomUUID());
+      const ids = Array.from({ length: Math.max(1, count) }, mintId);
       return track(ids, () => fn(ids));
     },
-    [track],
+    [track, mintId],
   );
 
   const cancel = useCallback(() => {

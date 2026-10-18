@@ -73,7 +73,7 @@ export function AutoPRModal({
   onClose,
   onChanged,
 }: AutoPRModalProps) {
-  const gen = useAIGeneration();
+  const gen = useAIGeneration(projectName);
   const [steps, setSteps] = useState(freshSteps);
   const [phase, setPhase] = useState<Phase>("running");
   const [error, setError] = useState<string | null>(null);

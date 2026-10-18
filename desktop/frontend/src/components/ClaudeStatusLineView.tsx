@@ -1,12 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import {
-  GetClaudeStatuslineState,
-  ApplyClaudeStatusline,
-  ApplyClaudeStatuslineCustom,
-  ClaudeStatuslinePresetSpec,
-  PreviewClaudeStatusline,
-} from "../../bridge/commands";
+import type { MachineScope } from "./settings/machineCommands";
 import { ChevronLeftIcon } from "./icons";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
@@ -112,7 +106,8 @@ interface ReplacedCustom {
 type ApplyState = "applied" | "applying" | "error";
 type PresetSpecState = "idle" | "loading" | "error";
 
-export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
+export function ClaudeStatusLineView({ machine, onBack }: { machine: MachineScope; onBack: () => void }) {
+  const { statusLine } = machine.commands;
   const [selected, setSelected] = useState<StatusLineTemplateId>("current");
   const [hasCustom, setHasCustom] = useState(false);
   const [customSpec, setCustomSpec] = useState<CustomSpec>(DEFAULT_SPEC);
@@ -157,7 +152,7 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
   const seedFromPreset = (id: string) => {
     const token = ++seedTokenRef.current;
     setPresetSpecState("loading");
-    ClaudeStatuslinePresetSpec(id)
+    statusLine.claudePresetSpec(id)
       .then((spec) => {
         if (seedTokenRef.current !== token) return;
         if (spec) {
@@ -180,7 +175,7 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
   const refresh = async (syncSpec = false) => {
     const token = ++stateTokenRef.current;
     try {
-      const state = await GetClaudeStatuslineState();
+      const state = await statusLine.claudeState();
       if (!mountedRef.current || stateTokenRef.current !== token) return;
       setLoadError(null);
       const nextSelection =
@@ -243,11 +238,11 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
       queueRef.current = null;
       if (job.revision !== interactionRevisionRef.current) continue;
       try {
-        if (job.kind === "custom") await ApplyClaudeStatuslineCustom(job.spec);
+        if (job.kind === "custom") await statusLine.applyClaudeCustom(job.spec);
         else if (job.kind === "restore") {
-          await ApplyClaudeStatuslineCustom(job.spec);
-          await ApplyClaudeStatusline(job.id);
-        } else await ApplyClaudeStatusline(job.id);
+          await statusLine.applyClaudeCustom(job.spec);
+          await statusLine.applyClaude(job.id);
+        } else await statusLine.applyClaude(job.id);
         notifyStatusLineChanged("claude");
         if (
           !mountedRef.current ||
@@ -400,7 +395,7 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
     setPreviewError(false);
     const handle = setTimeout(() => {
       if (previewTokenRef.current !== token) return;
-      PreviewClaudeStatusline(previewSelection)
+      statusLine.previewClaude(previewSelection)
         .then((output: string) => {
           if (previewTokenRef.current === token) {
             setPreview(typeof output === "string" ? output : "");
@@ -498,8 +493,8 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
             Claude Code status line
           </h1>
           <p className="mt-1 text-[12px] text-[var(--text-muted)]">
-            Shows under the prompt box in every Claude Code session. Changes
-            apply as you work.
+            Shows under the prompt box in every Claude Code session
+            {machine.name ? ` on ${machine.name}` : ""}. Changes apply as you work.
           </p>
         </div>
       </div>

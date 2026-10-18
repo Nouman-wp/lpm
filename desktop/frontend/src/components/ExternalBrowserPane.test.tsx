@@ -4,7 +4,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const open = vi.hoisted(() => vi.fn());
+const forward = vi.hoisted(() => vi.fn(async () => 4123));
 vi.mock("../../bridge/runtime", () => ({ BrowserOpenURL: open }));
+vi.mock("../../bridge/commands", () => ({ PeerPortForward: forward }));
 
 import { ExternalBrowserPane } from "./ExternalBrowserPane";
 
@@ -17,40 +19,51 @@ beforeEach(() => {
   document.body.appendChild(host);
   root = createRoot(host);
   open.mockClear();
-  act(() => root.render(<ExternalBrowserPane id="b1" active />));
+  render("web");
 });
+
+function render(projectName: string) {
+  act(() => root.render(<ExternalBrowserPane id="b1" projectName={projectName} active />));
+}
 
 afterEach(() => {
   act(() => root.unmount());
   host.remove();
 });
 
-function submit(value: string) {
+async function submit(value: string) {
   const input = host.querySelector("input")!;
   act(() => {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
     setter.call(input, value);
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
-  act(() => {
+  await act(async () => {
     host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
   });
 }
 
 describe("ExternalBrowserPane", () => {
-  it("opens the address in the system browser", () => {
-    submit("localhost:3000");
+  it("opens the address in the system browser", async () => {
+    await submit("localhost:3000");
     expect(open).toHaveBeenCalledWith("http://localhost:3000");
     expect(host.textContent).toContain("Opened localhost");
   });
 
-  it("turns free text into a search", () => {
-    submit("tauri docs");
+  it("turns free text into a search", async () => {
+    await submit("tauri docs");
     expect(open).toHaveBeenCalledWith("https://www.google.com/search?q=tauri%20docs");
   });
 
-  it("opens nothing for an empty address", () => {
-    submit("   ");
+  it("opens nothing for an empty address", async () => {
+    await submit("   ");
     expect(open).not.toHaveBeenCalled();
+  });
+
+  it("opens a paired machine's localhost through a port tunnelled from it", async () => {
+    render("peer-aaaaaaaa-web");
+    await submit("localhost:3000/admin");
+    expect(forward).toHaveBeenCalledWith("aaaaaaaa", 3000);
+    expect(open).toHaveBeenCalledWith("http://localhost:4123/admin");
   });
 });

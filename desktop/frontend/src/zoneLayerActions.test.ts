@@ -7,7 +7,7 @@ const h = vi.hoisted(() => ({
   refreshProjects: vi.fn(),
   editProjectDoc: vi.fn(),
   editRepoDoc: vi.fn(),
-  editGlobalDoc: vi.fn(),
+  editProjectGlobalDoc: vi.fn(),
   toastError: vi.fn(),
   setOpen: vi.fn(),
 }));
@@ -24,7 +24,7 @@ vi.mock("./store/zoneLayers", () => ({
 vi.mock("./yamlQueue", () => ({
   editProjectDoc: h.editProjectDoc,
   editRepoDoc: h.editRepoDoc,
-  editGlobalDoc: h.editGlobalDoc,
+  editProjectGlobalDoc: h.editProjectGlobalDoc,
 }));
 
 import type { ActionsLayout, ZoneInfo } from "./types";
@@ -35,7 +35,7 @@ const FILES = ["project", "repo", "global"] as const;
 type File = (typeof FILES)[number];
 type Doc = ReturnType<typeof YAML.parseDocument>;
 
-const editors = { project: h.editProjectDoc, repo: h.editRepoDoc, global: h.editGlobalDoc };
+const editors = { project: h.editProjectDoc, repo: h.editRepoDoc, global: h.editProjectGlobalDoc };
 
 let files: Record<File, string>;
 
@@ -75,7 +75,7 @@ beforeEach(() => {
   h.setOpen.mockReset();
   h.editProjectDoc.mockReset().mockImplementation((_name, mutate) => editFile("project")(mutate));
   h.editRepoDoc.mockReset().mockImplementation((_name, mutate) => editFile("repo")(mutate));
-  h.editGlobalDoc.mockReset().mockImplementation(editFile("global"));
+  h.editProjectGlobalDoc.mockReset().mockImplementation((_name, mutate) => editFile("global")(mutate));
 });
 
 describe("addLayer", () => {
@@ -141,7 +141,7 @@ describe("removeLayer", () => {
   });
 
   it("reports a failed write and still refreshes", async () => {
-    h.editGlobalDoc.mockRejectedValue(new Error("read-only"));
+    h.editProjectGlobalDoc.mockRejectedValue(new Error("read-only"));
     await removeLayer(NAME, zone({ source: "global" }), "b", layout);
     expect(h.toastError).toHaveBeenCalledWith("Could not remove the layer: read-only");
     expect(h.refreshProjects).toHaveBeenCalledTimes(1);

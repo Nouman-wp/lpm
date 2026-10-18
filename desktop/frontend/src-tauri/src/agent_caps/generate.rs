@@ -16,7 +16,7 @@ use std::path::Path;
 
 const MAX_NAME: usize = 64;
 const MAX_DESCRIPTION: usize = 1024;
-const PROGRESS_EVENT: &str = "skill-gen-progress";
+pub(crate) const PROGRESS_EVENT: &str = "skill-gen-progress";
 
 const NO_FILE: &str = "The draft didn't come back as a SKILL.md file.";
 const NO_NAME: &str = "The draft came back without a usable name.";

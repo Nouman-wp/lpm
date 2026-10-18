@@ -15,9 +15,10 @@ const PRIMARY =
 // Telegram linked in two taps' worth of steps: make a bot (BotFather opens with
 // /newbot typed) and paste its reply, then open the bot and tap Start. Adding a
 // chat later is Telegram's own "add to group / channel" picker.
-export function TelegramConnectSteps({ intent, onAdded }: ConnectorProps) {
+export function TelegramConnectSteps({ intent, host, onAdded }: ConnectorProps) {
   const [fresh, setFresh] = useState<string[]>([]);
   const link = useTelegramLink({
+    host,
     watch: intent === "add",
     onAdded: (ids) => {
       setFresh((prev) => [...prev, ...ids.map((id) => splitSendTo(id).key ?? id)]);

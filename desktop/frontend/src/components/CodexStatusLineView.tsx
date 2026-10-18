@@ -1,10 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import {
-  ApplyCodexStatusline,
-  GetCodexStatuslineState,
-  ResetCodexStatusline,
-} from "../../bridge/commands";
+import type { MachineScope } from "./settings/machineCommands";
 import { getSettings, saveSettings } from "../store/settings";
 import { notifyStatusLineChanged } from "./statusLineChanges";
 import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
@@ -59,7 +55,8 @@ export function codexStatuslineSelectionLabel(
   );
 }
 
-export function CodexStatusLineView({ onBack }: { onBack: () => void }) {
+export function CodexStatusLineView({ machine, onBack }: { machine: MachineScope; onBack: () => void }) {
+  const { statusLine } = machine.commands;
   const [items, setItems] = useState<string[]>([
     ...CODEX_DEFAULT_STATUS_LINE,
   ]);
@@ -110,7 +107,7 @@ export function CodexStatusLineView({ onBack }: { onBack: () => void }) {
   const refresh = async () => {
     const token = ++stateTokenRef.current;
     try {
-      const state = await GetCodexStatuslineState();
+      const state = await statusLine.codexState();
       if (!mountedRef.current || token !== stateTokenRef.current) return;
       const loadedItems = Array.isArray(state?.items)
         ? state.items
@@ -158,8 +155,8 @@ export function CodexStatusLineView({ onBack }: { onBack: () => void }) {
       queueRef.current = null;
       if (job.revision !== revisionRef.current) continue;
       try {
-        if (job.kind === "reset") await ResetCodexStatusline();
-        else await ApplyCodexStatusline(job.items, job.useColors);
+        if (job.kind === "reset") await statusLine.resetCodex();
+        else await statusLine.applyCodex(job.items, job.useColors);
         notifyStatusLineChanged("codex");
         if (!mountedRef.current || job.revision !== revisionRef.current) {
           continue;
@@ -286,8 +283,8 @@ export function CodexStatusLineView({ onBack }: { onBack: () => void }) {
             Codex CLI status line
           </h1>
           <p className="mt-1 text-[12px] text-[var(--text-muted)]">
-            Shows under the prompt box in Codex. New Codex sessions use your
-            changes.
+            Shows under the prompt box in Codex{machine.name ? ` on ${machine.name}` : ""}.
+            New Codex sessions use your changes.
           </p>
         </div>
       </div>

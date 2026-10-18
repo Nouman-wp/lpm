@@ -9,16 +9,19 @@ import { useSendToLinks } from "../../../hooks/useSendToLinks";
 // backdrop while this is up.
 export function SendToConnectModal({
   destination,
+  host,
   intent = "connect",
   onClose,
   onAdded = () => {},
 }: {
   destination: string | null;
+  // The machine the destination is linked on: a connected one's slug, or null.
+  host: string | null;
   intent?: ConnectIntent;
   onClose: () => void;
   onAdded?: (ids: string[]) => void;
 }) {
-  const links = useSendToLinks();
+  const links = useSendToLinks(host);
   const service = destination ? splitSendTo(destination).service : "";
   const connector = SEND_TO_CONNECTORS[service];
   const label = serviceLabel(service);
@@ -55,7 +58,7 @@ export function SendToConnectModal({
           </button>
         </header>
         <div className="px-6">
-          {connector && <connector.Steps intent={intent} onAdded={onAdded} />}
+          {connector && <connector.Steps intent={intent} host={host} onAdded={onAdded} />}
         </div>
         <footer className="flex justify-end gap-2 px-6 pb-5 pt-6">
           <button

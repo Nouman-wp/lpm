@@ -2,9 +2,9 @@
 //
 // A job in one project lives in that project's config, which a Mac already
 // edits through the project. A job across several projects, every project or
-// none lives in the global config, and that file is on the invoke denylist as a
-// whole: it holds far more than jobs. So a Mac reaches only its `jobs:` here,
-// one job at a time.
+// none lives in the global config, which holds far more than jobs. So the job
+// editor writes only its `jobs:` here, one job at a time, answered in Rust so a
+// host whose page is busy or down still takes it.
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 

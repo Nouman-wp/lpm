@@ -62,6 +62,9 @@ fn answer_soon(within: Duration) {
 const AUTH_TIMEOUT: Duration = Duration::from_secs(20);
 const OUT_QUEUE: usize = 1024; // per-client outbound depth; overflow drops (client re-seeds)
 const DISPATCH_TIMEOUT: Duration = Duration::from_secs(30); // webview-dispatch reply deadline
+const AGENT_DISPATCH_TIMEOUT: Duration = Duration::from_secs(15 * 60); // ...for one running a coding agent
+const TAILNET_DISPATCH_TIMEOUT: Duration = Duration::from_secs(90); // ...for a Tailscale sign-in
+const INSTALL_DISPATCH_TIMEOUT: Duration = Duration::from_secs(20 * 60); // ...for installing the voice engine
 const REPAINT_NUDGE: Duration = Duration::from_millis(80); // grace for a TUI to act on the nudge
 
 /// Advertised in `ready`: this host answers `remotePair` with its own phone
@@ -78,6 +81,8 @@ const HOST_FEATURES: &[&str] = &[
     crate::gitbringhost::GIT_BRING_FEATURE,
     crate::gitbringhost::GIT_FOLLOW_FEATURE,
     crate::gitwatchhost::GIT_WATCH_FEATURE,
+    crate::porttunnel::PORT_TUNNEL_FEATURE,
+    crate::hostclaude::HOST_CLAUDE_FEATURE,
     crate::peeruploadhost::FILE_UPLOAD_FEATURE,
     crate::mediapeer::MEDIA_RANGE_FEATURE,
     crate::peerread::FILE_RANGE_FEATURE,
@@ -128,6 +133,18 @@ const FORWARDED_EVENTS: &[&str] = &[
     // ...and that it was quit, so that tab stops resuming it.
     crate::agentexit::ENDED_EVENT,
     crate::remote::TERMINALS_CHANGED_EVENT,
+    // What a coding agent prints while it generates something a paired Mac asked
+    // for (aigen.rs), shown under the control that started it.
+    "commit-msg-progress",
+    "pr-title-progress",
+    "pr-description-progress",
+    "branch-name-progress",
+    "merge-conflict-progress",
+    "action-yaml-progress",
+    "composer-transform-progress",
+    "statusline-gen-progress",
+    "ai-generate-output",
+    crate::agent_caps::generate::PROGRESS_EVENT,
 ];
 
 // --- persisted config (~/.lpm/peer.json, shared with peerclient.rs) -----------
@@ -1007,6 +1024,7 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
     hub.inner.clients.lock().unwrap().remove(&conn_id);
     crate::agent_limits_share::drop_conn(conn_id); // stop sending it usage limits
     crate::gitwatchhost::drop_conn(conn_id); // stop watching folders for a gone follower
+    crate::porttunnel::drop_host_conn(conn_id); // close the streams it had open here
     crate::remote::relayed::drop_conn(conn_id); // end the phones it was carrying here
                                              // Release any terminal control this peer held so ownership transfers back to a
                                              // host window (or another presenter) instead of stranding on a gone client.
@@ -1470,6 +1488,9 @@ fn handle_msg(
         // size is bounded by this Mac's disk rather than by one frame. Same shape
         // again: gated on the fileUpload feature, so a client that hasn't seen it
         // sends the one-frame upload command instead.
+        // A web server here opened from the client's own localhost (porttunnel.rs).
+        // Dedicated frames, gated on the portTunnel feature like the others.
+        "tcpOpen" | "tcpData" | "tcpClose" => crate::porttunnel::handle_host(conn_id, out, t, &v),
         "uploadBegin" | "uploadChunk" | "uploadDone" | "uploadAbort" => {
             answer_soon(QUICK_FOR);
             crate::peeruploadhost::handle(app, out, t, &v)
@@ -1756,7 +1777,7 @@ fn dispatch_invoke(
         PendingDispatch {
             out: out.clone(),
             client_req: req_id.clone(),
-            deadline: Instant::now() + DISPATCH_TIMEOUT,
+            deadline: Instant::now() + dispatch_timeout(cmd),
         },
     );
     let _ = app.emit(
@@ -1764,6 +1785,49 @@ fn dispatch_invoke(
         json!({ "reqId": did, "cmd": cmd, "args": args }),
     );
 }
+
+/// Commands that run a coding agent (aigen.rs), which takes minutes, not seconds.
+const AGENT_COMMANDS: &[&str] = &[
+    "generate_action_yaml",
+    "generate_agent_skill",
+    "generate_branch_name",
+    "generate_claude_statusline",
+    "generate_commit_message",
+    "generate_pr_description",
+    "generate_pr_title",
+    "generate_project_config",
+    "resolve_merge_conflicts_with_ai",
+    "transform_text",
+];
+
+/// How long this host's page may take to answer `cmd` for a client: most answer
+/// at once; a coding agent, an install or a Tailscale sign-in take longer.
+pub(crate) fn dispatch_timeout(cmd: &str) -> Duration {
+    if AGENT_COMMANDS.contains(&cmd) {
+        AGENT_DISPATCH_TIMEOUT
+    } else if matches!(cmd, "install_kokoro" | "uninstall_kokoro") {
+        INSTALL_DISPATCH_TIMEOUT
+    } else if cmd == "tailnet_sign_in" {
+        TAILNET_DISPATCH_TIMEOUT
+    } else {
+        DISPATCH_TIMEOUT
+    }
+}
+
+/// This host's own phone and Tailscale settings, which a paired Mac changes from
+/// its Settings for this machine, as this machine's Settings would. Pairing a
+/// phone has its own frame (`remotePair`). Switching the tailnet off or signing
+/// out stays this machine's alone: a host reached only over it would be cut off
+/// for good.
+const HOST_MOBILE_COMMANDS: &[&str] = &[
+    "remote_state",
+    "remote_set_config",
+    "remote_set_keep_awake",
+    "remote_rename_device",
+    "remote_revoke_device",
+    "tailnet_state",
+    "tailnet_sign_in",
+];
 
 /// One long-lived thread that fails any webview dispatch whose reply never came
 /// within DISPATCH_TIMEOUT. Runs for the process lifetime (started once from
@@ -1846,6 +1910,8 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
         crate::hostfolders::EDIT_CMD => Some(crate::hostfolders::edit(app, args)),
         // The global config is denied as a whole; these reach only its jobs.
         crate::hostjobs::SAVE_CMD => Some(crate::hostjobs::save(app, args)),
+        // This machine's Claude accounts in one answer (hostclaude.rs).
+        crate::hostclaude::READ_CMD => Some(Ok(crate::hostclaude::read())),
         crate::hostjobs::DELETE_CMD => Some(crate::hostjobs::delete(app, args)),
         "stop_terminal" => {
             let id = s("id");
@@ -1877,6 +1943,9 @@ fn names_a_paired_machine(args: &Value) -> bool {
 /// router carries the same guard, so this is defense in depth — when in doubt
 /// project-scoped ops are allowed and app-meta ops are denied.
 fn is_denied(cmd: &str) -> bool {
+    if HOST_MOBILE_COMMANDS.contains(&cmd) {
+        return false;
+    }
     if cmd.starts_with("peer_") || cmd.starts_with("remote_") || cmd.starts_with("tailnet_") {
         return true;
     }
@@ -1907,21 +1976,22 @@ fn is_denied(cmd: &str) -> bool {
             | "detach_project"
             | "attach_project"
             | "save_window_size"
-            // app settings, the global config, config import/export. A project's
-            // repo config (`<root>/.lpm.yml`) is project-scoped and allowed.
+            // app settings and config import/export. The global and repo configs
+            // are a paired Mac's to edit, as they are this one's.
             | "save_settings"
-            | "save_global_config"
             | "import_config"
             | "export_config"
             // updater / installers
             | "check_for_update"
             | "install_update"
             | "cancel_update"
-            | "install_kokoro"
-            | "uninstall_kokoro"
+            // The CLI asks for an administrator's password on this machine's
+            // screen, which nobody at the asking Mac can answer.
             | "install_cli"
-            // install_agent_skill is deliberately NOT here, alone among the
-            // installers. It writes the host's OWN embedded copies, so it can't
+            // The voice engine's install is not here: a paired Mac's Settings
+            // installs it for this machine as its own Settings would.
+            // install_agent_skill is deliberately NOT here either. It writes the
+            // host's OWN embedded copies, so it can't
             // skew them against the binary that is running; it restarts nothing,
             // so it costs none of the agents a reinstall would; and a headless
             // host's skills are precisely the thing its Mac has no other way to
@@ -1929,17 +1999,9 @@ fn is_denied(cmd: &str) -> bool {
             // accident either — it carries no arguments, so nothing marks it for
             // a host and it stays local (see router.ts).
             | "uninstall_app"
-            // accounts / login
-            | "load_claude_accounts"
-            | "save_claude_accounts"
-            | "remove_claude_account"
-            | "claude_accounts_status"
-            | "claude_account_usage"
-            | "start_claude_login"
-            | "claude_pool_state"
-            | "set_claude_pool"
-            | "accept_claude_pool_pick"
-            | "resume_claude_pool"
+            // Claude accounts are not here: a paired Mac manages this machine's
+            // as its own Settings would. They hold labels, not credentials, and a
+            // sign-in runs in a terminal here the Mac attaches to.
             // host-local audio / voice
             | "start_tts"
             | "stop_tts"
@@ -2528,13 +2590,10 @@ mod tests {
     #[test]
     fn denylist_blocks_meta_and_role_commands_allows_project_ops() {
         assert!(is_denied("peer_add"));
-        assert!(is_denied("remote_state"));
         // The `remotePair` frame exists precisely so this stays shut: a peer gets
         // the one pairing call it needs through a dedicated, Rust-side path, and
         // never a way to drive the rest of the mobile server.
         assert!(is_denied("remote_start_pairing"));
-        assert!(is_denied("remote_revoke_device"));
-        assert!(is_denied("remote_set_config"));
         // A paired machine must never switch this one's tailnet off or sign it out.
         assert!(is_denied("tailnet_set_enabled"));
         assert!(is_denied("tailnet_sign_out"));
@@ -2548,7 +2607,8 @@ mod tests {
         assert!(is_denied("reveal_in_finder"));
         assert!(is_denied("notes_save_attachment"));
         assert!(is_denied("notes_save_attachment_data"));
-        assert!(is_denied("start_claude_login"));
+        assert!(!is_denied("start_claude_login"));
+        assert!(!is_denied("set_claude_pool"));
         // Control-ownership forgery and global host mutators must be blocked.
         assert!(is_denied("terminal_claim_control"));
         assert!(is_denied("terminal_present_control"));
@@ -2574,6 +2634,13 @@ mod tests {
         assert!(!is_denied("run_action"));
         assert!(!is_denied("start_terminal"));
         assert!(!is_denied("save_repo_config"));
+        assert!(!is_denied("save_global_config"));
+        // ...and so are its own phone and Tailscale settings, but not pairing.
+        assert!(!is_denied("remote_state"));
+        assert!(!is_denied("remote_revoke_device"));
+        assert!(!is_denied("tailnet_sign_in"));
+        assert!(is_denied("remote_start_pairing"));
+        assert!(is_denied("tailnet_debug"));
     }
 
     #[test]

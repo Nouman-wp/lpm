@@ -26,7 +26,6 @@ const LOCAL_ONLY_EXACT = new Set<string>([
   "remove_claude_account",
   "claude_accounts_status",
   "claude_account_usage",
-  "start_claude_login",
   "claude_pool_state",
   "set_claude_pool",
   "accept_claude_pool_pick",
@@ -87,6 +86,7 @@ export const START_TERMINAL_CMDS = new Set<string>([
   "start_terminal_with_cwd_env",
   "start_terminal_for_restore",
   "start_terminal_for_config",
+  "start_claude_login",
 ]);
 
 // Global events forwarded from a host and re-emitted locally. Their payloads
@@ -107,6 +107,17 @@ export const GLOBAL_PEER_EVENTS = new Set<string>([
   "job-status",
   "job-seen",
   "memory-changed",
+  // A coding agent's progress on a generation run on the host.
+  "commit-msg-progress",
+  "pr-title-progress",
+  "pr-description-progress",
+  "branch-name-progress",
+  "merge-conflict-progress",
+  "action-yaml-progress",
+  "composer-transform-progress",
+  "statusline-gen-progress",
+  "ai-generate-output",
+  "skill-gen-progress",
 ]);
 
 // Scan a command's arguments (top level + one array level deep) for peer

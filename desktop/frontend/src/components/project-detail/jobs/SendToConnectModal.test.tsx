@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SendToConnectModal } from "./SendToConnectModal";
-import { useSendToStatus } from "../../../store/sendToStatus";
+import { telegramLinkOf, useSendToStatus } from "../../../store/sendToStatus";
 
 type Chat = { key: string; name: string; kind: string };
 const link = { hasToken: false, chats: [] as Chat[], incoming: [] as Chat[] };
@@ -53,7 +53,7 @@ beforeEach(() => {
   link.hasToken = false;
   link.chats = [];
   link.incoming = [];
-  useSendToStatus.setState({ telegram: undefined });
+  useSendToStatus.setState({ telegram: {} });
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -67,7 +67,7 @@ afterEach(() => {
 
 describe("SendToConnectModal", () => {
   it("connects Telegram in two steps without leaving the job", async () => {
-    await act(async () => root.render(<SendToConnectModal destination="telegram" onClose={onClose} />));
+    await act(async () => root.render(<SendToConnectModal host={null} destination="telegram" onClose={onClose} />));
     await settle();
     expect(document.body.textContent).toContain("Connect Telegram");
     act(() => button("Create a bot in Telegram")!.click());
@@ -92,7 +92,7 @@ describe("SendToConnectModal", () => {
     await settle();
     expect(document.body.textContent).toContain("Connected to Ada.");
     // The job editor's pill reads the same status, so it turns ready too.
-    expect(useSendToStatus.getState().telegram?.connected).toBe(true);
+    expect(telegramLinkOf(useSendToStatus.getState(), null)?.connected).toBe(true);
     act(() => button("Done")!.click());
     expect(onClose).toHaveBeenCalled();
   });
@@ -102,7 +102,7 @@ describe("SendToConnectModal", () => {
     link.chats = [{ key: "ada", name: "Ada", kind: "private" }];
     const onAdded = vi.fn();
     await act(async () =>
-      root.render(<SendToConnectModal destination="telegram" intent="add" onClose={onClose} onAdded={onAdded} />),
+      root.render(<SendToConnectModal host={null} destination="telegram" intent="add" onClose={onClose} onAdded={onAdded} />),
     );
     await settle();
     expect(document.body.textContent).toContain("Add a Telegram chat");
@@ -121,7 +121,7 @@ describe("SendToConnectModal", () => {
   });
 
   it("shows nothing for a destination it has no way to connect", () => {
-    act(() => root.render(<SendToConnectModal destination="lpm" onClose={onClose} />));
+    act(() => root.render(<SendToConnectModal host={null} destination="lpm" onClose={onClose} />));
     expect(document.body.textContent).not.toContain("Connect");
   });
 });

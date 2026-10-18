@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "./ui/Modal";
-import { CheckAICLIs } from "../../bridge/commands";
 import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
+import { checkAICLIs } from "../hooks/useAIPicker";
 import { EventsOn } from "../../bridge/runtime";
 import type { main } from "../../bridge/models";
 import { enterHint } from "../shortcutHints";
@@ -19,6 +19,8 @@ const PRESETS: { label: string; prompt: string }[] = [
 
 interface AIGenerateModalProps {
   open: boolean;
+  // The project the config is generated for, which may be a paired machine's.
+  scope: string;
   onCancel: () => void;
   onGenerate: (cli: AICLI, extraPrompt: string, genId: string) => Promise<void>;
 }
@@ -70,11 +72,11 @@ function CLIChip({
   );
 }
 
-export function AIGenerateModal({ open, onCancel, onGenerate }: AIGenerateModalProps) {
+export function AIGenerateModal({ open, scope, onCancel, onGenerate }: AIGenerateModalProps) {
   const [availability, setAvailability] = useState<main.AICLIAvailability | null>(null);
   const [cli, setCli] = useState<AICLI>("claude");
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
-  const gen = useAIGeneration();
+  const gen = useAIGeneration(scope);
   const running = gen.generating;
   const [stopHover, setStopHover] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,14 +102,14 @@ export function AIGenerateModal({ open, onCancel, onGenerate }: AIGenerateModalP
     if (!open) return;
     setError(null);
     setProgress([]);
-    CheckAICLIs()
+    checkAICLIs(scope)
       .then((a) => {
         setAvailability(a);
         const firstAvailable = AI_CLI_OPTIONS.find((o) => a[o.value]);
         if (firstAvailable) setCli(firstAvailable.value);
       })
       .catch((err) => setError(`Failed to check CLIs: ${err}`));
-  }, [open]);
+  }, [open, scope]);
 
   const selectedAvailable = availability?.[cli] ?? false;
   const noneAvailable =

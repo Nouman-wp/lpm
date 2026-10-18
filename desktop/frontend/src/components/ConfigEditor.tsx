@@ -3,12 +3,11 @@ import {
   ReadConfig,
   SaveConfig,
   ReadRepoConfig,
-  ReadGlobalConfig,
   GenerateProjectConfig,
 } from "../../bridge/commands";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { useYamlEditor } from "../hooks/useYamlEditor";
-import { globalLayer, projectLayer, queueWrite, repoLayer, saveLayer } from "../yamlQueue";
+import { projectGlobalLayer, projectLayer, queueWrite, repoLayer, saveLayer } from "../yamlQueue";
 import { VisualConfigEditor } from "./VisualConfigEditor";
 import { MonacoEditor } from "./MonacoEditor";
 import {
@@ -24,7 +23,6 @@ import { type AICLI } from "../types";
 import { getSettings, saveSettings } from "../store/settings";
 import { validateYaml } from "../yamlValidation";
 import { primaryHint } from "../shortcutHints";
-import { isPeerName } from "../peer/markers";
 
 type ConfigTarget = "user" | "repo" | "global";
 
@@ -62,15 +60,9 @@ export function ConfigEditor({
 }: ConfigEditorProps) {
   const onSavedRef = useRef(onSaved);
   onSavedRef.current = onSaved;
-  // A paired machine's project edits its own and its repo config there. The
-  // global layer read from here would be this Mac's, and generating one runs
-  // longer than a call to that machine may.
-  const onPeer = isPeerName(projectName);
-  const targets = onPeer
-    ? [USER_TARGET, REPO_TARGET]
-    : isRemote
-      ? [USER_TARGET, GLOBAL_TARGET]
-      : [USER_TARGET, REPO_TARGET, GLOBAL_TARGET];
+  // Each layer is the machine's the project is on, a paired one's too. An SSH
+  // project has no repo file here to edit.
+  const targets = isRemote ? [USER_TARGET, GLOBAL_TARGET] : [USER_TARGET, REPO_TARGET, GLOBAL_TARGET];
 
   const [target, setTarget] = useState<ConfigTarget>("user");
   const [mode, setMode] = useState<"form" | "yaml">(() => getSettings().configEditorMode ?? "form");
@@ -94,10 +86,10 @@ export function ConfigEditor({
     (content: string) => saveLayer(repoLayer(projectName), content),
     [projectName],
   );
-  const globalLoad = useCallback(() => ReadGlobalConfig(), []);
+  const globalLoad = useCallback(() => projectGlobalLayer(projectName).read(), [projectName]);
   const globalSave = useCallback(
-    (content: string) => saveLayer(globalLayer, content),
-    [],
+    (content: string) => saveLayer(projectGlobalLayer(projectName), content),
+    [projectName],
   );
 
   const userEditor = useYamlEditor(userLoad, userSave, validateYaml);
@@ -170,11 +162,9 @@ export function ConfigEditor({
               >
                 <CodeIcon />
               </button>
-              {!onPeer && (
-                <AIButton onClick={() => setAiOpen(true)} title="Generate config with AI">
-                  Generate with AI
-                </AIButton>
-              )}
+              <AIButton onClick={() => setAiOpen(true)} title="Generate config with AI">
+                Generate with AI
+              </AIButton>
             </div>
           </div>
         </div>
@@ -220,6 +210,7 @@ export function ConfigEditor({
 
       <AIGenerateModal
         open={aiOpen}
+        scope={projectName}
         onCancel={() => setAiOpen(false)}
         onGenerate={handleAIGenerate}
       />

@@ -71,9 +71,9 @@ export function CommitModal({
     name: string;
     paths: string[];
   } | null>(null);
-  const gen = useAIGeneration();
+  const gen = useAIGeneration(projectName);
   const generating = gen.generating;
-  const ai = useAIPicker(open);
+  const ai = useAIPicker(open, projectName);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
   const [showContext, setShowContext] = useState(false);
   const [taskDescription, setTaskDescription] = useState("");

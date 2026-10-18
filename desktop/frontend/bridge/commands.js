@@ -1129,6 +1129,9 @@ export function PeerSettingsGet(slug) {
 export function PeerSettingsSet(slug, patch) {
   return invoke("peer_settings_set", { slug, patch });
 }
+export function PeerPortForward(slug, port) {
+  return invoke("peer_port_forward", { slug, port });
+}
 export function PeerUninstallHost(slug, purgeData) {
   return invoke("peer_uninstall_host", { slug, purgeData });
 }

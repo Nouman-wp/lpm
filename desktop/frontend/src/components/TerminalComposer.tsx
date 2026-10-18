@@ -282,7 +282,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const [lightboxPath, setLightboxPath] = useState<string | null>(null);
   // The composer action currently being applied (drives the busy UI), or null.
   const [transformingId, setTransformingId] = useState<string | null>(null);
-  const gen = useAIGeneration();
+  const gen = useAIGeneration(projectName);
   const [actionsModalOpen, setActionsModalOpen] = useState(false);
   // The target picker for "Send to another tab". Null while closed; open it with
   // the prompt's image count, which decides whether a tab on another Mac can take
@@ -321,7 +321,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // Guards runAction/send against re-entry across the AI await without waiting
   // for the transformingId state to settle.
   const transforming = useRef(false);
-  const ai = useAIPicker(shown);
+  const ai = useAIPicker(shown, projectName);
   const enabledActions = useEnabledComposerActions();
   // The CLI running in the target terminal, derived from its launch command. The
   // slash menu only appears when this resolves (a terminal actually running an

@@ -66,6 +66,8 @@ export interface PeerClient {
   supportsHostFolderFolds?: boolean;
   // ...and takes its shared automations (several projects, all, or none) from here.
   supportsHostJobs?: boolean;
+  // ...and opens its web servers on this Mac's localhost (porttunnel.rs).
+  supportsPortTunnel?: boolean;
   pinned?: boolean;
   lastSyncAt?: number;
   lastError?: string;

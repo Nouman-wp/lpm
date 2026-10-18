@@ -29,8 +29,8 @@ export function CronDescribeBox({
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const [done, setDone] = useState<{ cron: string; prev: string } | null>(null);
-  const gen = useAIGeneration();
-  const picker = useAIPicker(true);
+  const gen = useAIGeneration(ai.project ?? ai.cwd);
+  const picker = useAIPicker(true, ai.project ?? ai.cwd);
   const checked = Object.keys(picker.aiCLIs).length > 0;
   const { cancel } = gen;
 

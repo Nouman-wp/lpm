@@ -29,7 +29,9 @@ export function peerMachine(peer: PeerClient): PeerMachine {
     kind: "peer",
     slug: peer.slug,
     name: peer.alias || peer.host,
-    attended: !isLinuxHost(peer),
+    // A machine says whether it runs headless; one too old to say is judged by
+    // its platform (see peer/platform.ts).
+    attended: !(peer.headless ?? isLinuxHost(peer)),
     // An entry too old to report its platform is a Mac (see peer/platform.ts).
     mac: !peer.platform || peer.platform === "macos",
     version: peer.version ?? "",

@@ -11,11 +11,11 @@ import { ZonePopup } from "./ZonePopup";
 const EXPAND_PAD: Record<ZoneDisplay, string> = { header: "px-2", footer: "px-1.5" };
 
 // Shared with the drag preview, so a folded zone looks the same in flight.
-export function collapsedZoneClasses(display: ZoneDisplay, editable: boolean) {
+export function collapsedZoneClasses(display: ZoneDisplay) {
   const bar = rowButtonClasses(display);
   return {
     root: `inline-flex shrink-0 items-stretch select-none ${bar.height} ${bar.rounded} ${bar.border}`,
-    label: `flex items-center gap-1 whitespace-nowrap font-medium ${editable ? bar.roundedL : bar.rounded} ${bar.padding}`,
+    label: `flex items-center gap-1 whitespace-nowrap font-medium ${bar.roundedL} ${bar.padding}`,
     expand: `flex items-center ${bar.roundedR} ${bar.dividerBorder} ${EXPAND_PAD[display]}`,
     text: bar.text,
     hover: bar.hover,
@@ -26,7 +26,6 @@ export function collapsedZoneClasses(display: ZoneDisplay, editable: boolean) {
 interface CollapsedZoneProps {
   zone: ZoneInfo;
   display: ZoneDisplay;
-  editable: boolean;
   dragging: boolean;
   buttonDrag: boolean;
   // The drag started in this zone, so its popup holds the lifted button.
@@ -37,7 +36,7 @@ interface CollapsedZoneProps {
   children: ReactNode;
 }
 
-export function CollapsedZone({ zone, display, editable, dragging, buttonDrag, ownsDrag, onExpand, onContextMenu, children }: CollapsedZoneProps) {
+export function CollapsedZone({ zone, display, dragging, buttonDrag, ownsDrag, onExpand, onContextMenu, children }: CollapsedZoneProps) {
   const anchorRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLButtonElement>(null);
   // Mounted by a fold, often under the pointer that folded it.
@@ -51,7 +50,7 @@ export function CollapsedZone({ zone, display, editable, dragging, buttonDrag, o
     },
     [setNodeRef],
   );
-  const classes = collapsedZoneClasses(display, editable);
+  const classes = collapsedZoneClasses(display);
   const springOpened = useRef(false);
   const springTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clearSpring = useCallback(() => {
@@ -122,18 +121,16 @@ export function CollapsedZone({ zone, display, editable, dragging, buttonDrag, o
         {zone.label}
         <ChevronDownIcon />
       </button>
-      {editable && (
-        <button
-          type="button"
-          aria-label="Expand zone"
-          title="Expand zone"
-          onClick={onExpand}
-          onPointerDown={(e) => e.stopPropagation()}
-          className={`${classes.expand} transition-colors duration-100 ${classes.text} ${classes.hover}`}
-        >
-          <ExpandIcon />
-        </button>
-      )}
+      <button
+        type="button"
+        aria-label="Expand zone"
+        title="Expand zone"
+        onClick={onExpand}
+        onPointerDown={(e) => e.stopPropagation()}
+        className={`${classes.expand} transition-colors duration-100 ${classes.text} ${classes.hover}`}
+      >
+        <ExpandIcon />
+      </button>
       {popup.open && (!dragging || keep) && (
         <ZonePopup
           anchorRef={anchorRef}

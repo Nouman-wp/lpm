@@ -46,6 +46,7 @@ function open(props: Partial<Parameters<typeof ClaudeAccountSubmenu>[0]> = {}) {
   act(() =>
     root.render(
       <ClaudeAccountSubmenu
+        projectName="web"
         isCopy={false}
         onPick={onPick}
         onChooseList={onChooseList}
@@ -80,6 +81,7 @@ describe("ClaudeAccountSubmenu", () => {
     act(() =>
       root.render(
         <ClaudeAccountSubmenu
+          projectName="web"
           isCopy={false}
           onPick={() => {}}
           onChooseList={() => {}}

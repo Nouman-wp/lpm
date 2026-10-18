@@ -2,12 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
 import { InteractivePane } from "./InteractivePane";
-import { StartClaudeLogin, StopTerminal } from "../../bridge/commands";
-import { useAccountsStore } from "../store/accounts";
+import { StopTerminal } from "../../bridge/commands";
 import type { ClaudeAccount } from "../types";
 
 interface ClaudeLoginModalProps {
   account: ClaudeAccount;
+  // Starts the login terminal on the account's machine; a paired machine's is
+  // attached here.
+  startLogin: (id: string) => Promise<string>;
+  // Runs once the terminal is gone, so a completed login shows.
+  onSignedIn: () => void;
   onClose: () => void;
 }
 
@@ -15,14 +19,13 @@ interface ClaudeLoginModalProps {
 // isolated config dir. Mounted only while signing in (parent renders it
 // conditionally), so the PTY's lifetime is the mount's: started on mount, killed
 // on unmount, with statuses refreshed afterwards to reflect a completed login.
-export function ClaudeLoginModal({ account, onClose }: ClaudeLoginModalProps) {
+export function ClaudeLoginModal({ account, startLogin, onSignedIn, onClose }: ClaudeLoginModalProps) {
   const [terminalId, setTerminalId] = useState<string | null>(null);
   const idRef = useRef<string | null>(null);
-  const refreshStatuses = useAccountsStore((s) => s.refreshStatuses);
 
   useEffect(() => {
     let cancelled = false;
-    StartClaudeLogin(account.id)
+    startLogin(account.id)
       .then((id) => {
         if (cancelled) {
           void StopTerminal(id);
@@ -43,9 +46,9 @@ export function ClaudeLoginModal({ account, onClose }: ClaudeLoginModalProps) {
         void StopTerminal(idRef.current);
         idRef.current = null;
       }
-      void refreshStatuses();
+      onSignedIn();
     };
-    // account.id is stable for the mount; onClose/refreshStatuses are stable refs.
+    // account.id is stable for the mount; the callbacks are read once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account.id]);
 

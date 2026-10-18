@@ -38,8 +38,8 @@ export function CheckAIModal({
 }) {
   const [want, setWant] = useState("");
   const [command, setCommand] = useState<string | null>(null);
-  const gen = useAIGeneration();
-  const ai = useAIPicker(open);
+  const gen = useAIGeneration(aiProject ?? aiCwd);
+  const ai = useAIPicker(open, aiProject ?? aiCwd);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {

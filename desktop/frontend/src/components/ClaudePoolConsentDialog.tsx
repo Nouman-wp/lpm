@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { accountLabel } from "../claudePoolText";
+import { updateHostPool } from "../peer/hostClaude";
 import { isPeerName } from "../peer/markers";
 import { useAppStore } from "../store/app";
 import { useClaudePoolStore } from "../store/claudePool";
@@ -21,7 +23,8 @@ function followsMainAccounts(p: ProjectInfo, projects: ProjectInfo[]): boolean {
  *  list: every account must be the user's own. */
 export function ClaudePoolConsentDialog() {
   const request = useClaudePoolStore((s) => s.consentFor);
-  const pool = useClaudePoolStore((s) => s.pool);
+  const localPool = useClaudePoolStore((s) => s.pool);
+  const pool = request?.host?.pool ?? localPool;
   const close = useClaudePoolStore((s) => s.closeConsent);
   const update = useClaudePoolStore((s) => s.update);
   const projects = useAppStore((s) => s.projects);
@@ -47,11 +50,14 @@ export function ClaudePoolConsentDialog() {
   const confirm = async () => {
     setBusy(true);
     try {
-      await update({ ...patch, consent: true, confirm: members });
+      const change = { ...patch, consent: true, confirm: members };
+      if (request.host) await updateHostPool(request.host.slug, change);
+      else await update(change);
       close();
       await request.onDone?.();
-    } catch {
-      // The store already reported it.
+    } catch (err) {
+      // The store reports a change here; one on a paired machine is reported now.
+      if (request.host) toast.error(`Couldn't confirm the accounts: ${err}`);
     } finally {
       setBusy(false);
     }
@@ -84,7 +90,7 @@ export function ClaudePoolConsentDialog() {
             <label key={id} className="flex cursor-pointer items-center gap-3 px-3 py-2 text-[12.5px]">
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[var(--text-primary)]">
-                  {accountLabel(id, pool)}
+                  {accountLabel(id, pool, request.host?.accounts)}
                   {account?.planLabel && (
                     <span className="ml-1.5 rounded border border-[var(--border)] px-1 text-[9px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                       {account.planLabel}

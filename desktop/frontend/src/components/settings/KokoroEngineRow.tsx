@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckKokoroInstalled, InstallKokoro, UninstallKokoro } from "../../../bridge/commands";
 import { SettingsRow } from "../SettingsRow";
 import { BTN_SECONDARY } from "../ui/buttons";
+import { useSettingsTarget } from "./settingsTarget";
 import { Spinner } from "./Spinner";
 
 type KokoroStatus = "checking" | "installed" | "not-installed" | "installing" | "uninstalling";
@@ -16,18 +16,20 @@ const KOKORO_DESCRIPTION: Record<KokoroStatus, string> = {
 };
 
 export function KokoroEngineRow() {
+  const { commands } = useSettingsTarget();
   const [status, setStatus] = useState<KokoroStatus>("checking");
 
   useEffect(() => {
-    CheckKokoroInstalled()
+    commands
+      .kokoroInstalled()
       .then((ok) => setStatus(ok ? "installed" : "not-installed"))
       .catch(() => setStatus("not-installed"));
-  }, []);
+  }, [commands]);
 
   const handleInstall = async () => {
     setStatus("installing");
     try {
-      await InstallKokoro();
+      await commands.installKokoro();
       setStatus("installed");
       toast.success("Kokoro installed");
     } catch (err) {
@@ -39,7 +41,7 @@ export function KokoroEngineRow() {
   const handleUninstall = async () => {
     setStatus("uninstalling");
     try {
-      await UninstallKokoro();
+      await commands.uninstallKokoro();
       setStatus("not-installed");
       toast.success("Kokoro uninstalled");
     } catch (err) {

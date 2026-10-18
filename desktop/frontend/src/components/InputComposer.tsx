@@ -162,7 +162,7 @@ export function InputComposer({
   const [dragOver, setDragOver] = useState(false);
   // AI-edit: the action transform in flight (locks the field), if any.
   const [transformingId, setTransformingId] = useState<string | null>(null);
-  const gen = useAIGeneration();
+  const gen = useAIGeneration(history?.projectName ?? aiCwd);
   const [actionsModalOpen, setActionsModalOpen] = useState(false);
   // Set while the multi-result variant picker is open; holds the rewrites plus
   // the image map to rehydrate whichever one the user commits.
@@ -173,7 +173,7 @@ export function InputComposer({
   } | null>(null);
   // Guards runAction against re-entry across the AI await.
   const transforming = useRef(false);
-  const ai = useAIPicker(!!aiCwd);
+  const ai = useAIPicker(!!aiCwd, history?.projectName ?? aiCwd);
   const enabledActions = useEnabledComposerActions();
   const busy = transformingId !== null;
   // A transform in flight and a host lock both freeze the field; only the

@@ -3,7 +3,8 @@ import { accountLabel } from "../claudePoolText";
 import { useAgentLimits } from "../hooks/useAgentLimits";
 import { useNow } from "../hooks/useNow";
 import { accountMeters } from "../sidebarUsage";
-import { useAccountsStore } from "../store/accounts";
+import { useClaudeAccountsOf } from "../hooks/useClaudeAccountsOf";
+import { peerSlugOf } from "../peer/markers";
 import { useAppStore } from "../store/app";
 import { openClaudeAccountSettings, setClaudeAccountChoice } from "../store/claudeAccountPin";
 import { poolForProject, unconfirmedAccounts, useClaudePoolStore } from "../store/claudePool";
@@ -24,8 +25,7 @@ export function ClaudeAccountPoolDialog() {
   const close = useClaudePoolStore((s) => s.closeListDialog);
   const askConsent = useClaudePoolStore((s) => s.askConsent);
   const consentOpen = useClaudePoolStore((s) => s.consentFor !== null);
-  const pool = useClaudePoolStore((s) => s.pool);
-  const accounts = useAccountsStore((s) => s.accounts);
+  const machine = useClaudeAccountsOf(project);
   const projects = useAppStore((s) => s.projects);
   const { limits } = useAgentLimits();
   const now = useNow(true, 60000);
@@ -38,7 +38,9 @@ export function ClaudeAccountPoolDialog() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project]);
 
-  if (!project || !pool) return null;
+  if (!project || !machine?.pool) return null;
+  const { pool, accounts } = machine;
+  const slug = peerSlugOf(project);
 
   const max = pool.maxMembers;
   const ids = [MAIN_LOGIN, ...accounts.map((a) => a.id)];
@@ -72,7 +74,12 @@ export function ClaudeAccountPoolDialog() {
     };
     const unconfirmed = unconfirmedAccounts(pool, ids);
     if (unconfirmed.length > 0) {
-      askConsent({ patch: {}, members: unconfirmed, onDone: write });
+      askConsent({
+        patch: {},
+        members: unconfirmed,
+        onDone: write,
+        host: slug ? { slug, pool, accounts } : undefined,
+      });
       return;
     }
     await write();
@@ -101,14 +108,14 @@ export function ClaudeAccountPoolDialog() {
             <div key={id} className="flex items-center gap-3 px-3 py-2 text-[12.5px]">
               <input
                 type="checkbox"
-                aria-label={`Use ${accountLabel(id, pool)}`}
+                aria-label={`Use ${accountLabel(id, pool, accounts)}`}
                 checked={on}
                 disabled={(!on && (!!blocked || ticked.length >= max))}
                 onChange={(e) => toggle(id, e.target.checked)}
               />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
-                  <span className="truncate text-[var(--text-primary)]">{accountLabel(id, pool)}</span>
+                  <span className="truncate text-[var(--text-primary)]">{accountLabel(id, pool, accounts)}</span>
                   {account?.planLabel && (
                     <span className="shrink-0 rounded border border-[var(--border)] px-1 text-[9px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                       {account.planLabel}

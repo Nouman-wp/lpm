@@ -10,11 +10,12 @@ import type { ConnectIntent } from "../sendToConnectors";
 const CHAT_BTN =
   "rounded-md px-2 py-1 text-[11.5px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40";
 
-// Telegram as a place automations send their results. Connecting happens in
-// the same dialog the job editor uses; once linked, the row lists the chats
-// jobs can pick from, with a test and a remove for each.
-export function TelegramRow() {
-  const link = useTelegramLink();
+// Telegram as a place automations on a machine (`host`, null for this one) send
+// their results. Connecting happens in the same dialog the job editor uses; once
+// linked, the row lists the chats jobs can pick from, with a test and a remove
+// for each.
+export function TelegramRow({ host }: { host: string | null }) {
+  const link = useTelegramLink({ host });
   const { status, waiting, busy, bot } = link;
   const [dialog, setDialog] = useState<ConnectIntent | null>(null);
 
@@ -68,6 +69,7 @@ export function TelegramRow() {
       </SettingsRow>
       <SendToConnectModal
         destination={dialog ? "telegram" : null}
+        host={host}
         intent={dialog ?? "connect"}
         onClose={() => setDialog(null)}
       />

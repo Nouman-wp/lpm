@@ -1,5 +1,6 @@
 import YAML from "yaml";
 import {
+  PeerInvoke,
   ReadConfig,
   ReadGlobalConfig,
   ReadRepoConfig,
@@ -7,6 +8,7 @@ import {
   SaveGlobalConfig,
   SaveRepoConfig,
 } from "../bridge/commands";
+import { peerSlugOf } from "./peer/markers";
 
 const queues = new Map<string, Promise<unknown>>();
 const GLOBAL_QUEUE_KEY = "__global__";
@@ -55,6 +57,36 @@ export const globalLayer: ConfigLayer = {
   queueKey: GLOBAL_QUEUE_KEY,
 };
 
+const peerGlobalLayers = new Map<string, ConfigLayer>();
+
+// An older host refuses its global config to a paired Mac; say what fixes it.
+function explainRefusal(err: unknown): never {
+  if (String(err).includes("not permitted")) {
+    throw new Error("Update lpm on that machine to change its global config from here");
+  }
+  throw err;
+}
+
+// A machine's global config: this Mac's (null), or a connected one's.
+export function globalLayerOf(slug: string | null): ConfigLayer {
+  if (!slug) return globalLayer;
+  let layer = peerGlobalLayers.get(slug);
+  if (!layer) {
+    layer = {
+      read: () => PeerInvoke(slug, "read_global_config", {}),
+      save: (content) => PeerInvoke(slug, "save_global_config", { content }).catch(explainRefusal),
+      queueKey: `${GLOBAL_QUEUE_KEY}:${slug}`,
+    };
+    peerGlobalLayers.set(slug, layer);
+  }
+  return layer;
+}
+
+// The global config a project's layers end in: that of the machine it is on.
+export function projectGlobalLayer(projectName: string): ConfigLayer {
+  return globalLayerOf(peerSlugOf(projectName));
+}
+
 // For editors that save a whole file, so their saves queue with the edits.
 export async function saveLayer(layer: ConfigLayer, content: string): Promise<void> {
   await queueWrite(layer.queueKey, () => layer.save(content));
@@ -81,6 +113,10 @@ export function editRepoDoc(projectName: string, mutate: (doc: Doc) => void) {
 
 export function editGlobalDoc(mutate: (doc: Doc) => void) {
   return editLayer(globalLayer, mutate);
+}
+
+export function editProjectGlobalDoc(projectName: string, mutate: (doc: Doc) => void) {
+  return editLayer(projectGlobalLayer(projectName), mutate);
 }
 
 async function walkLayers(

@@ -19,7 +19,6 @@ import { ServiceTabContextMenu } from "./terminal/ServiceTabContextMenu";
 import { ServiceExitBar } from "./terminal/ServiceExitBar";
 import { TerminalEndedBar } from "./terminal/TerminalEndedBar";
 import { useEndedTerminals } from "../store/endedTerminals";
-import { isPeerName } from "../peer/markers";
 import { serviceCrashed } from "../serviceExit";
 import { IconBtn } from "./terminal/IconBtn";
 import {
@@ -682,7 +681,7 @@ function PaneViewImpl(props: PaneViewProps) {
                 IS_MIRROR_WINDOW ? (
                   <BrowserMirrorPlaceholder />
                 ) : (
-                  <BrowserPane id={t.id} active={visible && isActive} />
+                  <BrowserPane id={t.id} projectName={projectName} active={visible && isActive} />
                 )
               ) : t.kind === "memory" ? (
                 <MemoryView
@@ -753,11 +752,7 @@ function PaneViewImpl(props: PaneViewProps) {
         <TerminalEndedBar
           targetLabel={terminalDisplayLabel(composerTab)}
           exitCode={composerEnded}
-          onRestart={
-            isPeerName(composerTab.id) || IS_MIRROR_WINDOW
-              ? undefined
-              : () => onRestartTerminal(composerTab.id)
-          }
+          onRestart={IS_MIRROR_WINDOW ? undefined : () => onRestartTerminal(composerTab.id)}
           onClose={() => {
             const idx = pane.tabs.findIndex((t) => t.id === composerTab.id);
             if (idx >= 0) onCloseTerminal(pane.id, idx);
@@ -850,7 +845,7 @@ function PaneViewImpl(props: PaneViewProps) {
             x={serviceMenu.x}
             y={serviceMenu.y}
             ports={svc.ports ?? []}
-            remote={projectPeer !== null}
+            projectName={projectName}
             onRestart={() => onRestartService(svc.name)}
             onStop={() => onStopService(svc.name)}
             onClose={() => setServiceMenu(null)}

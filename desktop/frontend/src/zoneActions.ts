@@ -4,10 +4,10 @@ import { useAppStore } from "./store/app";
 import {
   type ConfigLayer,
   editAllLayers,
-  editGlobalDoc,
   editProjectDoc,
+  editProjectGlobalDoc,
   editRepoDoc,
-  globalLayer,
+  projectGlobalLayer,
   projectLayer,
   repoLayer,
 } from "./yamlQueue";
@@ -21,14 +21,13 @@ import {
   setZoneDetailsInDoc,
 } from "./zoneConfig";
 import { removeZoneFromDoc } from "./zoneDoc";
-import { isZoneEditable } from "./zoneEditable";
 import { layoutWithoutZone } from "./components/actionsDndLayout";
 
 type Mutate = Parameters<typeof editProjectDoc>[1];
 
 export function editZoneSource(projectName: string, source: ZoneInfo["source"], mutate: Mutate) {
   if (source === "repo") return editRepoDoc(projectName, mutate);
-  if (source === "global") return editGlobalDoc(mutate);
+  if (source === "global") return editProjectGlobalDoc(projectName, mutate);
   return editProjectDoc(projectName, mutate);
 }
 
@@ -83,17 +82,17 @@ export function removeZone(projectName: string, zone: ZoneInfo, layout: ActionsL
 
 function zoneSourceLayer(projectName: string, source: ZoneInfo["source"]): ConfigLayer {
   if (source === "repo") return repoLayer(projectName);
-  if (source === "global") return globalLayer;
+  if (source === "global") return projectGlobalLayer(projectName);
   return projectLayer(projectName);
 }
 
 const ZONE_SOURCES: readonly ZoneInfo["source"][] = ["project", "repo", "global"];
 
 // Folding writes to the zone's own file. Unfolding clears a fold from every
-// file the user may edit, so a hand-written note in any of them can't keep the
-// zone shut. A file the fold doesn't change isn't rewritten.
+// file, so a hand-written note in any of them can't keep the zone shut. A file
+// the fold doesn't change isn't rewritten.
 export function setZoneCollapsed(projectName: string, zone: ZoneInfo, collapsed: boolean): Promise<void> {
-  const sources = collapsed ? [zone.source] : ZONE_SOURCES.filter((source) => isZoneEditable(projectName, { source }));
+  const sources = collapsed ? [zone.source] : ZONE_SOURCES;
   return runZoneEdit(
     () =>
       editAllLayers(

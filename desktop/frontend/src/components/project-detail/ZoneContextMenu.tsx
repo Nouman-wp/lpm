@@ -6,8 +6,6 @@ import { ContextMenuShell } from "../ui/ContextMenuShell";
 interface ZoneContextMenuProps {
   x: number;
   y: number;
-  // False when the zone's file is out of this Mac's reach.
-  editable: boolean;
   canRemoveLayer: boolean;
   collapsed: boolean;
   // The open layer's label, when it has one.
@@ -23,7 +21,6 @@ interface ZoneContextMenuProps {
 export function ZoneContextMenu({
   x,
   y,
-  editable,
   canRemoveLayer,
   collapsed,
   layerLabel,
@@ -40,12 +37,11 @@ export function ZoneContextMenu({
   };
   return (
     <ContextMenuShell x={x} y={y} onClose={onClose}>
-      <ContextMenuItem label="New layer" icon={<PlusIcon />} disabled={!editable} onClick={close(onNewLayer)} />
-      <ContextMenuItem label="Edit zone…" icon={<PencilIcon />} disabled={!editable} onClick={close(onEdit)} />
+      <ContextMenuItem label="New layer" icon={<PlusIcon />} onClick={close(onNewLayer)} />
+      <ContextMenuItem label="Edit zone…" icon={<PencilIcon />} onClick={close(onEdit)} />
       <ContextMenuItem
         label={collapsed ? "Expand zone" : "Collapse zone"}
         icon={collapsed ? <ExpandIcon /> : <CollapseIcon />}
-        disabled={!editable}
         onClick={close(onToggleCollapsed)}
       />
       <ContextMenuSeparator />
@@ -54,15 +50,13 @@ export function ZoneContextMenu({
           destructive
           label={layerLabel ? `Remove layer “${layerLabel}”` : "Remove layer"}
           icon={<TrashIcon />}
-          disabled={!editable}
-          onClick={close(onRemoveLayer)}
+            onClick={close(onRemoveLayer)}
         />
       )}
       <ContextMenuItem
         destructive
         label="Remove zone"
         icon={<TrashIcon />}
-        disabled={!editable}
         onClick={close(onRemove)}
       />
     </ContextMenuShell>

@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { PeerSettingsGet, PeerSettingsSet } from "../../../bridge/commands";
 import type { PeerMachine } from "../../settingsMachine";
 import { settingsFromFile, type Settings } from "../../store/settings";
-import { peerCommands } from "./machineCommands";
+import { machineCommands } from "./machineCommands";
 import type { SettingsTarget } from "./settingsTarget";
 
 // The fields a machine shares, as it stores them (peersettings.rs).
@@ -59,7 +59,7 @@ export function usePeerSettings(machine: PeerMachine, enabled: boolean): PeerSet
     [slug, name],
   );
 
-  const commands = useMemo(() => peerCommands(slug), [slug]);
+  const commands = machineCommands(slug);
   const target = useMemo<SettingsTarget | null>(
     () => shared && { machine, settings: settingsFromFile(shared), update, commands },
     [shared, machine, update, commands],

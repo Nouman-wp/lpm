@@ -4,14 +4,7 @@ import { MAIN_LOGIN, accountLabel, skipChip } from "../claudePoolText";
 import { useAgentLimits } from "../hooks/useAgentLimits";
 import { useNow } from "../hooks/useNow";
 import { accountMeters } from "../sidebarUsage";
-import { useAccountsStore } from "../store/accounts";
-import {
-  MAIN_POOL,
-  pendingSuggestion,
-  poolForProjectKey,
-  useClaudePoolStore,
-  type ClaudePool,
-} from "../store/claudePool";
+import { MAIN_POOL, pendingSuggestion, poolForProjectKey, type ClaudePool } from "../store/claudePool";
 import type { ClaudeAccount } from "../types";
 import { ClaudeAccountListRow, type AccountChip } from "./ClaudeAccountListRow";
 import { ClaudeAccountMenu } from "./ClaudeAccountMenu";
@@ -24,6 +17,7 @@ import { PlusIcon } from "./icons";
 import { SettingsSection } from "./SettingsSection";
 import { BTN_SECONDARY } from "./ui/buttons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import type { ClaudeAccountsSource } from "./settings/useClaudeAccountsSource";
 import { SortableList } from "./ui/SortableList";
 import { Toggle } from "./ui/Toggle";
 
@@ -45,21 +39,11 @@ function chipsFor(id: string, pool: ClaudePool, dismissed: Record<string, string
   return chips;
 }
 
-/** Settings → Claude accounts: every account lpm knows, which of them take
- *  turns for new sessions and in what order, and adding, renaming or removing
- *  them. */
-export function ClaudeAccountsSection() {
-  const accounts = useAccountsStore((s) => s.accounts);
-  const statuses = useAccountsStore((s) => s.statuses);
-  const usage = useAccountsStore((s) => s.usage);
-  const addAccount = useAccountsStore((s) => s.add);
-  const renameAccount = useAccountsStore((s) => s.rename);
-  const removeAccount = useAccountsStore((s) => s.remove);
-  const pool = useClaudePoolStore((s) => s.pool);
-  const dismissed = useClaudePoolStore((s) => s.dismissed);
-  const hydratePool = useClaudePoolStore((s) => s.hydrate);
-  const update = useClaudePoolStore((s) => s.update);
-  const askConsent = useClaudePoolStore((s) => s.askConsent);
+/** Settings → Claude accounts: every account lpm knows on the machine Settings
+ *  shows, which of them take turns for new sessions and in what order, and
+ *  adding, renaming or removing them. */
+export function ClaudeAccountsSection({ source }: { source: ClaudeAccountsSource }) {
+  const { accounts, statuses, usage, pool, dismissed, askConsent } = source;
   const { limits } = useAgentLimits();
   const now = useNow(true, 60000);
   const [busy, setBusy] = useState(false);
@@ -69,9 +53,10 @@ export function ClaudeAccountsSection() {
   const [confirmDelete, setConfirmDelete] = useState<ClaudeAccount | null>(null);
   const [loginAccount, setLoginAccount] = useState<ClaudeAccount | null>(null);
 
+  const { refresh } = source;
   useEffect(() => {
-    void hydratePool();
-  }, [hydratePool, accounts]);
+    void refresh();
+  }, [refresh, accounts]);
 
   const run = async (fn: () => Promise<void>) => {
     if (busy) return;
@@ -88,7 +73,7 @@ export function ClaudeAccountsSection() {
   // The list shows the new order right away instead of snapping back while it saves.
   const setMain = (next: string[]) => {
     setPendingMain(next);
-    void run(() => update({ main: next })).finally(() => setPendingMain(null));
+    void run(() => source.updatePool({ main: next })).finally(() => setPendingMain(null));
   };
 
   const switching = pool && (accounts.length > 0 || pool.enabled) ? pool : null;
@@ -133,7 +118,7 @@ export function ClaudeAccountsSection() {
     const extra = extraAccount(id);
     const signedIn = signedInOf(id);
     return {
-      label: accountLabel(id, pool),
+      label: accountLabel(id, pool, accounts),
       signedIn,
       planLabel: poolAccount(id)?.planLabel,
       detail: detailFor(id),
@@ -143,7 +128,7 @@ export function ClaudeAccountsSection() {
           ? {
               onCommit: (label: string) => {
                 setRenaming(null);
-                renameAccount(id, label).catch((err) => toast.error(`Failed to rename account: ${err}`));
+                source.rename(id, label).catch((err) => toast.error(`Failed to rename account: ${err}`));
               },
               onCancel: () => setRenaming(null),
             }
@@ -190,7 +175,7 @@ export function ClaudeAccountsSection() {
             enabled
             onChange={() => setMain(main.filter((m) => m !== id))}
             disabled={busy || last}
-            aria-label={`${accountLabel(id, p)} takes turns`}
+            aria-label={`${accountLabel(id, p, accounts)} takes turns`}
           />
         </span>
       </>
@@ -220,7 +205,7 @@ export function ClaudeAccountsSection() {
           enabled={false}
           onChange={() => askConsent({ patch: { main: [...p.main, id] }, members: [id] })}
           disabled={busy || full}
-          aria-label={`${accountLabel(id, p)} takes turns`}
+          aria-label={`${accountLabel(id, p, accounts)} takes turns`}
         />
       </span>
     );
@@ -242,7 +227,7 @@ export function ClaudeAccountsSection() {
         description="Sign in once for each account. A project can stay on one account, or new sessions can take turns across the accounts in rotation."
       >
         <ClaudeAccountsSetupGuide accounts={accounts} statuses={statuses} usage={usage} />
-        {switching && <ClaudeSwitchingControls pool={switching} busy={busy} run={run} />}
+        {switching && <ClaudeSwitchingControls pool={switching} source={source} busy={busy} run={run} />}
         {rotation && (
           <div>
             <div className={`${HEADING} flex items-baseline justify-between gap-4`}>
@@ -324,8 +309,9 @@ export function ClaudeAccountsSection() {
         onCancel={() => setConfirmDelete(null)}
         onConfirm={() => {
           if (confirmDelete) {
-            removeAccount(confirmDelete.id)
-              .then(() => hydratePool())
+            source
+              .remove(confirmDelete.id)
+              .then(refresh)
               .catch((err) => toast.error(`Failed to remove account: ${err}`));
           }
           setConfirmDelete(null);
@@ -338,7 +324,7 @@ export function ClaudeAccountsSection() {
           onClose={() => setAdding(false)}
           onAdd={async (label) => {
             try {
-              const account = await addAccount(label);
+              const account = await source.add(label);
               setAdding(false);
               setLoginAccount(account);
             } catch (err) {
@@ -351,10 +337,9 @@ export function ClaudeAccountsSection() {
       {loginAccount && (
         <ClaudeLoginModal
           account={loginAccount}
-          onClose={() => {
-            setLoginAccount(null);
-            void hydratePool();
-          }}
+          startLogin={source.startLogin}
+          onSignedIn={() => void refresh()}
+          onClose={() => setLoginAccount(null)}
         />
       )}
     </>

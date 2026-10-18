@@ -1,5 +1,5 @@
-import { BrowserOpenURL } from "../../bridge/runtime";
 import type { FleetChip, FleetServiceGroup } from "../fleetRows";
+import { openProjectPort } from "../peer/projectPorts";
 import { FleetTags } from "./FleetTags";
 import { PlayIcon, RefreshIcon, ServerIcon, StopIcon } from "./icons";
 
@@ -62,7 +62,7 @@ export function FleetServiceRow({
           <button
             key={link.service}
             type="button"
-            onClick={() => BrowserOpenURL(`http://localhost:${link.port}`)}
+            onClick={() => void openProjectPort(project.name, link.port)}
             aria-label={`Open ${link.service} at localhost:${link.port}`}
             title={`Open ${link.service} — http://localhost:${link.port}`}
             className="rounded-md px-1 py-0.5 font-mono text-[12px] tabular-nums text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-blue)] hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)]"

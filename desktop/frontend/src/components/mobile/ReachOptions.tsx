@@ -3,7 +3,7 @@ import { ChevronDown, Coffee, Hash, ShieldCheck } from "lucide-react";
 import { Toggle } from "../connections/Toggle";
 import { WayInRow } from "./WayInRow";
 import { keepAwakeText, type KeepAwakeStatus } from "../../mobile/reachStatus";
-import { MACHINE } from "../../machineWords";
+import { useMachineWords } from "../settings/useMachineWords";
 
 /** Settings people set once — the port and keeping this machine awake — and the
  *  security code lpm Link asks to compare, folded under one line so the card
@@ -23,6 +23,7 @@ export function ReachOptions({
   onKeepAwake: (on: boolean) => void;
   identityCode: string;
 }) {
+  const words = useMachineWords();
   const [draft, setDraft] = useState(String(port));
   useEffect(() => setDraft(String(port)), [port]);
   const supported = keepAwakeStatus !== "unsupported";
@@ -64,19 +65,19 @@ export function ReachOptions({
         </WayInRow>
         <WayInRow
           icon={<Coffee size={16} />}
-          title={`Keep ${MACHINE.thisMachine} awake`}
-          subtitle={keepAwakeText(keepAwakeStatus, MACHINE.thisMachine)}
+          title={`Keep ${words.thisMachine} awake`}
+          subtitle={keepAwakeText(keepAwakeStatus, words.thisMachine)}
           tone={awake ? "live" : keepAwakeStatus === "failed" ? "problem" : "idle"}
         >
           {supported && (
-            <Toggle enabled={keepAwake} onChange={onKeepAwake} ariaLabel={`Keep ${MACHINE.thisMachine} awake`} />
+            <Toggle enabled={keepAwake} onChange={onKeepAwake} ariaLabel={`Keep ${words.thisMachine} awake`} />
           )}
         </WayInRow>
         {identityCode && (
           <WayInRow
             icon={<ShieldCheck size={16} />}
             title="Security code"
-            subtitle={`lpm Link shows this code if ${MACHINE.thisMachine}'s identity changes. Compare them before trusting it.`}
+            subtitle={`lpm Link shows this code if ${words.thisMachine}'s identity changes. Compare them before trusting it.`}
           >
             <span className="font-mono text-xs font-semibold tracking-wide text-[var(--text-primary)]">
               {identityCode}

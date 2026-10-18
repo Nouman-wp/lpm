@@ -58,7 +58,7 @@ export function NotificationsPane() {
             />
           </SettingsRow>
         ))}
-      {shows("notifications.telegram") && <TelegramRow />}
+      {shows("notifications.telegram") && <TelegramRow host={machine.kind === "peer" ? machine.slug : null} />}
       {shows("notifications.sendToRequest") && (
         <SettingsRow {...rowProps("notifications.sendToRequest")}>
           <button onClick={() => BrowserOpenURL(sendToRequestUrl())} className={BTN_SECONDARY}>

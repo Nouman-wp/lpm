@@ -9,7 +9,7 @@ import { SECONDARY_BUTTON } from "./styles";
 import { REMOTE_TONE_STYLE } from "../../remoteStatus";
 import { reachHeadline, type KeepAwakeStatus } from "../../mobile/reachStatus";
 import type { Tailnet } from "../../hooks/useTailnetState";
-import { MACHINE } from "../../machineWords";
+import { useMachineWords } from "../settings/useMachineWords";
 
 export interface ReachState {
   enabled: boolean;
@@ -44,13 +44,14 @@ export function ReachCard({
   onPort: (port: number) => void;
   onKeepAwake: (on: boolean) => void;
 }) {
+  const words = useMachineWords();
   const headline = reachHeadline(
     {
       ...reach,
       builtInRunning: tailnet.state.enabled && tailnet.state.state === "running",
       deviceUsedTailscale,
     },
-    MACHINE.thisMachine,
+    words.thisMachine,
   );
   const tone = REMOTE_TONE_STYLE[headline.tone];
   const live = headline.tone === "live" || (reach.enabled && reach.running);
@@ -84,8 +85,8 @@ export function ReachCard({
             title="Tailscale app"
             subtitle={
               reach.tailscale
-                ? `Running on ${MACHINE.thisMachine} · ${reach.tailscaleHost}`
-                : `Running on ${MACHINE.thisMachine} · not offered to phones`
+                ? `Running on ${words.thisMachine} · ${reach.tailscaleHost}`
+                : `Running on ${words.thisMachine} · not offered to phones`
             }
           >
             {reach.tailscale ? (

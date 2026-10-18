@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { CheckAICLIs } from "../../bridge/commands";
+import { CheckAICLIs, PeerInvoke } from "../../bridge/commands";
+import type { main } from "../../bridge/models";
+import { peerSlugOf } from "../peer/markers";
 import {
   AI_CLI_OPTIONS,
   aiDefaultModel,
@@ -12,6 +14,13 @@ import {
 import { getSettings, saveSettings } from "../store/settings";
 
 const DEFAULT_CLI: AICLI = "claude";
+
+// Which AI CLIs are installed where a generation runs: this Mac, or the paired
+// machine `scope` (a project name or folder) is on.
+export function checkAICLIs(scope?: string | null): Promise<main.AICLIAvailability> {
+  const slug = peerSlugOf(scope);
+  return slug ? PeerInvoke(slug, "check_aicl_is", {}) : CheckAICLIs();
+}
 
 // Switching model drops an effort the new one can't take — Codex's top levels
 // are model-bound. CLIs with no effort control at all keep it parked so hopping
@@ -35,8 +44,9 @@ export interface AIPicker {
 }
 
 // Pass `active` true once the consumer is visible so the CLI availability
-// check only fires while it matters.
-export function useAIPicker(active: boolean): AIPicker {
+// check only fires while it matters. `scope` is the project name or folder the
+// generation runs in: a paired machine's offers the CLIs installed there.
+export function useAIPicker(active: boolean, scope?: string | null): AIPicker {
   const [aiCLIs, setAiCLIs] = useState<Record<string, boolean>>({});
   const [selectedCLI, setSelectedCLI] = useState<AICLI>(
     () => (getSettings().aiCli as AICLI) || DEFAULT_CLI,
@@ -54,7 +64,7 @@ export function useAIPicker(active: boolean): AIPicker {
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
-    CheckAICLIs()
+    checkAICLIs(scope)
       .then((a) => {
         if (cancelled) return;
         const avail: Record<string, boolean> = {
@@ -76,7 +86,7 @@ export function useAIPicker(active: boolean): AIPicker {
     return () => {
       cancelled = true;
     };
-  }, [active]);
+  }, [active, scope]);
 
   const selectAI = useCallback(
     (cli: AICLI, model: string) => {

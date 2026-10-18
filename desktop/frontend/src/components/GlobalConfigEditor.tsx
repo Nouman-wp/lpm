@@ -1,17 +1,20 @@
-import { ReadGlobalConfig } from "../../bridge/commands";
+import { useCallback, useMemo } from "react";
 import { GLOBAL_MODEL_URI } from "../monaco-setup";
-import { globalLayer, saveLayer } from "../yamlQueue";
+import { globalLayerOf, saveLayer } from "../yamlQueue";
+import type { MachineScope } from "./settings/machineCommands";
 import { YamlConfigEditor } from "./YamlConfigEditor";
 
-const save = (content: string) => saveLayer(globalLayer, content);
-
-export function GlobalConfigEditor({ onBack }: { onBack: () => void }) {
+export function GlobalConfigEditor({ machine, onBack }: { machine: MachineScope; onBack: () => void }) {
+  const layer = useMemo(() => globalLayerOf(machine.slug), [machine.slug]);
+  const save = useCallback((content: string) => saveLayer(layer, content), [layer]);
   return (
     <YamlConfigEditor
-      title="Global Config"
-      description="Actions and terminals defined here are available in every project."
+      title={machine.name ? `Global Config · ${machine.name}` : "Global Config"}
+      description={`Actions and terminals defined here are available in every project${
+        machine.name ? ` on ${machine.name}` : ""
+      }.`}
       modelUri={GLOBAL_MODEL_URI}
-      load={ReadGlobalConfig}
+      load={layer.read}
       save={save}
       onBack={onBack}
       docsUrl="https://lpm.cx/config#global-config"

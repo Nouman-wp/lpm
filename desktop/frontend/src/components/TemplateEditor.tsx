@@ -1,24 +1,27 @@
 import { useCallback } from "react";
-import { ReadTemplate, SaveTemplate } from "../../bridge/commands";
 import { TEMPLATE_MODEL_URI } from "../monaco-setup";
+import type { MachineScope } from "./settings/machineCommands";
 import { YamlConfigEditor } from "./YamlConfigEditor";
 
 export function TemplateEditor({
   name,
+  machine,
   onBack,
 }: {
   name: string;
+  machine: MachineScope;
   onBack: () => void;
 }) {
-  const load = useCallback(() => ReadTemplate(name), [name]);
+  const { templates } = machine.commands;
+  const load = useCallback(() => templates.read(name), [templates, name]);
   const save = useCallback(
-    (content: string) => SaveTemplate(name, content),
-    [name],
+    (content: string) => templates.save(name, content),
+    [templates, name],
   );
 
   return (
     <YamlConfigEditor
-      title={`Template · ${name}`}
+      title={machine.name ? `Template · ${name} · ${machine.name}` : `Template · ${name}`}
       description={
         <>
           A reusable bundle of services, actions, and profiles. Add to any

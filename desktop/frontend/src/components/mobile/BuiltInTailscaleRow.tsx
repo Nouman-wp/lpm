@@ -7,7 +7,7 @@ import { PRIMARY_BUTTON, QUIET_BUTTON, SECONDARY_BUTTON, type TileTone } from ".
 import { BrowserOpenURL } from "../../../bridge/runtime";
 import { TAILSCALE_ADMIN_URL } from "../../tailnetStatus";
 import type { Tailnet } from "../../hooks/useTailnetState";
-import { MACHINE } from "../../machineWords";
+import { useMachineWords } from "../settings/useMachineWords";
 
 interface RowView {
   tone: TileTone;
@@ -33,6 +33,7 @@ export function BuiltInTailscaleRow({
   /** A paired device has come in over Tailscale, so it knows the way. */
   deviceOnTailscale: boolean;
 }) {
+  const words = useMachineWords();
   const { state: s, busy, failure, opened, setEnabled, signIn, signOut } = tailnet;
   const [setupOpen, setSetupOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -58,8 +59,11 @@ export function BuiltInTailscaleRow({
   const signingIn = s.enabled && s.state === "needsLogin";
   const resuming = signingIn && opened;
   const showSetup = s.available && !pastSignIn && (setupOpen || signingIn);
-  const turnOff: RowMenuItem = { label: "Turn off", onClick: () => void setEnabled(false) };
-  const signOutItem: RowMenuItem = { label: "Sign out", onClick: () => void signOut(), destructive: true };
+  // A connected machine keeps these to itself (see TailnetCommands).
+  const turnOff: RowMenuItem[] = setEnabled ? [{ label: "Turn off", onClick: () => void setEnabled(false) }] : [];
+  const signOutItem: RowMenuItem[] = signOut
+    ? [{ label: "Sign out", onClick: () => void signOut(), destructive: true }]
+    : [];
   const adminButton = (
     <button onClick={() => BrowserOpenURL(TAILSCALE_ADMIN_URL)} className={SECONDARY_BUTTON}>
       Open admin console
@@ -76,7 +80,7 @@ export function BuiltInTailscaleRow({
         badge: hasApp ? undefined : "Recommended",
         subtitle: hasApp
           ? "Optional while the Tailscale app runs here"
-          : `Reach ${MACHINE.thisMachine} from anywhere, no Tailscale app needed`,
+          : `Reach ${words.thisMachine} from anywhere, no Tailscale app needed`,
         action: !showSetup && (
           <button onClick={() => setSetupOpen(true)} className={hasApp ? SECONDARY_BUTTON : PRIMARY_BUTTON}>
             Set up
@@ -94,8 +98,8 @@ export function BuiltInTailscaleRow({
           action: <RouteChip state={live ? "ready" : "off"} />,
           menu: [
             ...(s.ip ? [{ label: "Copy address", onClick: () => void navigator.clipboard.writeText(s.ip ?? "") }] : []),
-            turnOff,
-            signOutItem,
+            ...turnOff,
+            ...signOutItem,
           ],
         };
       case "needsLogin":
@@ -103,12 +107,12 @@ export function BuiltInTailscaleRow({
       case "needsApproval":
         return {
           tone: "warn",
-          subtitle: `${s.account ? `${s.account} · ` : ""}approve ${s.deviceName || MACHINE.thisMachine} in the admin console`,
+          subtitle: `${s.account ? `${s.account} · ` : ""}approve ${s.deviceName || words.thisMachine} in the admin console`,
           action: adminButton,
-          menu: [turnOff, signOutItem],
+          menu: [...turnOff, ...signOutItem],
         };
       case "stopped":
-        return { tone: "problem", subtitle: s.error ?? "Blocked by your Tailscale settings", action: adminButton, menu: [turnOff] };
+        return { tone: "problem", subtitle: s.error ?? "Blocked by your Tailscale settings", action: adminButton, menu: turnOff };
       case "error":
         return retry(s.error);
       case "off":
@@ -123,11 +127,15 @@ export function BuiltInTailscaleRow({
       tone: "problem",
       subtitle: error ?? "Couldn't connect to Tailscale",
       action: (
-        <button onClick={() => void setEnabled(true)} disabled={busy !== null} className={SECONDARY_BUTTON}>
+        <button
+          onClick={() => void (setEnabled ? setEnabled(true) : signIn())}
+          disabled={busy !== null}
+          className={SECONDARY_BUTTON}
+        >
           Try again
         </button>
       ),
-      menu: [turnOff],
+      menu: turnOff,
     };
   }
 
@@ -135,7 +143,7 @@ export function BuiltInTailscaleRow({
     return {
       tone: "idle",
       subtitle: "Starting…",
-      action: (
+      action: setEnabled && (
         <button onClick={() => void setEnabled(false)} disabled={busy !== null} className={QUIET_BUTTON}>
           Cancel
         </button>
@@ -146,7 +154,7 @@ export function BuiltInTailscaleRow({
 
   const notNow = () => {
     setSetupOpen(false);
-    if (s.enabled) void setEnabled(false);
+    if (s.enabled) void setEnabled?.(false);
   };
 
   const copyLink = async () => {
@@ -159,7 +167,7 @@ export function BuiltInTailscaleRow({
   const steps = [
     resuming
       ? "Finish signing in to Tailscale in your browser."
-      : `Sign in to Tailscale on ${MACHINE.thisMachine}. It's free for personal use.`,
+      : `Sign in to Tailscale on ${words.thisMachine}. It's free for personal use.`,
     "On your phone, sign in with the same account: lpm Link → Built-in Tailscale.",
     "Open lpm Link once on this Wi-Fi. It picks up the new address by itself.",
   ];

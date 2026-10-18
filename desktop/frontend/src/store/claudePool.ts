@@ -9,6 +9,7 @@ import {
 import { EventsOn } from "../../bridge/runtime";
 import { accountLabel, skipSentence } from "../claudePoolText";
 import { useSettingsStore } from "./settings";
+import type { ClaudeAccount } from "../types";
 
 export const MAIN_POOL = "__main__";
 
@@ -73,11 +74,13 @@ export interface PoolPatch {
 }
 
 // What the consent dialog is confirming: the settings change it unlocks, the
-// accounts to confirm (the main list by default), and what to do after.
+// accounts to confirm (the main list by default), and what to do after. `host`
+// is set for a paired machine's accounts, which are confirmed there.
 export interface ConsentRequest {
   patch: PoolPatch;
   members?: string[];
   onDone?: () => void | Promise<void>;
+  host?: { slug: string; pool: ClaudePool; accounts: ClaudeAccount[] };
 }
 
 interface Switched {

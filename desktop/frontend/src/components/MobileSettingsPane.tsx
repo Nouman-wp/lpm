@@ -5,15 +5,7 @@ import { ReachCard } from "./mobile/ReachCard";
 import { PhonesSection } from "./mobile/PhonesSection";
 import { usePeerState } from "../peer/usePeerState";
 import { useTailnetState } from "../hooks/useTailnetState";
-import {
-  RemoteState,
-  RemoteSetConfig,
-  RemoteSetKeepAwake,
-  RemoteStartPairing,
-  RemoteRevokeDevice,
-  RemoteRenameDevice,
-  PeerRemotePair,
-} from "../../bridge/commands";
+import { PeerRemotePair } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import {
   REMOTE_TONE_STYLE,
@@ -26,7 +18,12 @@ import {
 } from "../remoteStatus";
 import { canReachAway, type KeepAwakeStatus } from "../mobile/reachStatus";
 import { anyOverTailscale, type PhoneDevice } from "../mobile/phoneStatus";
-import { MACHINE } from "../machineWords";
+import { useMachineWords } from "./settings/useMachineWords";
+import { useSettingsTarget } from "./settings/settingsTarget";
+
+// A connected machine's phones and server don't announce changes here, so its
+// state is read again this often while shown.
+const POLL_MS = 3000;
 
 interface RemoteStateShape {
   enabled: boolean;
@@ -63,6 +60,10 @@ const DEFAULT_STATE: RemoteStateShape = {
 };
 
 export function MobileSettingsPane() {
+  const words = useMachineWords();
+  const { machine, commands } = useSettingsTarget();
+  const { mobile } = commands;
+  const local = machine.kind === "local";
   const [state, setState] = useState<RemoteStateShape>(DEFAULT_STATE);
   const [pairing, setPairing] = useState<Pairing | null>(null);
   const [pairingBusy, setPairingBusy] = useState(false);
@@ -70,7 +71,7 @@ export function MobileSettingsPane() {
   // Pairing minted by a connected peer machine: the phone scans this Mac's
   // screen but connects straight to that machine.
   const { state: peerState } = usePeerState();
-  const tailnet = useTailnetState();
+  const tailnet = useTailnetState(commands.tailnet);
   const [hostPairing, setHostPairing] = useState<{ machine: string; pairing: Pairing } | null>(null);
   const [hostPairingBusy, setHostPairingBusy] = useState(false);
   const [hostFailure, setHostFailure] = useState<string | null>(null);
@@ -85,7 +86,7 @@ export function MobileSettingsPane() {
     const seen = reports.current;
     const shown = pairingShown.current;
     try {
-      const fresh = { ...DEFAULT_STATE, ...((await RemoteState()) as RemoteStateShape) };
+      const fresh = { ...DEFAULT_STATE, ...((await mobile.state()) as RemoteStateShape) };
       setState((prev) => mergeRefreshedState(prev, fresh, reports.current !== seen));
       const ids = new Set(fresh.devices.map((d) => d.id));
       const known = knownDevices.current;
@@ -100,7 +101,7 @@ export function MobileSettingsPane() {
       // The Mac may still be starting up — keep what the pane already shows.
       return null;
     }
-  }, []);
+  }, [mobile]);
 
   const reportFailure = useCallback(
     async (action: RemoteAction, err: unknown) => {
@@ -115,6 +116,10 @@ export function MobileSettingsPane() {
   }, [refresh]);
 
   useEffect(() => {
+    if (!local) {
+      const timer = setInterval(() => void refresh(), POLL_MS);
+      return () => clearInterval(timer);
+    }
     const offDevices = EventsOn("remote-devices-changed", () => {
       void refresh();
     });
@@ -133,7 +138,7 @@ export function MobileSettingsPane() {
       if (typeof offDevices === "function") offDevices();
       if (typeof offServer === "function") offServer();
     };
-  }, [refresh]);
+  }, [refresh, local]);
 
   const run = useCallback(
     async (
@@ -156,16 +161,16 @@ export function MobileSettingsPane() {
   const apply = useCallback(
     (next: Partial<Pick<RemoteStateShape, "enabled" | "port" | "tailscale">>, action: RemoteAction) => {
       const merged = { ...state, ...next };
-      return run(action, next, () => RemoteSetConfig(merged.enabled, merged.port, merged.tailscale));
+      return run(action, next, () => mobile.setConfig(merged.enabled, merged.port, merged.tailscale));
     },
-    [state, run],
+    [state, run, mobile],
   );
 
   const startPairing = useCallback(async () => {
     setPairingBusy(true);
     setFailure(null);
     try {
-      const p = (await RemoteStartPairing()) as Pairing;
+      const p = (await mobile.startPairing()) as Pairing;
       pairingShown.current += 1;
       setPairing(p);
       await refresh();
@@ -174,7 +179,7 @@ export function MobileSettingsPane() {
     } finally {
       setPairingBusy(false);
     }
-  }, [refresh, reportFailure]);
+  }, [refresh, reportFailure, mobile]);
 
   const startHostPairing = useCallback(async (slug: string, machine: string) => {
     setHostPairingBusy(true);
@@ -214,7 +219,7 @@ export function MobileSettingsPane() {
         onEnabled={(v) => void apply({ enabled: v }, "server")}
         onUseApp={(v) => void apply({ tailscale: v }, "tailscale")}
         onPort={(port) => void apply({ port }, "server")}
-        onKeepAwake={(v) => void run("keepAwake", { keepAwake: v }, () => RemoteSetKeepAwake(v))}
+        onKeepAwake={(v) => void run("keepAwake", { keepAwake: v }, () => mobile.setKeepAwake(v))}
       />
 
       {(failure?.slot === "server" || failure?.slot === "network") && (
@@ -235,7 +240,7 @@ export function MobileSettingsPane() {
       {state.enabled && state.identityRotated && state.devices.length > 0 && (
         <RemoteNotice tone={REMOTE_TONE_STYLE.starting}>
           <span className="font-medium" style={{ color: "var(--accent-amber-text)" }}>
-            {MACHINE.ThisMachine}&#39;s security identity was reset.
+            {words.ThisMachine}&#39;s security identity was reset.
           </span>{" "}
           Devices paired before the reset can&#39;t connect until they trust it again. On each one,
           open lpm Link, check it shows{" "}
@@ -247,15 +252,15 @@ export function MobileSettingsPane() {
       <div className="mt-8">
         <PhonesSection
           devices={state.devices}
-          peers={peerState.peers}
+          peers={local ? peerState.peers : []}
           awayReady={awayReady}
           pairing={pairingBusy || hostPairingBusy}
           settingUpAway={tailnet.busy === "signIn"}
           onSetUpAway={setUpAway}
           onPairHere={() => void startPairing()}
           onPairPeer={(slug, name) => void startHostPairing(slug, name)}
-          onRename={(id, name) => void run("rename", {}, () => RemoteRenameDevice(id, name))}
-          onRevoke={(id) => void run("revoke", {}, () => RemoteRevokeDevice(id))}
+          onRename={(id, name) => void run("rename", {}, () => mobile.renameDevice(id, name))}
+          onRevoke={(id) => void run("revoke", {}, () => mobile.revokeDevice(id))}
         />
         {failure?.slot === "devices" && <RemoteNotice tone={problemTone}>{failure.message}</RemoteNotice>}
         {hostFailure && <RemoteNotice tone={problemTone}>{hostFailure}</RemoteNotice>}
@@ -263,6 +268,7 @@ export function MobileSettingsPane() {
 
       <PairingModal
         pairing={pairing}
+        machine={local ? undefined : machine.name}
         onClose={() => setPairing(null)}
         onSetUpTailscale={() => {
           setPairing(null);

@@ -23,6 +23,7 @@ vi.mock("../hooks/useTerminalFontSize", () => ({
 }));
 
 const { ClaudeStatusLineView } = await import("./ClaudeStatusLineView");
+const { THIS_MACHINE } = await import("./settings/machineCommands");
 
 const savedSpec: CustomSpec = {
   segments: [{ id: "folder", color: "cyan", text: "" }],
@@ -58,7 +59,7 @@ afterEach(async () => {
 
 async function renderView() {
   await act(async () => {
-    root.render(<ClaudeStatusLineView onBack={vi.fn()} />);
+    root.render(<ClaudeStatusLineView machine={THIS_MACHINE} onBack={vi.fn()} />);
     await Promise.resolve();
   });
 }

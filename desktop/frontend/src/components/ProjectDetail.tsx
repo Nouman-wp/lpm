@@ -77,7 +77,6 @@ import { CloseColumnButton } from "./project-detail/CloseColumnButton";
 import { useFollowState } from "../hooks/useFollowState";
 import { peerSlugOf } from "../peer/markers";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
-import { isPeerName } from "../peer/markers";
 import { liveServices } from "../serviceExit";
 
 interface ProjectDetailProps {
@@ -379,6 +378,7 @@ export function ProjectDetail({
     else if (op === "title") terminalRef.current?.remoteRestoreTitle(id);
     else if (op === "pin") terminalRef.current?.remoteTogglePin(id);
     else if (op === "reorder") terminalRef.current?.remoteReorderTerminals(order);
+    else if (op === "restart") terminalRef.current?.remoteRestartTerminal(id);
   }, [pendingRemoteTerminalOp, project.name, clearPendingRemoteTerminalOp]);
 
   // A cross-project view asked to put one of our terminals on screen. The store
@@ -521,11 +521,7 @@ export function ProjectDetail({
     (op: StructuralOp) => {
       const level = levelOf(structuralSubject(op));
       if (!level) {
-        toast.error(
-          isPeerName(project.name)
-            ? "Menus from the other Mac's shared settings can't be changed here"
-            : "This menu comes from shared settings and can't be changed here",
-        );
+        toast.error("This menu comes from shared settings and can't be changed here");
         return false;
       }
       void applyStructuralOp(project.name, op, level);

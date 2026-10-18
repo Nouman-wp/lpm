@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { GlobeIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
-import { BrowserOpenURL } from "../../bridge/runtime";
 import { DetectServicePorts } from "../../bridge/commands";
+import { openProjectPort } from "../peer/projectPorts";
 import { parseServicePorts } from "../servicePorts";
 
 interface RunningService {
@@ -27,7 +27,8 @@ const portLabel = (port: number) => (
   <span className="font-mono text-[10px] tabular-nums">{`:${port}`}</span>
 );
 
-// Opens localhost:<port> for each running service in the default browser. The
+// Opens localhost:<port> for each running service in the default browser — a
+// paired machine's through a port tunnelled from there. The
 // configured `port:` renders the row synchronously so the menu has its final
 // height on the first frame (no async reflow / flicker); live detection then
 // refines each service to the port it actually bound.
@@ -65,7 +66,7 @@ export function OpenInBrowserSubmenu({ projectName, running, services, onClose }
   if (!running || links.length === 0) return null;
 
   const open = (port: number) => {
-    BrowserOpenURL(`http://localhost:${port}`);
+    void openProjectPort(projectName, port);
     onClose();
   };
 

@@ -1,17 +1,29 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import { useAppStore } from "../../store/app";
 import { SettingsSection } from "../SettingsSection";
 import { BTN_SECONDARY } from "../ui/buttons";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { NewTemplateModal } from "./NewTemplateModal";
+import { useSettingsTarget } from "./settingsTarget";
 import { TemplateRow } from "./TemplateRow";
+import { useMachineTemplates } from "./useMachineTemplates";
+
+// Runs a template change, saying when it fails; rethrows so a dialog can stay
+// open for another try.
+async function attempt(what: string, change: () => Promise<void>): Promise<void> {
+  try {
+    await change();
+  } catch (err) {
+    toast.error(`Failed to ${what} template: ${err}`);
+    throw err;
+  }
+}
 
 export function TemplatesPane() {
-  const templates = useAppStore((s) => s.templates);
+  const { templates: commands } = useSettingsTarget().commands;
+  const templates = useMachineTemplates(commands);
   const selectTemplate = useAppStore((s) => s.selectTemplate);
-  const createTemplate = useAppStore((s) => s.createTemplate);
-  const removeTemplate = useAppStore((s) => s.removeTemplate);
-  const renameTemplate = useAppStore((s) => s.renameTemplate);
   const [creatingTemplate, setCreatingTemplate] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState("");
   const [creatingTemplateBusy, setCreatingTemplateBusy] = useState(false);
@@ -28,13 +40,15 @@ export function TemplatesPane() {
             No templates yet.
           </div>
         )}
-        {templates.map((tmpl) => (
+        {templates.map((name) => (
           <TemplateRow
-            key={tmpl.name}
-            name={tmpl.name}
-            onEditConfig={() => selectTemplate(tmpl.name)}
-            onRename={renameTemplate}
-            onDelete={() => setConfirmDeleteTemplate(tmpl.name)}
+            key={name}
+            name={name}
+            onEditConfig={() => selectTemplate(name)}
+            onRename={(oldName, newName) =>
+              oldName === newName ? Promise.resolve() : attempt("rename", () => commands.rename(oldName, newName))
+            }
+            onDelete={() => setConfirmDeleteTemplate(name)}
           />
         ))}
         <div className="flex items-center justify-end px-4 py-2.5">
@@ -66,7 +80,7 @@ export function TemplatesPane() {
         }
         onCancel={() => setConfirmDeleteTemplate(null)}
         onConfirm={() => {
-          if (confirmDeleteTemplate) removeTemplate(confirmDeleteTemplate);
+          if (confirmDeleteTemplate) void attempt("delete", () => commands.remove(confirmDeleteTemplate)).catch(() => {});
           setConfirmDeleteTemplate(null);
         }}
       />
@@ -82,10 +96,11 @@ export function TemplatesPane() {
           if (!name || creatingTemplateBusy) return;
           setCreatingTemplateBusy(true);
           try {
-            await createTemplate(name);
+            await attempt("create", () => commands.create(name));
             setCreatingTemplate(false);
+            selectTemplate(name);
           } catch {
-            // toast surfaced by store; modal stays open for retry
+            // the modal stays open for another try
           } finally {
             setCreatingTemplateBusy(false);
           }

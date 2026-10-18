@@ -31,7 +31,7 @@ const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3); // per-candidate dial cap when pairing
 const FORGET_GRACE: Duration = Duration::from_millis(300); // for a last frame to leave before disconnecting
 const PAIR_REQUEST_WINDOW: Duration = Duration::from_secs(150); // wait for the other Mac to approve
-const INVOKE_TIMEOUT: Duration = Duration::from_secs(35);
+const INVOKE_GRACE: Duration = Duration::from_secs(5); // past the host's own deadline, so its error comes back
 const SYNC_TIMEOUT: Duration = Duration::from_secs(60); // digest / fetch round-trip
 const SYNC_APPLY_TIMEOUT: Duration = Duration::from_secs(180); // an older host snapshots all of ~/.lpm first
 const SYNC_UNSUPPORTED: &str = "the other Mac needs to update lpm to sync config";
@@ -110,6 +110,7 @@ struct PeerConn {
     supports_host_folders: AtomicBool, // host shares its sidebar folders (hostfolders.rs)
     supports_host_folder_folds: AtomicBool, // ...and which of them are folded
     supports_host_jobs: AtomicBool, // host takes its shared automations from here (hostjobs.rs)
+    supports_port_tunnel: AtomicBool, // host opens its web servers here (porttunnel.rs)
     supports_phone_relay: AtomicBool, // host runs phones this Mac relays to it (peerclient/phone.rs)
     supports_limits: AtomicBool, // host trades Claude usage limits (agent_limits_share.rs)
     // The phones this Mac is relaying to the host, by channel: where the frames
@@ -177,6 +178,7 @@ impl PeerConn {
             supports_host_folders: AtomicBool::new(false),
             supports_host_folder_folds: AtomicBool::new(false),
             supports_host_jobs: AtomicBool::new(false),
+            supports_port_tunnel: AtomicBool::new(false),
             supports_phone_relay: AtomicBool::new(false),
             supports_limits: AtomicBool::new(false),
             phones: Mutex::new(HashMap::new()),
@@ -192,6 +194,15 @@ impl PeerConn {
                 .map_err(|_| "peer send queue full".to_string()),
             None => Err(PEER_NOT_CONNECTED.to_string()),
         }
+    }
+
+    /// Queue a frame, waiting for room rather than dropping it: a tunnelled byte
+    /// stream can't lose a chunk the way terminal output can be reseeded.
+    fn send_waiting(&self, frame: String) -> Result<(), String> {
+        let tx = self.out.lock().unwrap().clone();
+        tx.ok_or_else(|| PEER_NOT_CONNECTED.to_string())?
+            .send(frame)
+            .map_err(|_| PEER_NOT_CONNECTED.to_string())
     }
 
     /// The `sub` frame for a terminal, carrying `from` only when this Mac still
@@ -435,6 +446,9 @@ impl PeerClientHub {
                 let supports_host_jobs = conn
                     .map(|c| c.supports_host_jobs.load(Ordering::Relaxed))
                     .unwrap_or(false);
+                let supports_port_tunnel = conn
+                    .map(|c| c.supports_port_tunnel.load(Ordering::Relaxed))
+                    .unwrap_or(false);
                 let beta_updates = conn
                     .map(|c| c.beta_updates.load(Ordering::Relaxed))
                     .unwrap_or(false);
@@ -473,6 +487,7 @@ impl PeerClientHub {
                     "supportsHostFolders": supports_host_folders,
                     "supportsHostFolderFolds": supports_host_folder_folds,
                     "supportsHostJobs": supports_host_jobs,
+                    "supportsPortTunnel": supports_port_tunnel,
                     "updateChannel": if beta_updates { "beta" } else { "stable" },
                     // Whether the peer's identity is pinned (verified-encrypted). An
                     // auto run refuses an unpinned channel, so the UI hints on it.
@@ -554,6 +569,7 @@ impl PeerClientHub {
             conn.attached.lock().unwrap().clear();
             conn.offsets.lock().unwrap().clear();
             conn.phones.lock().unwrap().clear();
+            crate::porttunnel::drop_client_conn(slug);
             conn.fail_pending(reason);
         }
     }
@@ -854,7 +870,12 @@ impl PeerClientHub {
         cmd: &str,
         args: Value,
     ) -> Result<Value, String> {
-        self.invoke_within(slug, cmd, args, INVOKE_TIMEOUT)
+        self.invoke_within(
+            slug,
+            cmd,
+            args,
+            crate::peer::dispatch_timeout(cmd) + INVOKE_GRACE,
+        )
     }
 
     pub(crate) fn invoke_within(
@@ -1015,6 +1036,38 @@ impl PeerClientHub {
             .unwrap()
             .get(slug)
             .is_some_and(|c| c.supports_host_settings.load(Ordering::Relaxed))
+    }
+
+    /// Record the update channel the host follows, as its settings now say.
+    /// Announced at once, so its update line stops comparing against the old one.
+    pub(crate) fn note_update_channel(&self, slug: &str, beta: bool) {
+        let changed = self
+            .inner
+            .conns
+            .lock()
+            .unwrap()
+            .get(slug)
+            .is_some_and(|c| c.beta_updates.swap(beta, Ordering::Relaxed) != beta);
+        if changed {
+            emit_state_changed(self);
+        }
+    }
+
+    /// Whether this peer's host opens its web servers here (porttunnel.rs).
+    pub(crate) fn supports_port_tunnel(&self, slug: &str) -> bool {
+        self.inner
+            .conns
+            .lock()
+            .unwrap()
+            .get(slug)
+            .is_some_and(|c| c.supports_port_tunnel.load(Ordering::Relaxed))
+    }
+
+    /// Queue `frame` for the connected machine `slug`, waiting for room.
+    pub(crate) fn send_waiting(&self, slug: &str, frame: String) -> Result<(), String> {
+        let conn = self.inner.conns.lock().unwrap().get(slug).cloned();
+        conn.ok_or_else(|| PEER_NOT_CONNECTED.to_string())?
+            .send_waiting(frame)
     }
 
     /// Whether this peer's host serves a video's byte ranges for preview.
@@ -1671,6 +1724,7 @@ fn run_conn(hub: PeerClientHub, conn: Arc<PeerConn>, generation: u64) {
         conn.supports_sync2.store(false, Ordering::Relaxed);
         *conn.out.lock().unwrap() = None;
         conn.phones.lock().unwrap().clear();
+        crate::porttunnel::drop_client_conn(&conn.slug);
         conn.fail_pending(PEER_DISCONNECTED);
         emit_state_changed(&hub);
         if !conn.enabled.load(Ordering::SeqCst)
@@ -2172,6 +2226,10 @@ fn connect_session(
         has_feature(crate::hostjobs::HOST_JOBS_FEATURE),
         Ordering::Relaxed,
     );
+    conn.supports_port_tunnel.store(
+        has_feature(crate::porttunnel::PORT_TUNNEL_FEATURE),
+        Ordering::Relaxed,
+    );
     conn.supports_phone_relay.store(
         has_feature(crate::remote::relayed::PHONE_RELAY_FEATURE),
         Ordering::Relaxed,
@@ -2345,6 +2403,10 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
             }
         }
         "phoneOut" | "phoneClose" => phone::route(conn, &v),
+        "tcpData" | "tcpClose" => {
+            let t = v.get("t").and_then(Value::as_str).unwrap_or_default();
+            crate::porttunnel::handle_client(slug, t, &v);
+        }
         "limits" => {
             if let Some(app) = app {
                 crate::agent_limits_share::from_host(app, &v);

@@ -45,7 +45,7 @@ const button = (label: string) =>
 const settle = () => act(async () => {});
 
 beforeEach(() => {
-  useSendToStatus.setState({ telegram: undefined });
+  useSendToStatus.setState({ telegram: {} });
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -60,7 +60,7 @@ describe("TelegramRow", () => {
   it("connects through the dialog rather than a form of its own", async () => {
     state.hasToken = false;
     state.chats = [];
-    await act(async () => root.render(<TelegramRow />));
+    await act(async () => root.render(<TelegramRow host={null} />));
     expect(host.textContent).toContain("Send automation results to a Telegram chat");
     expect(host.querySelector("input, textarea")).toBeNull();
     act(() => button("Connect")!.click());
@@ -74,7 +74,7 @@ describe("TelegramRow", () => {
       { key: "ada", name: "Ada", kind: "private" },
       { key: "releases", name: "Releases", kind: "channel" },
     ];
-    await act(async () => root.render(<TelegramRow />));
+    await act(async () => root.render(<TelegramRow host={null} />));
     await settle();
     expect(host.textContent).toContain("Posts through @lpm_bot");
     expect(host.textContent).toContain("AdaPrivate chat · default");

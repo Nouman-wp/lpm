@@ -1,9 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import {
-  GetClaudeStatuslineState,
-  GetCodexStatuslineState,
-  PreviewClaudeStatusline,
-} from "../../bridge/commands";
+import type { StatusLineCommands } from "./settings/statusLineCommands";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import { AnsiLine } from "./AnsiLine";
 import {
@@ -51,14 +47,14 @@ function claudeSelection(state: {
   return { kind: "template", id: selected };
 }
 
-async function loadClaude(): Promise<RowLine> {
-  const state = await GetClaudeStatuslineState();
+async function loadClaude(statusLine: StatusLineCommands): Promise<RowLine> {
+  const state = await statusLine.claudeState();
   if ((state?.selected ?? "current") === "current" && !state?.hasCustom) {
     return { status: "off" };
   }
   let output: unknown;
   try {
-    output = await PreviewClaudeStatusline(claudeSelection(state ?? {}));
+    output = await statusLine.previewClaude(claudeSelection(state ?? {}));
   } catch {
     return { status: "unavailable" };
   }
@@ -67,8 +63,8 @@ async function loadClaude(): Promise<RowLine> {
     : { status: "unavailable" };
 }
 
-async function loadCodex(): Promise<RowLine> {
-  const state = await GetCodexStatuslineState();
+async function loadCodex(statusLine: StatusLineCommands): Promise<RowLine> {
+  const state = await statusLine.codexState();
   const items: string[] = Array.isArray(state?.items)
     ? state.items
         .filter((item: unknown): item is string => typeof item === "string")
@@ -87,7 +83,7 @@ async function loadCodex(): Promise<RowLine> {
       };
 }
 
-export function StatusLineRowPreview({ agent }: { agent: Agent }) {
+export function StatusLineRowPreview({ agent, statusLine }: { agent: Agent; statusLine: StatusLineCommands }) {
   const { themeStyle } = useTerminalTheme();
   const stripRef = useRef<HTMLDivElement>(null);
   const [line, setLine] = useState<RowLine>({ status: "loading" });
@@ -97,7 +93,7 @@ export function StatusLineRowPreview({ agent }: { agent: Agent }) {
     let request = 0;
     const load = () => {
       const token = ++request;
-      (agent === "claude" ? loadClaude() : loadCodex())
+      (agent === "claude" ? loadClaude(statusLine) : loadCodex(statusLine))
         .then((next) => {
           if (token === request) setLine(next);
         })
@@ -113,7 +109,7 @@ export function StatusLineRowPreview({ agent }: { agent: Agent }) {
       request++;
       unsubscribe();
     };
-  }, [agent]);
+  }, [agent, statusLine]);
 
   useLayoutEffect(() => {
     const updateScheme = () => {

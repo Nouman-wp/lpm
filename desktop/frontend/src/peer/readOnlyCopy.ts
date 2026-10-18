@@ -3,9 +3,11 @@ import { isSourceImage, mediaKind } from "../components/fileMedia";
 import { basename } from "../path";
 
 // What opening a paired machine's file answers with: whether the app got a
-// read-only copy rather than the file itself, and which machine has the file.
+// copy rather than the file itself, whether that copy's saves go back to the
+// machine (peercopysync.rs), and which machine has the file.
 export interface PeerOpened {
   copy: boolean;
+  syncs?: boolean;
   host: string;
 }
 
@@ -15,10 +17,10 @@ export function isEditable(absPath: string): boolean {
   return mediaKind(absPath) === null || isSourceImage(absPath);
 }
 
-// Saving into a copy would go nowhere, so the person is told when a file they
-// may edit came as one.
+// Saving into a read-only copy would go nowhere, so the person is told when a
+// file they may edit came as one.
 export function noteReadOnlyCopy(absPath: string, opened: PeerOpened | null | undefined): void {
-  if (!opened?.copy || !isEditable(absPath)) return;
+  if (!opened?.copy || opened.syncs || !isEditable(absPath)) return;
   toast(`${basename(absPath)} opened read-only`, {
     description: `This is a copy. The file itself is on ${opened.host}.`,
   });

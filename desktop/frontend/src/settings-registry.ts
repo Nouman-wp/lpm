@@ -35,6 +35,8 @@ export type SettingsViewEntry = {
   description: string;
   caption?: string;
   keywords?: string[];
+  // Which connected machines it opens for; unset, only this one.
+  reach?: SettingsReach;
 };
 
 // A dashboard overlay (opened over the app, not a main-area view) that settings
@@ -56,7 +58,7 @@ export type SettingsSearchEntry =
 
 export type SettingsNavItem =
   | { kind: "tab"; tab: SettingsTab; label: string; flag?: SettingsFlag }
-  | { kind: "view"; view: View; label: string };
+  | { kind: "view"; view: View; label: string; reach?: SettingsReach };
 
 export interface SettingsNavGroup {
   title: string;
@@ -98,7 +100,7 @@ export const NAV_GROUPS: SettingsNavGroup[] = [
     items: [
       { kind: "tab", tab: "templates", label: "Templates" },
       { kind: "tab", tab: "backup", label: "Backup & Transfer" },
-      { kind: "view", view: "global-config", label: "Global Config" },
+      { kind: "view", view: "global-config", label: "Global Config", reach: "any" },
     ],
   },
   {
@@ -111,7 +113,7 @@ export const NAV_GROUPS: SettingsNavGroup[] = [
 ];
 
 // A connected machine's Settings shows only the pages that have something to
-// change there; the views (Global Config) edit this machine's files.
+// change there.
 export function visibleNavGroups(
   flags: { experimentalTTS: boolean },
   machine: SettingsMachine = LOCAL_MACHINE,
@@ -123,7 +125,7 @@ export function visibleNavGroups(
     items: group.items.filter((item) =>
       item.kind === "tab"
         ? (!item.flag || flags[item.flag]) && reachable(item.tab)
-        : machine.kind === "local",
+        : reaches(machine, item.reach),
     ),
   })).filter((group) => group.items.length > 0);
 }
@@ -200,6 +202,7 @@ export const ROWS = {
     kind: "row",
     tab: "general",
     id: "general.updateChannel",
+    reach: "any",
     label: "Update channel",
     description: "Beta gets new versions first. They may be less stable",
     keywords: ["beta", "stable", "pre-release", "early access", "roll back", "rollback", "downgrade"],
@@ -244,6 +247,7 @@ export const ROWS = {
     kind: "row",
     tab: "notifications",
     id: "notifications.telegram",
+    reach: "any",
     label: "Telegram",
     description: "Send automation results to a Telegram chat",
     keywords: ["telegram", "bot", "chat", "automation", "job", "send to", "message"],
@@ -252,6 +256,7 @@ export const ROWS = {
     kind: "row",
     tab: "notifications",
     id: "notifications.sendToRequest",
+    reach: "any",
     label: "Another place to send results",
     description: "Slack, Discord, email… ask for the one you'd use",
     keywords: ["slack", "discord", "email", "webhook", "request", "github", "send to", "automation"],
@@ -370,6 +375,7 @@ export const ROWS = {
     kind: "row",
     tab: "tts",
     id: "tts.openaiKey",
+    reach: "attended",
     label: "OpenAI API Key",
     description: isMac
       ? "Stored in the macOS Keychain, never in settings.json"
@@ -407,6 +413,7 @@ export const ROWS = {
     kind: "row",
     tab: "tts",
     id: "tts.kokoro",
+    reach: "attended",
     label: "Kokoro Engine",
     description: "Kokoro TTS engine",
     keywords: ["speech", "install", "engine"],
@@ -415,6 +422,7 @@ export const ROWS = {
     kind: "row",
     tab: "ai",
     id: "ai.commitInstructions",
+    reach: "any",
     label: "Commit Instructions",
     description: "Custom instructions for AI commit messages",
     keywords: ["git", "message"],
@@ -423,6 +431,7 @@ export const ROWS = {
     kind: "row",
     tab: "ai",
     id: "ai.prInstructions",
+    reach: "any",
     label: "PR Instructions",
     description: "Custom instructions for AI-generated PR titles and descriptions",
     keywords: ["pull request", "git"],
@@ -431,6 +440,7 @@ export const ROWS = {
     kind: "row",
     tab: "ai",
     id: "ai.branchInstructions",
+    reach: "any",
     label: "Branch Name Instructions",
     description: "Custom instructions for AI-generated branch names",
     keywords: ["git", "branch"],
@@ -449,6 +459,7 @@ export const ROWS = {
     kind: "row",
     tab: "ai",
     id: "ai.accounts",
+    reach: "any",
     label: "Claude accounts",
     description: "Sign in to more Claude accounts and keep each project on the right one.",
     keywords: ["login", "sign in", "account", "accounts", "multiple", "switch", "claude"],
@@ -457,6 +468,7 @@ export const ROWS = {
     kind: "row",
     tab: "ai",
     id: "ai.accountSwitching",
+    reach: "any",
     label: "Switch accounts automatically",
     description: "Let new Claude sessions take turns on your accounts as each nears its usage limits.",
     keywords: ["switch", "rotate", "limit", "usage", "pool", "accounts", "claude", "5-hour", "weekly"],
@@ -465,6 +477,7 @@ export const ROWS = {
     kind: "row",
     tab: "ai",
     id: "ai.statusLine",
+    reach: "any",
     label: "Claude Code status line",
     description: "Choose what the status line under Claude Code shows",
     keywords: ["statusline", "status line", "claude", "template", "meter", "custom", "segments", "separator", "ai", "generate", "preview"],
@@ -473,6 +486,7 @@ export const ROWS = {
     kind: "row",
     tab: "ai",
     id: "ai.codexStatusLine",
+    reach: "any",
     label: "Codex CLI status line",
     description: "Choose what the status line under Codex shows",
     keywords: ["statusline", "status line", "codex", "footer", "fields", "items", "preview"],
@@ -481,6 +495,7 @@ export const ROWS = {
     kind: "row",
     tab: "templates",
     id: "templates.list",
+    reach: "any",
     label: "Templates",
     description:
       "Reusable sets of actions and terminals you can apply to multiple projects",
@@ -522,6 +537,7 @@ export const ROWS = {
     kind: "row",
     tab: "mobile",
     id: "mobile.devices",
+    reach: "any",
     label: "Mobile devices",
     description: "Pair your iPhone to mirror terminals and control projects",
     keywords: ["iphone", "phone", "ios", "remote"],
@@ -530,6 +546,7 @@ export const ROWS = {
     kind: "row",
     tab: "mobile",
     id: "mobile.tailscale",
+    reach: "any",
     label: "Built-in Tailscale",
     description: `Reach ${MACHINE.thisMachine} from your phone on any network, without the Tailscale app`,
     keywords: ["tailscale", "tailnet", "vpn", "cellular", "away", "anywhere", "remote"],
@@ -538,6 +555,7 @@ export const ROWS = {
     kind: "row",
     tab: "mobile",
     id: "mobile.keepAwake",
+    reach: "any",
     label: `Keep ${MACHINE.thisMachine} awake`,
     description: "While remote control is on and it's plugged in",
     keywords: ["sleep", "awake", "power", "battery", "port", "caffeinate", "security code", "identity"],
@@ -576,6 +594,7 @@ const VIEW_ENTRIES: SettingsViewEntry[] = [
     kind: "view",
     view: "global-config",
     id: "global-config",
+    reach: "any",
     label: "Global Config",
     description:
       "Actions and terminals defined in every project. Stored in the global config file.",
@@ -674,7 +693,7 @@ export function buildSearchEntries(ctx: {
       ? (e.tab !== "tts" || ctx.experimentalTTS) &&
         (mac || !e.macOnly) &&
         reaches(machine, e.reach, mac)
-      : machine.kind === "local",
+      : reaches(machine, e.kind === "view" ? e.reach : undefined, mac),
   );
 }
 

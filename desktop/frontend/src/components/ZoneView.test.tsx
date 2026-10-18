@@ -122,12 +122,6 @@ describe("collapsing a zone", () => {
     act(() => frame.querySelector<HTMLButtonElement>('[aria-label="Collapse zone"]')!.click());
     expect(h.setZoneCollapsed).toHaveBeenCalledWith("app", zone, true);
   });
-
-  it("offers no corner button on a peer project's global zone", () => {
-    const zone: ZoneInfo = { name: "ship", label: "Ship", rows: 1, source: "global" };
-    const frame = mount(zone, "header", [{ key: "ship", layer: null, ids: ["prod"], actions: [action("prod")] }], "peer-0123abcd-web");
-    expect(frame.querySelector('[aria-label="Collapse zone"]')).toBeNull();
-  });
 });
 
 describe("a folded zone", () => {
@@ -327,11 +321,6 @@ describe("a folded zone", () => {
     mount(folded(), "header", foldedLayers());
     rightClick(container.querySelector("[data-collapsed-zone] button[aria-haspopup]")!);
     expect(onZoneContextMenu).toHaveBeenCalledTimes(1);
-  });
-
-  it("has no ⤢ half on a peer project's shared zone", () => {
-    mount(folded({ source: "global" }), "header", foldedLayers(), "peer-0123abcd-web");
-    expect(container.querySelector('[aria-label="Expand zone"]')).toBeNull();
   });
 });
 

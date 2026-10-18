@@ -40,7 +40,6 @@ function render({ dragging = false, buttonDrag = false, ownsDrag = false }: Drag
         <CollapsedZone
           zone={zone}
           display="header"
-          editable
           dragging={dragging}
           buttonDrag={buttonDrag}
           ownsDrag={ownsDrag}

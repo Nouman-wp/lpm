@@ -6,7 +6,6 @@ import {
   dropMove,
   editHostFolders,
   foldedIds,
-  folderNamed,
   groupOf,
   readHostFolders,
   slotAfter,
@@ -18,6 +17,7 @@ import {
 import { peerSlugOf } from "./markers";
 import { parseCollapsedMap } from "./peerSectionCollapse";
 import { movePeerRow } from "../components/peerRowOrder";
+import { groupByName } from "../components/sidebarLayout";
 import type { PeerClient } from "./usePeerState";
 
 const COLLAPSED_KEY = "lpm-peer-folders-collapsed";
@@ -125,7 +125,7 @@ export async function fileCopiesOnHosts(name: string, copies: string[], sources:
   for (const [slug, onHost] of bySlug) {
     const folders = useHostFolders.getState().bySlug[slug];
     if (!folders) continue;
-    const folder = folderNamed(folders, name);
+    const folder = groupByName(folders.groups, name);
     if (!folder) {
       const source = sources.find((s) => peerSlugOf(s) === slug) ?? onHost[0];
       await applyHostFolderOp(slug, { op: "create", name, members: onHost, before: slotAfter(folders, source) });

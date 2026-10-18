@@ -7,7 +7,7 @@ const h = vi.hoisted(() => ({
   refreshProjects: vi.fn(),
   editProjectDoc: vi.fn(),
   editRepoDoc: vi.fn(),
-  editGlobalDoc: vi.fn(),
+  editProjectGlobalDoc: vi.fn(),
   editAllLayers: vi.fn(),
   toastError: vi.fn(),
 }));
@@ -21,10 +21,10 @@ vi.mock("./store/app", () => ({
 vi.mock("./yamlQueue", () => ({
   editProjectDoc: h.editProjectDoc,
   editRepoDoc: h.editRepoDoc,
-  editGlobalDoc: h.editGlobalDoc,
+  editProjectGlobalDoc: h.editProjectGlobalDoc,
   projectLayer: () => "project",
   repoLayer: () => "repo",
-  globalLayer: "global",
+  projectGlobalLayer: () => "global",
   editAllLayers: h.editAllLayers,
 }));
 
@@ -39,7 +39,7 @@ const LAYERS = ["project", "repo", "global"] as const;
 type Layer = (typeof LAYERS)[number];
 type Doc = ReturnType<typeof YAML.parseDocument>;
 
-const editors = { project: h.editProjectDoc, repo: h.editRepoDoc, global: h.editGlobalDoc };
+const editors = { project: h.editProjectDoc, repo: h.editRepoDoc, global: h.editProjectGlobalDoc };
 
 // The config files the edits land in, as text.
 let files: Record<Layer, string>;
@@ -119,7 +119,7 @@ beforeEach(() => {
   h.toastError.mockReset();
   h.editProjectDoc.mockReset().mockImplementation((_name, mutate) => editFile("project")(mutate));
   h.editRepoDoc.mockReset().mockImplementation((_name, mutate) => editFile("repo")(mutate));
-  h.editGlobalDoc.mockReset().mockImplementation(editFile("global"));
+  h.editProjectGlobalDoc.mockReset().mockImplementation((_name, mutate) => editFile("global")(mutate));
   layerSaves = [];
   h.editAllLayers.mockReset().mockImplementation(editAllFiles);
 });
@@ -213,7 +213,7 @@ describe("editZone", () => {
   });
 
   it("reports a failed write and still refreshes", async () => {
-    h.editGlobalDoc.mockRejectedValue(new Error("read-only"));
+    h.editProjectGlobalDoc.mockRejectedValue(new Error("read-only"));
     await editZone(NAME, zone({ source: "global" }), { label: "B", rows: 2 });
     expect(h.toastError).toHaveBeenCalledWith("Could not save the zone: read-only");
     expect(h.refreshProjects).toHaveBeenCalledTimes(1);
@@ -320,14 +320,13 @@ describe("setZoneCollapsed", () => {
     expect(saved("project").zones.build).toEqual({ position: 2 });
   });
 
-  it("leaves a peer project's global file alone when it unfolds", async () => {
+  it("clears a peer project's note in every file when it unfolds", async () => {
     const note = "zones:\n  build:\n    collapsed: true\n";
     files.global = note;
     files.repo = note;
     files.project = note;
     await setZoneCollapsed("peer-0123abcd-web", zone({ source: "global" }), false);
-    expect(layerSaves).toEqual(["project", "repo"]);
-    expect(files.global).toBe(note);
+    expect(layerSaves).toEqual(["project", "repo", "global"]);
   });
 
   it("clears a peer project's own and repo zone when it unfolds", async () => {

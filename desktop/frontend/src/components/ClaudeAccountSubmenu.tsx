@@ -1,9 +1,9 @@
 import { accountLabel } from "../claudePoolText";
 import { useAgentLimits } from "../hooks/useAgentLimits";
+import { useClaudeAccountsOf } from "../hooks/useClaudeAccountsOf";
 import { useNow } from "../hooks/useNow";
 import { accountMeters } from "../sidebarUsage";
-import { useAccountsStore } from "../store/accounts";
-import { MAIN_POOL, poolForProjectKey, useClaudePoolStore } from "../store/claudePool";
+import { MAIN_POOL, poolForProjectKey } from "../store/claudePool";
 import type { ClaudeAccountChoice, ProjectInfo } from "../types";
 import { ClaudeAccountMenuRow } from "./ClaudeAccountMenuRow";
 import { CheckIcon, CornerUpLeftIcon, RefreshIcon, SettingsIcon, UserIcon } from "./icons";
@@ -26,6 +26,8 @@ function followsParent(own: ClaudeOwnChoice | undefined): boolean {
 }
 
 interface ClaudeAccountSubmenuProps {
+  // The project, whose machine's accounts are the ones offered.
+  projectName: string;
   // The project's own keys; both undefined when it sets neither.
   own?: ClaudeOwnChoice;
   // A copy can follow its parent's choice instead of holding one of its own.
@@ -43,6 +45,7 @@ interface ClaudeAccountSubmenuProps {
  *  the main accounts from Settings, one account always, or its own list —
  *  with each account's 5-hour and weekly usage beside it. */
 export function ClaudeAccountSubmenu({
+  projectName,
   own,
   isCopy,
   parent,
@@ -51,18 +54,17 @@ export function ClaudeAccountSubmenu({
   onManage,
   onClose,
 }: ClaudeAccountSubmenuProps) {
-  const accounts = useAccountsStore((s) => s.accounts);
-  const statuses = useAccountsStore((s) => s.statuses);
-  const pool = useClaudePoolStore((s) => s.pool);
+  const machine = useClaudeAccountsOf(projectName);
   const { limits } = useAgentLimits();
   const now = useNow(true, 60000);
-  if (accounts.length === 0) return null;
+  if (!machine || machine.accounts.length === 0) return null;
+  const { accounts, statuses, pool } = machine;
 
   const then = (fn: () => void) => () => {
     fn();
     onClose();
   };
-  const label = (id: string) => accountLabel(id, pool);
+  const label = (id: string) => accountLabel(id, pool, accounts);
   const choiceText = (c: ClaudeOwnChoice | undefined): string => {
     if (c?.claudeAccount !== undefined) return c.claudeAccount === "" ? "Main login" : label(c.claudeAccount);
     if (c?.claudeAccounts?.length) return c.claudeAccounts.map(label).join(", ");
