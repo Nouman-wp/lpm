@@ -37,6 +37,9 @@ on run {projectPath, deviceId}
             end if
           end try
         end repeat
+        -- Xcode asks whether to replace a run that's still attached; end it first.
+        stop doc
+        delay 1
         set r to run doc
       end if
       -- A reload after regeneration cancels the action within a second or two.
