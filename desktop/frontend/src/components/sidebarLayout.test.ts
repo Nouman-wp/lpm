@@ -4,6 +4,7 @@ import {
   type SidebarLayout,
   groupToken,
   groupIdOf,
+  groupByName,
   dropFolderTarget,
   folderNestId,
   folderBodyId,
@@ -544,5 +545,18 @@ describe("rangeBetween", () => {
   it("returns empty when an endpoint is absent", () => {
     expect(rangeBetween(order, "a", "z")).toEqual([]);
     expect(rangeBetween(order, "z", "a")).toEqual([]);
+  });
+});
+
+describe("groupByName", () => {
+  const groups: ProjectGroup[] = [
+    { id: "a", name: "work", members: [] },
+    { id: "b", name: "Work", members: [] },
+  ];
+
+  it("matches a folder's name exactly first, then ignoring case", () => {
+    expect(groupByName(groups, " Work ")?.id).toBe("b");
+    expect(groupByName(groups.slice(0, 1), "WORK")?.id).toBe("a");
+    expect(groupByName(groups, "Play")).toBeUndefined();
   });
 });

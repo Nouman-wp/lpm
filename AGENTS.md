@@ -60,7 +60,6 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
   implements a feature, change it on both phones in the same change, and keep
   its parity flow in `mobile/parity/flows` passing on both
 - Keep connected computers (Settings → Connections) in step with the desktop app: a project on a paired machine must work the same as a local one
-- Do not add additional complexity to the codebase unless absolutely necessary
 - Never commit or push any changes
 
 ## Analytics

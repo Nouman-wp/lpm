@@ -86,6 +86,15 @@ export function groupById(groups: ProjectGroup[], id: string): ProjectGroup | un
   return groups.find((g) => g.id === id);
 }
 
+// The folder called `name`: exactly, else ignoring case.
+export function groupByName(groups: ProjectGroup[], name: string): ProjectGroup | undefined {
+  const wanted = name.trim();
+  return (
+    groups.find((g) => g.name.trim() === wanted) ??
+    groups.find((g) => g.name.trim().toLowerCase() === wanted.toLowerCase())
+  );
+}
+
 // project name -> the id of the group it belongs to (if any).
 export function membershipMap(groups: ProjectGroup[]): Map<string, string> {
   const m = new Map<string, string>();

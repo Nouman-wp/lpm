@@ -73,6 +73,7 @@ import {
   reconcile,
   forgetProjects,
   layoutsEqual,
+  groupByName,
 } from "../components/sidebarLayout";
 import { mergeWithDisk } from "../components/sidebarMerge";
 import {
@@ -1559,11 +1560,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (folderName && createdLocal.length > 0) {
         try {
           let layout: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
-          let group =
-            layout.groups.find((g) => g.name.trim() === folderName) ??
-            layout.groups.find(
-              (g) => g.name.trim().toLowerCase() === folderName.toLowerCase(),
-            );
+          let group = groupByName(layout.groups, folderName);
           if (!group) {
             group = { id: crypto.randomUUID(), name: folderName, members: [] };
             // Drop the new folder directly below the local project the copies
