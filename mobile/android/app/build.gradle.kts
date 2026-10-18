@@ -99,6 +99,7 @@ dependencies {
     implementation(projects.feature.speech)
     implementation(projects.feature.terminal)
     implementation(projects.feature.usage)
+    implementation(projects.feature.widgets)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.lifecycle.runtime.compose)

@@ -2,16 +2,25 @@ import { effortBlurb } from "./agentModelMenu";
 import { getSettings } from "./store/settings";
 import { AI_CLI_OPTIONS, aiEfforts, isAICLI, type AICLI } from "./types";
 
-// What the + popup opens: an agent on a model and level, "" being the CLI's own
-// default. Remembered on this computer the way lpm Link remembers its New Tab
-// pick; the prompt never is.
+// What the + popup opens an agent with: a model and level, "" being the CLI's
+// own default.
 export interface NewTabPick {
   agent: AICLI;
   model: string;
   effort: string;
 }
 
-const KEY = "lpm:new-tab:last-pick:v1";
+// Where the popup's cursor starts: what was last opened from it.
+export type NewTabDestination = AICLI | "terminal";
+
+// Each agent's own pick and the last destination, remembered on this computer
+// the way lpm Link remembers its New Tab pick; the prompt never is.
+export interface NewTabMemory {
+  last: NewTabDestination;
+  picks: Record<AICLI, NewTabPick>;
+}
+
+const KEY = "lpm:new-tab:picks:v1";
 
 function modelsOf(agent: AICLI) {
   return AI_CLI_OPTIONS.find((o) => o.value === agent)?.models ?? [];
@@ -32,24 +41,36 @@ export function resolveNewTabPick(p: { agent?: unknown; model?: unknown; effort?
   return { agent, model, effort };
 }
 
-export function loadNewTabPick(): NewTabPick {
+interface SavedMemory {
+  last?: unknown;
+  picks?: Record<string, object | undefined>;
+}
+
+function readSaved(): SavedMemory {
   try {
-    return resolveNewTabPick(JSON.parse(window.localStorage.getItem(KEY) ?? "{}") ?? {});
+    const saved: unknown = JSON.parse(window.localStorage.getItem(KEY) ?? "{}");
+    return saved && typeof saved === "object" ? (saved as SavedMemory) : {};
   } catch {
-    return resolveNewTabPick({});
+    return {};
   }
 }
 
-export function saveNewTabPick(pick: NewTabPick): void {
+export function loadNewTabMemory(): NewTabMemory {
+  const saved = readSaved();
+  const picks = Object.fromEntries(
+    AI_CLI_OPTIONS.map((o) => [o.value, resolveNewTabPick({ ...saved.picks?.[o.value], agent: o.value })]),
+  ) as Record<AICLI, NewTabPick>;
+  const last =
+    saved.last === "terminal" || isAICLI(saved.last) ? saved.last : resolveNewTabPick({}).agent;
+  return { last, picks };
+}
+
+export function saveNewTabMemory(memory: NewTabMemory): void {
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(pick));
+    window.localStorage.setItem(KEY, JSON.stringify(memory));
   } catch {
     /* a convenience only */
   }
-}
-
-export function agentName(agent: AICLI): string {
-  return AI_CLI_OPTIONS.find((o) => o.value === agent)?.label ?? agent;
 }
 
 export function modelName(agent: AICLI, model: string): string {
@@ -61,12 +82,11 @@ export function levelName(agent: AICLI, model: string, effort: string): string {
   return aiEfforts(agent, model).find((e) => e.value === effort)?.label ?? effort;
 }
 
-/** "Claude Code · Opus · High"; an agent without models is just its name. */
-export function newTabPickLabel(pick: NewTabPick): string {
-  if (modelsOf(pick.agent).length === 0) return agentName(pick.agent);
-  const parts = [agentName(pick.agent), modelName(pick.agent, pick.model)];
-  if (pick.effort) parts.push(levelName(pick.agent, pick.model, pick.effort));
-  return parts.join(" · ");
+/** "Opus · High", "Default model"; "" for an agent without models to pick. */
+export function newTabModelLabel(pick: NewTabPick): string {
+  if (modelsOf(pick.agent).length === 0) return "";
+  const model = modelName(pick.agent, pick.model);
+  return pick.effort ? `${model} · ${levelName(pick.agent, pick.model, pick.effort)}` : model;
 }
 
 /** What a level does, in the agent's own words. */

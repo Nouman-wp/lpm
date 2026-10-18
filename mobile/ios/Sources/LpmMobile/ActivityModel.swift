@@ -1,43 +1,5 @@
 import Foundation
 
-/// What an agent is doing, in product words. `idle` is the catch-all for a status
-/// nothing acts on. Mirrors the desktop's agentStatus.ts.
-enum AgentState: CaseIterable {
-    case needsYou, error, working, done, idle
-
-    /// Attention order; lower is more urgent.
-    var rank: Int {
-        switch self {
-        case .needsYou: return 0
-        case .error: return 1
-        case .working: return 2
-        case .done: return 3
-        case .idle: return 4
-        }
-    }
-
-    var label: String {
-        switch self {
-        case .needsYou: return "Needs you"
-        case .error: return "Problem"
-        case .working: return "Working"
-        case .done: return "Done"
-        case .idle: return "Idle"
-        }
-    }
-
-    /// The four status strings the Mac reports; anything else is idle.
-    static func of(_ value: String) -> AgentState {
-        switch value {
-        case "Waiting": return .needsYou
-        case "Error": return .error
-        case "Running": return .working
-        case "Done": return .done
-        default: return .idle
-        }
-    }
-}
-
 /// The whole Mac's agents rolled up, for the ambient badge over the entry point
 /// into Activity.
 struct AgentAmbient: Equatable {
@@ -59,21 +21,6 @@ func agentAmbient(_ projects: [Project]) -> AgentAmbient {
         }
     }
     return ambient
-}
-
-/// Status entries carry no provider field; each agent's hooks encode it in the key
-/// prefix (desktop src-tauri/src/agentkind.rs).
-private let statusKeyAgents: [(prefix: String, label: String)] = [
-    ("claude_code_", "Claude Code"),
-    ("codex_", "Codex"),
-    ("gemini_", "Gemini CLI"),
-    ("cursor_", "Cursor"),
-    ("opencode_", "OpenCode"),
-    ("omp_", "omp"),
-]
-
-func agentProviderLabel(forStatusKey key: String) -> String {
-    statusKeyAgents.first { key.hasPrefix($0.prefix) }?.label ?? "Agent"
 }
 
 /// `name` is the routing key every request takes, `label` the only thing safe to

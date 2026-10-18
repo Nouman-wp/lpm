@@ -78,6 +78,9 @@ class MainActivity : ComponentActivity() {
 
     private fun openNotification(intent: Intent) {
         if (intent.action != PushNotifier.ACTION_OPEN) return
-        NotificationOpenTarget.from(intent::getStringExtra)?.let(opens::open)
+        val target = NotificationOpenTarget.from(intent::getStringExtra) ?: return
+        // An Agents widget row names a Mac too old to send a server id by its local id.
+        val mac = session.state.value.macs.firstOrNull { it.localId == target.serverId }
+        opens.open(if (mac != null) target.copy(serverId = mac.serverId) else target)
     }
 }

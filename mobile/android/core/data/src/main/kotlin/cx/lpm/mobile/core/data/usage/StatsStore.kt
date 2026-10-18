@@ -8,8 +8,11 @@ import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.model.AgentStats
 import cx.lpm.mobile.core.model.UsageMachine
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
@@ -37,6 +40,11 @@ const val LOCAL_MACHINE = "local"
 class StatsStore(private val session: MacSession) : SessionStore {
     private val mutable = MutableStateFlow(StatsState())
     val state: StateFlow<StatsState> = mutable.asStateFlow()
+
+    private val replies = MutableSharedFlow<AgentStats>(extraBufferCapacity = REPLY_BUFFER)
+
+    /** Every stats answer, whoever asked: the Token activity widget reads its own here. */
+    val received: SharedFlow<AgentStats> = replies.asSharedFlow()
 
     // Re-issues the query after a reconnect while the Stats screen is open.
     private var active = false
@@ -127,6 +135,7 @@ class StatsStore(private val session: MacSession) : SessionStore {
 
     private fun receive(stats: AgentStats?, error: String?) {
         if (stats != null) {
+            replies.tryEmit(stats)
             // The usage rows ask for this Mac's today alone; the echoed period and
             // computer tell their answer apart from the Stats screen's.
             if (stats.days == 1 && (stats.machine ?: LOCAL_MACHINE) == LOCAL_MACHINE) {
@@ -151,5 +160,6 @@ class StatsStore(private val session: MacSession) : SessionStore {
         const val STATS = "stats"
         const val STATS_TIMEOUT_MS = 30_000L
         const val REFRESH_SETTLE_MS = 500L
+        const val REPLY_BUFFER = 8
     }
 }

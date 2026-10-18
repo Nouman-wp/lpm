@@ -72,13 +72,17 @@ data class UsageBreakdown(
     }
 }
 
-/** One day's token totals, split by provider, for the activity chart. */
+/**
+ * One day's token totals, split by provider, for the activity chart. [models] prices
+ * the day on its own, for the Token activity widget.
+ */
 data class UsageDaily(
     // "YYYY-MM-DD"
     val date: String,
     val claudeTokens: Long,
     val codexTokens: Long,
-    val totalTokens: Long
+    val totalTokens: Long,
+    val models: List<UsageDailyModel> = emptyList()
 ) {
     val id: String get() = date
 
@@ -87,7 +91,30 @@ data class UsageDaily(
             date = o.string("date").orEmpty(),
             claudeTokens = o.stat("claudeTokens"),
             codexTokens = o.stat("codexTokens"),
-            totalTokens = o.stat("totalTokens")
+            totalTokens = o.stat("totalTokens"),
+            models = o.list("models", UsageDailyModel::parse)
+        )
+    }
+}
+
+/**
+ * One model's tokens within a day; fast-mode and long-context usage arrive as rows
+ * of their own, as in [AgentStats.models].
+ */
+data class UsageDailyModel(
+    val provider: String,
+    val model: String,
+    val tokens: UsageTokens,
+    val fast: Boolean,
+    val longContext: Boolean
+) {
+    companion object {
+        fun parse(o: JsonObject): UsageDailyModel = UsageDailyModel(
+            provider = o.string("provider").orEmpty(),
+            model = o.string("model").orEmpty(),
+            tokens = o.tokens("tokens"),
+            fast = o.bool("fast") ?: false,
+            longContext = o.bool("longContext") ?: false
         )
     }
 }

@@ -10,6 +10,7 @@ const OPEN_DELAY_MS = 300;
 
 interface AddTerminalButtonProps {
   onAddTerminal: () => void;
+  onRunCommand: (command: string) => void;
   onOpenAgent: (launch: RemoteAgentLaunch) => void;
   onResumeSession?: () => void;
   // ⌘T asked for the popup here, with the keyboard in it.
@@ -18,11 +19,12 @@ interface AddTerminalButtonProps {
 }
 
 // A click on + opens a terminal. Resting on it shows what else it opens — an
-// agent on a chosen model and level, with a first prompt — and with "Pick agent
-// and model on +" on, a click opens that instead. Right-click or ↓ opens it
-// without the wait.
+// agent with a first prompt, or a terminal running a command — and with
+// "Pick agent and model on +" on, a click opens that instead. Right-click or ↓
+// opens it without the wait.
 export function AddTerminalButton({
   onAddTerminal,
+  onRunCommand,
   onOpenAgent,
   onResumeSession,
   openRequested,
@@ -94,6 +96,7 @@ export function AddTerminalButton({
           onPin={() => hold(true)}
           onClose={close}
           onNewTerminal={onAddTerminal}
+          onRunCommand={onRunCommand}
           onOpenAgent={onOpenAgent}
           onResumeSession={onResumeSession}
         />

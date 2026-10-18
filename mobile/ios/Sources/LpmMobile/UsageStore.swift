@@ -65,6 +65,7 @@ final class UsageStore {
         if due || model?.claudeAccounts == nil {
             client?.requestClaudeAccounts()
         }
+        model?.tokenActivity.refreshIfDue()
     }
 
     func applyToday(_ stats: AgentStats) { today = stats }

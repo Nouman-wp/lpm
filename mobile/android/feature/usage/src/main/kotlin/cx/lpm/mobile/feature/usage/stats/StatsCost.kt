@@ -1,6 +1,7 @@
 package cx.lpm.mobile.feature.usage.stats
 
 import cx.lpm.mobile.core.model.UsageBreakdown
+import cx.lpm.mobile.core.model.UsageDailyModel
 import cx.lpm.mobile.core.model.UsageTokens
 import kotlin.math.roundToLong
 
@@ -134,6 +135,10 @@ fun estimateModelCost(
 /** Summed estimated cost across every per-model breakdown. */
 fun estimateTotalCost(models: List<UsageBreakdown>): Double =
     models.sumOf { estimateModelCost(it.tokens, it.key, it.provider, it.fast, it.longContext) }
+
+/** Estimated USD for one day, priced from that day's models (`estimateDailyCost`). */
+fun estimateDailyCost(models: List<UsageDailyModel>): Double =
+    models.sumOf { estimateModelCost(it.tokens, it.model, it.provider, it.fast, it.longContext) }
 
 /**
  * USD for display: `$0` at or below zero, two decimals under $10, else a rounded

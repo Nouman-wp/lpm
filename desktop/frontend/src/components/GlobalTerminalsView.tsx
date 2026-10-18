@@ -88,6 +88,10 @@ export function GlobalTerminalsView({
     (launch: RemoteAgentLaunch) => terminalRef.current?.openAgent(launch),
     [],
   );
+  const runCommand = useCallback(
+    (command: string) => terminalRef.current?.runCommand(command),
+    [],
+  );
   useKeyboardShortcut({ key: "t", meta: true }, handleNewTab, visible);
 
   const { handleRunAction, runningAction, modals } = useProjectActions({
@@ -138,6 +142,7 @@ export function GlobalTerminalsView({
             </div>
             <NewTerminalButton
               onNewTerminal={handleNewTerminal}
+              onRunCommand={runCommand}
               onOpenAgent={openAgent}
               openRequested={newTabAsked}
               onOpenRequestHandled={clearNewTabAsked}

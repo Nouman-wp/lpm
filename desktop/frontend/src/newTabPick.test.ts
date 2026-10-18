@@ -2,10 +2,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   levelBlurb,
-  loadNewTabPick,
-  newTabPickLabel,
+  loadNewTabMemory,
+  newTabModelLabel,
   resolveNewTabPick,
-  saveNewTabPick,
+  saveNewTabMemory,
 } from "./newTabPick";
 
 beforeEach(() => window.localStorage.clear());
@@ -42,26 +42,48 @@ describe("resolveNewTabPick", () => {
   });
 });
 
-describe("the remembered pick", () => {
-  it("comes back as saved", () => {
-    saveNewTabPick({ agent: "claude", model: "opus", effort: "xhigh" });
-    expect(loadNewTabPick()).toEqual({ agent: "claude", model: "opus", effort: "xhigh" });
+describe("the remembered picks", () => {
+  it("come back as saved, each agent with its own", () => {
+    const memory = loadNewTabMemory();
+    saveNewTabMemory({
+      last: "terminal",
+      picks: {
+        ...memory.picks,
+        claude: { agent: "claude", model: "opus", effort: "xhigh" },
+        codex: { agent: "codex", model: "gpt-6-sol", effort: "high" },
+      },
+    });
+    const loaded = loadNewTabMemory();
+    expect(loaded.last).toBe("terminal");
+    expect(loaded.picks.claude).toEqual({ agent: "claude", model: "opus", effort: "xhigh" });
+    expect(loaded.picks.codex).toEqual({ agent: "codex", model: "gpt-6-sol", effort: "high" });
+    expect(loaded.picks.gemini).toEqual({ agent: "gemini", model: "", effort: "" });
   });
 
-  it("starts on the default agent when nothing was saved or it can't be read", () => {
-    expect(loadNewTabPick()).toEqual({ agent: "claude", model: "", effort: "" });
-    window.localStorage.setItem("lpm:new-tab:last-pick:v1", "{not json");
-    expect(loadNewTabPick()).toEqual({ agent: "claude", model: "", effort: "" });
+  it("start on the default agent when nothing was saved or it can't be read", () => {
+    expect(loadNewTabMemory().last).toBe("claude");
+    expect(loadNewTabMemory().picks.codex).toEqual({ agent: "codex", model: "", effort: "" });
+    window.localStorage.setItem("lpm:new-tab:picks:v1", "{not json");
+    expect(loadNewTabMemory().last).toBe("claude");
+  });
+
+  it("drop what is no longer offered", () => {
+    window.localStorage.setItem(
+      "lpm:new-tab:picks:v1",
+      JSON.stringify({ last: "aider", picks: { codex: { model: "gpt-9", effort: "high" }, claude: "opus" } }),
+    );
+    const loaded = loadNewTabMemory();
+    expect(loaded.last).toBe("claude");
+    expect(loaded.picks.codex).toEqual({ agent: "codex", model: "", effort: "high" });
+    expect(loaded.picks.claude).toEqual({ agent: "claude", model: "", effort: "" });
   });
 });
 
-describe("newTabPickLabel", () => {
-  it("reads agent, model and level", () => {
-    expect(newTabPickLabel({ agent: "claude", model: "opus", effort: "high" })).toBe(
-      "Claude Code · Opus · High",
-    );
-    expect(newTabPickLabel({ agent: "codex", model: "", effort: "" })).toBe("Codex · Default model");
-    expect(newTabPickLabel({ agent: "opencode", model: "", effort: "" })).toBe("OpenCode");
+describe("newTabModelLabel", () => {
+  it("reads model and level", () => {
+    expect(newTabModelLabel({ agent: "claude", model: "opus", effort: "high" })).toBe("Opus · High");
+    expect(newTabModelLabel({ agent: "codex", model: "", effort: "" })).toBe("Default model");
+    expect(newTabModelLabel({ agent: "opencode", model: "", effort: "" })).toBe("");
   });
 });
 

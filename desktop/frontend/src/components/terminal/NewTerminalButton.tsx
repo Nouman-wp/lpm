@@ -9,6 +9,7 @@ interface NewTerminalButtonProps {
   className: string;
   children: ReactNode;
   onNewTerminal: () => void;
+  onRunCommand: (command: string) => void;
   onOpenAgent: (launch: RemoteAgentLaunch) => void;
   onResumeSession?: () => void;
   // ⌘T asked for the popup here, with the keyboard in it.
@@ -22,6 +23,7 @@ export function NewTerminalButton({
   className,
   children,
   onNewTerminal,
+  onRunCommand,
   onOpenAgent,
   onResumeSession,
   openRequested = false,
@@ -55,6 +57,7 @@ export function NewTerminalButton({
           onPin={noop}
           onClose={() => setFocusRequest(0)}
           onNewTerminal={onNewTerminal}
+          onRunCommand={onRunCommand}
           onOpenAgent={onOpenAgent}
           onResumeSession={onResumeSession}
         />

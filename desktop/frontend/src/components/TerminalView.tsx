@@ -105,6 +105,8 @@ export interface TerminalViewHandle {
   openNewTab(): boolean;
   // An agent picked from an empty state's popup, in the focused pane.
   openAgent(launch: RemoteAgentLaunch): void;
+  // A command typed into an empty state's popup, run in a new terminal.
+  runCommand(command: string): void;
   createTerminalWithCmd(label: string, cmd: string, opts?: TerminalStartOpts): void;
   // Adopt a peer-spawned pty as a tab (no new pty, no command injection).
   adoptTerminal(id: string, label?: string, opts?: AdoptedTabOpts): void;
@@ -267,6 +269,16 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   const openAgent = useCallback(
     (launch: RemoteAgentLaunch) => launchAgentInPane(undefined, launch),
     [launchAgentInPane],
+  );
+  // A command typed into the + popup, in a new terminal named after it.
+  const runCommandInPane = useCallback(
+    (paneId: string | undefined, command: string) =>
+      void createTerminalWithCmd(command.split("\n")[0], command, { paneId }),
+    [createTerminalWithCmd],
+  );
+  const runCommand = useCallback(
+    (command: string) => runCommandInPane(undefined, command),
+    [runCommandInPane],
   );
 
   const servicesKey = services.map((s) => s.name).join(",");
@@ -1100,6 +1112,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       createTerminal,
       openNewTab: newTab.openNewTab,
       openAgent,
+      runCommand,
       createTerminalWithCmd,
       adoptTerminal,
       resumeFromHistory,
@@ -1123,6 +1136,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       createTerminal,
       newTab.openNewTab,
       openAgent,
+      runCommand,
       createTerminalWithCmd,
       adoptTerminal,
       resumeFromHistory,
@@ -1178,6 +1192,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onRestartService={restartService}
             onAddTerminal={addTerminalToPane}
             onLaunchAgent={launchAgentInPane}
+            onRunCommand={runCommandInPane}
             newTabPaneId={newTab.newTabPaneId}
             onNewTabHandled={newTab.clearPaneRequest}
             onAddBrowser={addBrowserToPane}
@@ -1222,6 +1237,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
           <p className="text-xs">No terminals yet</p>
           <NewTerminalButton
             onNewTerminal={() => void createTerminal()}
+            onRunCommand={runCommand}
             onOpenAgent={openAgent}
             onResumeSession={onResumeSession}
             openRequested={newTab.emptyAsked}

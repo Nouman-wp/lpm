@@ -9,6 +9,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.test.core.app.ApplicationProvider
+import cx.lpm.mobile.core.data.widget.AgentWidgetStore
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.testing.TestSession
 import java.util.Base64
@@ -54,7 +55,7 @@ class PushNotifierTest {
         val t = TestSession(this)
         t.credentials.load()
         t.credentials.loadOrCreatePushKey()
-        val notifier = PushNotifier(app, t.credentials, t.session)
+        val notifier = PushNotifier(app, t.credentials, t.session, AgentWidgetStore(app) {})
         notifier.createChannels()
         return notifier to t
     }

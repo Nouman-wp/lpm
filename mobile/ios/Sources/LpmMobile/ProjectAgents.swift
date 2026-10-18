@@ -104,15 +104,3 @@ func agentRowsByTerminal(_ rows: [ProjectAgentRow]) -> [String: ProjectAgentRow]
     Dictionary(rows.compactMap { row in row.terminalId.map { ($0, row) } },
                uniquingKeysWith: { first, _ in first })
 }
-
-/// "45s", "4m", "2h 5m" — `formatActivityDuration` with the remainder dropped, for
-/// a row with room for a reading rather than a stopwatch. Takes millis, and rounds
-/// down like a stopwatch: it says what has elapsed, never more.
-func shortDuration(millis: Int) -> String {
-    let secs = max(0, millis / 1000)
-    if secs < 60 { return "\(secs)s" }
-    let mins = secs / 60
-    if mins < 60 { return "\(mins)m" }
-    let rest = mins % 60
-    return rest > 0 ? "\(mins / 60)h \(rest)m" : "\(mins / 60)h"
-}

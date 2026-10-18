@@ -2,9 +2,11 @@
 LpmMobile.xcodeproj/
 Info.plist
 NotificationService-Info.plist
+Widgets-Info.plist
 # Entitlements are generated from project.yml (source of truth), like Info.plist.
 LpmMobile.entitlements
 LpmMobileNotificationService.entitlements
+LpmMobileWidgets.entitlements
 
 # Local signing team: the override for team.sh, and the xcconfig it writes
 # (personal; never committed).

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_agents_title">Agents</string>
+    <string name="widget_agents_description">Your agents\' tabs: who needs you, who\'s working, and for how long.</string>
+    <string name="widget_agents_empty_title">No agents running</string>
+    <string name="widget_agents_empty_body">Agents you start on your Mac show up here.</string>
+    <plurals name="widget_agents_need_you">
+        <item quantity="one">%1$d need you</item>
+        <item quantity="other">%1$d need you</item>
+    </plurals>
+    <plurals name="widget_agents_problems">
+        <item quantity="one">%1$d problem</item>
+        <item quantity="other">%1$d problems</item>
+    </plurals>
+    <plurals name="widget_agents_working">
+        <item quantity="one">%1$d working</item>
+        <item quantity="other">%1$d working</item>
+    </plurals>
+    <plurals name="widget_agents_done">
+        <item quantity="one">%1$d done</item>
+        <item quantity="other">%1$d done</item>
+    </plurals>
+    <string name="widget_agents_separator">" · "</string>
+</resources>

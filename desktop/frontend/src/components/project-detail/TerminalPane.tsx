@@ -108,6 +108,7 @@ export function TerminalPane({
         <EmptyTerminalState
           projectLabel={projectLabel}
           onNewTerminal={onNewTerminal}
+          onRunCommand={(command) => terminalRef.current?.runCommand(command)}
           onOpenAgent={(launch) => terminalRef.current?.openAgent(launch)}
           onEditConfig={onEditConfig}
           onResumeSession={onResumeSession}

@@ -22,29 +22,15 @@ extension View {
 private struct WorkingSweep: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private static let palette: [Color] = [
-        Color(red: 0.231, green: 0.510, blue: 0.965),
-        Color(red: 0.545, green: 0.361, blue: 0.965),
-        Color(red: 0.925, green: 0.282, blue: 0.600),
-        Color(red: 0.024, green: 0.714, blue: 0.831),
-        Color(red: 0.388, green: 0.400, blue: 0.945),
-    ]
-    // A lap of the palette spans three view widths. The strip holds three laps,
-    // closed on its first color, so a cycle can slide it two laps — ending where
-    // it began — with the view still inside it.
-    private static let strip = palette + palette + palette + [palette[0]]
-
     func body(content: Content) -> some View {
         if reduceMotion {
-            content.foregroundStyle(LinearGradient(colors: Self.strip,
-                                                   startPoint: .leading,
-                                                   endPoint: UnitPoint(x: 9, y: 0.5)))
+            content.foregroundStyle(AgentSweep.still)
         } else {
             content
                 .foregroundStyle(.clear)
                 .overlay(alignment: .leading) {
                     GeometryReader { geo in
-                        LinearGradient(colors: Self.strip, startPoint: .leading, endPoint: .trailing)
+                        LinearGradient(colors: AgentSweep.strip, startPoint: .leading, endPoint: .trailing)
                             .frame(width: geo.size.width * 9)
                             // Bezier (1/3, 0, 2/3, 1) is exactly smoothstep, the
                             // desktop's ease. The jump back is a no-op: two laps

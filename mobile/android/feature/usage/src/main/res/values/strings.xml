@@ -104,4 +104,26 @@
     <string name="rows_new_sessions_now">New sessions in %1$s use it now</string>
     <string name="rows_new_sessions_always">New sessions in %1$s always use it</string>
     <string name="rows_no_window">No usage window reported yet.</string>
+
+    <!-- Token activity widget -->
+    <string name="token_activity_title">Token activity</string>
+    <string name="token_activity_description">Tokens and estimated cost over the last 7, 14 or 30 days.</string>
+    <string name="token_activity_empty">Open lpm to load token activity.</string>
+    <string name="token_activity_range">%1$dD</string>
+    <plurals name="token_activity_range_label">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <string name="token_activity_tokens">tokens</string>
+    <string name="token_activity_estimated">est.</string>
+    <string name="token_activity_per_million">%1$s / 1M</string>
+    <string name="token_activity_today">Today</string>
+    <plurals name="token_activity_bars">
+        <item quantity="one">Tokens per day over %1$d day; busiest %2$s, %3$s for %4$s</item>
+        <item quantity="other">Tokens per day over %1$d days; busiest %2$s, %3$s for %4$s</item>
+    </plurals>
+    <plurals name="token_activity_bars_empty">
+        <item quantity="one">No tokens in this %1$d day</item>
+        <item quantity="other">No tokens in these %1$d days</item>
+    </plurals>
 </resources>

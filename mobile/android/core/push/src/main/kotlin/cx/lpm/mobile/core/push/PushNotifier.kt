@@ -24,6 +24,7 @@ import cx.lpm.mobile.core.data.push.PushClear
 import cx.lpm.mobile.core.data.push.PushCrypto
 import cx.lpm.mobile.core.data.push.PushKind
 import cx.lpm.mobile.core.data.session.MacSession
+import cx.lpm.mobile.core.data.widget.AgentWidgetStore
 import cx.lpm.mobile.core.model.Project
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -40,7 +41,8 @@ import kotlinx.coroutines.runBlocking
 class PushNotifier @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val credentials: CredentialStore,
-    private val session: MacSession
+    private val session: MacSession,
+    private val widget: AgentWidgetStore
 ) {
     private val manager = NotificationManagerCompat.from(context)
 
@@ -73,9 +75,13 @@ class PushNotifier @Inject constructor(
         val key = credentials.loadPushKey() ?: return
         val payload = PushCrypto.open(blob, key) ?: return
         if (data[TYPE] == "background") {
-            PushClear.parse(payload)?.let(::withdraw)
+            PushClear.parse(payload)?.let { clear ->
+                widget.apply(clear)
+                withdraw(clear)
+            }
             return
         }
+        widget.apply(payload)
         val alert = PushAlert.parse(payload) ?: return
         // The open app shows its live Mac's statuses itself; a push from another
         // Mac, or from this one while the link is down, is news only it carries.

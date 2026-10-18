@@ -2,6 +2,7 @@ package cx.lpm.mobile.feature.usage.stats
 
 import cx.lpm.mobile.core.model.UsageBreakdown
 import cx.lpm.mobile.core.model.UsageDaily
+import cx.lpm.mobile.core.model.UsageDailyModel
 import cx.lpm.mobile.core.model.UsageTokens
 import java.util.Locale
 import org.junit.AfterClass
@@ -113,6 +114,17 @@ class StatsFormatTest {
             UsageBreakdown("claude-haiku-5-5", "", 1, t, "claude", false, longContext = true)
         )
         assertEquals(3.06, estimateTotalCost(models), 1e-9)
+    }
+
+    @Test
+    fun `a day is priced from its own models`() {
+        val t = tokens(input = 1_000_000, cacheRead = 1_000_000, output = 1_000_000)
+        val day = listOf(
+            UsageDailyModel("claude", "claude-sonnet-5-5", t, fast = false, longContext = false),
+            UsageDailyModel("claude", "claude-haiku-5-5", t, fast = false, longContext = true)
+        )
+        assertEquals(12.65, estimateDailyCost(day), 1e-9)
+        assertEquals(0.0, estimateDailyCost(emptyList()), 1e-9)
     }
 
     @Test

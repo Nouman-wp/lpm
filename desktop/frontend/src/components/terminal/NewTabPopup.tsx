@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -8,26 +9,32 @@ import {
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown } from "lucide-react";
 import { computeStyle } from "../../hooks/useAnchoredPanel";
 import { useOverlay } from "../../store/overlay";
 import { useSettingsStore } from "../../store/settings";
 import { chordLabel } from "../../keys";
+import { AI_CLI_OPTIONS, type AICLI } from "../../types";
 import {
-  loadNewTabPick,
-  newTabPickLabel,
-  saveNewTabPick,
+  loadNewTabMemory,
+  newTabModelLabel,
+  saveNewTabMemory,
+  type NewTabDestination,
+  type NewTabMemory,
   type NewTabPick,
 } from "../../newTabPick";
 import type { RemoteAgentLaunch } from "../../remoteAgentTabs";
 import { HistoryIcon, TerminalIcon } from "../icons";
-import { Toggle } from "../ui/Toggle";
-import { AgentCascadeMenu } from "./AgentCascadeMenu";
 import { AgentGlyph } from "./AgentGlyph";
+import { LauncherModelChip } from "./LauncherModelChip";
+import { LauncherModelPicker } from "./LauncherModelPicker";
+import { LauncherRow } from "./LauncherRow";
+import { NewTabFooter } from "./NewTabFooter";
 
-const POPUP_WIDTH = 360;
-const ROW =
-  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:shrink-0 [&>svg]:text-[var(--text-muted)]";
+const POPUP_WIDTH = 388;
+const CAPTION =
+  "px-2 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]";
+
+type Destination = NewTabDestination | "resume";
 
 export interface NewTabPopupProps {
   anchorRef: RefObject<HTMLElement | null>;
@@ -39,12 +46,23 @@ export interface NewTabPopupProps {
   onPin: () => void;
   onClose: () => void;
   onNewTerminal: () => void;
+  // What was typed, run in a new terminal.
+  onRunCommand: (command: string) => void;
   onOpenAgent: (launch: RemoteAgentLaunch) => void;
   onResumeSession?: () => void;
 }
 
-// What + offers: write what the agent should do, pick the agent, model and
-// level from the chip under the box, press ↵. Left empty, the agent just opens.
+// ↑ on the prompt's first line and ↓ on its last move the cursor; elsewhere
+// they move the caret between the prompt's lines.
+function caretMoves(el: HTMLTextAreaElement, key: string): boolean {
+  return key === "ArrowUp"
+    ? el.value.slice(0, el.selectionStart).includes("\n")
+    : el.value.slice(el.selectionEnd).includes("\n");
+}
+
+// What + offers: type a task or a command, then pick where it goes. An agent
+// takes it as its first prompt, on the model and level its row shows; a
+// terminal runs it. Left empty, the pick just opens.
 export function NewTabPopup({
   anchorRef,
   focusRequest,
@@ -52,19 +70,19 @@ export function NewTabPopup({
   onPin,
   onClose,
   onNewTerminal,
+  onRunCommand,
   onOpenAgent,
   onResumeSession,
 }: NewTabPopupProps) {
   const [style, setStyle] = useState<CSSProperties | null>(null);
-  const [pick, setPick] = useState<NewTabPick>(loadNewTabPick);
-  const [prompt, setPrompt] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [memory, setMemory] = useState<NewTabMemory>(loadNewTabMemory);
+  const [cursor, setCursor] = useState<Destination>(memory.last);
+  const [expanded, setExpanded] = useState<AICLI | null>(null);
+  const [text, setText] = useState("");
   const promptRef = useRef<HTMLTextAreaElement>(null);
-  const chipRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const askOnPlus = useSettingsStore((s) => s.pickAgentOnNewTab ?? false);
-  const updateSettings = useSettingsStore((s) => s.update);
   useOverlay(true);
 
   useLayoutEffect(() => {
@@ -97,33 +115,63 @@ export function NewTabPopup({
     return () => document.removeEventListener("mousedown", onMouseDown);
   }, [anchorRef]);
 
-  const openAgent = () => {
-    saveNewTabPick(pick);
-    onOpenAgent({ ...pick, prompt: prompt.trim() || undefined });
-    onClose();
+  const command = text.trim();
+  const firstLine = command.split("\n")[0];
+  const destinations: Destination[] = [
+    ...AI_CLI_OPTIONS.map((o) => o.value),
+    "terminal",
+    ...(onResumeSession ? (["resume"] as const) : []),
+  ];
+
+  const changePick = (pick: NewTabPick) => {
+    const next = { ...memory, picks: { ...memory.picks, [pick.agent]: pick } };
+    setMemory(next);
+    saveNewTabMemory(next);
   };
 
-  const onPromptKeyDown = (e: KeyboardEvent) => {
+  const choose = (destination: Destination) => {
+    if (destination !== "resume") saveNewTabMemory({ ...memory, last: destination });
+    onClose();
+    if (destination === "resume") onResumeSession?.();
+    else if (destination !== "terminal") {
+      onOpenAgent({ ...memory.picks[destination], prompt: command || undefined });
+    } else if (command) onRunCommand(command);
+    else onNewTerminal();
+  };
+
+  const toggleExpanded = (agent: AICLI) => {
+    setCursor(agent);
+    setExpanded((open) => (open === agent ? null : agent));
+    promptRef.current?.focus({ preventScroll: true });
+  };
+
+  const onPromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
     e.preventDefault();
-    openAgent();
+    choose(cursor);
   };
 
-  // Escape backs out one step: the menu first, then the popup. It only reaches
-  // here from inside, so an Escape meant for the terminal underneath stays there.
+  // Escape backs out one step: the open picker first, then the popup. It only
+  // reaches here from inside, so an Escape meant for the terminal underneath
+  // stays there.
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key !== "Escape") return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (menuOpen) {
-      setMenuOpen(false);
-      chipRef.current?.focus();
-    } else {
-      onClose();
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (expanded) setExpanded(null);
+      else onClose();
+      return;
     }
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    if (e.target instanceof HTMLTextAreaElement && caretMoves(e.target, e.key)) return;
+    e.preventDefault();
+    const at = Math.max(0, destinations.indexOf(cursor));
+    const next = at + (e.key === "ArrowDown" ? 1 : -1);
+    setCursor(destinations[Math.min(destinations.length - 1, Math.max(0, next))]);
   };
 
   if (!style) return null;
+  const typed = command !== "";
 
   return createPortal(
     <div
@@ -136,101 +184,89 @@ export function NewTabPopup({
       onMouseDown={onPin}
       onFocus={onPin}
       onKeyDown={onKeyDown}
-      className="z-[80] flex flex-col overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-xl"
+      className="z-[80] flex flex-col overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl"
     >
       <div
         data-text-scope
-        className="m-0.5 mb-1 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] transition-colors focus-within:border-[var(--text-muted)]"
+        className="flex items-start gap-2 border-b border-[var(--border)] px-3 pb-2 pt-2.5"
       >
+        <span aria-hidden className="font-mono text-[13px] leading-[19px] text-[var(--text-muted)]">
+          ›
+        </span>
         <textarea
           ref={promptRef}
-          rows={3}
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          rows={2}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
           onKeyDown={onPromptKeyDown}
-          placeholder="What should the agent do? (optional)"
-          aria-label="First prompt"
-          className="block w-full resize-none bg-transparent px-2.5 pb-1 pt-2 text-[12.5px] leading-[1.4] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+          placeholder="Type a task or a command, then pick where it goes"
+          aria-label="Task or command"
+          className="block min-w-0 flex-1 resize-none bg-transparent p-0 text-[13px] leading-[19px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
         />
-        <div className="flex items-center gap-1.5 px-1.5 pb-1.5 pt-1">
-          <button
-            ref={chipRef}
-            type="button"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((open) => !open)}
-            className={`flex h-[26px] min-w-0 items-center gap-1.5 rounded-full border pl-[5px] pr-2 text-[11.5px] transition-colors ${
-              menuOpen
-                ? "border-[var(--text-muted)] bg-[var(--bg-hover)] text-[var(--text-primary)]"
-                : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            }`}
-          >
-            <AgentGlyph agent={pick.agent} />
-            <span className="truncate">{newTabPickLabel(pick)}</span>
-            <ChevronDown size={11} strokeWidth={2} className="shrink-0" />
-          </button>
-          <button
-            type="button"
-            onClick={openAgent}
-            className="ml-auto flex h-[26px] shrink-0 items-center gap-1.5 rounded-md bg-[var(--text-primary)] px-2.5 text-[12px] font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-85"
-          >
-            Open
-            <span className="opacity-60">↵</span>
-          </button>
-        </div>
       </div>
-      <div className="mx-0.5 my-1 h-px bg-[var(--border)]" />
-      <button
-        type="button"
-        className={ROW}
-        onClick={() => {
-          onClose();
-          onNewTerminal();
-        }}
-      >
-        <TerminalIcon />
-        <span className="flex-1">New terminal</span>
-        {!askOnPlus && (
-          <kbd className="text-[11px] text-[var(--text-muted)]">{chordLabel({ key: "t", meta: true })}</kbd>
+      <div role="group" aria-label={typed ? "Send to" : "Open"} className="flex flex-col gap-px p-1.5">
+        <div aria-hidden className={CAPTION}>
+          {typed ? "Send to" : "Open"}
+        </div>
+        {AI_CLI_OPTIONS.map((o) => {
+          const pick = memory.picks[o.value];
+          const modelLabel = newTabModelLabel(pick);
+          const active = cursor === o.value;
+          const open = expanded === o.value;
+          return (
+            <Fragment key={o.value}>
+              <LauncherRow
+                label={o.label}
+                leading={<AgentGlyph agent={o.value} />}
+                sub={typed && active ? `Starts with “${firstLine}”` : undefined}
+                active={active}
+                onPoint={() => setCursor(o.value)}
+                onChoose={() => choose(o.value)}
+                trailing={
+                  modelLabel && (
+                    <LauncherModelChip
+                      label={modelLabel}
+                      agentLabel={o.label}
+                      open={open}
+                      active={active}
+                      onToggle={() => toggleExpanded(o.value)}
+                    />
+                  )
+                }
+              />
+              {open && <LauncherModelPicker pick={pick} onChange={changePick} />}
+            </Fragment>
+          );
+        })}
+        <div className="mx-2 my-1 h-px bg-[var(--border)]" />
+        <LauncherRow
+          label={typed ? "Run in a new terminal" : "New terminal"}
+          leading={<TerminalIcon />}
+          sub={typed ? `$ ${firstLine}` : undefined}
+          mono
+          active={cursor === "terminal"}
+          onPoint={() => setCursor("terminal")}
+          onChoose={() => choose("terminal")}
+          trailing={
+            !askOnPlus &&
+            cursor !== "terminal" && (
+              <kbd className="shrink-0 font-sans text-[11px] text-[var(--text-muted)]">
+                {chordLabel({ key: "t", meta: true })}
+              </kbd>
+            )
+          }
+        />
+        {onResumeSession && (
+          <LauncherRow
+            label="Resume a past session…"
+            leading={<HistoryIcon />}
+            active={cursor === "resume"}
+            onPoint={() => setCursor("resume")}
+            onChoose={() => choose("resume")}
+          />
         )}
-      </button>
-      {onResumeSession && (
-        <button
-          type="button"
-          className={ROW}
-          onClick={() => {
-            onClose();
-            onResumeSession();
-          }}
-        >
-          <HistoryIcon />
-          <span className="flex-1">Resume a past session…</span>
-        </button>
-      )}
-      <div className="flex items-center gap-3 px-2 py-1.5">
-        <div className="min-w-0 flex-1">
-          <div className="text-[12.5px] text-[var(--text-primary)]">Pick agent and model on +</div>
-          <div className="text-[11px] text-[var(--text-muted)]">
-            + and {chordLabel({ key: "t", meta: true })} ask what to open.
-          </div>
-        </div>
-        <Toggle
-          enabled={askOnPlus}
-          onChange={(v) => void updateSettings({ pickAgentOnNewTab: v })}
-          aria-label="Pick agent and model on +"
-        />
       </div>
-      {menuOpen && (
-        <AgentCascadeMenu
-          anchorRef={chipRef}
-          pick={pick}
-          onChoose={(next) => {
-            setPick(next);
-            setMenuOpen(false);
-            promptRef.current?.focus({ preventScroll: true });
-          }}
-        />
-      )}
+      <NewTabFooter />
     </div>,
     document.body,
   );

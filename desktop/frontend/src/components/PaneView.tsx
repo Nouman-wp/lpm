@@ -169,6 +169,8 @@ export interface PaneViewProps {
   onAddTerminal: (paneId: string) => void;
   // An agent picked from the + popup, opened in this pane.
   onLaunchAgent: (paneId: string, launch: RemoteAgentLaunch) => void;
+  // A command typed into the + popup, run in a new terminal in this pane.
+  onRunCommand: (paneId: string, command: string) => void;
   // The pane ⌘T asked to show its + popup, until it has.
   newTabPaneId: string | null;
   onNewTabHandled: () => void;
@@ -255,6 +257,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onRestartService,
     onAddTerminal,
     onLaunchAgent,
+    onRunCommand,
     newTabPaneId,
     onNewTabHandled,
     onAddBrowser,
@@ -553,6 +556,7 @@ function PaneViewImpl(props: PaneViewProps) {
           </TabStrip>
           <AddTerminalButton
             onAddTerminal={() => onAddTerminal(pane.id)}
+            onRunCommand={(command) => onRunCommand(pane.id, command)}
             onOpenAgent={(launch) => onLaunchAgent(pane.id, launch)}
             onResumeSession={onResumeSession}
             openRequested={newTabPaneId === pane.id}

@@ -13,6 +13,7 @@ const NOWRAP = isMac ? "" : " whitespace-nowrap";
 interface EmptyTerminalStateProps {
   projectLabel: string;
   onNewTerminal: () => void;
+  onRunCommand: (command: string) => void;
   onOpenAgent: (launch: RemoteAgentLaunch) => void;
   onEditConfig: () => void;
   onResumeSession?: () => void;
@@ -23,6 +24,7 @@ interface EmptyTerminalStateProps {
 export function EmptyTerminalState({
   projectLabel,
   onNewTerminal,
+  onRunCommand,
   onOpenAgent,
   onEditConfig,
   onResumeSession,
@@ -47,6 +49,7 @@ export function EmptyTerminalState({
         <div className={BUTTON_ROW}>
           <NewTerminalButton
             onNewTerminal={onNewTerminal}
+            onRunCommand={onRunCommand}
             onOpenAgent={onOpenAgent}
             onResumeSession={onResumeSession}
             openRequested={newTabAsked}

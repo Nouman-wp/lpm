@@ -32,7 +32,7 @@ struct NotificationOpenTarget: Equatable {
         self.itemId = itemId
     }
 
-    init(serverId: String, project: String, terminal: String?) {
+    init(serverId: String?, project: String, terminal: String?) {
         self.serverId = serverId
         self.project = project
         self.kind = terminal == nil ? .project : .terminal
@@ -100,6 +100,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // The Mac this clear came from (absent on old Macs), so a clear only
         // withdraws notifications posted by the same Mac.
         let incomingServerId = payload["serverId"] as? String
+        AgentWidgetStore.apply(clear: clears, serverId: incomingServerId)
         let center = UNUserNotificationCenter.current()
         center.getDeliveredNotifications { delivered in
             let ids = delivered.compactMap { note -> String? in

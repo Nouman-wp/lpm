@@ -67,17 +67,22 @@ targets:
         CODE_SIGN_STYLE: Automatic
     # aps-environment lets the app receive APNs pushes (distribution signing
     # rewrites `development` to `production`). The shared keychain access group lets
-    # the notification service extension read the push key.
+    # the notification service extension read the push key. The app group holds the
+    # Agents widget's rows, written by the app and the notification extension.
     entitlements:
       path: LpmMobile.entitlements
       properties:
         aps-environment: development
         keychain-access-groups:
           - $(AppIdentifierPrefix)cx.lpm.mobile.shared
+        com.apple.security.application-groups:
+          - group.cx.lpm.mobile
     dependencies:
       # Embed the notification service extension as a plugin so pushes get decrypted
       # and rewritten on-device.
       - target: LpmMobileNotificationService
+        embed: true
+      - target: LpmMobileWidgets
         embed: true
     info:
       path: Info.plist
@@ -85,6 +90,11 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDisplayName: lpm
+        # A tapped Agents widget row opens its terminal through an lpmlink:// URL.
+        CFBundleURLTypes:
+          - CFBundleURLName: cx.lpm.mobile
+            CFBundleURLSchemes:
+              - lpmlink
         # Wake the app for silent background pushes that withdraw delivered
         # notifications (agent status cleared on the Mac). `audio` keeps read-aloud
         # speaking with the screen locked — the point of reading a result out loud.
@@ -145,6 +155,8 @@ targets:
       properties:
         keychain-access-groups:
           - $(AppIdentifierPrefix)cx.lpm.mobile.shared
+        com.apple.security.application-groups:
+          - group.cx.lpm.mobile
     info:
       path: NotificationService-Info.plist
       properties:
@@ -154,3 +166,33 @@ targets:
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+
+  # Home Screen widgets: the Agents list, read from the app group the app and the
+  # notification extension write.
+  LpmMobileWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Sources/Widgets
+      - Sources/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cx.lpm.mobile.widgets
+        MARKETING_VERSION: "1.60"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+    entitlements:
+      path: LpmMobileWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.cx.lpm.mobile
+    info:
+      path: Widgets-Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDisplayName: lpm
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension

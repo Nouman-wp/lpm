@@ -14,6 +14,7 @@ describe("EmptyTerminalState", () => {
         <EmptyTerminalState
           projectLabel="wt-one"
           onNewTerminal={() => {}}
+          onRunCommand={() => {}}
           onOpenAgent={() => {}}
           onEditConfig={() => {}}
           newTabAsked={false}

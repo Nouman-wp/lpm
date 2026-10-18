@@ -2175,12 +2175,14 @@ struct UsageBreakdown: Identifiable {
     }
 }
 
-/// One day's token totals, split by provider, for the activity chart.
+/// One day's token totals, split by provider, for the activity chart. `models`
+/// prices the day on its own, for the Token activity widget.
 struct UsageDaily: Identifiable {
     let date: String   // "YYYY-MM-DD"
     let claudeTokens: Int
     let codexTokens: Int
     let totalTokens: Int
+    let models: [UsageDailyModel]
 
     var id: String { date }
 
@@ -2189,6 +2191,25 @@ struct UsageDaily: Identifiable {
         claudeTokens = statInt(o, "claudeTokens")
         codexTokens = statInt(o, "codexTokens")
         totalTokens = statInt(o, "totalTokens")
+        models = (o["models"] as? [[String: Any]] ?? []).map(UsageDailyModel.init)
+    }
+}
+
+/// One model's tokens within a day; fast-mode and long-context usage arrive as
+/// rows of their own, as in `AgentStats.models`.
+struct UsageDailyModel {
+    let provider: String
+    let model: String
+    let tokens: UsageTokens
+    let fast: Bool
+    let longContext: Bool
+
+    init(_ o: [String: Any]) {
+        provider = o["provider"] as? String ?? ""
+        model = o["model"] as? String ?? ""
+        tokens = UsageTokens(o["tokens"] as? [String: Any] ?? [:])
+        fast = o["fast"] as? Bool ?? false
+        longContext = o["longContext"] as? Bool ?? false
     }
 }
 

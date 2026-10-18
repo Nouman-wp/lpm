@@ -1,20 +1,5 @@
 import SwiftUI
 
-/// The state colours the app speaks, shared by the rows and the header counts so
-/// a dot means the same thing everywhere. Done is blue, as on the desktop; working
-/// is told apart from it by `agentTone`'s sweep wherever the two sit together.
-extension AgentState {
-    var tint: SwiftUI.Color {
-        switch self {
-        case .needsYou: return .orange
-        case .error: return .red
-        case .working: return .blue
-        case .done: return .blue
-        case .idle: return .secondary
-        }
-    }
-}
-
 /// One agent or automation: an icon tile, what it is, what it's doing, and how long
 /// it has been doing it. The whole card is the tap target.
 struct ActivityRowCard: View {

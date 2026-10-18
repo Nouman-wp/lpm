@@ -334,6 +334,7 @@ final class AppModel {
 
     // The agent plan-usage meters (`model.usage`), same split.
     var usage = UsageStore()
+    @ObservationIgnored let tokenActivity = TokenActivityFeed()
 
     // lpm on the live Mac and updating it (`model.macUpdate`), same split.
     var macUpdate = MacUpdateStore()
@@ -404,6 +405,7 @@ final class AppModel {
         memory.model = self
         notes.model = self
         usage.model = self
+        tokenActivity.model = self
         macUpdate.model = self
         agentLaunch.model = self
         projectFiles.model = self
@@ -430,6 +432,7 @@ final class AppModel {
         MacStore.migrateLegacyIfNeeded()
         macs = MacStore.loadRecords()
         activeMacId = MacStore.loadActiveId() ?? macs.first?.localId
+        pruneAgentWidget()
         restoreSnapshot()
         guard let cred = activeCredential() else { return }
         connectBest(credential: cred)
@@ -923,6 +926,7 @@ final class AppModel {
         demoMode = false
         macs = MacStore.loadRecords()
         activeMacId = MacStore.loadActiveId() ?? macs.first?.localId
+        pruneAgentWidget()
         restoreSnapshot()
         if let cred = activeCredential() { connectBest(credential: cred) }
     }
@@ -1025,6 +1029,7 @@ final class AppModel {
         macs.removeAll { gone.contains($0.localId) }
         if wasActive { activeMacId = next?.localId }
         persistMacs()
+        pruneAgentWidget()
         if wasActive, let next, let cred = Keychain.load(for: linkRecord(of: next).localId) {
             restoreSnapshot()
             connectBest(credential: cred)
@@ -2723,6 +2728,7 @@ final class AppModel {
                 // computer tell their answer apart from the Stats screen's.
                 let local = (stats.machine ?? "local") == "local"
                 if stats.days == 1 && local { self.usage.applyToday(stats) }
+                self.tokenActivity.apply(stats)
                 // Drop a stale reply from a superseded period or computer — the
                 // payload echoes what it was scanned for, and only the current pick
                 // may land. A Mac that predates picking echoes no computer.

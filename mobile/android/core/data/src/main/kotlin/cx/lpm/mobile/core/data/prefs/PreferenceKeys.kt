@@ -34,6 +34,8 @@ object PreferenceKeys {
     const val ZONE_OPEN_LAYERS = "zoneOpenLayers"
     const val NEW_TAB_LAST_PICK = "newTab.lastPick"
 
+    const val TOKEN_ACTIVITY_RANGE = "tokenActivity.range"
+
     /** The last push registration a Mac acknowledged. */
     fun pushRegistered(localId: String): String = "lpm.push.registered.$localId"
 

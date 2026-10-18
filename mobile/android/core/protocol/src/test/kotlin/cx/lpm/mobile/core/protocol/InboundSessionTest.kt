@@ -104,6 +104,15 @@ class InboundSessionTest {
         )
         assertEquals(4_200_000_000L, ok.stats!!.totals.inputTokens)
         assertNull(ok.error)
+        val day = decode<Inbound.Stats>(
+            """{ "t": "stats", "ok": true, "stats": { "days": 30, "daily": [ { "date": "2026-10-18",
+                 "claudeTokens": 5, "codexTokens": 0, "totalTokens": 5, "models": [ { "provider": "claude",
+                 "model": "claude-haiku-5-5", "tokens": { "outputTokens": 5 }, "longContext": true } ] } ] } }"""
+        ).stats!!.daily.single()
+        assertEquals("claude-haiku-5-5", day.models.single().model)
+        assertEquals(5L, day.models.single().tokens.outputTokens)
+        assertTrue(day.models.single().longContext)
+        assertFalse(day.models.single().fast)
         assertEquals(0, decode<Inbound.Stats>("""{ "t": "stats", "ok": true }""").stats!!.days)
         assertEquals(
             Inbound.Stats(null, "Couldn't load stats."),

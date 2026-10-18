@@ -26,6 +26,7 @@ final class NotificationService: UNNotificationServiceExtension {
               let project = payload["project"] as? String, !project.isEmpty,
               let mutable = original.mutableCopy() as? UNMutableNotificationContent
         else { return nil }
+        AgentWidgetStore.apply(push: payload)
 
         let terminal = payload["terminal"] as? String ?? ""
         let status = payload["status"] as? String ?? ""
