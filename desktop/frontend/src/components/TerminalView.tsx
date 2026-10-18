@@ -97,7 +97,8 @@ export interface TerminalViewHandle {
   createTerminalWithCmd(label: string, cmd: string, opts?: TerminalStartOpts): void;
   // Adopt a peer-spawned pty as a tab (no new pty, no command injection).
   adoptTerminal(id: string, label?: string, opts?: AdoptedTabOpts): void;
-  resumeFromHistory(entry: PersistedHistoryEntry): void;
+  // `background`: opened for a phone, behind the tab in view.
+  resumeFromHistory(entry: PersistedHistoryEntry, background?: boolean): void;
   // Submit a command into the focused pane's active terminal. Returns false
   // (with a toast) when no live terminal is focused.
   sendCommandToActive(cmd: string): boolean;

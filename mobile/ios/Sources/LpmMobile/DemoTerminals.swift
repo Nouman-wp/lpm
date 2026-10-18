@@ -75,8 +75,9 @@ extension DemoServer {
         register("newTerminal") { [weak self] o in
             guard let self, let project = o["project"] as? String else { return }
             let (n, id) = self.nextTerminalId(project)
-            let term = DemoWorld.Terminal(id: id, label: "Terminal \(n)", project: project,
-                                          buffer: self.shellPrompt(project))
+            let term = self.demoAgentTerminal(o, id: id, project: project)
+                ?? DemoWorld.Terminal(id: id, label: "Terminal \(n)", project: project,
+                                      buffer: self.shellPrompt(project))
             self.world.terminals[project, default: []].append(term)
             self.push(["t": "newTerminal", "ok": true])
         }
@@ -318,7 +319,7 @@ extension DemoServer {
         return known.contains(project) ? project : "default"
     }
 
-    private func mentionTree(_ project: String) -> [(String, Bool)] {
+    func mentionTree(_ project: String) -> [(String, Bool)] {
         switch treeKey(project) {
         case "storefront":
             return [
@@ -873,7 +874,7 @@ extension DemoServer {
     }
 
     /// The first free `demo-<project>-<n>` id, counting on from the project's tabs.
-    private func nextTerminalId(_ project: String) -> (number: Int, id: String) {
+    func nextTerminalId(_ project: String) -> (number: Int, id: String) {
         var n = (world.terminals[project]?.count ?? 0) + 1
         while demoTerminal("demo-\(project)-\(n)") != nil { n += 1 }
         return (n, "demo-\(project)-\(n)")

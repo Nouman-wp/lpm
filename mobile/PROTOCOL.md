@@ -133,7 +133,10 @@ ignores, so the phone sends them only where they will get a reply. Today:
 (`serviceLogsWatch` / `serviceLogsUnwatch`); `"serviceRestart"` — `restartService` /
 `stopService`, and an ended service reported as `exited`; `"agentAnswers"` — a terminal
 agent's answers for the copy key (`answers`); `"restartTerminal"` — running an ended
-terminal again in its tab (`restartTerminal`). Rides `paired` **and** `ready`;
+terminal again in its tab (`restartTerminal`); `"agentLaunch"` — `agentOptions`, and
+`newTerminal` starting an agent; `"agentSessions"` — `agentSessions` and `resumeSession`;
+`"listDir"` — browsing a project's folders (`listDir`); the last three under
+[Agent tabs and files](#agent-tabs-and-files). Rides `paired` **and** `ready`;
 **absent** from a desktop that predates it, which means none.
 
 `hosts` (**optional**) is the Mac's current candidate address list, most-preferred
@@ -349,7 +352,7 @@ holds no credential of its own, so removing it sends nothing.
 | `{ "t": "actionBgOutput", "project": "<name>", "runId": "<uuid>" }` | `{ "t": "actionBgOutput", "ok": true, "found": bool, "runId": "<uuid>", "project": "<name>", "label": "<action>", "startedAt": <unix>, "text": "<accumulated output>", "running": bool, "success": bool, "error": "…" }` — one poll of a background run's live output + terminal status (the phone polls every ~2s while `running`, mirroring `jobLiveOutput`). `found:false` once the run has been reaped (finished runs are retained ~5 min) or never existed |
 | `{ "t": "cancelActionBackground", "runId": "<uuid>" }` | `{ "t": "cancelActionBackground", "ok": true, "runId": "<uuid>" }` — reaps the run's process tree; a no-op if it already finished or is unknown |
 | `{ "t": "backgroundRuns", "project": "<name>" }` | `{ "t": "backgroundRuns", "ok": true, "project": "<name>", "runs": [{ "runId", "label", "startedAt", "running", "success", "error" }…] }` — running plus recently-finished background runs for the project (newest first), so a reconnecting phone can re-attach to a run it started before relaunch |
-| `{ "t": "newTerminal", "project": "<name>" }` | `{ "t": "newTerminal", "ok": true }` — same relay; opens a plain terminal in the project |
+| `{ "t": "newTerminal", "project": "<name>", "agent"?: "<agent id>", "model"?: "<value>", "effort"?: "<value>", "prompt"?: "<text>" }` | `{ "t": "newTerminal", "ok": true }` / `{ "ok": false, "project": "<name>", "error": "…" }` — same relay; opens a new tab in the project, behind whatever the Mac shows. Without `agent` (or with `""`) it is a plain terminal. With one (an `id` from `agentOptions`, only when `features` has `"agentLaunch"`) the tab starts that agent — see [Agent tabs and files](#agent-tabs-and-files). The new terminal appears on a subsequent `terminals` re-request |
 | `{ "t": "closeTerminal", "project": "<name>", "id": "<termId>" }` | `{ "t": "closeTerminal", "ok": true }` — owner-window relay; kills the terminal and removes its tab. Re-request `terminals` to refresh |
 | `{ "t": "renameTerminal", "project": "<name>", "id": "<termId>", "label": "<new>" }` | `{ "t": "renameTerminal", "ok": true }` — relay; renames the desktop tab (a `terminals.json` write, no PTY op) |
 | `{ "t": "pinTerminal", "project": "<name>", "id": "<termId>" }` | `{ "t": "pinTerminal", "ok": true }` — relay; toggles the tab's pinned flag |
@@ -609,6 +612,42 @@ Always the whole state, never a delta. `progress` is the download's whole percen
 (cancelled or failed); an install that finished never sends it — lpm restarts
 instead. Once `installing` arrives the Mac can't stop it, and the connection
 dropping after it is that restart.
+
+### Agent tabs and files
+
+What the phone's New Tab sheet, Resume Session list and Files screen read. Each
+needs its feature flag: `"agentLaunch"` (`agentOptions`, `newTerminal` with an
+`agent`), `"agentSessions"` (`agentSessions`, `resumeSession`), `"listDir"`
+(`listDir`). Opening a tab, new or resumed, is the main window's job (the
+`runAction` relay), so those answer `ok: false` while it is closed. SSH projects
+get no session list and no folder listing: their agents and files are on another
+machine.
+
+**Starting an agent.** `newTerminal` with an `agent` runs the project's own
+button for it when it has one — a terminal action with no inputs and no prompt
+of its own whose command launches that CLI — in a **new** tab with that action's
+label, emoji and colour; otherwise the CLI's bare command (`claude`, `codex`,
+`gemini`, `opencode`), labelled with the agent's `label`. `model` and `effort`
+are pinned as session-only flags, as the desktop's launch picker pins them
+(Claude Code and Codex; `""` leaves the agent's own default). A non-empty
+`prompt` is submitted once the agent is ready. An `agent` the Mac doesn't know
+opens a plain terminal.
+
+**Sessions** are the desktop's Resume session list: every conversation Claude
+Code and Codex stored for the project's folder, newest first, minus the rows
+hidden on the desktop. A row's `title` is the name the person gave its tab, else
+the agent's title, else the opening prompt, else the closed tab's label, else
+`"Untitled session"`. `preview` (the opening prompt) is `""` when it only restates
+the title. Closed tabs with no transcript behind them aren't listed.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "agentOptions" }` | `{ "t": "agentOptions", "agents": [AgentOption…] }` — the agents a tab can start, in the desktop's order, with the models and levels its launch picker lists (see AgentOption below). `[]` until the Mac's main window has started. Inline |
+| `{ "t": "agentSessions", "project": "<name>", "search"?: "<text>", "limit"?: N }` | `{ "t": "agentSessions", "project": "<name>", "search": "<as asked>", "limit": N, "ok": true, "sessions": [AgentSession…], "hasMore": bool }` / `{ "t": "agentSessions", "project": "<name>", "search": "<as asked>", "limit": N, "ok": false, "error": "…" }` — one page, newest first. `search` and `limit` echo the request (`""` and 40 when it left them out): replies can land out of order, so drop one whose `search` isn't the query on screen. `search` matches titles and opening prompts on the Mac; `limit` defaults to 40 (clamped 1–500). `hasMore` means older ones exist: ask again with a bigger `limit`. Reading transcripts takes a while, so the reply arrives on the out-queue |
+| `{ "t": "resumeSession", "project": "<name>", "provider": "claude"\|"codex", "sessionId": "<id>", "title": "<row title>" }` | `{ "t": "resumeSession", "ok": true }` / `{ "ok": false, "project": "<name>", "error": "Open the lpm app on your Mac to resume a session." }` — relay; continues the conversation in a new tab behind whatever the Mac shows, exactly as picking it in the desktop's Resume session does: the tab history's own resume command and name when the project closed that tab, else `claude --resume <id>` / `codex resume <id>` named `title`. A conversation already open in a tab (its row's `openIn`) gets no second one — open that tab instead. The new terminal appears on a subsequent `terminals` re-request |
+| `{ "t": "listDir", "project": "<name>", "dir": "<relative dir>" }` | `{ "t": "listDir", "project": "<name>", "dir": "<dir>", "ok": true, "root": "<abs project root>", "entries": [DirEntry…] }` / `{ …, "ok": false, "error": "…" }` — one folder (`""` = the project root), as the desktop's Files tab lists it: folders first, then names in natural order regardless of case; `.git` and other VCS folders never listed. The path is confined to the project (`..` is refused). A file opens with `fileChunk` at `<dir>/<name>`; `root` joined with that is its absolute path (Copy Path). Out-queue |
+
+Go to file needs no request of its own: it filters the `mentions` index.
 
 ### Session memory
 
@@ -1068,6 +1107,38 @@ chatId: string
 chatTitle: string
 ts: unix millis
 snippet: string     // byte-window around the match
+```
+
+**AgentOption** — one agent a new tab can start:
+```
+id: string            // "claude" | "codex" | "gemini" | "opencode" — what newTerminal's `agent` takes
+label: string         // "Claude Code"
+models: [ { value: string, label: string, efforts: [ { value: string, label: string } ] } ]
+                      // [] when the agent has no model or level control. value "" is the
+                      // agent's own default ("Default"); a model whose efforts hold only
+                      // Default takes no level
+```
+
+**AgentSession** — one past conversation (`agentSessions`):
+```
+key: string           // "<provider>:<sessionId>", unique in the list
+provider: "claude" | "codex"
+sessionId: string
+title: string
+preview: string       // the opening prompt; "" when it would only restate the title
+updatedAt: unix MILLIS   // last activity; 0 when unknown
+gitBranch?: string    // the branch it ran on
+account?: string      // the Claude account it resumes on, by name; absent for the main login
+openIn?: string       // the live tab already holding it (a Terminal id)
+```
+
+**DirEntry** — one row of `listDir`:
+```
+name: string
+dir: bool
+ignored: bool         // matched by .gitignore and untracked (shown dimmed)
+status?: string       // a file's working-tree change, the same word as `git`'s files[].status
+changed?: N           // a folder's count of changed files anywhere below it
 ```
 
 **Terminal**:

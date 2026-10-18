@@ -1,6 +1,7 @@
 package cx.lpm.mobile.core.data.testing
 
 import cx.lpm.mobile.core.data.actions.ActionsStore
+import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.automations.AutomationsStore
 import cx.lpm.mobile.core.data.claude.ClaudeAccountsStore
 import cx.lpm.mobile.core.data.client.ClientEnvironment
@@ -8,6 +9,7 @@ import cx.lpm.mobile.core.data.client.LpmClient
 import cx.lpm.mobile.core.data.client.LpmClientFactory
 import cx.lpm.mobile.core.data.client.NoTailnet
 import cx.lpm.mobile.core.data.config.ProjectConfigStore
+import cx.lpm.mobile.core.data.files.ProjectFilesStore
 import cx.lpm.mobile.core.data.git.GitAutoStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.mac.CredentialStore
@@ -94,6 +96,8 @@ class SessionHarness(test: TestScope) {
             SessionStore.Factory(::ClaudeAccountsStore),
             SessionStore.Factory(::ActionsStore),
             SessionStore.Factory(::MachineImporter),
+            SessionStore.Factory(::AgentLaunchStore),
+            SessionStore.Factory(::ProjectFilesStore),
             SessionStore.Factory { PushStore(it, registrar) }
         )
     )

@@ -19,6 +19,7 @@ import { ProfileForm } from "./project-detail/ProfileForm";
 import { ServiceContextMenu } from "./project-detail/ServiceContextMenu";
 import { ServiceForm } from "./project-detail/ServiceForm";
 import { ResumeSessionModal } from "./project-detail/ResumeSessionModal";
+import { launchRemoteAgent, resumeRemoteSession } from "../remoteAgentTabs";
 import { RowMenus } from "./project-detail/RowMenus";
 import { showMoveTarget, zoneTargetsFor } from "./project-detail/actionMenuZones";
 import { TerminalPane } from "./project-detail/TerminalPane";
@@ -298,7 +299,7 @@ export function ProjectDetail({
       return;
     }
     remoteActionConsumed.current = pendingRemoteAction.nonce;
-    const { action, inputValues, confirmed, background } = pendingRemoteAction;
+    const { action, inputValues, confirmed, background, tab } = pendingRemoteAction;
     clearPendingRemoteAction();
     if (!background) switchDetailView("terminal");
     if (action) {
@@ -313,6 +314,10 @@ export function ProjectDetail({
         toast.error(
           `Couldn't run "${action}" in ${project.name} — no matching action.`,
         );
+    } else if (tab?.agent) {
+      launchRemoteAgent(terminalRef.current, project.actions ?? [], tab.agent);
+    } else if (tab?.resume) {
+      resumeRemoteSession(terminalRef.current, project.name, tab.resume);
     } else {
       terminalRef.current?.createTerminal(background);
     }

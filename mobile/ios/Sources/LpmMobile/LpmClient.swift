@@ -70,6 +70,9 @@ final class LpmClient: NSObject {
     // A runAction/newTerminal the Mac couldn't execute — stop the creating
     // placeholder for the project and surface the message.
     var onActionFailed: ((_ project: String, _ message: String) -> Void)?
+    var onAgentOptions: ((_ agents: [AgentOption]) -> Void)?
+    var onAgentSessions: ((AgentSessionsPage) -> Void)?
+    var onListDir: ((ProjectDirContents) -> Void)?
     // Git review replies, one callback per request kind. `error` is nil on
     // success; a nil `snapshot` means the `git` request hard-failed.
     var onGit: ((_ project: String, _ snapshot: GitSnapshot?, _ error: String?) -> Void)?
@@ -239,6 +242,9 @@ final class LpmClient: NSObject {
     static let serviceRestartFeature = "serviceRestart"
     static let agentAnswersFeature = "agentAnswers"
     static let restartTerminalFeature = "restartTerminal"
+    static let agentLaunchFeature = "agentLaunch"
+    static let agentSessionsFeature = "agentSessions"
+    static let listDirFeature = "listDir"
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -476,7 +482,8 @@ final class LpmClient: NSObject {
             self.injectInbound(Wire.json([
                 "t": "ready", "serverId": DemoServer.serverId, "serverName": DemoServer.serverName,
                 "features": [ChunkedUpload.feature, Self.serviceLogsWatchFeature, Self.agentAnswersFeature,
-                             Self.restartTerminalFeature],
+                             Self.restartTerminalFeature, Self.agentLaunchFeature, Self.agentSessionsFeature,
+                             Self.listDirFeature],
             ]))
         }
     }
@@ -918,7 +925,18 @@ final class LpmClient: NSObject {
     }
     func cancelActionBackground(runId: String) { send(Wire.cancelActionBackground(runId: runId)) }
     func requestBackgroundRuns(project: String) { send(Wire.backgroundRuns(project: project)) }
-    func newTerminal(project: String) { send(Wire.newTerminal(project: project)) }
+    func newTerminal(project: String, launch: AgentLaunch = AgentLaunch()) {
+        send(Wire.newTerminal(project: project, launch: launch))
+    }
+    func requestAgentOptions() { send(Wire.agentOptions()) }
+    func requestAgentSessions(project: String, search: String, limit: Int) {
+        send(Wire.agentSessions(project: project, search: search, limit: limit))
+    }
+    func resumeSession(project: String, session: AgentSession) {
+        send(Wire.resumeSession(project: project, provider: session.provider,
+                                sessionId: session.sessionId, title: session.title))
+    }
+    func requestListDir(project: String, dir: String) { send(Wire.listDir(project: project, dir: dir)) }
     func closeTerminal(project: String, id: String) { send(Wire.closeTerminal(project: project, id: id)) }
     func renameTerminal(project: String, id: String, label: String) {
         send(Wire.renameTerminal(project: project, id: id, label: label))
@@ -1400,6 +1418,9 @@ final class LpmClient: NSObject {
             case .fileChunk(let chunk): self.onFileChunk?(chunk)
             case .actionFailed(let project, let error):
                 self.onActionFailed?(project, error)
+            case .agentOptions(let agents): self.onAgentOptions?(agents)
+            case .agentSessions(let page): self.onAgentSessions?(page)
+            case .listDir(let contents): self.onListDir?(contents)
             case .serviceOp(let error):
                 if let error { self.onActionError?(error) } else { self.onProjectsChanged?() }
             case .projectsChanged: self.onProjectsChanged?()

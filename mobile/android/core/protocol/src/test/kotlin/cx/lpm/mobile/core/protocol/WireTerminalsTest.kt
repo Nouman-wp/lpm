@@ -1,5 +1,6 @@
 package cx.lpm.mobile.core.protocol
 
+import cx.lpm.mobile.core.model.AgentLaunch
 import org.junit.Test
 
 class WireTerminalsTest {
@@ -116,6 +117,40 @@ class WireTerminalsTest {
         assertFrame(
             """{ "t": "fileChunk", "reqId": "f-1", "project": "api", "path": "README.md", "offset": 262144, "length": 262144 }""",
             Wire.fileChunk("f-1", "api", "README.md", 262_144, 262_144)
+        )
+    }
+
+    @Test
+    fun newTerminalWithAnAgent() {
+        assertFrame(
+            """{ "t": "newTerminal", "project": "api", "agent": "claude", "model": "opus", "effort": "high", "prompt": "Fix the failing test" }""",
+            Wire.newTerminal("api", AgentLaunch("claude", "opus", "high", "Fix the failing test"))
+        )
+        assertFrame(
+            """{ "t": "newTerminal", "project": "api", "agent": "gemini" }""",
+            Wire.newTerminal("api", AgentLaunch(agent = "gemini"))
+        )
+        // A shell sends no agent fields, whatever else the launch holds.
+        assertFrame(
+            """{ "t": "newTerminal", "project": "api" }""",
+            Wire.newTerminal("api", AgentLaunch(model = "opus", prompt = "hi"))
+        )
+    }
+
+    @Test
+    fun agentSessionsAndFiles() {
+        assertFrame("""{ "t": "agentOptions" }""", Wire.agentOptions())
+        assertFrame(
+            """{ "t": "agentSessions", "project": "api", "search": "", "limit": 40 }""",
+            Wire.agentSessions("api", "", 40)
+        )
+        assertFrame(
+            """{ "t": "resumeSession", "project": "api", "provider": "claude", "sessionId": "4f1c", "title": "Fix checkout tax rounding" }""",
+            Wire.resumeSession("api", "claude", "4f1c", "Fix checkout tax rounding")
+        )
+        assertFrame(
+            """{ "t": "listDir", "project": "api", "dir": "src/app" }""",
+            Wire.listDir("api", "src/app")
         )
     }
 }

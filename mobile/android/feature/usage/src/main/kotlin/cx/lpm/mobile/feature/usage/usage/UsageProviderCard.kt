@@ -26,8 +26,8 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.ProviderLimits
 import cx.lpm.mobile.feature.usage.R
 import cx.lpm.mobile.feature.usage.ui.groupedCard
-import cx.lpm.mobile.feature.usage.ui.providerMeta
-import cx.lpm.mobile.feature.usage.ui.tint
+import cx.lpm.mobile.core.ui.providerMeta
+import cx.lpm.mobile.core.ui.tint
 
 /**
  * One tool's usage card: who it is, when it last reported, and its weekly and 5-hour

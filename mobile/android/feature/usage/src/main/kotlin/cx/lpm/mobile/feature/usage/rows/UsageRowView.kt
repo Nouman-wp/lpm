@@ -48,8 +48,8 @@ import cx.lpm.mobile.core.designsystem.component.listSeparator
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.ClaudeInUse
 import cx.lpm.mobile.feature.usage.R
-import cx.lpm.mobile.feature.usage.ui.providerMeta
-import cx.lpm.mobile.feature.usage.ui.tint
+import cx.lpm.mobile.core.ui.providerMeta
+import cx.lpm.mobile.core.ui.tint
 import cx.lpm.mobile.feature.usage.ui.usagePalette
 import cx.lpm.mobile.feature.usage.usage.UsageLanes
 import cx.lpm.mobile.feature.usage.usage.UsagePaceBar

@@ -43,12 +43,6 @@
     <string name="git_file_loading">Loading diff…</string>
     <string name="git_file_show_all" tools:ignore="PluralsCandidate">Show all %1$d lines</string>
     <string name="git_hunk_indent">⇥ %1$d</string>
-    <string name="git_status_added">Added</string>
-    <string name="git_status_untracked">Untracked</string>
-    <string name="git_status_deleted">Deleted</string>
-    <string name="git_status_renamed">Renamed</string>
-    <string name="git_status_modified">Modified</string>
-    <string name="git_status_conflicted">Merge conflict</string>
 
     <!-- Commit -->
     <string name="git_commit_title">Commit</string>

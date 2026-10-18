@@ -21,8 +21,8 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.UsageDaily
-import cx.lpm.mobile.feature.usage.ui.providerMeta
-import cx.lpm.mobile.feature.usage.ui.tint
+import cx.lpm.mobile.core.ui.providerMeta
+import cx.lpm.mobile.core.ui.tint
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 

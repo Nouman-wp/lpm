@@ -1,0 +1,48 @@
+# Resume Session from the project's "…" menu: the past Claude Code and Codex
+# conversations grouped by day, filtered to one agent, one continued in a new
+# tab the phone opens.
+appId: cx.lpm.mobile
+name: 141-resume-session
+tags: [demo, terminal, agents]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Tabs"
+    timeout: 5000
+- tapOn: "More"
+- extendedWaitUntil:
+    visible: "Resume Session…"
+    timeout: 5000
+- tapOn: "Resume Session…"
+- extendedWaitUntil:
+    visible: "Fix checkout tax rounding"
+    timeout: 10000
+- assertVisible: "In a tab"
+- assertVisible: "Yesterday"
+- assertVisible: "Add Apple Pay to checkout"
+- assertVisible: "Search conversations"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-sessions
+# The segmented control filters to one agent's conversations.
+- tapOn: "Codex"
+- extendedWaitUntil:
+    notVisible: "Fix checkout tax rounding"
+    timeout: 5000
+- assertVisible: "Write e2e tests for coupons"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-codex
+- tapOn: "Migrate cart store to Zustand"
+- extendedWaitUntil:
+    notVisible: "Search conversations"
+    timeout: 5000
+# The resumed conversation opens in a tab named after it.
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 15000
+- assertVisible: "Migrate cart store to Zustand"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 3-resumed-tab

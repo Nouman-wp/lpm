@@ -54,14 +54,10 @@ private struct TerminalAgentLine: View {
     let until: Int?
 
     private var word: String? { state == .working ? nil : state.label }
-    private var iconColor: Color { state == .working ? .secondary : state.tint }
     private var textColor: Color { state == .needsYou || state == .error ? state.tint : .secondary }
 
     var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: "clock")
-                .foregroundStyle(iconColor)
-                .accessibilityHidden(true)
             if let word { Text("\(word) ·") }
             ElapsedText(since: since, until: until, precise: true)
         }

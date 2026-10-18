@@ -234,6 +234,12 @@ internal constructor(
     /** Slide the sheet down, as when its destination is popped off the back stack. */
     @OptIn(ExperimentalMaterial3Api::class)
     suspend fun hide() = sheet.hide()
+
+    /** Pull a [medium] sheet up to the large detent, as when its content grows. */
+    @OptIn(ExperimentalMaterial3Api::class)
+    suspend fun expand() {
+        if (medium) sheet.expand()
+    }
 }
 
 /**

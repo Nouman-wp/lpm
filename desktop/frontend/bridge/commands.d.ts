@@ -193,6 +193,7 @@ export function RemoteRevokeDevice(...args: any[]): Promise<any>;
 export function RemoteRespondPairRequest(...args: any[]): Promise<any>;
 export function RemoteTakeRestoreRequests(...args: any[]): Promise<any>;
 export function RemoteSetTerminalLabels(...args: any[]): Promise<any>;
+export function RemoteSetAgentOptions(...args: any[]): Promise<any>;
 export function RemoteSetComposerDraft(...args: any[]): Promise<any>;
 export function RemoteTakeRunActions(...args: any[]): Promise<any>;
 export function TerminalPresentControl(...args: any[]): Promise<any>;

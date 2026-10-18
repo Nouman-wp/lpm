@@ -142,6 +142,9 @@ const PHONE_FEATURES: &[&str] = &[
     SERVICE_RESTART_FEATURE,
     crate::remote_answers::FEATURE,
     RESTART_TERMINAL_FEATURE,
+    crate::remote_agents::LAUNCH_FEATURE,
+    crate::remote_agents::SESSIONS_FEATURE,
+    crate::remote_files::FEATURE,
 ];
 
 /// The phone may send `restartService` / `stopService`.
@@ -2180,6 +2183,22 @@ fn start_git_watch(
     })
 }
 
+/// The conversations live in `project`'s tabs, as session id → tab id.
+fn open_agent_sessions(hub: &RemoteHub, project: &str) -> HashMap<String, String> {
+    let ids = hub
+        .inner
+        .tree_ids
+        .lock()
+        .unwrap()
+        .get(project)
+        .cloned()
+        .unwrap_or_default();
+    let sessions = hub.inner.agent_sessions.lock().unwrap();
+    ids.into_iter()
+        .filter_map(|id| sessions.get(&id).map(|s| (s.session_id.clone(), id)))
+        .collect()
+}
+
 /// Queue a phone run-action/new-terminal request and wake the main window's
 /// listener. Delivery is pull-based (remote_take_run_actions) so a request
 /// that lands before the listener is mounted is picked up on mount instead of
@@ -3237,11 +3256,39 @@ fn handle_msg(
                 )?;
             } else {
                 if !project.is_empty() {
-                    queue_run_action(hub, app, json!({ "project": project }));
+                    let mut req = json!({ "project": project });
+                    if let Some(agent) = crate::remote_agents::launch_request(&v) {
+                        req["agent"] = agent;
+                    }
+                    queue_run_action(hub, app, req);
                 }
                 send(ws, json!({ "t": "newTerminal", "ok": true }))?;
             }
         }
+        "agentOptions" => send(ws, crate::remote_agents::options_reply())?,
+        "agentSessions" => {
+            let project = str_field("project").unwrap_or_default();
+            crate::remote_agents::sessions(out, &v, open_agent_sessions(hub, &project));
+        }
+        // Continuing a past conversation opens a tab, which only the main
+        // window's tab tree can do, so it takes the newTerminal relay.
+        "resumeSession" => {
+            let project = str_field("project").unwrap_or_default();
+            let resume = crate::remote_agents::resume_request(&v);
+            if app.get_webview_window("main").is_none() {
+                send(
+                    ws,
+                    json!({ "t": "resumeSession", "ok": false, "project": project,
+                    "error": "Open the lpm app on your Mac to resume a session." }),
+                )?;
+            } else {
+                if let Some(resume) = resume.filter(|_| !project.is_empty()) {
+                    queue_run_action(hub, app, json!({ "project": project, "resume": resume }));
+                }
+                send(ws, json!({ "t": "resumeSession", "ok": true }))?;
+            }
+        }
+        "listDir" => crate::remote_files::handle(out, &v),
         // Terminal tab ops (close / rename / pin / restart) are also frontend
         // pane-tree edits, so they take the same owner-window relay: emit an event
         // the mounted ProjectDetail resolves back to its tab id and runs the

@@ -101,13 +101,11 @@ internal fun titleLineStyle(weight: FontWeight): TextStyle = TextStyle(
 @Composable
 private fun AgentLine(agent: AgentTiming) {
     val colors = LpmTheme.colors
-    val tint = when (agent.state) {
+    val textColor = when (agent.state) {
         AgentState.NeedsYou -> colors.orange
         AgentState.Error -> colors.red
-        AgentState.Done -> colors.blue
-        AgentState.Working, AgentState.Idle -> colors.secondaryLabel
+        else -> colors.secondaryLabel
     }
-    val loud = agent.state == AgentState.NeedsYou || agent.state == AgentState.Error
     val word = agent.state.label.takeUnless { agent.state == AgentState.Working }
     val now by produceState(agent.until ?: System.currentTimeMillis(), agent) {
         if (agent.until != null) return@produceState
@@ -117,11 +115,11 @@ private fun AgentLine(agent: AgentTiming) {
         }
     }
     val elapsed = preciseDuration((now - agent.since).coerceAtLeast(0) / MILLIS_PER_SECOND)
-    LineRow(
-        icon = DesignR.drawable.ic_schedule,
-        iconTint = tint,
+    Text(
         text = if (word != null) "$word · $elapsed" else elapsed,
-        textColor = if (loud) tint else colors.secondaryLabel
+        style = titleLineStyle(FontWeight.SemiBold),
+        color = textColor,
+        maxLines = 1
     )
 }
 

@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.git.review
 
+import cx.lpm.mobile.core.ui.GitStatusBadge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -233,7 +234,7 @@ private fun CommitFileRow(file: CommitFile, onToggle: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            FileStatusBadge(file.file.status)
+            GitStatusBadge(file.file.status)
             FileName(file.file, Modifier.weight(1f))
         }
     }

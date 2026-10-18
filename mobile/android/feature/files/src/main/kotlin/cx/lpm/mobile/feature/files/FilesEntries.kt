@@ -4,11 +4,19 @@ import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import cx.lpm.mobile.core.navigation.FilePreviewKey
 import cx.lpm.mobile.core.navigation.Navigator
+import cx.lpm.mobile.core.navigation.ProjectFilesKey
 import cx.lpm.mobile.core.navigation.SheetPresentation
+import cx.lpm.mobile.feature.files.browser.ProjectFilesRoute
 import cx.lpm.mobile.feature.files.preview.FilePreviewRoute
 
-/** The file preview sheet; a file a Markdown file links to opens in another one over it. */
+/**
+ * A project's Files, a folder a screen, and the file preview sheet; a file a Markdown
+ * file links to opens in another one over it.
+ */
 fun EntryProviderScope<NavKey>.filesEntries(navigator: Navigator) {
+    entry<ProjectFilesKey> { key ->
+        ProjectFilesRoute(key = key, onNavigate = navigator::navigate, onBack = navigator::back)
+    }
     entry<FilePreviewKey>(metadata = SheetPresentation.plainMetadata) { key ->
         FilePreviewRoute(
             key = key,

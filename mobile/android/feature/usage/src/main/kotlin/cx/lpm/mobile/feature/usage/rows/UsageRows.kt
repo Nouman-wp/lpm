@@ -8,7 +8,7 @@ import cx.lpm.mobile.core.model.LimitsSnapshot
 import cx.lpm.mobile.core.model.ProviderLimits
 import cx.lpm.mobile.core.model.UsageBreakdown
 import cx.lpm.mobile.feature.usage.stats.formatTokenCount
-import cx.lpm.mobile.feature.usage.ui.providerMeta
+import cx.lpm.mobile.core.ui.providerMeta
 import cx.lpm.mobile.feature.usage.usage.FIVE_HOUR_MS
 import cx.lpm.mobile.feature.usage.usage.STALE_MS
 import cx.lpm.mobile.feature.usage.usage.WEEKLY_MS

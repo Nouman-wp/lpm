@@ -12,6 +12,7 @@ struct ProjectTabsSection: View {
     @Binding var renaming: TabRename?
     @Binding var closing: TerminalInfo?
     let onOpen: (TerminalInfo) -> Void
+    let onNew: () -> Void
 
     var body: some View {
         Section {
@@ -46,9 +47,7 @@ struct ProjectTabsSection: View {
                 TerminalRowSkeleton()
                     .compactRow()
             }
-            Button {
-                model.newTerminal(project)
-            } label: {
+            Button(action: onNew) {
                 HStack(spacing: 8) {
                     Image(systemName: "plus")
                     Text("New tab")

@@ -1,0 +1,56 @@
+# New tab asks what the tab starts with: an agent, its model and a first
+# prompt. The phone opens the tab once the Mac has it.
+appId: cx.lpm.mobile
+name: 140-new-tab-agent
+tags: [demo, terminal, agents]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "New tab"
+    timeout: 5000
+- tapOn: "New tab"
+- extendedWaitUntil:
+    visible: "Claude Code"
+    timeout: 5000
+- assertVisible: "Shell"
+- assertVisible: "Codex"
+- assertVisible: "Gemini"
+- assertVisible: "OpenCode"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-new-tab
+# Picking an agent brings its model, effort and first prompt.
+- tapOn: "Claude Code"
+- extendedWaitUntil:
+    visible: "Applies to this tab only."
+    timeout: 5000
+- assertVisible: "Resume a Past Session…"
+# The Model picker shows its value, "Default"; the first one is the model's.
+- tapOn:
+    text: "Default"
+    index: 0
+- extendedWaitUntil:
+    visible: "Opus"
+    timeout: 5000
+- tapOn: "Opus"
+- extendedWaitUntil:
+    visible: "Effort.*"
+    timeout: 5000
+- tapOn: "Sent once the agent is ready"
+- inputText: "Fix the failing checkout test"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-agent-picked
+- tapOn: "Open"
+- extendedWaitUntil:
+    notVisible: "Applies to this tab only."
+    timeout: 5000
+# The new tab, labelled with the agent, opens on its own.
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 15000
+- assertVisible: "Claude Code"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 3-agent-tab

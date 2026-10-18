@@ -128,6 +128,8 @@ struct DemoWorld {
     }
 
     var terminals: [String: [Terminal]] = [:] // project -> terminals
+    // "<provider>:<sessionId>" -> the tab holding that conversation.
+    var sessionTabs: [String: String] = ["claude:7c1e4f2a-tax": "demo-storefront-claude"]
 
     struct AgentAnswer {
         var text: String

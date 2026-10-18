@@ -91,11 +91,8 @@ class ActionsStore(private val session: MacSession) : SessionStore {
             ?.flatMap { it.runnableLeaves }
             ?.firstOrNull { it.name == action }
             ?.label ?: action
-        session.whenConnected("Run “$label”", project) { c ->
+        session.store<TerminalsStore>().spawnTerminal(project, "Run “$label”", onSpawn) { c ->
             c.runAction(project, action, inputValues, confirmed)
-            val terminals = session.store<TerminalsStore>()
-            terminals.markTerminalCreating(project, onSpawn)
-            terminals.reloadTerminalsSoon(project)
         }
     }
 

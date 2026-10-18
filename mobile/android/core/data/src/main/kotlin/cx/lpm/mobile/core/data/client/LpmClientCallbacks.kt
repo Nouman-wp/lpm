@@ -1,6 +1,8 @@
 package cx.lpm.mobile.core.data.client
 
 import cx.lpm.mobile.core.model.ActionBgOutput
+import cx.lpm.mobile.core.model.AgentOption
+import cx.lpm.mobile.core.model.AgentSessionsPage
 import cx.lpm.mobile.core.model.AgentStats
 import cx.lpm.mobile.core.model.AutoPullMode
 import cx.lpm.mobile.core.model.AutomationHistoryEntry
@@ -33,6 +35,7 @@ import cx.lpm.mobile.core.model.NoteChat
 import cx.lpm.mobile.core.model.NoteMessage
 import cx.lpm.mobile.core.model.NoteSearchHit
 import cx.lpm.mobile.core.model.Project
+import cx.lpm.mobile.core.model.ProjectDirContents
 import cx.lpm.mobile.core.model.ProjectFolder
 import cx.lpm.mobile.core.model.RemoteMachine
 import cx.lpm.mobile.core.model.ServiceInfo
@@ -117,8 +120,13 @@ abstract class LpmClientCallbacks {
     // The offline send queue is full, so a new request was dropped.
     var onSendQueueFull: (() -> Unit)? = null
 
-    // A runAction/newTerminal the Mac couldn't execute.
+    // A runAction/newTerminal/resumeSession the Mac couldn't execute.
     var onActionFailed: ((project: String, message: String) -> Unit)? = null
+
+    // The agents a new tab can start, past conversations to resume, one folder for Files.
+    var onAgentOptions: ((agents: List<AgentOption>) -> Unit)? = null
+    var onAgentSessions: ((page: AgentSessionsPage) -> Unit)? = null
+    var onListDir: ((contents: ProjectDirContents) -> Unit)? = null
 
     // Git review replies; a null `snapshot` means the `git` request hard-failed.
     var onGit: ((project: String, snapshot: GitSnapshot?, error: String?) -> Unit)? = null

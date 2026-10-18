@@ -26,8 +26,8 @@ import cx.lpm.mobile.core.designsystem.component.StatusDot
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.feature.usage.R
 import cx.lpm.mobile.feature.usage.ui.groupedCard
-import cx.lpm.mobile.feature.usage.ui.providerMeta
-import cx.lpm.mobile.feature.usage.ui.tint
+import cx.lpm.mobile.core.ui.providerMeta
+import cx.lpm.mobile.core.ui.tint
 
 /** No agent has run yet: what Stats reads, and the two tools it reads from. */
 @Composable

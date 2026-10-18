@@ -3,9 +3,11 @@ import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
 import {
   DrainPendingJobTasks,
+  RemoteSetAgentOptions,
   RemoteTakeRestoreRequests,
   RemoteTakeRunActions,
 } from "../../bridge/commands";
+import { agentOptionsForRemote, type RemoteTabRequest } from "../remoteAgentTabs";
 import { type RemoteTerminalOp, useAppStore } from "../store/app";
 import { useAutomationOpen } from "../store/automationOpen";
 import { applyRemoteDraft } from "../store/composerDrafts";
@@ -167,21 +169,28 @@ export function useAppEvents(): void {
     // Each request activates the target project and parks for its ProjectDetail
     // to execute (only the mounted view owns the terminal tree).
     const drainRemoteActions = async () => {
-      const pending: Array<{
-        project?: string;
-        action?: string | null;
-        inputValues?: Record<string, string>;
-        confirmed?: boolean;
-      }> = (await RemoteTakeRunActions().catch(() => [])) ?? [];
+      const pending: Array<
+        {
+          project?: string;
+          action?: string | null;
+          inputValues?: Record<string, string>;
+          confirmed?: boolean;
+        } & RemoteTabRequest
+      > = (await RemoteTakeRunActions().catch(() => [])) ?? [];
       for (const req of pending) {
         if (req?.project)
-          triggerRemoteAction(req.project, req.action ?? null, req.inputValues, req.confirmed);
+          triggerRemoteAction(req.project, req.action ?? null, req.inputValues, req.confirmed, {
+            agent: req.agent,
+            resume: req.resume,
+          });
       }
     };
     const cancelRemoteAction = EventsOn("remote-run-action", () => {
       void drainRemoteActions();
     });
     void drainRemoteActions();
+    // What a phone's New Tab sheet may start: this build's own agents and models.
+    void RemoteSetAgentOptions(agentOptionsForRemote()).catch(() => {});
     // The mobile app duplicated a project (Rust already created the copy) and wants
     // to run a task in it. Running a task is frontend-owned — the copy's mounted
     // ProjectDetail types the command + seeds the AI prompt — so queue it into

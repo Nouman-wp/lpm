@@ -2,4 +2,10 @@
 <resources>
     <string name="ui_action_error_title">An action couldn\'t be loaded</string>
     <string name="ui_action_errors_title">Some actions couldn\'t be loaded</string>
+    <string name="ui_git_status_added">Added</string>
+    <string name="ui_git_status_untracked">Untracked</string>
+    <string name="ui_git_status_deleted">Deleted</string>
+    <string name="ui_git_status_renamed">Renamed</string>
+    <string name="ui_git_status_modified">Modified</string>
+    <string name="ui_git_status_conflicted">Merge conflict</string>
 </resources>

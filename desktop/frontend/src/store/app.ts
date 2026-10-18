@@ -105,6 +105,7 @@ import { applyMove } from "../components/actionsDndLayout";
 import type { StructuralOp } from "../actionsGesture";
 import type { ActionLevel } from "../actionLevels";
 import { projectStartProfile } from "../projectStartProfile";
+import type { RemoteTabRequest } from "../remoteAgentTabs";
 import { displayNameForProjectName } from "../components/ProjectNameDisplay";
 import { onProjectsRemoved } from "../sendLater/closeout";
 import { deferRefresh, holdRefresh, refreshHeld } from "./refreshHold";
@@ -274,12 +275,16 @@ interface AppState {
     // Run without putting the project on screen: nothing here asks the person
     // at this Mac anything, so they keep their place.
     background: boolean;
+    // A new tab the phone asked for: an agent to start, or a past
+    // conversation to continue, instead of a plain shell.
+    tab?: RemoteTabRequest;
   } | null;
   triggerRemoteAction: (
     projectName: string,
     action: string | null,
     inputValues?: Record<string, string>,
     confirmed?: boolean,
+    tab?: RemoteTabRequest,
   ) => void;
   clearPendingRemoteAction: () => void;
   // A "switch to config/notes/AI view" request from the sidebar context menu,
@@ -1175,7 +1180,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // An action the phone didn't confirm (an older phone) asks for its inputs
   // and confirmation here, so it brings the project on screen; anything else
   // runs where the project is.
-  triggerRemoteAction: (projectName, action, inputValues, confirmed) =>
+  triggerRemoteAction: (projectName, action, inputValues, confirmed, tab) =>
     set((s) => {
       const background = !action || confirmed === true;
       return {
@@ -1188,6 +1193,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           inputValues,
           confirmed,
           background,
+          tab,
         },
       };
     }),

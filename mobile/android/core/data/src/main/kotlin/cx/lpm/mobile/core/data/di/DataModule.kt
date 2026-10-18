@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import cx.lpm.mobile.core.data.actions.ActionsStore
+import cx.lpm.mobile.core.data.agents.AgentLaunchStore
 import cx.lpm.mobile.core.data.automations.AutomationsStore
 import cx.lpm.mobile.core.data.claude.ClaudeAccountsStore
 import cx.lpm.mobile.core.data.client.ClientEnvironment
@@ -17,6 +18,7 @@ import cx.lpm.mobile.core.data.client.OkHttpTransport
 import cx.lpm.mobile.core.data.client.SocketTransport
 import cx.lpm.mobile.core.data.client.TailnetRouter
 import cx.lpm.mobile.core.data.config.ProjectConfigStore
+import cx.lpm.mobile.core.data.files.ProjectFilesStore
 import cx.lpm.mobile.core.data.git.GitAutoStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.link.ConnectivityNetworkMonitor
@@ -261,6 +263,14 @@ object DataModule {
     @Provides
     @IntoSet
     fun machineImporterFactory(): SessionStore.Factory = SessionStore.Factory(::MachineImporter)
+
+    @Provides
+    @IntoSet
+    fun agentLaunchStoreFactory(): SessionStore.Factory = SessionStore.Factory(::AgentLaunchStore)
+
+    @Provides
+    @IntoSet
+    fun projectFilesStoreFactory(): SessionStore.Factory = SessionStore.Factory(::ProjectFilesStore)
 
     @Provides
     @IntoSet

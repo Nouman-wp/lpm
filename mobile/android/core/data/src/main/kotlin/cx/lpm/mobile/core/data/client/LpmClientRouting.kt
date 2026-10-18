@@ -116,6 +116,12 @@ internal fun LpmClientCallbacks.route(frame: Inbound) {
 
         is Inbound.ActionFailed -> onActionFailed?.invoke(frame.project, frame.error)
 
+        is Inbound.AgentOptions -> onAgentOptions?.invoke(frame.agents)
+
+        is Inbound.AgentSessions -> onAgentSessions?.invoke(frame.page)
+
+        is Inbound.ListDir -> onListDir?.invoke(frame.contents)
+
         Inbound.ProjectsChanged -> onProjectsChanged?.invoke()
 
         is Inbound.StatusChanged -> onStatusChanged?.invoke(frame.project)

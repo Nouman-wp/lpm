@@ -31,7 +31,7 @@ class InboundCoverageTest {
         "notesRenameChat", "notesDeleteChat", "notesMessages", "notesAddMessage",
         "notesEditMessage", "notesDeleteMessage", "notesSearch", "notesAttachment", "updateCheck",
         "updateProgress", "updateInstall", "updateCancel", "pong", "restartService",
-        "stopService"
+        "stopService", "resumeSession", "agentOptions", "agentSessions", "listDir"
     )
 
     // Replies only Android asks for: iOS registers for push with `apnsToken`.
@@ -39,7 +39,7 @@ class InboundCoverageTest {
 
     @Test
     fun decodesExactlyTheTypesIosDoesPlusAndroidsOwn() {
-        assertEquals(129, iosTypes.size)
+        assertEquals(133, iosTypes.size)
         assertEquals(iosTypes + androidOnlyTypes, inboundParsers.keys)
     }
 

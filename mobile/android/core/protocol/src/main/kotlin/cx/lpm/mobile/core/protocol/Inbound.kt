@@ -1,6 +1,8 @@
 package cx.lpm.mobile.core.protocol
 
 import cx.lpm.mobile.core.model.ActionBgOutput as BgOutput
+import cx.lpm.mobile.core.model.AgentOption
+import cx.lpm.mobile.core.model.AgentSessionsPage
 import cx.lpm.mobile.core.model.AgentStats
 import cx.lpm.mobile.core.model.AutoPullMode
 import cx.lpm.mobile.core.model.AutomationHistoryEntry
@@ -32,6 +34,7 @@ import cx.lpm.mobile.core.model.NoteChat
 import cx.lpm.mobile.core.model.NoteMessage
 import cx.lpm.mobile.core.model.NoteSearchHit
 import cx.lpm.mobile.core.model.Project
+import cx.lpm.mobile.core.model.ProjectDirContents
 import cx.lpm.mobile.core.model.ProjectFolder
 import cx.lpm.mobile.core.model.RemoteMachine
 import cx.lpm.mobile.core.model.ServiceInfo
@@ -183,8 +186,14 @@ sealed interface Inbound {
 
     data class FileChunk(val chunk: FileRange) : Inbound
 
-    // A runAction/newTerminal the Mac couldn't execute; success acks parse to null.
+    // A runAction/newTerminal/resumeSession the Mac couldn't execute; success acks parse to null.
     data class ActionFailed(val project: String, val error: String) : Inbound
+
+    // The agents a new tab can start, past conversations to resume, and one project
+    // folder for Files.
+    data class AgentOptions(val agents: List<AgentOption>) : Inbound
+    data class AgentSessions(val page: AgentSessionsPage) : Inbound
+    data class ListDir(val contents: ProjectDirContents) : Inbound
     data object ProjectsChanged : Inbound
     data class StatusChanged(val project: String) : Inbound
 

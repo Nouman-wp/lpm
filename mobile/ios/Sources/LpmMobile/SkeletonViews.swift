@@ -95,6 +95,41 @@ struct TerminalRowSkeleton: View {
     }
 }
 
+/// Ghost of a two-line row (a title over its details), shown while a list
+/// such as Resume Session loads.
+struct TwoLineRowSkeleton: View {
+    var titleWidth: CGFloat = 180
+    var detailWidth: CGFloat = 240
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SkeletonBar(width: titleWidth)
+            SkeletonBar(width: detailWidth, height: 10)
+        }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .shimmer()
+        .transition(.opacity)
+    }
+}
+
+/// Ghost of a file or folder row, shown while a Files folder loads.
+struct FileRowSkeleton: View {
+    var width: CGFloat = 140
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(Color(.tertiarySystemFill))
+                .frame(width: 22, height: 18)
+            SkeletonBar(width: width)
+            Spacer()
+        }
+        .frame(minHeight: 44)
+        .shimmer()
+        .transition(.opacity)
+    }
+}
+
 /// Themed-ground spinner shown over a just-opened terminal until its first
 /// screen snapshot renders.
 struct TerminalLoadingView: View {

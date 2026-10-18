@@ -32,6 +32,7 @@ object PreferenceKeys {
     const val FILE_PREVIEW_MARKDOWN_SOURCE = "filePreviewMarkdownSource"
     const val ACTION_PRIMARY_LAST_USED = "actionPrimaryLastUsed"
     const val ZONE_OPEN_LAYERS = "zoneOpenLayers"
+    const val NEW_TAB_LAST_PICK = "newTab.lastPick"
 
     /** The last push registration a Mac acknowledged. */
     fun pushRegistered(localId: String): String = "lpm.push.registered.$localId"

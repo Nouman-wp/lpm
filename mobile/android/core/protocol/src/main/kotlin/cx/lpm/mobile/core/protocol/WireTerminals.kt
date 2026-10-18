@@ -1,5 +1,6 @@
 package cx.lpm.mobile.core.protocol
 
+import cx.lpm.mobile.core.model.AgentLaunch
 import kotlinx.serialization.json.put
 
 /** Terminals, actions, background runs, uploads and file previews. */
@@ -32,7 +33,42 @@ sealed interface WireTerminals {
         put("rows", rows)
     }
 
-    fun newTerminal(project: String): String = frame("newTerminal") { put("project", project) }
+    /**
+     * A launch with an agent only for a Mac whose `features` has "agentLaunch"; without
+     * one it's the plain shell every Mac opens.
+     */
+    fun newTerminal(project: String, launch: AgentLaunch = AgentLaunch()): String =
+        frame("newTerminal") {
+            put("project", project)
+            if (launch.agent.isNotEmpty()) {
+                put("agent", launch.agent)
+                putNonEmpty("model", launch.model)
+                putNonEmpty("effort", launch.effort)
+                putNonEmpty("prompt", launch.prompt)
+            }
+        }
+
+    fun agentOptions(): String = frame("agentOptions")
+
+    fun agentSessions(project: String, search: String, limit: Int): String =
+        frame("agentSessions") {
+            put("project", project)
+            put("search", search)
+            put("limit", limit)
+        }
+
+    fun resumeSession(project: String, provider: String, sessionId: String, title: String): String =
+        frame("resumeSession") {
+            put("project", project)
+            put("provider", provider)
+            put("sessionId", sessionId)
+            put("title", title)
+        }
+
+    fun listDir(project: String, dir: String): String = frame("listDir") {
+        put("project", project)
+        put("dir", dir)
+    }
 
     fun closeTerminal(project: String, id: String): String = frame("closeTerminal") {
         put("project", project)

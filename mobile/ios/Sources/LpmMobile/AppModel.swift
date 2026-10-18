@@ -330,6 +330,11 @@ final class AppModel {
     // lpm on the live Mac and updating it (`model.macUpdate`), same split.
     var macUpdate = MacUpdateStore()
 
+    // The agents a new tab can start and the conversations to resume
+    // (`model.agentLaunch`), and the Files browser (`model.projectFiles`), same split.
+    var agentLaunch = AgentLaunchStore()
+    var projectFiles = ProjectFilesStore()
+
     // Adds the live Mac's own servers and Macs to this phone.
     let machineImporter = MachineImporter()
 
@@ -392,6 +397,8 @@ final class AppModel {
         notes.model = self
         usage.model = self
         macUpdate.model = self
+        agentLaunch.model = self
+        projectFiles.model = self
         pushRegistrar.onIdentity = { [weak self] localId, serverId, serverName, platform in
             self?.learnIdentity(of: localId, serverId: serverId, serverName: serverName,
                                 platform: platform)
@@ -1300,6 +1307,10 @@ final class AppModel {
         usage.model = self
         macUpdate = MacUpdateStore()
         macUpdate.model = self
+        agentLaunch = AgentLaunchStore()
+        agentLaunch.model = self
+        projectFiles = ProjectFilesStore()
+        projectFiles.model = self
         fileFetches.cancelAll()
         answerRequests.failAll()
         pendingAgentPrompt = [:]
@@ -2055,8 +2066,17 @@ final class AppModel {
                    onSpawn: ((TerminalInfo) -> Void)? = nil) {
         let label = projects.first { $0.name == project }?.actions.flatMap(\.runnableLeaves)
             .first { $0.name == action }?.label ?? action
-        whenConnected("Run “\(label)”", project: project) { [weak self] c in
+        spawnTerminal(project, verb: "Run “\(label)”", onSpawn: onSpawn) { c in
             c.runAction(project: project, action: action, inputValues: inputValues, confirmed: confirmed)
+        }
+    }
+
+    /// Ask the Mac for a tab with `send`, show a placeholder row until it lands,
+    /// then hand it to `onSpawn`.
+    func spawnTerminal(_ project: String, verb: String, onSpawn: ((TerminalInfo) -> Void)? = nil,
+                       _ send: @escaping (LpmClient) -> Void) {
+        whenConnected(verb, project: project) { [weak self] c in
+            send(c)
             self?.markTerminalCreating(project)
             self?.spawnCallbacks[project] = onSpawn
             self?.reloadTerminalsSoon(project)
@@ -2107,11 +2127,7 @@ final class AppModel {
         backgroundRuns[runId] = nil
     }
     func newTerminal(_ project: String) {
-        whenConnected("New tab", project: project) { [weak self] c in
-            c.newTerminal(project: project)
-            self?.markTerminalCreating(project)
-            self?.reloadTerminalsSoon(project)
-        }
+        spawnTerminal(project, verb: "New tab") { $0.newTerminal(project: project) }
     }
     /// Show a placeholder terminal row until a terminals response contains an id
     /// that wasn't there at request time, or a timeout gives up (e.g. a run task
@@ -2296,6 +2312,8 @@ final class AppModel {
         notes.handleConnectionReset()
         usage.handleConnectionReset()
         macUpdate.handleConnectionReset()
+        agentLaunch.handleConnectionReset()
+        projectFiles.handleConnectionReset()
         fileFetches.handleConnectionReset()
         answerRequests.failAll()
         historyPending = []
@@ -2498,6 +2516,8 @@ final class AppModel {
         wireAutoPull(c)
         wireClaudeAccounts(c)
         wireAnswers(c)
+        wireAgentLaunch(c)
+        wireProjectFiles(c)
     }
 
     private func wireConnection(_ c: LpmClient) {

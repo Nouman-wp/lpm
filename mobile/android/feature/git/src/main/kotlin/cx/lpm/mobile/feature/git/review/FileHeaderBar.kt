@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.git.review
 
+import cx.lpm.mobile.core.ui.GitStatusBadge
 import android.content.ClipData
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -174,7 +175,7 @@ private fun NameButton(
                     .rotate(turn)
             )
         }
-        FileStatusBadge(row.file.status)
+        GitStatusBadge(row.file.status)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = row.file.name,

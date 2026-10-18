@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.git.review
 
+import cx.lpm.mobile.core.ui.GitFileStatus
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue

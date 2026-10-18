@@ -1,9 +1,12 @@
 package cx.lpm.mobile.core.protocol
 
 import cx.lpm.mobile.core.model.ActionBgOutput
+import cx.lpm.mobile.core.model.AgentOption
+import cx.lpm.mobile.core.model.AgentSessionsPage
 import cx.lpm.mobile.core.model.BackgroundRunSummary
 import cx.lpm.mobile.core.model.ControlOwner
 import cx.lpm.mobile.core.model.FileChunk
+import cx.lpm.mobile.core.model.ProjectDirContents
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.model.UploadStep
 import cx.lpm.mobile.core.model.bool
@@ -43,7 +46,7 @@ internal val terminalParsers = parsers {
         Inbound.Exit(id = o.str("id"), code = o.int("code") ?: 0, gone = o.bool("gone") ?: false)
     }
     // Success acks carry nothing anything acts on, so they parse to null.
-    for (t in listOf("runAction", "newTerminal")) {
+    for (t in listOf("runAction", "newTerminal", "resumeSession")) {
         put(t) { o ->
             if (o.bool("ok") ?: true) {
                 null
@@ -55,6 +58,9 @@ internal val terminalParsers = parsers {
             }
         }
     }
+    put("agentOptions") { o -> Inbound.AgentOptions(o.list("agents", AgentOption::parse)) }
+    put("agentSessions") { o -> Inbound.AgentSessions(AgentSessionsPage.parse(o)) }
+    put("listDir") { o -> Inbound.ListDir(ProjectDirContents.parse(o)) }
     put("actionBgOutput") { o ->
         val found = o.bool("found") ?: false
         Inbound.ActionBgOutput(

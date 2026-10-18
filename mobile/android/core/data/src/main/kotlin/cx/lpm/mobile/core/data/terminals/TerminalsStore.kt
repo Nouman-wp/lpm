@@ -257,10 +257,21 @@ class TerminalsStore(private val session: MacSession) : SessionStore {
         client?.requestTerminals(project)
     }
 
-    fun newTerminal(project: String) {
-        session.whenConnected("New tab", project) { c ->
-            c.newTerminal(project)
-            markTerminalCreating(project)
+    fun newTerminal(project: String) = spawnTerminal(project, "New tab") { it.newTerminal(project) }
+
+    /**
+     * Ask the Mac for a tab with [send], show a placeholder row until it lands, then
+     * hand it to [onSpawn].
+     */
+    fun spawnTerminal(
+        project: String,
+        verb: String,
+        onSpawn: ((TerminalInfo) -> Unit)? = null,
+        send: (LpmClient) -> Unit
+    ) {
+        session.whenConnected(verb, project) { c ->
+            send(c)
+            markTerminalCreating(project, onSpawn)
             reloadTerminalsSoon(project)
         }
     }

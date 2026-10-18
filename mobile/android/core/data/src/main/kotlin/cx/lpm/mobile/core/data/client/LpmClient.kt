@@ -352,6 +352,12 @@ class LpmClient internal constructor(
         // `restartTerminal`: an ended terminal run again in its tab.
         const val RESTART_TERMINAL_FEATURE = "restartTerminal"
 
+        // `agentOptions` and `newTerminal` starting an agent; `agentSessions` and
+        // `resumeSession`; `listDir` for Files.
+        const val AGENT_LAUNCH_FEATURE = "agentLaunch"
+        const val AGENT_SESSIONS_FEATURE = "agentSessions"
+        const val LIST_DIR_FEATURE = "listDir"
+
         const val OFFLINE_HINT =
             "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 

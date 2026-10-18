@@ -167,8 +167,29 @@ enum Wire {
     static func backgroundRuns(project: String) -> String {
         json(["t": "backgroundRuns", "project": project])
     }
-    static func newTerminal(project: String) -> String {
-        json(["t": "newTerminal", "project": project])
+    /// A launch with an agent only for a Mac whose `features` has "agentLaunch";
+    /// without one it's the plain shell every Mac opens.
+    static func newTerminal(project: String, launch: AgentLaunch = AgentLaunch()) -> String {
+        var o: [String: Any] = ["t": "newTerminal", "project": project]
+        if !launch.agent.isEmpty {
+            o["agent"] = launch.agent
+            for (key, value) in [("model", launch.model), ("effort", launch.effort), ("prompt", launch.prompt)]
+            where !value.isEmpty {
+                o[key] = value
+            }
+        }
+        return json(o)
+    }
+    static func agentOptions() -> String { json(["t": "agentOptions"]) }
+    static func agentSessions(project: String, search: String, limit: Int) -> String {
+        json(["t": "agentSessions", "project": project, "search": search, "limit": limit])
+    }
+    static func resumeSession(project: String, provider: String, sessionId: String, title: String) -> String {
+        json(["t": "resumeSession", "project": project, "provider": provider,
+              "sessionId": sessionId, "title": title])
+    }
+    static func listDir(project: String, dir: String) -> String {
+        json(["t": "listDir", "project": project, "dir": dir])
     }
     static func closeTerminal(project: String, id: String) -> String {
         json(["t": "closeTerminal", "project": project, "id": id])
@@ -591,6 +612,11 @@ enum Wire {
         // A runAction/newTerminal request the Mac couldn't execute (e.g. the
         // app isn't open there). Success acks carry nothing and stay .unknown.
         case actionFailed(project: String, error: String)
+        // The agents a new tab can start, past conversations to resume, and one
+        // project folder for Files.
+        case agentOptions([AgentOption])
+        case agentSessions(AgentSessionsPage)
+        case listDir(ProjectDirContents)
         case serviceOp(error: String?)
         case projectsChanged
         case statusChanged(project: String)
@@ -899,10 +925,14 @@ enum Wire {
             case "restartService", "stopService":
                 let ok = obj["ok"] as? Bool ?? false
                 return .serviceOp(error: ok ? nil : (obj["error"] as? String ?? "Couldn't change the service."))
-            case "runAction", "newTerminal":
+            case "runAction", "newTerminal", "resumeSession":
                 if obj["ok"] as? Bool ?? true { return .unknown }
                 return .actionFailed(project: obj["project"] as? String ?? "",
                                      error: obj["error"] as? String ?? "Couldn't reach the lpm app on your Mac.")
+            case "agentOptions":
+                return .agentOptions((obj["agents"] as? [[String: Any]] ?? []).map(AgentOption.init))
+            case "agentSessions": return .agentSessions(AgentSessionsPage(obj))
+            case "listDir": return .listDir(ProjectDirContents(obj))
             case "projects-changed": return .projectsChanged
             case "status-changed": return .statusChanged(project: obj["project"] as? String ?? "")
             case "git":

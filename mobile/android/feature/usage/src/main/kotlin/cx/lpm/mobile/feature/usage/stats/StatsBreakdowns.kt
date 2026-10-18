@@ -25,8 +25,8 @@ import cx.lpm.mobile.core.model.UsageDaily
 import cx.lpm.mobile.core.model.UsageSession
 import cx.lpm.mobile.feature.usage.R
 import cx.lpm.mobile.feature.usage.ui.groupedCard
-import cx.lpm.mobile.feature.usage.ui.providerMeta
-import cx.lpm.mobile.feature.usage.ui.tint
+import cx.lpm.mobile.core.ui.providerMeta
+import cx.lpm.mobile.core.ui.tint
 
 @Composable
 internal fun DailyActivityCard(daily: List<UsageDaily>, modifier: Modifier = Modifier) {

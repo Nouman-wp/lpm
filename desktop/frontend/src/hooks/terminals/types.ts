@@ -45,7 +45,7 @@ export interface UseTerminalsResult {
     label?: string,
     opts?: AdoptedTabOpts,
   ) => Promise<void>;
-  resumeFromHistory: (entry: PersistedHistoryEntry) => Promise<void>;
+  resumeFromHistory: (entry: PersistedHistoryEntry, background?: boolean) => Promise<void>;
   forkTerminal: (paneId: string, termId: string) => Promise<void>;
   forkTerminalIntoCopy: (paneId: string, termId: string) => Promise<void>;
   addTerminalToPane: (paneId: string) => Promise<void>;

@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 /// The project's control menu in the nav bar: a single "more" button whose native
 /// menu holds Start/Stop and (when present) profiles. Actions have their own bolt
@@ -13,6 +12,9 @@ struct ProjectRunControl: View {
     let onStart: (_ profile: String) -> Void
     let onStop: () -> Void
     let onReviewChanges: () -> Void
+    // nil hides the item: the Mac can't answer it, or the project is on SSH.
+    let onFiles: (() -> Void)?
+    let onResumeSession: (() -> Void)?
     let onMemory: () -> Void
     let onNotes: () -> Void
     let onAutomations: () -> Void
@@ -33,12 +35,6 @@ struct ProjectRunControl: View {
     private var running: Bool { project.running }
 
     private var name: String { project.name }
-    private var pulling: Bool { model.git.pulling.contains(name) }
-    private var pushing: Bool { model.git.pushing.contains(name) }
-    private var fetching: Bool { model.git.fetching.contains(name) }
-    private var branch: String { model.git.snapshots[name]?.branch ?? "" }
-    private var ghCli: Bool { model.git.snapshots[name]?.ghCli ?? false }
-    private var autoRun: GitAutoRun? { model.gitAuto.runs[name] }
     private var unreadAutomations: Int {
         model.automations.filter { $0.unread > 0 && $0.runTargets.contains(name) }.count
     }
@@ -62,7 +58,19 @@ struct ProjectRunControl: View {
                 }
             }
 
-            gitMenu
+            if let onFiles {
+                Button(action: onFiles) {
+                    Label("Files", systemImage: "folder")
+                }
+            }
+            if let onResumeSession {
+                Button(action: onResumeSession) {
+                    Label("Resume Session…", systemImage: "clock.arrow.circlepath")
+                }
+            }
+
+            ProjectGitMenu(project: project, changedCount: changedCount, onSwitchBranch: onSwitchBranch,
+                           onCreatePr: onCreatePr, onAuto: onAuto, onDiscard: onDiscard)
 
             // Memory is Mac-local: an SSH project's agents run on the other host,
             // where this Mac's session files mean nothing. Notes are stored per
@@ -120,67 +128,6 @@ struct ProjectRunControl: View {
         }
     }
 
-    /// The desktop's project Git submenu, adapted to mobile: sync ops that fire
-    /// directly (disabled while in flight), then branch/PR navigation, then
-    /// copy-branch and the destructive discard. Review Changes sits on the main
-    /// menu, one level up.
-    private var gitMenu: some View {
-        Menu {
-            Button { model.git.pull(name) } label: { Label("Pull", systemImage: "arrow.down") }
-                .disabled(pulling)
-            Button { model.git.push(name) } label: { Label("Push", systemImage: "arrow.up") }
-                .disabled(pushing)
-            Button { model.git.fetch(name) } label: { Label("Fetch", systemImage: "arrow.triangle.2.circlepath") }
-                .disabled(fetching)
-            AutoPullMenuItems(project: project)
-
-            Divider()
-
-            Button(action: onSwitchBranch) {
-                Label("Switch Branch…", systemImage: "arrow.trianglehead.branch")
-            }
-            if ghCli {
-                Button(action: onCreatePr) {
-                    Label("Create Pull Request…", systemImage: "arrow.triangle.pull")
-                }
-            }
-
-            Divider()
-
-            autoButton(.commit)
-            autoButton(.commitPush)
-            if ghCli {
-                autoButton(.pr)
-            }
-
-            Divider()
-
-            Button { UIPasteboard.general.string = branch } label: {
-                Label("Copy Branch Name", systemImage: "doc.on.doc")
-            }
-            .disabled(branch.isEmpty)
-            Button(role: .destructive, action: onDiscard) {
-                Label("Discard All Changes…", systemImage: "trash")
-            }
-            .disabled((changedCount ?? 0) == 0)
-        } label: {
-            Label("Git", systemImage: "arrow.trianglehead.branch")
-        }
-    }
-
-    /// While a run is going every item reopens its progress sheet, so the one
-    /// in flight reads as such; otherwise the commit items need changes to
-    /// commit (Auto Create PR can still ship commits already made).
-    private func autoButton(_ kind: GitAutoKind) -> some View {
-        let running = autoRun?.running == true
-        let inFlight = running && autoRun?.kind == kind
-        return Button { onAuto(kind) } label: {
-            Label(kind.title, systemImage: "sparkles")
-            Text(inFlight ? "Running… tap to view" : kind.subtitle)
-        }
-        .disabled(!running && kind != .pr && (changedCount ?? 0) == 0)
-    }
-
     @ViewBuilder
     private func profileLabel(_ p: Profile) -> some View {
         if running && project.activeProfile == p.name {
@@ -204,6 +151,8 @@ struct ProjectMenuHost: ViewModifier {
     let onSpawnedTerminal: ((TerminalInfo) -> Void)?
 
     @State private var showChanges = false
+    @State private var showFiles = false
+    @State private var showResume = false
     @State private var showMemory = false
     @State private var showNotes = false
     @State private var showAutomations = false
@@ -238,6 +187,7 @@ struct ProjectMenuHost: ViewModifier {
     func body(content: Content) -> some View {
         content
             .navigationDestination(isPresented: $showChanges) { GitReviewView(project: project) }
+            .navigationDestination(isPresented: $showFiles) { ProjectFilesScreen(project: project) }
             .navigationDestination(isPresented: $showMemory) { MemoryScreen(project: project) }
             .navigationDestination(isPresented: $showNotes) { NotesScreen(project: project.name) }
             .navigationDestination(isPresented: $showAutomations) { AutomationsView(project: project.name) }
@@ -249,6 +199,9 @@ struct ProjectMenuHost: ViewModifier {
             }
             .sheet(isPresented: $showAutoSheet) {
                 GitAutoSheet(project: project).environment(model)
+            }
+            .sheet(isPresented: $showResume) {
+                ResumeSessionSheet(project: project, onOpen: { onSpawnedTerminal?($0) }).environment(model)
             }
             .confirmationDialog(
                 "Discard all changes?",
@@ -323,6 +276,8 @@ struct ProjectMenuHost: ViewModifier {
                                       onStart: { model.startProject(project, profile: $0) },
                                       onStop: { model.stopProject(project) },
                                       onReviewChanges: { showChanges = true },
+                                      onFiles: model.canBrowseFiles(project) ? { showFiles = true } : nil,
+                                      onResumeSession: model.canResumeSessions(project) ? { showResume = true } : nil,
                                       onMemory: { showMemory = true },
                                       onNotes: { showNotes = true },
                                       onAutomations: { showAutomations = true },

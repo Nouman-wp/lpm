@@ -30,7 +30,7 @@ pub fn handle(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
     });
 }
 
-fn labels() -> HashMap<String, String> {
+pub(crate) fn labels() -> HashMap<String, String> {
     config::load_claude_accounts()
         .get("accounts")
         .and_then(Value::as_array)

@@ -13,6 +13,7 @@ struct ProjectDetail: View {
     @State private var openTerminal: TerminalInfo?
     @State private var activeBgRun: BackgroundRunInfo?
     @State private var logsForService: Service?
+    @State private var newTabOpen = false
     @State private var usageRest = UsageRest()
 
     // Current project object (fresh status/actions) from the store; falls back to
@@ -65,7 +66,7 @@ struct ProjectDetail: View {
             } else if !isEmpty {
                 ProjectTabsSection(project: project.name, terminals: terminals, agents: agentByTerminal,
                                    creating: creating, renaming: $renaming, closing: $closing,
-                                   onOpen: { openTerminal = $0 })
+                                   onOpen: { openTerminal = $0 }, onNew: newTab)
             }
 
             if !live.allServices.isEmpty {
@@ -122,7 +123,7 @@ struct ProjectDetail: View {
             if let error = live.configError {
                 ProjectConfigErrorView(project: live, message: error)
             } else if isEmpty {
-                EmptyTerminalsView(onNew: { model.newTerminal(project.name) })
+                EmptyTerminalsView(onNew: newTab)
             }
         }
         .animation(.default, value: terminalsLoaded)
@@ -148,14 +149,14 @@ struct ProjectDetail: View {
         .sheet(item: $logsForService) { s in
             ServiceLogsSheet(project: live.name, service: s).environment(model)
         }
-        .projectMenuToolbar(project: live, onSpawnedTerminal: { t in
-            // Claim the desktop-owned terminal before pushing so it renders live.
-            model.claimControl(t.id)
-            openTerminal = t
-        })
+        .sheet(isPresented: $newTabOpen) {
+            NewTabSheet(project: live, onOpen: openSpawned).environment(model)
+        }
+        .projectMenuToolbar(project: live, onSpawnedTerminal: openSpawned)
         .onAppear {
             model.loadTerminals(project.name)
             model.loadBackgroundRuns(project.name)
+            if model.canLaunchAgents { model.agentLaunch.loadOptions() }
         }
         .onChange(of: model.link.isReady) { _, ready in
             if ready { model.reloadTerminalsAfterReconnect(project.name) }
@@ -175,6 +176,18 @@ struct ProjectDetail: View {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
             }
         }
+    }
+
+    /// With agents to offer, New tab asks what the tab starts with; otherwise
+    /// it opens a shell as it always has.
+    private func newTab() {
+        if model.canLaunchAgents { newTabOpen = true } else { model.newTerminal(project.name) }
+    }
+
+    private func openSpawned(_ t: TerminalInfo) {
+        // Claim the desktop-owned terminal before pushing so it renders live.
+        model.claimControl(t.id)
+        openTerminal = t
     }
 }
 

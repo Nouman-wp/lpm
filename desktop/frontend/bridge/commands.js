@@ -598,6 +598,9 @@ export function RemoteTakeRestoreRequests() {
 export function RemoteSetTerminalLabels(project, labels) {
   return invoke("remote_set_terminal_labels", { project, labels });
 }
+export function RemoteSetAgentOptions(agents) {
+  return invoke("remote_set_agent_options", { agents });
+}
 export function RemoteSetComposerDraft(id, text) {
   return invoke("remote_set_composer_draft", { id, text });
 }

@@ -156,6 +156,8 @@
     <string name="menu_stop">Stop</string>
     <string name="menu_start">Start</string>
     <string name="menu_review_changes">Review Changes</string>
+    <string name="menu_files">Files</string>
+    <string name="menu_resume_session">Resume Session…</string>
     <plurals name="menu_changed_files">
         <item quantity="one">%1$d changed file</item>
         <item quantity="other">%1$d changed files</item>
@@ -275,4 +277,37 @@
     <string name="service_env">Environment variables</string>
     <string name="service_env_add">Add variable</string>
     <string name="service_env_delete">Delete</string>
+
+    <!-- New Tab -->
+    <string name="new_tab_title">New Tab</string>
+    <string name="new_tab_open">Open</string>
+    <string name="new_tab_start">Start</string>
+    <string name="new_tab_shell">Shell</string>
+    <string name="new_tab_model_section">Model</string>
+    <string name="new_tab_model">Model</string>
+    <string name="new_tab_effort">Effort</string>
+    <string name="new_tab_model_footer">Applies to this tab only.</string>
+    <string name="new_tab_first_prompt">First prompt</string>
+    <string name="new_tab_prompt_placeholder">Sent once the agent is ready</string>
+    <string name="new_tab_resume">Resume a Past Session…</string>
+
+    <!-- Resume Session -->
+    <string name="resume_title">Resume Session</string>
+    <string name="resume_all">All</string>
+    <string name="resume_claude">Claude</string>
+    <string name="resume_codex">Codex</string>
+    <string name="resume_search">Search conversations</string>
+    <string name="resume_today">Today</string>
+    <string name="resume_yesterday">Yesterday</string>
+    <string name="resume_this_week">Earlier this week</string>
+    <string name="resume_this_month">Earlier this month</string>
+    <string name="resume_older">Older</string>
+    <string name="resume_in_tab">In a tab</string>
+    <string name="resume_show_older">Show Older Sessions</string>
+    <string name="resume_failed">Couldn\'t Load Sessions</string>
+    <string name="resume_try_again">Try Again</string>
+    <string name="resume_empty">No Past Sessions</string>
+    <string name="resume_empty_message">Claude Code and Codex conversations in this project show up here.</string>
+    <string name="resume_no_results">No Results for “%1$s”</string>
+    <string name="resume_no_results_message">Check the spelling or try a new search.</string>
 </resources>

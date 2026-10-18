@@ -12,4 +12,16 @@
     <string name="files_no_preview">No preview</string>
     <string name="files_no_preview_message">%1$s can\'t show this kind of file. Share it to open it in another app.</string>
     <string name="files_truncated">Showing the first 1 MB — this file is larger.</string>
+    <string name="files_title">Files</string>
+    <string name="files_back">Back</string>
+    <string name="files_go_to_file">Go to File</string>
+    <string name="files_preview">Preview</string>
+    <string name="files_copy_path">Copy Path</string>
+    <string name="files_copy_relative_path">Copy Relative Path</string>
+    <string name="files_changed">%1$d changed</string>
+    <string name="files_folder_empty">Empty Folder</string>
+    <string name="files_folder_failed">Can\'t Open This Folder</string>
+    <string name="files_try_again">Try Again</string>
+    <string name="files_no_results">No Results for “%1$s”</string>
+    <string name="files_no_results_message">Check the spelling or try a new search.</string>
 </resources>

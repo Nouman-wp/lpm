@@ -1,6 +1,8 @@
 package cx.lpm.mobile.core.data.client
 
 import cx.lpm.mobile.core.data.push.PushRegistration
+import cx.lpm.mobile.core.model.AgentLaunch
+import cx.lpm.mobile.core.model.AgentSession
 import cx.lpm.mobile.core.model.ClaudeAccountChoice
 import cx.lpm.mobile.core.model.DuplicateOptions
 import cx.lpm.mobile.core.model.HistoryCursor
@@ -73,7 +75,18 @@ fun LpmClient.cancelActionBackground(runId: String) = send(Wire.cancelActionBack
 
 fun LpmClient.requestBackgroundRuns(project: String) = send(Wire.backgroundRuns(project))
 
-fun LpmClient.newTerminal(project: String) = send(Wire.newTerminal(project))
+fun LpmClient.newTerminal(project: String, launch: AgentLaunch = AgentLaunch()) =
+    send(Wire.newTerminal(project, launch))
+
+fun LpmClient.requestAgentOptions() = send(Wire.agentOptions())
+
+fun LpmClient.requestAgentSessions(project: String, search: String, limit: Int) =
+    send(Wire.agentSessions(project, search, limit))
+
+fun LpmClient.resumeSession(project: String, session: AgentSession) =
+    send(Wire.resumeSession(project, session.provider, session.sessionId, session.title))
+
+fun LpmClient.requestListDir(project: String, dir: String) = send(Wire.listDir(project, dir))
 
 fun LpmClient.closeTerminal(project: String, id: String) = send(Wire.closeTerminal(project, id))
 

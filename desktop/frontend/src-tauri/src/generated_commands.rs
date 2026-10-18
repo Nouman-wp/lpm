@@ -289,6 +289,7 @@ macro_rules! all_command_handlers {
             remote_rename_device,
             remote_respond_pair_request,
             remote_revoke_device,
+            remote_set_agent_options,
             remote_set_composer_draft,
             remote_set_config,
             remote_set_keep_awake,

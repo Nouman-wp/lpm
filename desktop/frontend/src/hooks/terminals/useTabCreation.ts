@@ -258,8 +258,8 @@ export function useTabCreation({
   );
 
   const resumeFromHistory = useCallback(
-    async (entry: PersistedHistoryEntry) => {
-      if (IS_MIRROR_WINDOW) return forward("resumeFromHistory", entry);
+    async (entry: PersistedHistoryEntry, background = false) => {
+      if (IS_MIRROR_WINDOW) return forward("resumeFromHistory", entry, background);
       let id: string;
       const sessionId = claudeResumeSessionId(entry.resumeCmd);
       try {
@@ -286,7 +286,7 @@ export function useTabCreation({
         resumeCmd: entry.resumeCmd,
         actionName: entry.actionName,
       });
-      addTerminal(term);
+      addTerminal(term, undefined, background);
       scheduleCmdInject(id, entry.resumeCmd);
     },
     [projectName, addTerminal, scheduleCmdInject, forward],

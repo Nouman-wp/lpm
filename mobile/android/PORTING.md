@@ -259,7 +259,7 @@ recognition, biometrics.
 | UserDefaults | `appearanceMode`, `terminalFontSize` (12, 8–24), `terminalTheme` (`claude-dark`) | appearance |
 | UserDefaults | `speech.engine`, `speech.voiceId`, `speech.rate` | read aloud |
 | UserDefaults | `builtInTailscale.enabled`, `pairing.usesTailscaleApp` | Tailscale |
-| UserDefaults | `activity.groupByProject`, `automation.scheduleOpen`, `automation.setupOpen`, `filePreviewMarkdownSource`, `actionPrimaryLastUsed`, `zoneOpenLayers`, `macUpdate.dismissed.<id>` | UI memory |
+| UserDefaults | `activity.groupByProject`, `automation.scheduleOpen`, `automation.setupOpen`, `filePreviewMarkdownSource`, `actionPrimaryLastUsed`, `zoneOpenLayers`, `newTab.lastPick`, `macUpdate.dismissed.<id>` | UI memory |
 | Files | `Caches/project-lists/<localId>.json`; `ApplicationSupport/tailnet/` (no backup) | offline project list; tailnet state (`noBackupFilesDir`) |
 
 ## Demo Mode
