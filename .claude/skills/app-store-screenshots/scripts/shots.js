@@ -5,7 +5,7 @@ const { build } = require("./build");
 const sim = require("./sim");
 const { compose, sheet } = require("./compose");
 
-const USAGE = `shots.js <command> [--device iphone|ipad] [--only name,name] [--version <v>]
+const USAGE = `shots.js <command> [--device iphone|ipad|duo-closed|duo-open] [--only name,name] [--version <v>]
   build      scratch copy of mobile/ + screenshot patches, Release simulator build
   prepare    boot the simulators (US English, 9:41, full battery) and install the build
   capture    launch each shot's route and save the simulator screenshot
@@ -51,9 +51,10 @@ function capture(c, opts, udids) {
   for (const { device, dev, shots } of plan(c, opts)) {
     const udid = udids?.[device] || sim.prepare(dev.simulator);
     const { raw } = dirs(c, opts, device);
+    if (dev.pose) sim.awaitDisplay(udid, dev.simulator, dev.display, dev.size, dev.pose);
     for (const s of shots) {
       const out = path.join(raw, `${s.name}.png`);
-      sim.capture(udid, s.route, out, s.wait || 4);
+      sim.capture(udid, s.route, out, s.wait || 4, dev.display);
       console.log(`${device} ${s.name} → ${out}`);
     }
   }

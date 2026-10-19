@@ -54,7 +54,7 @@ final class KeyboardObserver: ObservableObject {
 
     private func update(from notification: Notification, hidden: Bool = false) {
         if !hidden, let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
-            height = keyboardOverlap(for: frame)
+            height = keyboardOverlap(for: frame, on: notification.object as? UIScreen)
         } else {
             height = 0
         }
@@ -62,12 +62,14 @@ final class KeyboardObserver: ObservableObject {
         if height < settledHeight { settledHeight = height }
     }
 
-    private func keyboardOverlap(for screenFrame: CGRect) -> CGFloat {
+    /// `screen` is the one the keyboard is on (the notification's object): iPhone
+    /// Duo has two, so there is no main screen to measure against.
+    private func keyboardOverlap(for screenFrame: CGRect, on screen: UIScreen?) -> CGFloat {
         guard let window = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .flatMap(\.windows)
             .first(where: { $0.isKeyWindow }) else {
-            return max(0, UIScreen.main.bounds.maxY - screenFrame.minY)
+            return max(0, (screen?.bounds.maxY ?? screenFrame.maxY) - screenFrame.minY)
         }
 
         let frame = window.convert(screenFrame, from: nil)

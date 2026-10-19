@@ -9,12 +9,19 @@ struct Spec: Decodable {
     let device: String
     let width: Int
     let height: Int
+    /// The display's corner radii in raw screenshot pixels: top-left, top-right,
+    /// bottom-right, bottom-left.
+    let screenRadius: [CGFloat]
+    /// The camera cutout simctl leaves out (the Dynamic Island, iPhone Duo's outer
+    /// camera): x, y, width, height in raw pixels from the top-left, drawn as a capsule.
+    let cutout: [CGFloat]?
     let shots: [Shot]
 }
 
 let spec = try JSONDecoder().decode(Spec.self, from: Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1])))
 let W = CGFloat(spec.width), H = CGFloat(spec.height)
-let isPhone = spec.device == "iphone"
+// iPhone-sized canvases get the smaller type and margins; iPad and iPhone Duo the larger.
+let isPhone = W < 1500
 
 func color(_ hex: UInt32, _ a: CGFloat = 1) -> NSColor {
     NSColor(srgbRed: CGFloat((hex >> 16) & 0xff) / 255, green: CGFloat((hex >> 8) & 0xff) / 255,
@@ -33,6 +40,19 @@ func drawText(_ text: String, font: NSFont, color: NSColor, top: CGFloat, width:
     let h = ceil(bounds.height)
     s.draw(with: NSRect(x: (W - width) / 2, y: H - top - h, width: width, height: h), options: [.usesLineFragmentOrigin])
     return h
+}
+
+/// `rect` with its own radius at each corner, given top-left first, clockwise.
+func roundedRect(_ rect: NSRect, _ radii: [CGFloat], plus extra: CGFloat = 0) -> NSBezierPath {
+    let r = radii.map { $0 + extra }
+    let p = NSBezierPath()
+    p.move(to: NSPoint(x: rect.minX + r[3], y: rect.minY))
+    p.appendArc(from: NSPoint(x: rect.maxX, y: rect.minY), to: NSPoint(x: rect.maxX, y: rect.maxY), radius: r[2])
+    p.appendArc(from: NSPoint(x: rect.maxX, y: rect.maxY), to: NSPoint(x: rect.minX, y: rect.maxY), radius: r[1])
+    p.appendArc(from: NSPoint(x: rect.minX, y: rect.maxY), to: NSPoint(x: rect.minX, y: rect.minY), radius: r[0])
+    p.appendArc(from: NSPoint(x: rect.minX, y: rect.minY), to: NSPoint(x: rect.maxX, y: rect.minY), radius: r[3])
+    p.close()
+    return p
 }
 
 func writeOpaquePNG(_ rep: NSBitmapImageRep, to path: String) {
@@ -81,32 +101,30 @@ for shot in spec.shots {
     let scale = min(W * 0.80 / rawW, maxScreenH / rawH)
     let sw = rawW * scale, sh = rawH * scale
     let screen = NSRect(x: (W - sw) / 2, y: H - deviceTop - bezel - sh, width: sw, height: sh)
-    let screenRadius = (isPhone ? 165 : 72) * scale
+    let screenRadii = spec.screenRadius.map { $0 * scale }
     let body = screen.insetBy(dx: -bezel, dy: -bezel)
-    let bodyRadius = screenRadius + bezel
 
     c.saveGState()
     c.setShadow(offset: CGSize(width: 0, height: -30), blur: 90, color: NSColor.black.withAlphaComponent(0.6).cgColor)
     color(0x1C1C1F).setFill()
-    NSBezierPath(roundedRect: body, xRadius: bodyRadius, yRadius: bodyRadius).fill()
+    roundedRect(body, screenRadii, plus: bezel).fill()
     c.restoreGState()
     color(0x48484D).setStroke()
-    let rim = NSBezierPath(roundedRect: body.insetBy(dx: 2, dy: 2), xRadius: bodyRadius - 2, yRadius: bodyRadius - 2)
+    let rim = roundedRect(body.insetBy(dx: 2, dy: 2), screenRadii, plus: bezel - 2)
     rim.lineWidth = 4
     rim.stroke()
 
     c.saveGState()
-    NSBezierPath(roundedRect: screen, xRadius: screenRadius, yRadius: screenRadius).addClip()
+    roundedRect(screen, screenRadii).addClip()
     c.interpolationQuality = .high
     c.draw(cg, in: screen)
     c.restoreGState()
 
-    // simctl screenshots leave the Dynamic Island out; draw it back in.
-    if isPhone {
-        let iw = 378 * scale, ih = 111 * scale
-        let island = NSRect(x: W / 2 - iw / 2, y: screen.maxY - 33 * scale - ih, width: iw, height: ih)
+    if let k = spec.cutout {
+        let cutout = NSRect(x: screen.minX + k[0] * scale, y: screen.maxY - (k[1] + k[3]) * scale,
+                            width: k[2] * scale, height: k[3] * scale)
         NSColor.black.setFill()
-        NSBezierPath(roundedRect: island, xRadius: ih / 2, yRadius: ih / 2).fill()
+        NSBezierPath(roundedRect: cutout, xRadius: cutout.height / 2, yRadius: cutout.height / 2).fill()
     }
 
     NSGraphicsContext.restoreGraphicsState()

@@ -27,8 +27,9 @@ function createDevice(name) {
   const type = devicetypes.find((t) => t.name === name);
   if (!type) throw new Error(`no simulator device type named "${name}" (xcrun simctl list devicetypes)`);
   const { runtimes } = JSON.parse(simctl(["list", "runtimes", "-j"]));
-  const runtime = runtimes.filter((r) => r.isAvailable && r.platform === "iOS").pop();
-  if (!runtime) throw new Error("no iOS simulator runtime installed");
+  const runtime = runtimes.filter((r) => r.isAvailable && r.platform === "iOS" &&
+    (r.supportedDeviceTypes || []).some((t) => t.identifier === type.identifier)).pop();
+  if (!runtime) throw new Error(`no installed iOS simulator runtime runs "${name}" (xcodebuild -downloadPlatform iOS)`);
   simctl(["create", name, type.identifier, runtime.identifier]);
   return findDevice(name);
 }
@@ -69,17 +70,50 @@ function prepare(name, { log = console.log } = {}) {
   simctl(["ui", udid, "appearance", "light"]);
   try { simctl(["terminate", udid, BUNDLE_ID], { stdio: "pipe" }); } catch {}
   simctl(["install", udid, APP]);
+  // The first launch after an install is slow enough that a shot catches placeholders.
+  simctl(["launch", udid, BUNDLE_ID], { stdio: "pipe" });
+  sleep(5);
+  simctl(["terminate", udid, BUNDLE_ID], { stdio: "pipe" });
   log(`${name} ready (${udid})`);
   return udid;
 }
 
-function capture(udid, route, out, wait) {
+function screenshot(udid, display, out) {
+  simctl(["io", udid, "screenshot", ...(display ? [`--display=${display}`] : []), out], { stdio: "pipe" });
+}
+
+function capture(udid, route, out, wait, display) {
   fs.mkdirSync(path.dirname(out), { recursive: true });
   simctl(["launch", "--terminate-running-process", udid, BUNDLE_ID], {
     env: { ...process.env, SIMCTL_CHILD_LPM_SHOT_ROUTE: route }, stdio: "pipe",
   });
   sleep(wait);
-  simctl(["io", udid, "screenshot", out], { stdio: "pipe" });
+  screenshot(udid, display, out);
+}
+
+function lit(file, [w, h]) {
+  const size = execFileSync("sips", ["-g", "pixelWidth", "-g", "pixelHeight", file], { encoding: "utf8" });
+  const [pw, ph] = [/pixelWidth: (\d+)/, /pixelHeight: (\d+)/].map((re) => Number(size.match(re)[1]));
+  if (pw !== w || ph !== h) return false;
+  const pixels = execFileSync("ffmpeg", ["-v", "error", "-i", file, "-vf", "scale=8:8,format=gray", "-f", "rawvideo", "-"]);
+  return pixels.some((v) => v > 0);
+}
+
+// iPhone Duo boots closed, and simctl can't fold it: only Device Hub's bottom bar sets its
+// pose, and the display of the other pose stays dark (or turned, until rotated to portrait).
+function awaitDisplay(udid, name, display, size, pose, { log = console.log } = {}) {
+  const probe = path.join(CACHE, "probe.png");
+  for (let i = 0; i < 150; i++) {
+    screenshot(udid, display, probe);
+    if (lit(probe, size)) {
+      // A launch while the device is still folding comes up on placeholders.
+      if (i > 0) sleep(3);
+      return;
+    }
+    if (i === 0) log(`${name}: set it to ${pose}, in portrait, in Device Hub (bottom bar) — waiting`);
+    sleep(2);
+  }
+  throw new Error(`${name}: display ${display} never showed a ${size.join("x")} picture`);
 }
 
 function cleanup(names, { log = console.log } = {}) {
@@ -97,4 +131,4 @@ function cleanup(names, { log = console.log } = {}) {
   fs.rmSync(STATE, { force: true });
 }
 
-module.exports = { prepare, capture, cleanup, findDevice };
+module.exports = { prepare, capture, awaitDisplay, cleanup, findDevice };

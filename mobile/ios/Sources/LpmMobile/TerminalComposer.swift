@@ -1039,6 +1039,9 @@ private struct SpecialKeyBar: View {
                     .padding(.horizontal, 12)
             }
         }
+        // The scroll view runs on under the side safe areas, which on a closed iPhone
+        // Duo hold the vertical toolbar: end the row where the message field ends.
+        .clipped()
         .swipeDownDismissesKeyboard()
     }
 

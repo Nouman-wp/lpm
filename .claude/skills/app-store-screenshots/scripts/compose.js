@@ -21,6 +21,8 @@ function compose(device, dev, shots, rawDir, outDir, { log = console.log } = {})
     device,
     width: dev.size[0],
     height: dev.size[1],
+    screenRadius: Array.isArray(dev.screenRadius) ? dev.screenRadius : Array(4).fill(dev.screenRadius),
+    cutout: dev.cutout,
     shots: shots.map((s, i) => ({
       raw: path.join(rawDir, `${s.name}.png`),
       out: path.join(outDir, `${String(i + 1).padStart(2, "0")}-${s.name}.png`),
