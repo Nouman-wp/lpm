@@ -1,12 +1,16 @@
+import { isValidAgentSessionId, type AgentSessionRef } from "../agentSession";
 import { isPeerName, peerRawName } from "./markers";
 
 // A terminal running on a peer host, as the host lists it for a project. The id
-// is peer-marked; the label is the host's tab name, absent when it has none.
+// is peer-marked; the label is the host's tab name, absent when it has none, and
+// the agent session is the conversation the host's tab runs, from a host that
+// says.
 export interface HostTerminal {
   id: string;
   label?: string;
   pinned: boolean;
   emoji?: string;
+  agentSession?: AgentSessionRef;
 }
 
 // Peer terminals this Mac has had a tab for. A sync never opens one of these
@@ -44,15 +48,30 @@ export function isPeerStartInFlight(slug: string): boolean {
   return startsInFlight.has(slug);
 }
 
+function parseAgentSession(value: unknown): AgentSessionRef | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const s = value as { provider?: unknown; sessionId?: unknown };
+  if (s.provider !== "claude" && s.provider !== "codex") return undefined;
+  if (typeof s.sessionId !== "string" || !isValidAgentSessionId(s.sessionId)) return undefined;
+  return { provider: s.provider, sessionId: s.sessionId };
+}
+
 function parseHostTerminal(value: unknown): HostTerminal | null {
   if (!value || typeof value !== "object") return null;
-  const t = value as { id?: unknown; label?: unknown; pinned?: unknown; emoji?: unknown };
+  const t = value as {
+    id?: unknown;
+    label?: unknown;
+    pinned?: unknown;
+    emoji?: unknown;
+    agentSession?: unknown;
+  };
   if (typeof t.id !== "string" || !isPeerName(t.id)) return null;
   // A host with no name for a tab reports its pty id instead.
   const label =
     typeof t.label === "string" && t.label && t.label !== peerRawName(t.id) ? t.label : undefined;
   const emoji = typeof t.emoji === "string" && t.emoji ? t.emoji : undefined;
-  return { id: t.id, label, pinned: t.pinned === true, emoji };
+  const agentSession = parseAgentSession(t.agentSession);
+  return { id: t.id, label, pinned: t.pinned === true, emoji, agentSession };
 }
 
 // The host's terminals that should open as tabs here: everything it lists that

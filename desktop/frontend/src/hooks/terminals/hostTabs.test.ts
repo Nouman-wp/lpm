@@ -36,6 +36,29 @@ describe("withHostTabs", () => {
     expect(pane.tabs.map((t) => t.label)).toEqual(["Terminal 1", "Claude Code 2", "Terminal 2"]);
   });
 
+  // The tab opens here after its agent reported the conversation, so it never
+  // hears that event: the host's listing is what makes it an agent tab.
+  it("opens an agent tab on the conversation the host names", () => {
+    const { tree } = withHostTabs(null, null, [
+      {
+        id: "peer-aaaaaaaa-lpm-5",
+        label: "Claude",
+        pinned: false,
+        agentSession: { provider: "claude", sessionId: "c-1" },
+      },
+      {
+        id: "peer-aaaaaaaa-lpm-6",
+        label: "Codex",
+        pinned: false,
+        agentSession: { provider: "codex", sessionId: "x-1" },
+      },
+    ]);
+    expect(leaf(tree).tabs.map((t) => [t.agentSession?.sessionId, t.resumeCmd])).toEqual([
+      ["c-1", "claude --resume c-1"],
+      ["x-1", "codex resume x-1"],
+    ]);
+  });
+
   it("falls back to the first pane when focus points nowhere", () => {
     const only = makePaneLeaf("only", [makeTerminal("a", "Terminal 1")]);
     const { tree } = withHostTabs(only, "gone", [{ id: "peer-aaaaaaaa-lpm-5", pinned: false }]);
@@ -128,5 +151,27 @@ describe("followHostTabs", () => {
   it("hands back the same tree when nothing differs", () => {
     const start = makePaneLeaf("p", [makeTerminal(a, "A")]);
     expect(followHostTabs(start, [{ id: a, label: "A", pinned: false }], [a])).toBe(start);
+  });
+
+  it("gives a tab with no conversation the one the host names", () => {
+    const start = makePaneLeaf("p", [makeTerminal(a, "Claude", { fromHost: true })]);
+    const session = { provider: "claude" as const, sessionId: "c-2" };
+    const pane = leaf(followHostTabs(start, [{ id: a, label: "Claude", pinned: false, agentSession: session }], [a]));
+    expect(pane.tabs[0].agentSession).toEqual(session);
+    expect(pane.tabs[0].resumeCmd).toBe("claude --resume c-2");
+  });
+
+  // The agent's own report can be ahead of the host's listing.
+  it("keeps the conversation a tab already follows", () => {
+    const start = makePaneLeaf("p", [
+      makeTerminal(a, "Claude", {
+        agentSession: { provider: "claude", sessionId: "new" },
+        resumeCmd: "claude --resume new",
+      }),
+    ]);
+    const host = [
+      { id: a, label: "Claude", pinned: false, agentSession: { provider: "claude" as const, sessionId: "old" } },
+    ];
+    expect(followHostTabs(start, host, [a])).toBe(start);
   });
 });

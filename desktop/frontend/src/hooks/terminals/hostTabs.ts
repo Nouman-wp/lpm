@@ -1,3 +1,4 @@
+import { agentSessionOf } from "../../agentSession";
 import { type HostTerminal } from "../../peer/hostTerminals";
 import {
   type PaneNode,
@@ -13,6 +14,7 @@ import {
   terminalDisplayLabel,
 } from "../../paneTree";
 import { disambiguateLabel, pickTerminalLabel } from "../../terminalLabels";
+import { withAgentSession } from "./agentSessionTab";
 import { nextId } from "./util";
 
 // Appends the host's terminals behind the tab in view, so one opening on the
@@ -31,7 +33,10 @@ export function withHostTabs(
   let next: PaneNode = tree ?? makePaneLeaf(paneId, []);
   for (const t of terminals) {
     const label = t.label ? disambiguateLabel(next, t.label) : pickTerminalLabel(next);
-    const tab = makeTerminal(t.id, label, { pinned: t.pinned, emoji: t.emoji, fromHost: true });
+    const tab = withHostSession(
+      makeTerminal(t.id, label, { pinned: t.pinned, emoji: t.emoji, fromHost: true }),
+      t,
+    );
     next = mapPane(next, paneId, (p) => ({ ...p, tabs: [...p.tabs, tab] }));
   }
   return tree ? { tree: next } : { tree: next, focus: paneId };
@@ -82,7 +87,7 @@ export function followHostTabs(
     slots.forEach((slot, k) => (tabs[slot] = ranked[k]));
     const named = tabs.map((t) => {
       const host = byId.get(t.id);
-      return host ? withHostNames(t, host) : t;
+      return host ? withHostSession(withHostNames(t, host), host) : t;
     });
     if (named.every((t, i) => t === pane.tabs[i])) continue;
     const activeId = pane.tabs[pane.activeTabIdx]?.id;
@@ -112,4 +117,12 @@ function withHostNames(t: TerminalInstance, host: HostTerminal): TerminalInstanc
     sessionTitleId: undefined,
     sessionTitleSource: "manual",
   };
+}
+
+// A tab that never heard its agent name the conversation — it opened here after
+// the agent started — takes the one the host knows, which makes it the agent tab
+// it is: model picker, Resume, Fork. A tab that did hear keeps its own, since the
+// host's listing can trail the event that moved it on.
+function withHostSession(t: TerminalInstance, host: HostTerminal): TerminalInstance {
+  return host.agentSession && !agentSessionOf(t) ? withAgentSession(t, host.agentSession) : t;
 }

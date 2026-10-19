@@ -6186,14 +6186,16 @@ pub fn list_project_terminals(
 /// tab that was closed here and keep one whose program just ended. `tabs` is null
 /// until the desktop has reported them, and `run` changes with every app start:
 /// terminals don't outlive one, and the Mac keeps their tabs rather than take
-/// them for closed. A Mac that predates this asks for the plain array, and a host
-/// that predates it answers with one.
+/// them for closed. Each terminal also names its agent's conversation
+/// (`agentSession`), when its tab has one. A Mac that predates this asks for the
+/// plain array, and a host that predates it answers with one.
 pub fn project_listing(app: &AppHandle, hub: &RemoteHub, project: &str, with_tabs: bool) -> Value {
     static RUN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    let terminals = Value::Array(project_terminals(app, hub, project));
+    let mut terminals = project_terminals(app, hub, project);
     if !with_tabs {
-        return terminals;
+        return Value::Array(terminals);
     }
+    tabs::with_agent_sessions(hub, &mut terminals);
     let tabs = hub.inner.tree_ids.lock().unwrap().get(project).cloned();
     let run = RUN.get_or_init(|| uuid::Uuid::new_v4().to_string());
     // `follow`: this host restores the tabs a Mac opened here, takes that Mac's

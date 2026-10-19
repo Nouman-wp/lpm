@@ -50,6 +50,28 @@ describe("unclaimedHostTerminals", () => {
     ]);
   });
 
+  it("reads the conversation the host's tab runs", () => {
+    const id = prefixName(A, "lpm-8");
+    const [claude] = unclaimedHostTerminals(
+      [{ id, agentSession: { provider: "claude", sessionId: "c-1" } }],
+      [],
+    );
+    expect(claude.agentSession).toEqual({ provider: "claude", sessionId: "c-1" });
+  });
+
+  it("drops an agent session it can't use", () => {
+    const listed = [
+      { id: prefixName(A, "lpm-9"), agentSession: { provider: "gemini", sessionId: "g-1" } },
+      { id: prefixName(A, "lpm-10"), agentSession: { provider: "claude", sessionId: "; rm -rf ~" } },
+      { id: prefixName(A, "lpm-11"), agentSession: "c-1" },
+    ];
+    expect(unclaimedHostTerminals(listed, []).map((t) => t.agentSession)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
+
   it("ignores unmarked ids and a malformed listing", () => {
     expect(unclaimedHostTerminals([{ id: "lpm-7" }, null, "x"], [])).toEqual([]);
     expect(unclaimedHostTerminals(null, [])).toEqual([]);

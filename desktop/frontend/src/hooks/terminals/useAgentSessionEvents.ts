@@ -1,22 +1,18 @@
 import { useEffect, type RefObject } from "react";
 import { EventsOn } from "../../../bridge/runtime";
 import {
-  agentProviderOfCommand,
   agentSessionOf,
-  buildClaudeResumeCmd,
   isValidAgentSessionId,
   type AgentSessionProvider,
 } from "../../agentSession";
-import { buildCodexResumeCmd } from "../../codexResume";
 import {
   collectPanes,
-  followsAgentTitle,
   isTerminalTab,
   mapPane,
   type PaneNode,
-  type TerminalInstance,
 } from "../../paneTree";
 import { IS_MIRROR_WINDOW } from "../../mirror";
+import { withAgentSession } from "./agentSessionTab";
 
 export interface AgentSessionEvent {
   project: string;
@@ -39,42 +35,6 @@ function isAgentSessionEvent(payload: unknown): payload is AgentSessionEvent {
   );
 }
 
-function updatedTerminal(
-  tab: TerminalInstance,
-  event: AgentSessionEvent,
-): TerminalInstance {
-  const previous = agentSessionOf(tab);
-  const changedSession =
-    previous?.provider !== event.provider ||
-    previous?.sessionId !== event.sessionId;
-  const resumeCmd =
-    event.provider === "claude"
-      ? buildClaudeResumeCmd(tab.resumeCmd ?? tab.startCmd, event.sessionId)
-      : buildCodexResumeCmd(
-          agentProviderOfCommand(tab.startCmd) === "codex"
-            ? tab.startCmd
-            : undefined,
-          event.sessionId,
-        );
-
-  return {
-    ...tab,
-    agentSession: {
-      provider: event.provider,
-      sessionId: event.sessionId,
-    },
-    resumeCmd,
-    agentEnded: undefined,
-    ...(changedSession && followsAgentTitle(tab)
-      ? {
-          sessionTitle: undefined,
-          sessionTitleId: undefined,
-          sessionTitleSource: undefined,
-        }
-      : {}),
-  };
-}
-
 export function applyAgentSessionEvent(
   tree: PaneNode | null,
   projectName: string,
@@ -91,7 +51,9 @@ export function applyAgentSessionEvent(
   return mapPane(tree, host.id, (pane) => ({
     ...pane,
     tabs: pane.tabs.map((tab) =>
-      tab.id === payload.paneId ? updatedTerminal(tab, payload) : tab,
+      tab.id === payload.paneId
+        ? withAgentSession(tab, { provider: payload.provider, sessionId: payload.sessionId })
+        : tab,
     ),
   }));
 }

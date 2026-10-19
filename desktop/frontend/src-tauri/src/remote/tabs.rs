@@ -42,6 +42,23 @@ pub(super) fn terminals_frame(app: &AppHandle, hub: &RemoteHub, project: &str) -
     json!({ "t": "terminals", "project": project, "terminals": project_terminals(app, hub, project) })
 }
 
+/// Adds the conversation each terminal's tab runs, as the desktop reported it,
+/// for a paired Mac. One that opened the project after the agent started never
+/// heard it say, and without it the tab there is a plain terminal: no model
+/// picker, nothing to resume or fork.
+pub(super) fn with_agent_sessions(hub: &RemoteHub, terminals: &mut [Value]) {
+    let sessions = hub.inner.agent_sessions.lock().unwrap();
+    for t in terminals {
+        let Some(session) = t["id"].as_str().and_then(|id| sessions.get(id)) else {
+            continue;
+        };
+        let session = json!({ "provider": session.provider, "sessionId": session.session_id });
+        if let Some(m) = t.as_object_mut() {
+            m.insert("agentSession".into(), session);
+        }
+    }
+}
+
 /// Records the tab list the frontend just reported and says whether anything a
 /// remote shows — which tabs, their order, names, pins, icons or menu — changed.
 pub(super) fn note_tree(
@@ -206,6 +223,25 @@ mod tests {
         assert!(has_saved_tabs(&saved, "legacy"));
         assert!(!has_saved_tabs(&saved, "empty"));
         assert!(!has_saved_tabs(&saved, "missing"));
+    }
+
+    #[test]
+    fn listed_terminals_carry_their_agent_session() {
+        let hub = RemoteHub::default();
+        hub.inner.agent_sessions.lock().unwrap().insert(
+            "p-1".into(),
+            crate::remote_answers::AgentSession {
+                provider: "claude".into(),
+                session_id: "s-1".into(),
+            },
+        );
+        let mut terminals = vec![json!({ "id": "p-1" }), json!({ "id": "p-2" })];
+        with_agent_sessions(&hub, &mut terminals);
+        assert_eq!(
+            terminals[0]["agentSession"],
+            json!({ "provider": "claude", "sessionId": "s-1" })
+        );
+        assert!(terminals[1].get("agentSession").is_none());
     }
 
     #[test]
