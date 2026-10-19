@@ -14,6 +14,14 @@ export function ShareWaitingRow({
         {waiting.name}
         <span className="ml-1.5 text-[11px] text-[var(--text-muted)]">wants to join</span>
       </span>
+      {waiting.code && (
+        <span
+          title="They see these digits too"
+          className="shrink-0 rounded-md bg-[var(--bg-secondary)] px-1.5 py-0.5 font-mono text-[11px] tracking-widest text-[var(--text-secondary)]"
+        >
+          {waiting.code}
+        </span>
+      )}
       <button
         type="button"
         onClick={() => onRespond(false)}

@@ -9,6 +9,7 @@ interface JoinRequest {
   shareId: string;
   name: string;
   label: string;
+  code?: string | null;
 }
 
 // Someone with an invite asks to join a shared tab. Mounted at the app root so a
@@ -55,9 +56,21 @@ export function ShareJoinRequestDialog() {
         They'll see “{request.label}” live
         {canType ? " and can type in it." : ". They can't type in it until you allow it."}
       </p>
-      <p className="mt-3 text-xs text-[var(--text-muted)]">
-        Only let them in if you sent them the invite.
-      </p>
+      {request.code ? (
+        <>
+          <p className="mt-4 text-center font-mono text-3xl font-semibold tracking-[0.3em] text-[var(--text-primary)]">
+            {request.code}
+          </p>
+          <p className="mt-3 text-xs text-[var(--text-muted)]">
+            They're joining from a browser. Ask them which four digits they see, and
+            only let them in if they match.
+          </p>
+        </>
+      ) : (
+        <p className="mt-3 text-xs text-[var(--text-muted)]">
+          Only let them in if you sent them the invite.
+        </p>
+      )}
       <div className="mt-5 flex justify-end gap-2">
         <button
           type="button"

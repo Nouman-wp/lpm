@@ -17,6 +17,8 @@ export interface ShareGuest {
 export interface ShareWaiting {
   id: string;
   name: string;
+  // Four digits the person asking sees too, when they're joining from a browser.
+  code?: string | null;
 }
 
 export interface HostedShare {
@@ -26,6 +28,8 @@ export interface HostedShare {
   label: string;
   canType: boolean;
   invite: string;
+  // The invite also opens in a browser, through the share relay.
+  browser?: boolean;
   guests: ShareGuest[];
   waiting: ShareWaiting[];
 }

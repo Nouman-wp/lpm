@@ -79,6 +79,11 @@ mdns-sd = "0.20"
 rustls = "0.23"
 rcgen = "0.13"
 rustls-pemfile = "2"
+# Browser guests of a shared tab (sharerelay.rs): the relay is reached over wss
+# with the OS's own certificate checks, and each guest's session is end-to-end
+# encrypted with Noise NK so the relay only ever forwards ciphertext.
+rustls-platform-verifier = "0.7"
+snow = "0.10"
 time = "0.3"
 
 # objc2 for the in-pane browser's per-webview NSAppearance override (window theme

@@ -5,65 +5,102 @@
 // the share on every use, so stopping a share or removing a guest takes effect
 // on the next frame rather than the next connection. It is never handed an
 // event, and never reaches the generic command proxy.
+use super::guestlink::{GuestLink, Incoming};
 use super::*;
 use crate::tabshare::{self, GuestSession};
 
 const REFUSED: &str = "Only the shared tab is open to you.";
 const VIEW_ONLY: &str = "The host hasn't let you type in this tab.";
+const JOIN_POLL: Duration = Duration::from_millis(250);
 
-fn over_tls(ws: &ConnWs) -> bool {
-    matches!(ws.get_ref(), PeerStream::Tls(_))
+fn error_frame(error: &str) -> String {
+    json!({ "t": "error", "error": error }).to_string()
 }
 
-fn error_frame(error: &str) -> Message {
-    Message::text(json!({ "t": "error", "error": error }).to_string())
+fn send<L: GuestLink>(link: &mut L, val: Value) -> Result<(), ()> {
+    link.send_text(val.to_string())
 }
 
 /// The `auth` of a guest let in earlier, answered with its `ready`.
-pub(super) fn authenticate(ws: &mut ConnWs, id: &str, token: &str) -> Option<GuestSession> {
-    if !over_tls(ws) {
+pub(super) fn authenticate<L: GuestLink>(
+    link: &mut L,
+    id: &str,
+    token: &str,
+) -> Option<GuestSession> {
+    if !link.private() {
         return None;
     }
     let session = tabshare::check_guest(id, token)?;
     let share = tabshare::describe(&session)?;
-    let _ = ws.send(Message::text(
+    let _ = send(
+        link,
         json!({ "t": "ready", "guest": true, "share": share, "hostName": machine_name(),
             "hostPlatform": platform_id(), "hostVersion": crate::commands_real::get_version(),
-            "features": [] })
-        .to_string(),
-    ));
+            "features": [] }),
+    );
     Some(session)
+}
+
+/// A browser guest the relay carries here (sharerelay.rs). It may only ask to
+/// join or come back with the token it was given: never pair, and never reach
+/// anything a paired machine can.
+pub(crate) fn serve_relayed<L: GuestLink>(mut link: L, app: AppHandle) {
+    let Some(hub) = app.try_state::<PeerHub>().map(|h| h.inner().clone()) else {
+        return;
+    };
+    let generation = hub.inner.generation.load(Ordering::SeqCst);
+    link.set_wait(AUTH_TIMEOUT);
+    let Incoming::Text(txt) = link.recv() else {
+        return link.close_link();
+    };
+    let v: Value = serde_json::from_str(&txt).unwrap_or_default();
+    match v.get("t").and_then(Value::as_str) {
+        Some("shareJoin") => join(&mut link, &app, &v),
+        Some("auth") => {
+            let id = v
+                .get("deviceId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let token = v.get("token").and_then(Value::as_str).unwrap_or_default();
+            match authenticate(&mut link, id, token) {
+                Some(session) => return serve(link, hub, app, session, generation),
+                None => {
+                    let _ = link.send_text(error_frame("unauthorized"));
+                }
+            }
+        }
+        _ => {}
+    }
+    link.close_link();
 }
 
 /// Someone holding an invite asks to join. Only the host lets them in, so this
 /// waits for an answer on this machine's screen, watching for the asker hanging
 /// up meanwhile, and closes after answering: an admitted guest connects again
 /// with the token it was handed.
-pub(super) fn join(ws: &mut ConnWs, app: &AppHandle, v: &Value) {
-    if !over_tls(ws) {
-        let _ = ws.send(error_frame("Update lpm to join shared tabs."));
+pub(super) fn join<L: GuestLink>(link: &mut L, app: &AppHandle, v: &Value) {
+    if !link.private() {
+        let _ = link.send_text(error_frame("Update lpm to join shared tabs."));
         return;
     }
     let secret = v.get("secret").and_then(Value::as_str).unwrap_or_default();
     let name = v.get("name").and_then(Value::as_str).unwrap_or_default();
-    let ticket = match tabshare::begin_join(app, secret, name) {
+    let ticket = match tabshare::begin_join(app, secret, name, link.match_code()) {
         Ok(ticket) => ticket,
         Err(refusal) => {
-            let _ = ws.send(error_frame(refusal.message()));
+            let _ = link.send_text(error_frame(refusal.message()));
             return;
         }
     };
-    let _ = ws.send(Message::text(
-        json!({ "t": "shareJoinPending", "hostName": machine_name() }).to_string(),
-    ));
+    let _ = send(
+        link,
+        json!({ "t": "shareJoinPending", "hostName": machine_name() }),
+    );
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.show();
         let _ = win.set_focus();
     }
-    let _ = ws
-        .get_ref()
-        .tcp()
-        .set_read_timeout(Some(Duration::from_millis(250)));
+    link.set_wait(JOIN_POLL);
     let deadline = Instant::now() + PAIR_APPROVE_WINDOW;
     let decision = loop {
         match ticket.decision.try_recv() {
@@ -74,13 +111,8 @@ pub(super) fn join(ws: &mut ConnWs, app: &AppHandle, v: &Value) {
         if Instant::now() >= deadline {
             break None;
         }
-        match ws.read() {
-            Ok(m) if m.is_close() => break None,
-            Ok(_) => {}
-            Err(WsError::Io(ref e))
-                if e.kind() == io::ErrorKind::WouldBlock || e.kind() == io::ErrorKind::TimedOut => {
-            }
-            Err(_) => break None,
+        if let Incoming::Closed = link.recv() {
+            break None;
         }
     };
     tabshare::abandon_join(app, &ticket.id);
@@ -95,11 +127,11 @@ pub(super) fn join(ws: &mut ConnWs, app: &AppHandle, v: &Value) {
         Some(false) => json!({ "t": "error", "error": "The host didn't let you in." }),
         None => json!({ "t": "error", "error": "The host didn't answer in time." }),
     };
-    let _ = ws.send(Message::text(reply.to_string()));
+    let _ = send(link, reply);
 }
 
-pub(super) fn serve(
-    mut ws: ConnWs,
+pub(super) fn serve<L: GuestLink>(
+    mut link: L,
     hub: PeerHub,
     app: AppHandle,
     session: GuestSession,
@@ -119,7 +151,7 @@ pub(super) fn serve(
         },
     );
     tabshare::connect_viewer(&app, conn_id, &session, tx);
-    let _ = ws.get_ref().tcp().set_read_timeout(Some(POLL));
+    link.set_wait(POLL);
     let mut quick_until: Option<Instant> = None;
     let mut quick = false;
 
@@ -127,17 +159,12 @@ pub(super) fn serve(
         if hub.inner.generation.load(Ordering::SeqCst) != generation {
             break;
         }
-        loop {
-            match rx.try_recv() {
-                Ok(s) => {
-                    if ws.write(Message::text(s)).is_err() {
-                        break 'main;
-                    }
-                }
-                Err(_) => break,
+        while let Ok(s) = rx.try_recv() {
+            if link.queue_text(s).is_err() {
+                break 'main;
             }
         }
-        let _ = ws.flush();
+        let _ = link.flush_out();
         // After the drain, so the frame that says why it ended goes out first.
         if !tabshare::is_live(&session) {
             break;
@@ -145,15 +172,13 @@ pub(super) fn serve(
         let want_quick = quick_until.is_some_and(|t| Instant::now() < t);
         if want_quick != quick {
             quick = want_quick;
-            let poll = if quick { QUICK_POLL } else { POLL };
-            let _ = ws.get_ref().tcp().set_read_timeout(Some(poll));
+            link.set_wait(if quick { QUICK_POLL } else { POLL });
         }
-        match ws.read() {
-            Ok(msg) if msg.is_close() => break,
-            Ok(msg) => {
-                let Ok(txt) = msg.to_text() else { continue };
-                let txt = txt.to_string();
-                if handle(&mut ws, &txt, &hub, &app, &subs, &session).is_err() {
+        match link.recv() {
+            Incoming::Closed => break,
+            Incoming::Idle => {}
+            Incoming::Text(txt) => {
+                if handle(&mut link, &txt, &hub, &app, &subs, &session).is_err() {
                     break;
                 }
                 if let Some(within) = ANSWER_SOON.with(|c| c.take()) {
@@ -161,21 +186,16 @@ pub(super) fn serve(
                     quick_until = Some(quick_until.map_or(until, |t| t.max(until)));
                 }
             }
-            Err(WsError::Io(ref e))
-                if e.kind() == io::ErrorKind::WouldBlock || e.kind() == io::ErrorKind::TimedOut => {
-            }
-            Err(_) => break,
         }
     }
 
     hub.inner.clients.lock().unwrap().remove(&conn_id);
     tabshare::disconnect_viewer(&app, conn_id);
-    let _ = ws.close(None);
-    let _ = ws.flush();
+    link.close_link();
 }
 
-fn handle(
-    ws: &mut ConnWs,
+fn handle<L: GuestLink>(
+    link: &mut L,
     txt: &str,
     hub: &PeerHub,
     app: &AppHandle,
@@ -192,22 +212,22 @@ fn handle(
             .to_string()
     };
     match v.get("t").and_then(Value::as_str).unwrap_or_default() {
-        "ping" => send(ws, json!({ "t": "pong" }))?,
+        "ping" => send(link, json!({ "t": "pong" }))?,
         "sub" => {
             let id = str_field("id");
             if !tabshare::may_watch(session, &id) || !terminal_alive(app, &id) {
-                return send(ws, gone_frame(&id));
+                return send(link, gone_frame(&id));
             }
             let from = v.get("from").and_then(Value::as_u64);
             let Some((data, off, reset)) =
                 hub.ring_attach(subs, &id, from, || terminal_alive(app, &id))
             else {
-                return send(ws, gone_frame(&id));
+                return send(link, gone_frame(&id));
             };
             let (cols, rows) =
                 pty::remote_dims(&app.state::<pty::PtyState>(), &id).unwrap_or((0, 0));
             send(
-                ws,
+                link,
                 json!({ "t": "seed", "id": id, "d": data, "off": off, "reset": reset,
                     "cols": cols, "rows": rows }),
             )?;
@@ -238,7 +258,7 @@ fn handle(
                 Ok(value) => result_frame(&req_id, true, value),
                 Err(e) => result_frame(&req_id, false, Value::String(e)),
             };
-            ws.send(Message::text(frame)).map_err(|_| ())?;
+            link.send_text(frame)?;
         }
         "forget" => {
             tabshare::leave(app, session);

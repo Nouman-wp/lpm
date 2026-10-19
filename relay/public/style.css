@@ -1,0 +1,249 @@
+:root {
+  --bg: #ffffff;
+  --panel: #f5f5f7;
+  --text: #111418;
+  --muted: #5c6370;
+  --border: #e3e5e8;
+  --accent: #111418;
+  --on-accent: #ffffff;
+  --code-bg: #eef6ff;
+  --code-text: #0b5cad;
+  --term-bg: #0d1117;
+  --warn: #9a5b00;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0d10;
+    --panel: #15181d;
+    --text: #e8eaed;
+    --muted: #9aa1ab;
+    --border: #262a31;
+    --accent: #e8eaed;
+    --on-accent: #0b0d10;
+    --code-bg: #10243a;
+    --code-text: #8cc4ff;
+    --warn: #f0b45a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+button {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 20px;
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button.quiet {
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 12px;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 44px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.brand {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel {
+  max-width: 460px;
+  width: 100%;
+  margin: auto;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.panel h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.lead {
+  margin: 12px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.code {
+  margin: 24px auto 0;
+  width: fit-content;
+  padding: 12px 20px;
+  border-radius: 14px;
+  background: var(--code-bg);
+  color: var(--code-text);
+  font: 700 34px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: 0.3em;
+  padding-right: calc(20px - 0.3em);
+}
+
+.join {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.join label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.join input {
+  font: inherit;
+  font-size: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+}
+
+#again {
+  margin-top: 24px;
+}
+
+.fine {
+  margin: 32px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.live {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.frame {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--term-bg);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+#term {
+  width: fit-content;
+}
+
+.notice {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--warn);
+  border-top: 1px solid var(--border);
+}
+
+.keys {
+  display: flex;
+  gap: 6px;
+  padding: 8px 16px 0;
+  overflow-x: auto;
+}
+
+.keys button {
+  padding: 6px 12px;
+  font-size: 13px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.composer {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 8px 16px calc(12px + env(safe-area-inset-bottom));
+}
+
+.composer textarea {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.4;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+}

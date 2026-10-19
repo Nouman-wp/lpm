@@ -17,6 +17,9 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
   - `parity/` — the same Maestro flows on both apps in an iPhone simulator and an
     Android emulator, with a side-by-side report (`node mobile/parity/parity.js all --open`)
 - `website/` — Next.js marketing site (lpm.cx)
+- `relay/` — Cloudflare Worker that lets a browser join a shared tab: a Durable
+  Object room per share, forwarding Noise-encrypted messages, and the guest page
+  (lpm-share-relay.lpm-share-relay.workers.dev). `npm run dev` / `npm test` / `npm run deploy`; see its README
 - `tailnet/` — built-in Tailscale (Go, tsnet): `cmd/lpm-tailnet` is the desktop
   sidecar (`scripts/build-tailnet.mjs`), `ios/` the static library lpm Link links
   (`mobile/ios/build-tailnet.sh`). Needs Go (`brew install go`)

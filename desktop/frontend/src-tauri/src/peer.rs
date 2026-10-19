@@ -38,6 +38,10 @@ use tungstenite::handshake::server::{ErrorResponse, Request, Response};
 use tungstenite::{accept_hdr, Error as WsError, Message, WebSocket};
 
 mod guest;
+mod guestlink;
+
+pub(crate) use guest::serve_relayed;
+pub(crate) use guestlink::{GuestLink, Incoming};
 
 const DEFAULT_PORT: u16 = 8766; // mobile owns 8765
 const POLL: Duration = Duration::from_millis(25); // read-timeout / outbound-drain cadence

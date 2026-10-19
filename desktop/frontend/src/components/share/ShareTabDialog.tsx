@@ -24,8 +24,9 @@ const ACCESS_OPTIONS = [
   { value: "type", label: "Can type" },
 ] as const;
 
-// Share one tab with someone who has lpm. They see it live at this tab's size;
-// each person is let in by hand, and typing is off until it's switched on here.
+// Share one tab with someone, in their lpm or their browser. They see it live at
+// this tab's size; each person is let in by hand, and typing is off until it's
+// switched on here.
 export function ShareTabDialog() {
   const target = useTabShares((s) => s.shareDialog);
   const close = useTabShares((s) => s.closeShareDialog);
@@ -83,11 +84,13 @@ export function ShareTabDialog() {
       {!share ? (
         <>
           <p className="mt-3 text-sm text-[var(--text-secondary)]">
-            Someone with lpm can follow this tab live. You let each person in
-            yourself, and they can only watch until you let them type.
+            Anyone you send the invite to can follow this tab live, in lpm or a
+            browser. You let each person in yourself, and they can only watch
+            until you let them type.
           </p>
           <p className="mt-2 text-xs text-[var(--text-muted)]">
-            They need to reach this machine, on the same network or tailnet.
+            A browser reaches this tab through lpm's relay, encrypted end to end so
+            the relay can't read it.
           </p>
         </>
       ) : (
@@ -111,8 +114,9 @@ export function ShareTabDialog() {
             </button>
           </div>
           <p className="mt-1.5 text-xs text-[var(--text-muted)]">
-            Send it to the person you're sharing with. Opening it brings up lpm
-            on their computer, or they can paste it under Add → Join a shared tab.
+            {share.browser
+              ? "Send it to the person you're sharing with. They can open it in lpm, or join from any browser without installing anything."
+              : "Send it to the person you're sharing with. Opening it brings up lpm on their computer, or they can paste it under Add → Join a shared tab."}
           </p>
 
           <div className="mt-5 flex items-center justify-between gap-3">

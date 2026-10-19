@@ -1,6 +1,7 @@
 // An invite to one shared tab, as `peer_share_start` hands it out:
 // `lpm-share:` + base64url(JSON { v:1, h:hosts, p:port, s:secret, f:fp }), or
-// the same payload in a link (shareLink).
+// the same payload in a link (shareLink). An invite a browser can open also
+// carries u:relay, r:room and k:key, which only the relay's page reads.
 // Unlike a pairing invite it always carries the host's fingerprint, so the
 // secret is only ever sent to the machine that minted it.
 import { fromBase64Url } from "../peer/invite";

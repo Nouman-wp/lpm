@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Shared tab · lpm</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="vendor/xterm.css" />
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <header class="bar">
+      <span class="brand">lpm</span>
+      <span id="title" class="title"></span>
+      <button id="leave" class="quiet" type="button" hidden>Leave</button>
+    </header>
+
+    <main>
+      <section id="panel" class="panel">
+        <p class="eyebrow">Shared tab</p>
+        <h1 id="panel-title">Loading…</h1>
+        <p id="panel-text" class="lead"></p>
+        <p id="code" class="code" hidden></p>
+        <form id="join-form" class="join" hidden>
+          <label for="name">Your name</label>
+          <input id="name" maxlength="64" autocomplete="name" required />
+          <button type="submit">Ask to join</button>
+        </form>
+        <button id="again" type="button" hidden>Ask to join again</button>
+        <p class="fine">
+          Everything you see and type here is encrypted between this page and their computer.
+          The relay in between can't read it.
+        </p>
+      </section>
+
+      <section id="live" class="live" hidden>
+        <div class="frame"><div id="term"></div></div>
+        <p id="notice" class="notice" hidden></p>
+        <div id="keys" class="keys">
+          <button type="button" data-key="esc">Esc</button>
+          <button type="button" data-key="up" aria-label="Up">↑</button>
+          <button type="button" data-key="down" aria-label="Down">↓</button>
+          <button type="button" data-key="tab">Tab</button>
+          <button type="button" data-key="enter" aria-label="Return">⏎</button>
+          <button type="button" data-key="interrupt">Ctrl C</button>
+        </div>
+        <form id="composer" class="composer">
+          <textarea id="prompt" rows="2" placeholder="Message" disabled></textarea>
+          <button id="send" type="submit" disabled>Send</button>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>
