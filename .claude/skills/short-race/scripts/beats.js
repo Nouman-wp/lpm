@@ -290,8 +290,8 @@ const tagPanes = (s) =>
 
 // A colour bar over each pane header naming its model, its clock just after
 // the name: the bottom row's right end is under TikTok's like and comment
-// buttons. Fixed to the header's current box, so call it again after a layout
-// change.
+// buttons, so only the top bar carries a mark (lpm.cx) at its right end. Fixed
+// to the header's current box, so call it again after a layout change.
 const badges = (s, items) =>
   s.control.evaluate((list) => {
     for (const [i, it] of list.entries()) {
@@ -305,14 +305,17 @@ const badges = (s, items) =>
         b = document.createElement("div");
         b.className = "lesson-model-badge";
         b.dataset.i = String(i);
-        b.innerHTML = "<span></span><span></span>";
+        b.innerHTML = "<span></span><span></span><span></span>";
         document.body.append(b);
       }
       const r = h.getBoundingClientRect();
       b.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${Math.max(r.height, 38)}px;z-index:2147483646;pointer-events:none;box-sizing:border-box;display:flex;align-items:center;justify-content:flex-start;gap:22px;padding:0 12px;background:${it.bg};color:${it.fg};font:800 19px/1 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;letter-spacing:-.01em;box-shadow:0 4px 14px rgba(0,0,0,.35);white-space:nowrap`;
-      b.firstChild.textContent = it.name;
-      b.lastChild.textContent = it.time || "";
-      b.lastChild.style.fontVariantNumeric = "tabular-nums";
+      const [name, time, mark] = b.children;
+      name.textContent = it.name;
+      time.textContent = it.time || "";
+      time.style.fontVariantNumeric = "tabular-nums";
+      mark.textContent = it.mark || "";
+      mark.style.cssText = "margin-left:auto;opacity:.8";
     }
   }, items);
 
@@ -330,6 +333,7 @@ module.exports = function compareBeats({ config, dir }) {
     sides.map((m, i) => ({
       ...BADGE[i],
       name: `${m.emoji} ${m.label}`,
+      mark: i === 0 ? config.mark : undefined,
       time:
         finish[i] === "timeout"
           ? "✗ no page"
@@ -541,7 +545,11 @@ module.exports = function compareBeats({ config, dir }) {
     await s.hold(600);
   }
 
-  const teased = JSON.parse(fs.readFileSync(path.join(dir, "lesson.json"), "utf8")).narration.some((l) => l.id === "tease");
+  const lineIds = JSON.parse(fs.readFileSync(path.join(dir, "lesson.json"), "utf8")).narration.map((l) => l.id);
+  const teased = lineIds.includes("tease");
+  // Lessons written before 2026-10-19 spend a second line ("wait") on the
+  // terminals; newer ones cut away at the end of "run".
+  const waits = lineIds.includes("wait");
 
   async function setupRun(s) {
     await kit.focusWindow(s);
@@ -615,6 +623,21 @@ module.exports = function compareBeats({ config, dir }) {
 
   let racing = null;
 
+  // Everything from the end of the terminal shot to both pages open is cut.
+  const finishRace = (s) =>
+    s.skip(
+      async () => {
+        await (racing ?? race(s));
+        for (let i = 0; i < 2; i++) await openPage(s, i);
+        if (config.payoff === "bars") await trimPayoff(s);
+        await tagPanes(s);
+        await badges(s, badgeItems());
+        kit.park(s, 0.5, 0.02);
+        await s.hold(1500);
+      },
+      { keepMs: 300 },
+    );
+
   return {
     setup: async ({ lpmDir, workspace, settings }) => {
       kit.neutralShell(lpmDir, workspace);
@@ -679,21 +702,9 @@ module.exports = function compareBeats({ config, dir }) {
       await kit.focusLeft(s, TERM(0), { scale: 1.6, at: banner(0), ms: 450, cue: config.cues.a });
       await kit.focusLeft(s, TERM(1), { scale: 1.6, at: banner(1), ms: 450, cue: config.cues.b });
       await s.wide({ ms: 450, cue: config.cues.lpm });
+      if (!waits) await finishRace(s);
     },
-    wait: async (s) => {
-      await s.skip(
-        async () => {
-          await (racing ?? race(s));
-          for (let i = 0; i < 2; i++) await openPage(s, i);
-          if (config.payoff === "bars") await trimPayoff(s);
-          await tagPanes(s);
-          await badges(s, badgeItems());
-          kit.park(s, 0.5, 0.02);
-          await s.hold(1500);
-        },
-        { keepMs: 300 },
-      );
-    },
+    wait: async (s) => finishRace(s),
     // The payoff shot runs from the reveal to the end, long enough to open on
     // two lines.
     reveal: async (s) => {

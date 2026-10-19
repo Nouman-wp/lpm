@@ -1,6 +1,6 @@
 ---
 name: short-game
-version: 1.2.0
+version: 1.2.1
 argument-hint: "\"<model A>\" vs \"<model B>\" [game: runner|racer|flappy|snake|shooter|breakout|gta] [title: …]"
 description: "Make a short vertical (9:16) video where two AI models build the same self-playing game in lpm, one above the other, and both games then play live in lpm's browser. It is a short-race whose prompt comes from a ready game catalog (3D endless runner, 3D racer, Flappy Bird, Snake, space shooter, Breakout, a GTA-style police chase), with the hook, headline, title and caption written around the game and the brand pair people search for (\"Claude vs Gemini: build a 3D game 🎮\"). Models in, 1080x1920 MP4 + cover + post caption out. Use when the user asks for a TikTok, Reel or Short where models build a game, such as \"opus 5.5 high vs gemini 3.1 pro build a 3D game\", \"Claude vs GPT 6: Opus 5.5 high vs Astra high build a 3D game\" or \"claude vs grok make flappy bird\". A race on any other prompt is short-race."
 ---
@@ -28,6 +28,8 @@ Creator Search Insights (global, last 7 days, 2026-10-07): "Using AI to build a 
 ## One above the other
 
 short-race runs every race in rows: Run in duplicates with **Open side by side** split into **Rows**, run #1 on top and the copy below, from the start of the race to the reveal. Model A's cyan bar sits over the top row and model B's pink one over the bottom, with the clocks and then the finish times, and each row opens its own `index.html` in lpm's browser.
+
+As in every race, the games play with nothing written over them once the headline goes at 2.5 s, and lpm's terminals get one captioned line of about 3 s (short-race's What the video shows).
 
 short-race records every race, real or dry, in a narrow, tall 570x1000 window with the payoff trimmed to the colour bars (see its Traps), so each row's page is about 570x448 pt, the 900x700 stage's shape, and each game takes about half the frame. TikTok's caption and sound text cover the lower part of the bottom game, a trade taken for the size.
 

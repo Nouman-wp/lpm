@@ -16,9 +16,18 @@ if [ -n "$DEVICE_ID" ]; then
 else
   echo "▸ No iPhone found, so opening in Xcode and building only…"
 fi
+
+# Launch the selected Xcode through Launch Services before scripting it: when
+# AppleScript has to launch Xcode itself, it fails with "Application isn't
+# running (-600)" after an Xcode update or with other copies registered.
+XCODE_APP="$(xcode-select -p)"
+XCODE_APP="${XCODE_APP%/Contents/Developer}"
+[[ "$XCODE_APP" == *.app ]] || XCODE_APP=Xcode
+open -a "$XCODE_APP"
+
 osascript - "$PWD/LpmMobile.xcodeproj" "$DEVICE_ID" >/dev/null <<'APPLESCRIPT'
 on run {projectPath, deviceId}
-  tell application "Xcode"
+  tell application id "com.apple.dt.Xcode"
     activate
     set doc to open projectPath
     repeat 3 times

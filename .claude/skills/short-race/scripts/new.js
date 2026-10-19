@@ -135,28 +135,33 @@ const family = (m) => m.name.split(" ")[0];
 const branded = a.brand !== b.brand;
 const hookNames = branded ? [a.brand, b.brand] : family(a) !== family(b) ? [family(a), family(b)] : [a.name, b.name];
 
+// Most of the video is the two finished pages, and nothing is written over
+// them, so they can be compared: only the line over the terminals is
+// captioned, the headline goes after a few seconds, and lpm.cx sits in the top
+// colour bar rather than on a page.
 const narration = [
   {
     id: "hook",
     text: sameModel ? `${upper(effortWord(a))} or *${effortWord(b)}* effort?` : `${hookNames[0]} or *${hookNames[1]}*?`,
     headline: branded ? `${a.brand} vs ${b.brand}: ${a.name} vs ${b.name}${emoji}` : `${a.headline} vs ${b.headline}${emoji}`,
+    caption: false,
   },
   // The first two lines play over the finished pages (lesson.open): viewers
   // left at 0:02 when a one-line opening cut to the setup. The setup happens
   // under them, unseen, so the video goes straight to both models at work.
   // The second names the prompt, so viewers know what the pages were asked to
   // be without reading it in the terminals.
-  { id: "tease", text: `Same prompt: ${giraffe ? "a *giraffe* flying a *plane*" : subject.replace(/(\S+)$/, "*$1*")}.` },
+  { id: "tease", text: `Same prompt: ${giraffe ? "a *giraffe* flying a *plane*" : subject.replace(/(\S+)$/, "*$1*")}.`, caption: false },
+  // The only shot of lpm's terminals, cut as soon as it's spoken.
   {
     id: "run",
     text: sameModel
-      ? `${a.name} at *${effortWord(a)}* and *${effortWord(b)}* effort, both running in lpm's *terminal*.`
-      : `*${a.name}* and *${b.name}*, both running in lpm's *terminal*.`,
+      ? `*${upper(effortWord(a))}* and *${effortWord(b)}* effort build it in lpm's *terminal*.`
+      : `*${a.name}* and *${b.name}* build it in lpm's *terminal*.`,
   },
-  { id: "wait", text: "Both are building it *now*." },
-  { id: "reveal", text: "Here's what they *built*." },
+  { id: "reveal", text: "Here's what they *built*.", caption: false },
   // Viewers name the next pair in the comments.
-  { id: "wrap", text: `Which ${giraffe ? "giraffe" : "one"} *wins*? Comment two models to race *next*.` },
+  { id: "wrap", text: `Which ${giraffe ? "giraffe" : "one"} *wins*? Comment two models to race *next*.`, caption: false },
 ];
 
 const clis = new Set([a.cli, b.cli]);
@@ -173,6 +178,8 @@ const lesson = {
   ...TALL,
   open: 2,
   slam: sameModel ? { a: a.label, b: b.label } : { a: a.name, b: b.name },
+  headlineMs: 2500,
+  cta: false,
   narration,
   post: {
     caption: `${branded ? `${a.brand} vs ${b.brand} for coding: ` : `${a.brand} `}${a.headline} vs ${b.headline} on the same prompt: ${what}, side by side in lpm's terminal. ${giraffe ? "Which giraffe wins?" : "Which one wins?"} Comment the two models you want me to race next.`,
@@ -186,6 +193,7 @@ const compare = {
   project: "arena",
   pickA,
   payoff: "bars",
+  mark: "lpm.cx",
   cues: {
     a: sameModel ? effortWord(a) : a.name,
     b: sameModel ? effortWord(b) : b.name,

@@ -1,6 +1,6 @@
 ---
 name: short
-version: 1.2.0
+version: 1.3.0
 argument-hint: "\"<topic>\" [-- <notes>]"
 description: "Make a short vertical (9:16) lpm lesson that feels native to TikTok, Reels and Shorts: a payoff-first hook, fast push-ins that follow the action, word-by-word burned-in captions, numbered step stickers, jump cuts over waiting, recorded from the real desktop app. Topic in, 1080x1920 MP4 + cover + post caption out. Use when the user asks for a TikTok, a Reel, a Short, or any vertical or short-form video about lpm."
 ---
@@ -47,6 +47,7 @@ The recorder, the voice and the mix are the `lesson` skill's (`../lesson/scripts
 - `slam` (`{ "a": "Fable 5.1", "b": "Opus 5.5" }`, optional `"colors"`) opens on two names slammed in big over the dimmed payoff: `a` in cyan from the left, a VS, `b` in pink from the right. After 1.5 s the stack shrinks away and the headline pops in at 1.65 s (left out when the opening has under 0.6 s left). The cover is then the frame at 1.2 s, with all three lines on screen and no headline. Names are sized to fit 820 px, so long ones shrink.
 - `post.caption` goes into post.txt for TikTok: one or two search-friendly sentences (people search TikTok like Google), then at most 5 hashtags (TikTok's cap: a 6th loses its `#`), `lpm` among them. Keep the brand lowercase `lpm`.
 - **Use searched words.** Search sent 0% of the views so far, and For You shows a new account's posts mostly to people near the phone that posts them, so search is the way to reach coding viewers elsewhere. TikTok's Creator Search Insights (global, 2026-09-27): "claude tips" 224K and rising fast, "claude vs gemini" 194K, "claude ai vs chatgpt" 138K, "claude vs gemini vs gpt" 127K, "ai agents for beginners" 116K, "vibe coding apps" 96K, "how to vibe code with claude code" 85K; "claude code tips" only 1.9K, and nobody searches for "claude limit". Say "Claude" and "ChatGPT" rather than "Claude Code" and "Codex" in headlines and captions, and frame a feature as a "Claude tip" rather than by its lpm name.
+- `"caption": false` on a line speaks it with no captions over its shot; short-race uses it to keep both finished pages clear. `headlineMs` takes the headline down after that long instead of at the end of the opening.
 - `settings` in lesson.json seeds the app's settings.json (for example `terminalFontSize`); `"limits": false` leaves the sidebar meters out.
 - `windowShiftY` shows the window that many pixels below centre in the wide shot (negative: above). `stickerTop` moves the headline and step stickers from y 190. short-race's tall window uses both to keep its top colour bar clear of TikTok's tabs with the headline just under it.
 

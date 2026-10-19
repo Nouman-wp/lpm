@@ -152,6 +152,7 @@ async function compose(lines) {
       labels,
       outMs: edit.outMs,
       headline: lesson.headline ?? timed[0].line.headline,
+      headlineMs: lesson.headlineMs,
       cta: lesson.cta === false ? null : lesson.cta || "lpm.cx",
       open,
       slam: lesson.slam,

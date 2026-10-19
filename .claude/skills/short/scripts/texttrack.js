@@ -2,6 +2,7 @@
 // the top (the hook headline, then numbered step labels, then the lpm.cx end
 // sticker) and word-by-word captions — each line's words as written, grouped
 // into short pages, timed by the clip's transcript so the spoken word lights up.
+// A line with `caption: false` is spoken with nothing written over its shot.
 const shared = require("./shared");
 const { norm, onsets } = shared("words");
 const { SLAM } = require("./look");
@@ -64,10 +65,11 @@ function pages(line, outStartMs) {
 // `lines` are the timeline's lines with their clip (`line`) and `outMs`, the
 // line's start in the finished video; `labels` come from the stage, already
 // on the finished clock. `slam` ({ a, b }) opens with the two names slammed in
-// big, and the headline pops in as they shrink away.
-function textTrack({ lines, labels = [], outMs, headline, cta, open = 1, slam }) {
-  const spokenLines = lines.filter((l) => !l.line.silent);
-  const captionPages = spokenLines.flatMap((l) => pages(l.line, l.outMs));
+// big, and the headline pops in as they shrink away. `headlineMs` caps how long
+// the headline stays up.
+function textTrack({ lines, labels = [], outMs, headline, headlineMs, cta, open = 1, slam }) {
+  const captioned = lines.filter((l) => !l.line.silent && l.line.caption !== false);
+  const captionPages = captioned.flatMap((l) => pages(l.line, l.outMs));
   const hookEnd = lines.length > open ? lines[open].outMs : outMs;
   const marks = [
     ...lines.filter((l) => l.line.label !== undefined).map((l) => ({ startMs: l.outMs, text: l.line.label })),
@@ -89,7 +91,7 @@ function textTrack({ lines, labels = [], outMs, headline, cta, open = 1, slam })
   if (cta) stickers.push({ kind: "cta", text: cta, startMs: lines.at(-1).outMs });
   stickers.forEach((s, i) => {
     s.endMs = i + 1 < stickers.length ? stickers[i + 1].startMs : outMs;
-    if (s.kind === "hook") s.endMs = Math.min(s.endMs, hookEnd);
+    if (s.kind === "hook") s.endMs = Math.min(s.endMs, hookEnd, headlineMs ? s.startMs + headlineMs : Infinity);
   });
   return {
     stickers: stickers.filter((s) => s.kind !== "none" && s.endMs > s.startMs),
