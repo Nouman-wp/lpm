@@ -56,10 +56,14 @@ function checkDataDir(lpmDir) {
   return dir;
 }
 
+// The second app's data directory in a take of two Macs (lesson.json "guest").
+const guestDir = (lpmDir) => `${path.resolve(lpmDir)}-guest`;
+
 // A pristine data directory for every take, so the app opens the way it does
 // right after install; the lesson may seed settings and a workspace of demo
-// project folders through `setup` in its beats.
-function prepareState({ lpmDir, lesson, keepState, log = () => {} }) {
+// project folders through `setup` in its beats. `workspace: false` leaves the
+// demo folders alone (the second app of a two-Mac take shares the first's).
+function prepareState({ lpmDir, lesson, keepState, workspace: withWorkspace = true, log = () => {} }) {
   const dir = checkDataDir(lpmDir);
   if (!keepState) {
     killStaleServices(dir, log);
@@ -87,6 +91,7 @@ function prepareState({ lpmDir, lesson, keepState, log = () => {} }) {
     if (lesson.limits === false) settings({ usageInSidebar: false });
   }
   const workspace = process.env.LPM_LESSON_WORKSPACE || DEFAULT_WORKSPACE;
+  if (!withWorkspace) return { lpmDir: dir, workspace, settings };
   if (!keepState && (workspace === DEFAULT_WORKSPACE || workspace.startsWith(dir + path.sep))) {
     fs.rmSync(workspace, { recursive: true, force: true });
   }
@@ -94,4 +99,4 @@ function prepareState({ lpmDir, lesson, keepState, log = () => {} }) {
   return { lpmDir: dir, workspace, settings };
 }
 
-module.exports = { prepareState, killStaleServices, checkDataDir, hasLpmDir, DEFAULT_WORKSPACE, DEFAULT_LPM_DIR };
+module.exports = { prepareState, guestDir, killStaleServices, checkDataDir, hasLpmDir, DEFAULT_WORKSPACE, DEFAULT_LPM_DIR };

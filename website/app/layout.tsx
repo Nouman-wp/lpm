@@ -204,8 +204,9 @@ export default async function RootLayout({
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());
-            gtag('config', '${GA_ID}');
-            gtag('config', '${GOOGLE_ADS_ID}');
+            var page = { page_location: location.href.split('#')[0] };
+            gtag('config', '${GA_ID}', page);
+            gtag('config', '${GOOGLE_ADS_ID}', page);
           `}
         </Script>
       </body>

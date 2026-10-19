@@ -116,6 +116,7 @@ import { SidebarOriginAction } from "./SidebarOriginAction";
 import { recheckOrigin } from "../originActions";
 import { logDiagnostic } from "../diagnostics";
 import { SidebarPeerSection } from "./SidebarPeerSection";
+import { SidebarSharedTabs } from "./share/SidebarSharedTabs";
 import { PeerFolderMenus } from "./PeerFolderMenus";
 import {
   dropHostRow,
@@ -2038,6 +2039,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           setGitModal(null);
         }}
       />
+
+      <SidebarSharedTabs />
 
       {(updateInfo || update.active || update.error) && (
         <SidebarUpdateRow

@@ -9,6 +9,7 @@ import { SECONDARY_BUTTON } from "./styles";
 import { REMOTE_TONE_STYLE } from "../../remoteStatus";
 import { reachHeadline, type KeepAwakeStatus } from "../../mobile/reachStatus";
 import type { Tailnet } from "../../hooks/useTailnetState";
+import { builtInReachable } from "../../tailnetStatus";
 import { useMachineWords } from "../settings/useMachineWords";
 
 export interface ReachState {
@@ -48,7 +49,7 @@ export function ReachCard({
   const headline = reachHeadline(
     {
       ...reach,
-      builtInRunning: tailnet.state.enabled && tailnet.state.state === "running",
+      builtInRunning: builtInReachable(tailnet.state),
       deviceUsedTailscale,
     },
     words.thisMachine,

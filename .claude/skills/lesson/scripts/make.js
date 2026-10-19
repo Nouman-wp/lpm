@@ -25,6 +25,7 @@ const { HOOK_ID, planEdit, renderEdit } = require("./edit");
 const { renderCover } = require("./cover");
 const { DEFAULT_LPM_DIR } = require("./state");
 const { PHONE_LAYOUT, phoneLayout, phoneAssets, clearOfPhone } = require("./phonecompose");
+const { TWO_MAC, twoMacLayout, labelsAsset } = require("./twomac");
 const { hideClaudeStatusLine } = require("./guard");
 const { insetTimes, insetAsset, pointerAssets, pngSize } = require("./insets");
 const { fitMasks } = require("./maskfit");
@@ -110,6 +111,7 @@ async function record(lines) {
             keepState: !!o["keep-state"],
             mouse: o["dom-mouse"] ? "dom" : "real",
             phone: lesson.phone,
+            guest: lesson.guest,
           });
   } catch (e) {
     if (take) {
@@ -184,6 +186,19 @@ async function mux(lines, P, { file, crf = 18, audio = true }) {
       const assets = await frameAssets(frameDir, { out: OUT, frame, box: layout.mac });
       const phone = { layout, region: timeline.phone.region, assets: await phoneAssets(frameDir, { out: OUT, layout, zoom: ZOOM }), taps: timeline.taps || [], masks: fitMasks(P.raw, timeline, timeline.phoneMasks || [], layout.device, (m) => console.log(m)) };
       video = videoGraph({ ...assets, out: OUT, box: layout.mac, cards: timeline.cards || [], cardFiles: timeline.cardFiles || [], zooms, totalMs, take: P.raw, region: timeline.region, phone, insets, insetPointer });
+    } else if (timeline.guest) {
+      // Two Macs side by side (twomac.js).
+      const layout = twoMacLayout(OUT, ZOOM, timeline.guest.window);
+      const frame = { ...FRAME, width: TWO_MAC.window.w, height: TWO_MAC.window.h, zoom: ZOOM };
+      const assets = await frameAssets(frameDir, { out: OUT, frame, box: layout.host });
+      const guestFrame = { ...frame, width: layout.guest.w / ZOOM, height: layout.guest.h / ZOOM };
+      const { shadow: guestShadow, mask: guestMask } = await frameAssets(frameDir, { out: OUT, frame: guestFrame, box: layout.guest });
+      const labels = await labelsAsset(frameDir, { out: OUT, layout, zoom: ZOOM, labels: lesson.guest?.labels || [] });
+      const coverFrame = { ...FRAME, width: TWO_MAC.cover.w, height: TWO_MAC.cover.h, zoom: ZOOM };
+      const coverBox = frameBox(OUT, coverFrame, ZOOM);
+      const beside = await frameAssets(frameDir, { out: OUT, frame: coverFrame, box: coverBox });
+      const guest = { region: timeline.guest.region, box: layout.guest, assets: { shadow: guestShadow, labels, mask: guestMask } };
+      video = videoGraph({ ...assets, out: OUT, box: layout.host, cards: timeline.cards || [], cardFiles: timeline.cardFiles || [], zooms, totalMs, take: P.raw, region: timeline.region, guest, cover: { box: coverBox, shadow: beside.shadow, mask: beside.mask }, insets, insetPointer });
     } else {
       const box = frameBox(OUT, FRAME, ZOOM);
       const assets = await frameAssets(frameDir, { out: OUT, frame: { ...FRAME, zoom: ZOOM }, box });
@@ -245,6 +260,13 @@ function speedPillBesidePhone() {
   return { x: mac.x + mac.w / 2, y: (mac.y + mac.h + OUT.height) / 2, scale: 0.6 };
 }
 
+// Two Macs fill the middle; the speed pill sits small on the canvas under them.
+function speedPillUnderPair(guestWindow) {
+  const { host, guest } = twoMacLayout(OUT, ZOOM, guestWindow);
+  const bottom = Math.max(host.y + host.h, guest.y + guest.h);
+  return { x: OUT.width / 2, y: (bottom + OUT.height) / 2, scale: 0.6 };
+}
+
 // The straight render, or with a cold open or long waits, the edit of it
 // (edit.js). Returns the timeline as the MP4 plays it.
 async function render(lines, P, hook) {
@@ -275,7 +297,7 @@ async function render(lines, P, hook) {
       badgeDir: path.join(path.dirname(DIR), "_frame"),
       workDir: work,
       size: OUT,
-      badgeAt: taken.phone ? speedPillBesidePhone() : null,
+      badgeAt: taken.phone ? speedPillBesidePhone() : taken.guest ? speedPillUnderPair(taken.guest.window) : null,
     });
     place(part, P, taken);
     fs.writeFileSync(editFile, JSON.stringify(edited.edit, null, 2));
@@ -303,8 +325,9 @@ async function finish(lines, P, timeline, taken) {
     const have = fs.existsSync(stampFile) ? JSON.parse(fs.readFileSync(stampFile, "utf8")) : null;
     const thumb = path.join(DIR, "thumbnail.jpg");
     if (!fs.existsSync(thumb) || JSON.stringify(have) !== JSON.stringify(want)) {
-      // With a phone the take holds both windows; the cover's crop is in its points.
-      const frame = taken.phone ? { width: taken.phone.captureW } : FRAME;
+      // With a phone or two Macs the take holds both windows; the cover's crop is in its points.
+      const both = taken.phone || taken.guest;
+      const frame = both ? { width: both.captureW } : FRAME;
       if (lesson.cover) await renderCover({ cover: lesson.cover, raw: P.raw, timeline: taken, frame, file: thumb });
       else await renderThumbnail(opener.title, thumb, OUT);
       fs.writeFileSync(stampFile, JSON.stringify(want));

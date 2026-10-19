@@ -129,6 +129,7 @@ export type View =
   | "fleet"
   | "stats"
   | "scheduled"
+  | "shared"
   | "settings"
   | "global-config"
   | "claude-statusline"

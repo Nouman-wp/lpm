@@ -59,6 +59,13 @@ describe("BuiltInTailscaleRow", () => {
     expect(container.textContent).toContain("you@example.com · 100.64.0.1");
   });
 
+  it("warns instead of reading Ready when the node can't reach Tailscale", () => {
+    const error = "Can't reach Tailscale's servers. Until it can, only devices on the same network can connect.";
+    render(tailnet({ state: "running", account: "you@example.com", ip: "100.64.0.1", error }));
+    expect(container.textContent).toContain(error);
+    expect(container.textContent).not.toContain("Ready");
+  });
+
   it("still offers Cancel while a fresh node starts", () => {
     render(tailnet({ state: "starting" }));
     expect(container.textContent).toContain("Starting…");

@@ -76,3 +76,40 @@ test("a push-in on the window stops short of the phone when its target still fit
   assert.strictEqual(both.cx, 1657);
   assert.strictEqual(out1.cx, 1280);
 });
+
+test("two Macs hide while a card is up and show again as the opening card fades", () => {
+  const { crossfadeSpans } = require("../compose");
+  const [open, topic, end] = crossfadeSpans(cards, 104000);
+  const handOver = 1.628 + 1.254 - OPEN_LIFT.leadMs / 1000;
+  assert.deepStrictEqual(open.away, { a: 0, b: handOver }, "the pair shows under the opening card as it fades");
+  assert.ok(Math.abs(open.fadeOut.st - handOver) < 1e-9);
+  assert.ok(open.b > handOver, "the window beside the title fades out over the hand-over");
+  assert.deepStrictEqual(topic.away, { a: 40.3, b: 41.7 }, "hidden only once a topic card covers it");
+  assert.strictEqual(end.fadeOut, undefined, "a held card keeps its window to the end");
+});
+
+test("two Macs: each window is cropped from the one capture, the card's window from inputs of its own", () => {
+  const g = videoGraph({
+    out: { width: 2560, height: 1440 },
+    canvas: "c.png",
+    shadow: "s.png",
+    mask: "m.png",
+    box: { x: 64, y: 304, w: 1184, h: 902 },
+    cards: [cards[0], cards[2]],
+    cardFiles: ["a.mkv", "c.mkv"],
+    totalMs: 104000,
+    take: "record.mkv",
+    region: { x: 0, y: 0, w: 1680, h: 1280 },
+    guest: { region: { x: 1728, y: 0, w: 1680, h: 1280 }, box: { x: 1312, y: 304, w: 1184, h: 902 }, assets: { shadow: "gs.png", labels: "l.png", mask: "m.png" } },
+    cover: { box: { x: 466, y: 100, w: 1628, h: 1240 }, shadow: "cs.png", mask: "cm.png" },
+  });
+  assert.match(g.filter, /\[0:v\]crop=1680:1280:0:0,scale=1184:902/, "the left window");
+  assert.match(g.filter, /\[0:v\]crop=1680:1280:1728:0,scale=1184:902/, "the right window");
+  assert.match(g.filter, /crop=1680:1280:0:0,scale=1628:1240/, "the window beside a card, at a lone window's size");
+  assert.ok(!/split=/.test(g.filter), "no copies of the placed window");
+  assert.match(g.filter, /fade=t=out:st=2\.582/, "the opener's window fades out at the hand-over");
+  const inputs = g.inputs.join(" ");
+  assert.match(inputs, /-ss 0\.000 -t [\d.]+ -i record\.mkv/);
+  assert.match(inputs, /-ss 100\.000 -t [\d.]+ -i record\.mkv/);
+  assert.strictEqual(g.count, g.inputs.filter((a) => a === "-i").length);
+});

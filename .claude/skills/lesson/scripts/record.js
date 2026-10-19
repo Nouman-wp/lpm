@@ -12,11 +12,13 @@ const { launchApp, REPO, APP_BIN } = require("./app");
 const { Capture } = require("./capture");
 const { AppStage } = require("./appstage");
 const { PhoneStage, findScreen } = require("./phonestage");
+const { TwoMacStage } = require("./twomacstage");
 const { preparePhone } = require("./phone");
 const { PHONE_LAYOUT, phoneLayout } = require("./phonecompose");
 const { renderCards, APP_LAYOUT } = require("./cards");
 const { sleep } = require("./words");
-const { prepareState, killStaleServices } = require("./state");
+const { prepareState, guestDir, killStaleServices } = require("./state");
+const { TWO_MAC, twoMacLayout } = require("./twomac");
 const { onTeardown } = require("./teardown");
 
 const GAP_MS = 450;
@@ -53,6 +55,28 @@ async function placeBesidePhone(app, phone, size) {
   const rect = { x, y, w: Math.max(win.x + win.w, hub.x + hub.w) - x, h: Math.max(win.y + win.h, hub.y + hub.h) - y };
   const inside = (r) => ({ x: Math.round((r.x - x) * b.scale), y: Math.round((r.y - y) * b.scale), w: Math.round(r.w * b.scale), h: Math.round(r.h * b.scale) });
   return { b, rect, region: inside(win), hub: inside(hub) };
+}
+
+// Places the two apps of a two-Mac take side by side in the middle of the main
+// display, top-aligned, and returns the capture around both, in points, with
+// each window's place inside it.
+async function placeSideBySide(app, other, size, otherSize) {
+  const screen = mainScreen();
+  const x = Math.round((screen.w - size.w - otherSize.w - TWO_MAC.gap) / 2);
+  const y = Math.max(40, Math.round((screen.h - Math.max(size.h, otherSize.h)) / 2));
+  await other.control.call("window", { x: x + size.w + TWO_MAC.gap, y, top: true });
+  await app.control.call("window", { x, y, top: true, focus: true });
+  await sleep(500);
+  const points = (b) => ({ x: b.x / b.scale, y: b.y / b.scale, w: b.w / b.scale, h: b.h / b.scale });
+  const b = await app.control.call("bounds");
+  const ob = await other.control.call("bounds");
+  const win = points(b);
+  const otherWin = points(ob);
+  const rx = Math.min(win.x, otherWin.x);
+  const ry = Math.min(win.y, otherWin.y);
+  const rect = { x: rx, y: ry, w: Math.max(win.x + win.w, otherWin.x + otherWin.w) - rx, h: Math.max(win.y + win.h, otherWin.y + otherWin.h) - ry };
+  const inside = (r) => ({ x: Math.round((r.x - rx) * b.scale), y: Math.round((r.y - ry) * b.scale), w: Math.round(r.w * b.scale), h: Math.round(r.h * b.scale) });
+  return { b, rect, region: inside(win), otherRegion: inside(otherWin), otherOrigin: { ...otherWin, scale: ob.scale } };
 }
 
 // `progress` collects the lines done so far, for the partial timeline a failed
@@ -140,16 +164,22 @@ function appStamp(ui) {
 
 // `phone` ({ device, env }, lesson.json "phone") puts lpm Link in the iOS
 // Simulator beside the app and records both (phone.js, phonestage.js).
+// `guest` ({ env, settings, window }, lesson.json "guest") starts a second app on its
+// own data directory beside the first, standing in for another Mac, and
+// records both; beats switch between them with `s.use("guest" | "host")`.
 // `win` sizes the app window (points); `Stage` may extend AppStage with beat
 // calls of its own, and whatever its `timelineExtras()` returns is saved with
 // the timeline; `pace` tightens or loosens the gaps around the narration.
 // Everything the take sets up is undone however it ends (teardown.js); a
 // failed take throws with `partial` (the lines it got through) and leaves the
 // screen at that moment in `errorShot`.
-async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmDir, keepState, mouse, win, Stage = AppStage, pace = {}, phone }) {
+async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmDir, keepState, mouse, win, Stage = AppStage, pace = {}, phone, guest }) {
   const { gapMs = GAP_MS, leadMs = LEAD_MS, tailMs = TAIL_MS } = pace;
-  const size = win || (phone ? PHONE_LAYOUT.app : { w: FRAME.width, h: FRAME.height });
+  if (phone && guest) throw new Error('lesson.json: a take has a "phone" or a "guest", not both');
+  const size = win || (phone ? PHONE_LAYOUT.app : guest ? TWO_MAC.app : { w: FRAME.width, h: FRAME.height });
+  const otherSize = guest?.window || TWO_MAC.app;
   if (phone) Stage = PhoneStage;
+  if (guest) Stage = TwoMacStage;
   let t0 = Date.now();
   const log = (m) => console.log(`  ${((Date.now() - t0) / 1000).toFixed(2)}s ${m}`);
   const undo = [];
@@ -165,10 +195,18 @@ async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmD
   let stopping = false;
   try {
     const state = prepareState({ lpmDir, lesson, keepState, log });
-    if (beats.setup) await beats.setup({ lpmDir: state.lpmDir, workspace: state.workspace, lesson, settings: state.settings });
+    const other = guest && prepareState({ lpmDir: guestDir(state.lpmDir), lesson: { ...lesson, settings: { ...lesson.settings, ...guest.settings } }, keepState, workspace: false, log });
+    if (beats.setup) await beats.setup({ lpmDir: state.lpmDir, workspace: state.workspace, lesson, settings: state.settings, guestDir: other?.lpmDir, guestSettings: other?.settings });
     if (!keepState) later(() => killStaleServices(state.lpmDir, log));
+    if (other && !keepState) later(() => killStaleServices(other.lpmDir, log));
     app = await launchApp({ lpmDir: state.lpmDir, env: lesson.env, log });
     later(() => app.close());
+    let otherApp = null;
+    if (other) {
+      otherApp = await launchApp({ lpmDir: other.lpmDir, env: { ...lesson.env, ...guest.env }, log: (m) => log(`guest: ${m}`) });
+      later(() => otherApp.close());
+      await otherApp.control.call("window", { w: otherSize.w, h: otherSize.h });
+    }
     // Sizing is asynchronous on macOS; centring in the same call would use the
     // old size, so the window is sized first and placed once that has settled.
     let phoneSide = null;
@@ -182,6 +220,9 @@ async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmD
     if (phoneSide) {
       placed = await placeBesidePhone(app, phoneSide, size);
       b = placed.b;
+    } else if (otherApp) {
+      placed = await placeSideBySide(app, otherApp, size, otherSize);
+      b = placed.b;
     } else {
       await app.control.call("window", { ...WINDOW_AT, top: true, focus: true });
       await sleep(500);
@@ -192,13 +233,15 @@ async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmD
     later(() => rec.stop(Date.now() - t0));
     const px = (r) => ({ x: Math.round(r.x * b.scale), y: Math.round(r.y * b.scale), w: Math.round(r.w * b.scale), h: Math.round(r.h * b.scale) });
     capture = placed
-      ? new Capture({ rect: px(placed.rect), pid: [app.proc.pid, phoneSide.pid], scale: b.scale, onFrame: (f) => rec.frame(f) })
+      ? new Capture({ rect: px(placed.rect), pid: [app.proc.pid, (phoneSide || otherApp.proc).pid], scale: b.scale, onFrame: (f) => rec.frame(f) })
       : new Capture({ rect: { x: b.x, y: b.y, w: b.w, h: b.h }, pid: app.proc.pid, scale: b.scale, onFrame: (f) => rec.frame(f) });
     later(() => capture.stop());
     const layout = phoneSide ? phoneLayout(OUT, ZOOM) : null;
+    const pair = otherApp ? twoMacLayout(OUT, ZOOM, otherSize) : null;
     stage = await Stage.open(app, capture, {
       framesDir, log, mouse, origin, out: OUT,
-      box: layout ? layout.mac : frameBox(OUT, FRAME, ZOOM),
+      box: layout ? layout.mac : pair ? pair.host : frameBox(OUT, FRAME, ZOOM),
+      guest: pair && { app: otherApp, origin: placed.otherOrigin, box: pair.guest },
       phone: phoneSide && { driver: phoneSide.driver, press: phoneSide.press, home: phoneSide.home, back: phoneSide.back, relaunch: phoneSide.relaunch, statusBar: phoneSide.statusBar, layout },
     });
     later(() => stage.finish());
@@ -211,7 +254,7 @@ async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmD
       throw new Error(`${e.message} (captured ${capture.frames} frames; nudge: ${nudgeError || "ok"}; ${capture.err.slice(-200)})`);
     });
     await app.control.evaluate(() => document.getElementById("lesson-tick")?.remove()).catch(() => {});
-    const phoneRegion = placed && findScreen(capture.latest, placed.hub, phoneLayout(OUT, ZOOM).device);
+    const phoneRegion = phoneSide && findScreen(capture.latest, placed.hub, phoneLayout(OUT, ZOOM).device);
     if (phoneRegion) {
       log(`phone screen at ${JSON.stringify(phoneRegion)} of the capture`);
       const k = b.scale;
@@ -232,7 +275,11 @@ async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmD
     await rec.stop(totalMs);
     const extras = stage.timelineExtras ? stage.timelineExtras() : {};
     const warnings = stage.warnings?.length ? { warnings: stage.warnings } : {};
-    const both = placed ? { region: placed.region, phone: { region: phoneRegion, hub: placed.hub, captureW: placed.rect.w } } : {};
+    const both = phoneSide
+      ? { region: placed.region, phone: { region: phoneRegion, hub: placed.hub, captureW: placed.rect.w } }
+      : otherApp
+        ? { region: placed.region, guest: { region: placed.otherRegion, captureW: placed.rect.w, window: otherSize } }
+        : {};
     return { totalMs, lines: timeline, cards: stage.cards, zooms: stage.zooms, box: { w: b.w, h: b.h, scale: b.scale }, app: appStamp(app.ui), ...both, ...warnings, ...extras };
   } catch (e) {
     stopping = true;

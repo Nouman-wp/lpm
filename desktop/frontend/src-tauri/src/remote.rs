@@ -5973,14 +5973,6 @@ fn ct_eq(a: &[u8], b: &[u8]) -> bool {
     diff == 0
 }
 
-/// The Mac's primary LAN IP, found by asking the OS which local address would
-/// route outbound — no packets are sent (UDP connect only sets the peer).
-fn primary_lan_ip() -> Option<String> {
-    let sock = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
-    sock.connect("192.0.2.1:80").ok()?; // TEST-NET-1: guaranteed non-routable, never leaves the host
-    sock.local_addr().ok().map(|a| a.ip().to_string())
-}
-
 /// This Mac's Tailscale IPv4, if a tailnet interface is up. Advertising it in the
 /// pairing QR lets the phone reach this Mac from anywhere it shares the tailnet
 /// (cellular, another network), not just the local Wi-Fi.
@@ -5995,7 +5987,7 @@ fn tailscale_ip() -> Option<String> {
 /// it can reach.
 fn candidate_hosts(include_tailscale: bool) -> Vec<String> {
     let mut hosts = Vec::new();
-    if let Some(ip) = primary_lan_ip() {
+    if let Some(ip) = crate::netif::lan_ip() {
         hosts.push(ip);
     }
     let system = if include_tailscale {
@@ -6075,7 +6067,7 @@ pub(crate) fn state_value(hub: &RemoteHub) -> Value {
         "running": hub.inner.running.load(Ordering::Relaxed),
         "bindError": hub.bind_error(),
         "configError": hub.config_error(),
-        "host": crate::lesson::lan_address().or_else(primary_lan_ip),
+        "host": crate::lesson::lan_address().or_else(crate::netif::lan_ip),
         "tailscaleHost": tailscale_ip(),
         "identityRotated": cfg.enabled && crate::remotetls::identity_rotated(),
         // Reading the code loads (or first creates) the certificate, which

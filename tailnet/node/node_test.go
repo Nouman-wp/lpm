@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"tailscale.com/health"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/tailcfg"
 )
@@ -97,6 +98,24 @@ func TestStoppedExplainsRequiredLogging(t *testing.T) {
 	}
 	if got := FromStatus(&ipnstate.Status{BackendState: "Stopped"}); got.Error != turnedOff {
 		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestNoRelayOnlyForLostRelays(t *testing.T) {
+	warn := func(codes ...health.WarnableCode) *health.State {
+		s := &health.State{Warnings: map[health.WarnableCode]health.UnhealthyState{}}
+		for _, c := range codes {
+			s.Warnings[c] = health.UnhealthyState{WarnableCode: c}
+		}
+		return s
+	}
+	for _, code := range []health.WarnableCode{"no-derp-home", "no-derp-connection", "network-status"} {
+		if !noRelay(warn(code)) {
+			t.Errorf("%s: want cut off", code)
+		}
+	}
+	if noRelay(warn()) || noRelay(warn("update-available", "derp-region-error")) {
+		t.Error("healthy or unrelated warnings read as cut off")
 	}
 }
 

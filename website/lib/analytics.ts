@@ -53,6 +53,7 @@ export type DownloadSource =
   | "parallel-hero"
   | "parallel-cta"
   | "not-found"
+  | "join"
   | "mobile-cta"
   | "vs-hub-hero"
   | "vs-hub-cta"

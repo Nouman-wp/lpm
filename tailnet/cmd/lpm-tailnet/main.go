@@ -92,6 +92,7 @@ func main() {
 		}
 	}()
 
+	followRoutes(n, *dir, *hostname)
 	if err := n.Start(*dir, *hostname); err != nil {
 		fmt.Fprintf(os.Stderr, "lpm-tailnet: %v\n", err)
 		os.Exit(1)

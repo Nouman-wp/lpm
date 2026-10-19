@@ -17,7 +17,6 @@ pub fn quit_app(app: AppHandle) {
     app.exit(0);
 }
 
-#[cfg(not(target_os = "macos"))]
 pub fn show_main(app: &AppHandle) {
     use tauri::Manager;
     if let Some(win) = app.get_webview_window("main") {

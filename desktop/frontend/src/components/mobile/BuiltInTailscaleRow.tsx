@@ -93,9 +93,9 @@ export function BuiltInTailscaleRow({
     switch (s.state) {
       case "running":
         return {
-          tone: "live",
-          subtitle: [s.account, s.ip].filter(Boolean).join(" · ") || "Connected",
-          action: <RouteChip state={live ? "ready" : "off"} />,
+          tone: s.error ? "warn" : "live",
+          subtitle: s.error ?? ([s.account, s.ip].filter(Boolean).join(" · ") || "Connected"),
+          action: !s.error && <RouteChip state={live ? "ready" : "off"} />,
           menu: [
             ...(s.ip ? [{ label: "Copy address", onClick: () => void navigator.clipboard.writeText(s.ip ?? "") }] : []),
             ...turnOff,

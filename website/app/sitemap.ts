@@ -11,7 +11,7 @@ import sitemapDates from "@/lib/sitemap-dates.json";
 
 type Entry = MetadataRoute.Sitemap[number];
 
-const NOINDEX = new Set(["/demo"]);
+const NOINDEX = new Set(["/demo", "/join"]);
 
 const OVERRIDES: Record<string, Pick<Entry, "changeFrequency" | "priority">> = {
   "/": { changeFrequency: "weekly", priority: 1 },

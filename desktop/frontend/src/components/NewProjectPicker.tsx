@@ -1,5 +1,7 @@
 import { useMemo } from "react";
+import { Users } from "lucide-react";
 import { useAppStore } from "../store/app";
+import { useTabShares } from "../store/tabShares";
 import { ChevronRightIcon, CloudBranchIcon, FolderIcon, ServerIcon } from "./icons";
 import { Modal } from "./ui/Modal";
 import { DrillMenu, type DrillScreen } from "./DrillMenu";
@@ -71,6 +73,23 @@ export function NewProjectPicker() {
                 <span className="mt-2 flex shrink-0 text-[var(--text-muted)]">
                   <ChevronRightIcon />
                 </span>
+              </button>
+            )}
+            {!target && (
+              <button
+                onClick={() => {
+                  onClose();
+                  useTabShares.getState().openJoinDialog();
+                }}
+                className="group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[var(--bg-hover)]"
+              >
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-hover)] text-[var(--accent-cyan)] transition-colors group-hover:bg-[var(--bg-active)]">
+                  <Users size={20} />
+                </div>
+                <div className="min-w-0 pt-0.5">
+                  <div className="text-[13px] font-medium text-[var(--text-primary)]">Join a shared tab</div>
+                  <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-secondary)]">Open a tab someone shared with you, from their invite</div>
+                </div>
               </button>
             )}
           </div>

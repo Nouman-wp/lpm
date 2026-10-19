@@ -1183,6 +1183,43 @@ export function PeerTermAttach(prefixedId, resume) {
 export function PeerTermDetach(prefixedId) {
   return invoke("peer_term_detach", { id: prefixedId });
 }
+
+// Tab sharing — one terminal opened to another person's lpm. The host role
+// shares and lets guests in; the guest role joins with an invite.
+export function PeerShares() {
+  return invoke("peer_shares");
+}
+// An lpm://join link (lpm.cx's join page) that opened or reached the app.
+export function TakeShareJoinLink() {
+  return invoke("take_share_join_link");
+}
+export function PeerShareStart(terminalId, project, label) {
+  return invoke("peer_share_start", { terminalId, project, label });
+}
+export function PeerShareStop(id) {
+  return invoke("peer_share_stop", { id });
+}
+export function PeerShareSetCanType(id, canType) {
+  return invoke("peer_share_set_can_type", { id, canType });
+}
+export function PeerShareRemoveGuest(id, guest) {
+  return invoke("peer_share_remove_guest", { id, guest });
+}
+export function PeerShareRespond(request, allow) {
+  return invoke("peer_share_respond", { request, allow });
+}
+export function PeerShareJoin(hosts, port, secret, fp) {
+  return invoke("peer_share_join", { hosts, port, secret, fp });
+}
+export function PeerShareJoinCancel() {
+  return invoke("peer_share_join_cancel");
+}
+export function PeerJoinedShares() {
+  return invoke("peer_joined_shares");
+}
+export function PeerShareLeave(slug) {
+  return invoke("peer_share_leave", { slug });
+}
 export function SyncProjectStart(slug, sourceRoot, remoteName) {
   return invoke("sync_project_start", { slug, sourceRoot, remoteName });
 }

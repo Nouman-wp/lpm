@@ -37,6 +37,8 @@ use tauri::{AppHandle, Emitter, Listener, Manager, State};
 use tungstenite::handshake::server::{ErrorResponse, Request, Response};
 use tungstenite::{accept_hdr, Error as WsError, Message, WebSocket};
 
+mod guest;
+
 const DEFAULT_PORT: u16 = 8766; // mobile owns 8765
 const POLL: Duration = Duration::from_millis(25); // read-timeout / outbound-drain cadence
 /// The cadence for a while after a frame whose answer comes from another thread
@@ -268,6 +270,8 @@ pub(crate) struct PeerEntry {
 pub(crate) struct PeerConfig {
     pub host: HostConfig,
     pub peers: Vec<PeerEntry>,
+    // Tabs other people shared with this machine (peerclient/share.rs).
+    pub joined: Vec<crate::peerclient::JoinedShare>,
 }
 
 pub(crate) type SharedConfig = Arc<Mutex<PeerConfig>>;
@@ -321,6 +325,9 @@ struct Conn {
     // An event didn't fit in the full out-queue. Events carry no offsets to
     // repair from, so once the queue drains the client is told to re-list.
     missed_event: Arc<AtomicBool>,
+    // Someone a tab was shared with (peer/guest.rs): its terminal's output and
+    // nothing else, so no event and no frame meant for a paired machine.
+    guest: bool,
 }
 
 /// A command routed to the host webview, awaiting `peer_dispatch_reply`. Holds the
@@ -565,6 +572,7 @@ pub fn tee_output(app: &AppHandle, id: &str, _project: &str, text: &str) {
 
 /// Tell subscribed peers a terminal exited and free its ring.
 pub fn tee_exit(app: &AppHandle, id: &str, code: i32) {
+    crate::tabshare::terminal_ended(app, id);
     let Some(hub) = app.try_state::<PeerHub>() else {
         return;
     };
@@ -690,7 +698,10 @@ pub(crate) fn send_to_device(app: &AppHandle, device_id: &str, frame: &str) -> b
     let hub = app.state::<PeerHub>();
     let clients = hub.inner.clients.lock().unwrap();
     let mut sent = false;
-    for c in clients.values().filter(|c| c.device_id == device_id) {
+    for c in clients
+        .values()
+        .filter(|c| !c.guest && c.device_id == device_id)
+    {
         sent |= c.tx.try_send(frame.to_string()).is_ok();
     }
     sent
@@ -699,7 +710,7 @@ pub(crate) fn send_to_device(app: &AppHandle, device_id: &str, frame: &str) -> b
 fn broadcast(hub: &PeerHub, val: Value) {
     let payload = val.to_string();
     let clients = hub.inner.clients.lock().unwrap();
-    for c in clients.values() {
+    for c in clients.values().filter(|c| !c.guest) {
         if let Err(TrySendError::Full(_)) = c.tx.try_send(payload.clone()) {
             c.missed_event.store(true, Ordering::Relaxed);
         }
@@ -964,7 +975,8 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
         return;
     };
     let device_id = match authenticate(&mut ws, &hub, &app) {
-        Some(id) => id,
+        Some(Session::Device(id)) => id,
+        Some(Session::Guest(session)) => return guest::serve(ws, hub, app, session, generation),
         None => {
             let _ = ws.close(None);
             let _ = ws.flush();
@@ -984,6 +996,7 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
             subs: subs.clone(),
             device_id: device_id.clone(),
             missed_event: missed_event.clone(),
+            guest: false,
         },
     );
     let _ = ws.get_ref().tcp().set_read_timeout(Some(POLL));
@@ -1068,7 +1081,12 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
 
 // --- auth / pairing -----------------------------------------------------------
 
-fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<String> {
+enum Session {
+    Device(String),
+    Guest(crate::tabshare::GuestSession),
+}
+
+fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Session> {
     let txt = loop {
         match ws.read() {
             Ok(m) if m.is_text() => break m.to_text().ok()?.to_string(),
@@ -1097,7 +1115,7 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
                         .to_string(),
                     ));
                     let _ = app.emit("peer-state-changed", ());
-                    Some(id)
+                    Some(Session::Device(id))
                 }
                 None => {
                     let _ = ws.send(Message::text(
@@ -1114,7 +1132,11 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
                 .and_then(Value::as_str)
                 .unwrap_or_default();
             let replaces = v.get("replaces").and_then(Value::as_str);
-            handle_pair_request(ws, hub, app, name, platform, replaces)
+            handle_pair_request(ws, hub, app, name, platform, replaces).map(Session::Device)
+        }
+        Some("shareJoin") => {
+            guest::join(ws, app, &v);
+            None
         }
         Some("auth") => {
             let id = v
@@ -1134,7 +1156,9 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
                         "features": host_features() })
                     .to_string(),
                 ));
-                Some(id.to_string())
+                Some(Session::Device(id.to_string()))
+            } else if let Some(session) = guest::authenticate(ws, id, token) {
+                Some(Session::Guest(session))
             } else {
                 let _ = ws.send(Message::text(
                     json!({ "t": "error", "error": "unauthorized" }).to_string(),
@@ -2386,11 +2410,11 @@ fn gen_slug(existing: &[PeerDevice]) -> String {
     }
 }
 
-fn sha256_hex(bytes: &[u8]) -> String {
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }
 
-fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+pub(crate) fn ct_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
@@ -2415,14 +2439,6 @@ pub(crate) fn platform_id() -> &'static str {
     std::env::consts::OS
 }
 
-/// The Mac's primary LAN IP, found by asking the OS which local address would
-/// route outbound — no packets are sent (UDP connect only sets the peer).
-fn primary_lan_ip() -> Option<String> {
-    let sock = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
-    sock.connect("192.0.2.1:80").ok()?; // TEST-NET-1: non-routable, never leaves the host
-    sock.local_addr().ok().map(|a| a.ip().to_string())
-}
-
 /// Addresses to advertise for pairing, most-preferred first: LAN IP then
 /// Tailscale IP, falling back to loopback.
 /// The addresses to put in an invite.
@@ -2442,7 +2458,7 @@ pub(crate) fn invite_hosts(cfg: &HostConfig) -> Vec<String> {
 
 pub(crate) fn candidate_hosts() -> Vec<String> {
     let mut hosts = Vec::new();
-    if let Some(ip) = primary_lan_ip() {
+    if let Some(ip) = crate::netif::lan_ip() {
         hosts.push(ip);
     }
     // Reachable from anywhere on the shared tailnet, not just the LAN — through
@@ -2494,6 +2510,7 @@ mod tests {
                 subs: Arc::default(),
                 device_id: "d".into(),
                 missed_event: missed_event.clone(),
+                guest: false,
             },
         );
         broadcast(&hub, json!({ "t": "evt", "name": "status-changed" }));
@@ -2505,6 +2522,30 @@ mod tests {
         let frame: Value = serde_json::from_str(&missed_events_frame()).unwrap();
         assert_eq!(frame["t"], "evt");
         assert!(FORWARDED_EVENTS.contains(&frame["name"].as_str().unwrap()));
+    }
+
+    // A guest was let into one tab; another project's status or output would
+    // tell it about everything else on this machine.
+    #[test]
+    fn events_and_device_frames_never_reach_a_guest() {
+        let hub = PeerHub::default();
+        let conn = |tx, device_id: &str, guest| Conn {
+            tx,
+            subs: Arc::default(),
+            device_id: device_id.into(),
+            missed_event: Arc::default(),
+            guest,
+        };
+        let (paired_tx, paired_rx) = mpsc::sync_channel::<String>(4);
+        let (guest_tx, guest_rx) = mpsc::sync_channel::<String>(4);
+        {
+            let mut clients = hub.inner.clients.lock().unwrap();
+            clients.insert(1, conn(paired_tx, "d", false));
+            clients.insert(2, conn(guest_tx, "g", true));
+        }
+        broadcast(&hub, json!({ "t": "evt", "name": "status-changed" }));
+        assert!(paired_rx.try_recv().is_ok());
+        assert!(guest_rx.try_recv().is_err());
     }
 
     #[test]
@@ -2575,6 +2616,7 @@ mod tests {
                     ..Default::default()
                 },
             }],
+            joined: Vec::new(),
         };
         let s = serde_json::to_string(&cfg).unwrap();
         let back: PeerConfig = serde_json::from_str(&s).unwrap();

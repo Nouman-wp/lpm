@@ -29,3 +29,9 @@ export const DEFAULT_TAILNET_STATE: TailnetState = {
 };
 
 export const TAILSCALE_ADMIN_URL = "https://login.tailscale.com/admin/machines";
+
+/** The node is connected and can reach Tailscale's servers, so devices on
+ *  other networks can get to this machine through it. */
+export function builtInReachable(s: TailnetState): boolean {
+  return s.enabled && s.state === "running" && !s.error;
+}

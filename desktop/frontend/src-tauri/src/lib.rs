@@ -126,6 +126,7 @@ mod menu;
 mod message_history;
 mod msysmounts;
 mod keepawake;
+mod sharelink;
 mod sleepwatch;
 mod netif;
 mod notes_blobs;
@@ -223,6 +224,7 @@ mod syncbatch;
 mod syncstate;
 mod syncsurface;
 mod sys;
+mod tabshare;
 mod tailnet;
 mod tailnet_cmds;
 mod tailnet_dial;
@@ -329,8 +331,14 @@ use peer::{
     peer_dispatch_reply, peer_host_cancel_pairing, peer_host_respond_pairing,
     peer_host_revoke_device, peer_host_set_config, peer_host_start_pairing, peer_state,
 };
+use sharelink::take_share_join_link;
+use tabshare::{
+    peer_share_remove_guest, peer_share_respond, peer_share_set_can_type, peer_share_start,
+    peer_share_stop, peer_shares,
+};
 use peerclient::{
-    peer_add, peer_add_ssh_host, peer_invoke, peer_pair_cancel, peer_pair_request, peer_reconnect,
+    peer_add, peer_add_ssh_host, peer_invoke, peer_joined_shares, peer_pair_cancel,
+    peer_pair_request, peer_reconnect, peer_share_join, peer_share_join_cancel, peer_share_leave,
     peer_remote_pair, peer_remove, peer_set_alias, peer_set_auto_sync, peer_set_enabled,
     peer_sync_run, peer_sync_status, peer_term_attach, peer_term_detach, peer_uninstall_host,
     peer_update_host,
@@ -474,6 +482,7 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .register_asynchronous_uri_scheme_protocol(mediaproto::SCHEME, mediaproto::handle)
@@ -525,6 +534,7 @@ pub fn run() {
             firstlaunch::seed_global_actions();
             let handle = app.handle().clone();
             lesson::start(handle.clone());
+            sharelink::init(&handle);
             #[cfg(target_os = "macos")]
             if let Err(e) = menu::build_and_set(&handle) {
                 eprintln!("warning: failed to set app menu: {e}");

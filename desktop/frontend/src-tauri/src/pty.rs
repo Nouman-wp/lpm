@@ -102,18 +102,22 @@ impl PtySession {
     }
 
     fn resize_pty(&self, cols: u16, rows: u16) -> Result<(), String> {
-        let master = self.master.lock().unwrap();
-        let master = master
-            .as_ref()
-            .ok_or_else(|| format!("terminal closed: {}", self.id))?;
-        master
-            .resize(PtySize {
-                rows,
-                cols,
-                pixel_width: 0,
-                pixel_height: 0,
-            })
-            .map_err(|e| e.to_string())
+        {
+            let master = self.master.lock().unwrap();
+            let master = master
+                .as_ref()
+                .ok_or_else(|| format!("terminal closed: {}", self.id))?;
+            master
+                .resize(PtySize {
+                    rows,
+                    cols,
+                    pixel_width: 0,
+                    pixel_height: 0,
+                })
+                .map_err(|e| e.to_string())?;
+        }
+        crate::tabshare::resized(&self.id, cols, rows);
+        Ok(())
     }
 }
 

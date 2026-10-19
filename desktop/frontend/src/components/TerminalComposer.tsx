@@ -217,7 +217,14 @@ interface TerminalComposerProps {
   // Stop marking this terminal as working under a memory session. Only clears
   // lpm's own indicator; the agent keeps whatever it was told.
   onDetachMemory: () => void;
+  // A tab someone else shared with this machine (SharedTabView). Only text
+  // reaches it, so attachments, "@" mentions and the tools that act on a
+  // project here (memory, composer actions, send later, another tab,
+  // duplicates) are off.
+  guest?: boolean;
 }
+
+const SHARED_TEXT_ONLY = "Only text can be sent to a shared tab.";
 
 // How many trailing lines of a service's pane to pull into the draft when its
 // "@" mention is picked — enough to carry a stack trace, capped so a chatty
@@ -257,7 +264,7 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
   return a.every((t, i) => t.id === b[i].id && t.label === b[i].label);
 }
 
-export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, session, cwd, launchCmd, actionName, fontSize, canFork, onFork, canForkCopy, onForkCopy, onSubmit, onFocusTerminal, onRunInDuplicates, onOpenMemorySession, memory, onDetachMemory }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, session, cwd, launchCmd, actionName, fontSize, canFork, onFork, canForkCopy, onForkCopy, onSubmit, onFocusTerminal, onRunInDuplicates, onOpenMemorySession, memory, onDetachMemory, guest = false }: TerminalComposerProps) {
   // A remote (peer) terminal runs on another machine, so an attachment is
   // uploaded to the host at attach time and the chip holds the host-valid path
   // that comes back — images via UploadClipboardImageForTerminal, any other file
@@ -821,6 +828,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
 
   const addImageBlob = useCallback(
     async (blob: Blob): Promise<HTMLSpanElement | null> => {
+      if (guest) return null;
       const b64 = await blobToBase64(blob);
       if (!b64) return null;
       const mime = blob.type || "image/png";
@@ -832,7 +840,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         return null;
       }
     },
-    [isRemotePeer, uploadPeerImage, registerImagePath],
+    [guest, isRemotePeer, uploadPeerImage, registerImagePath],
   );
 
   // Bracketed in two undo steps (commitUndo touches only refs, so the stale
@@ -860,10 +868,11 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       const ok = chips.filter((c): c is HTMLSpanElement => c !== null);
       insertItems(ok);
       const failed = attempted - ok.length;
-      if (failed > 0)
+      if (failed > 0 && guest) toast.error(SHARED_TEXT_ONLY);
+      else if (failed > 0)
         toast.error(failed === 1 ? "Couldn't add attachment" : `Couldn't add ${failed} attachments`);
     },
-    [insertItems],
+    [guest, insertItems],
   );
 
   // Every dropped/pasted file becomes a chip — an image shows a thumbnail, any
@@ -886,6 +895,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // file this size — is shown as-is; insertImageChips covers the rest by count.
   const addPeerLocalFiles = useCallback(
     async (paths: string[]) => {
+      if (guest) {
+        toast.error(SHARED_TEXT_ONLY);
+        return;
+      }
       const reasons: string[] = [];
       const sendByPath = async (path: string) =>
         registerImagePath(await uploadPeerFile(terminalId, path));
@@ -908,7 +921,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       insertImageChips(chips, paths.length - reasons.length);
       for (const reason of new Set(reasons)) toast.error(reason);
     },
-    [terminalId, uploadPeerImage, registerImagePath, insertImageChips],
+    [guest, terminalId, uploadPeerImage, registerImagePath, insertImageChips],
   );
 
   const pointInComposer = useCallback((x: number, y: number): boolean => {
@@ -1028,7 +1041,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       // payload via the copy registry: rebuild text + chips from it (with fresh
       // tokens), so a prompt pastes whole across composers. Checked after real
       // files so a clipboard holding both prefers the actual image bytes.
-      const payload = readClipboardPayload(dt);
+      const payload = guest ? null : readClipboardPayload(dt);
       if (payload) {
         e.preventDefault();
         insertItems(payloadToItems(payload, registerImagePath), false);
@@ -1047,7 +1060,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           });
       }
     },
-    [addImageBlob, addPeerLocalFiles, insertFilePaths, insertImageChips, insertItems, insertPastedText, isRemotePeer, registerImagePath],
+    [addImageBlob, addPeerLocalFiles, guest, insertFilePaths, insertImageChips, insertItems, insertPastedText, isRemotePeer, registerImagePath],
   );
 
   // Ctrl+Shift+V off macOS with no paste event behind it: the clipboard is read
@@ -1133,7 +1146,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // prompt sent to another tab — since each image is uploaded for that pane's
   // host. Shared by live sends and history re-sends.
   const buildPayloadForHere = (text: string, images: Record<string, string>) =>
-    buildTerminalPayload(terminalId, text, images);
+    guest
+      ? Promise.resolve(splitByImageTokens(text).filter((s) => s.image === null).map((s) => s.text).join(""))
+      : buildTerminalPayload(terminalId, text, images);
 
   // Put a just-sent prompt at the head of this terminal's recall ring. The
   // prepend shifts every existing entry up by one; nudge each recall cursor
@@ -1562,8 +1577,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       setMentionOpen(false);
       return;
     }
-    const argMatch = line !== null ? MEMORY_ARG_TRIGGER.exec(line) : null;
-    const match = !argMatch && line !== null ? MENTION_TRIGGER.exec(line) : null;
+    const argMatch = line !== null && !guest ? MEMORY_ARG_TRIGGER.exec(line) : null;
+    const match = !argMatch && line !== null && !guest ? MENTION_TRIGGER.exec(line) : null;
     if (!argMatch && !match) {
       setMentionOpen(false);
       return;
@@ -2126,7 +2141,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     if (e.key === "Enter" && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       e.stopPropagation();
-      sendLater.openForPrompt();
+      if (!guest) sendLater.openForPrompt();
       return;
     }
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -2267,7 +2282,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const textStyle = { fontSize: inputFontSize, lineHeight: 1.5, fontFamily: TERMINAL_FONT_FAMILY };
 
   const busy = transformingId !== null;
-  const showActions = ai.anyAvailable;
+  const showActions = ai.anyAvailable && !guest;
 
   return (
     <div className="composer-terminal-surface border-t border-[var(--composer-border)] bg-[var(--terminal-bg)] px-3 pb-1 pt-2">
@@ -2401,7 +2416,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               : null
           }
           memory={
-            memoryAvailable
+            memoryAvailable && !guest
               ? {
                   sessions: memorySessions,
                   infoById: memorySessionById,
@@ -2432,12 +2447,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             busy,
             onSend: () => void send(),
             onSaveDraft: () => void saveCurrentDraft(),
-            onSendLater: sendLater.openForPrompt,
-            onSendElsewhere: () => {
-              const editor = editorRef.current;
-              setSendTarget({ hasImages: !!editor && presentImageTokens(editor).size > 0 });
-            },
-            onRunInDuplicates: runInDuplicates,
+            onSendLater: guest ? undefined : sendLater.openForPrompt,
+            onSendElsewhere: guest
+              ? undefined
+              : () => {
+                  const editor = editorRef.current;
+                  setSendTarget({ hasImages: !!editor && presentImageTokens(editor).size > 0 });
+                },
+            onRunInDuplicates: guest ? undefined : runInDuplicates,
           }}
         />
       </div>

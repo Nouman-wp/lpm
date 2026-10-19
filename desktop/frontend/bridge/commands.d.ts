@@ -386,6 +386,17 @@ export function PeerRemotePair(...args: any[]): Promise<any>;
 // screen this window no longer has yields a terminal that only ever shows the
 // bytes since a position it can't continue from.
 export function PeerTermAttach(prefixedId: string, resume: boolean): Promise<void>;
+export function PeerShares(): Promise<any>;
+export function TakeShareJoinLink(): Promise<string | null>;
+export function PeerShareStart(terminalId: string, project: string, label: string): Promise<any>;
+export function PeerShareStop(id: string): Promise<any>;
+export function PeerShareSetCanType(id: string, canType: boolean): Promise<any>;
+export function PeerShareRemoveGuest(id: string, guest: string): Promise<any>;
+export function PeerShareRespond(request: string, allow: boolean): Promise<any>;
+export function PeerShareJoin(hosts: string[], port: number, secret: string, fp: string): Promise<any>;
+export function PeerShareJoinCancel(): Promise<void>;
+export function PeerJoinedShares(): Promise<any>;
+export function PeerShareLeave(slug: string): Promise<any>;
 export function PeerTermDetach(prefixedId: string): Promise<void>;
 export function SyncProjectStart(...args: any[]): Promise<any>;
 export function SyncProjectCancel(...args: any[]): Promise<any>;

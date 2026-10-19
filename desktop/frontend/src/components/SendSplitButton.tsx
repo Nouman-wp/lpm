@@ -19,12 +19,12 @@ export interface SendSplitButtonProps {
   onSend: () => void;
   onSaveDraft: () => void;
   // Open the picker for when to send this prompt instead of now.
-  onSendLater: () => void;
+  onSendLater?: () => void;
   // Open the picker for a tab elsewhere — another tab here, or one in another
   // open project — to send this prompt to instead.
-  onSendElsewhere: () => void;
+  onSendElsewhere?: () => void;
   // Spin up `count` project duplicates that each run this prompt in parallel.
-  onRunInDuplicates: (count: number) => void;
+  onRunInDuplicates?: (count: number) => void;
 }
 
 const MENU_WIDTH = 300;
@@ -120,16 +120,18 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onSendLat
         style &&
         createPortal(
           <div ref={panelRef} role="menu" style={style} className={`z-[80] ${MENU_PANEL_CLASS}`}>
-            <ContextMenuItem
-              label="Send later"
-              description="Pick a moment on a timeline, today or later"
-              icon={<AlarmClock size={13} strokeWidth={1.5} />}
-              shortcut={enterHint({ alt: true })}
-              onClick={() => {
-                setOpen(false);
-                onSendLater();
-              }}
-            />
+            {onSendLater && (
+              <ContextMenuItem
+                label="Send later"
+                description="Pick a moment on a timeline, today or later"
+                icon={<AlarmClock size={13} strokeWidth={1.5} />}
+                shortcut={enterHint({ alt: true })}
+                onClick={() => {
+                  setOpen(false);
+                  onSendLater();
+                }}
+              />
+            )}
             <ContextMenuItem
               label="Save as draft"
               description="Keep this prompt without sending it"
@@ -140,58 +142,62 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onSendLat
                 onSaveDraft();
               }}
             />
-            <ContextMenuItem
-              label="Send to another tab"
-              description="Pick a tab in this or another open project"
-              icon={<ForwardIcon size={13} />}
-              onClick={() => {
-                setOpen(false);
-                onSendElsewhere();
-              }}
-            />
-            <div className="flex w-full items-start gap-2 px-3 py-1.5 text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]">
-              <button
-                type="button"
+            {onSendElsewhere && (
+              <ContextMenuItem
+                label="Send to another tab"
+                description="Pick a tab in this or another open project"
+                icon={<ForwardIcon size={13} />}
                 onClick={() => {
                   setOpen(false);
-                  onRunInDuplicates(dupes);
+                  onSendElsewhere();
                 }}
-                className="flex min-w-0 flex-1 items-start gap-2 text-left"
-              >
-                <span className="flex shrink-0 items-center pt-0.5">
-                  <CopyIcon size={13} />
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="truncate">Run in duplicates</span>
-                  <span className="text-[10px] leading-snug text-[var(--text-muted)]">
-                    Run in {dupes} copies at once, keep the best
+              />
+            )}
+            {onRunInDuplicates && (
+              <div className="flex w-full items-start gap-2 px-3 py-1.5 text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    onRunInDuplicates(dupes);
+                  }}
+                  className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                >
+                  <span className="flex shrink-0 items-center pt-0.5">
+                    <CopyIcon size={13} />
                   </span>
-                </span>
-              </button>
-              <div className="flex shrink-0 items-center gap-1.5 pt-px text-[var(--text-muted)]">
-                <button
-                  type="button"
-                  aria-label="Fewer duplicates"
-                  disabled={dupes <= MIN_DUPES}
-                  onClick={() => setDupes((n) => Math.max(MIN_DUPES, n - 1))}
-                  className="flex h-4 w-4 items-center justify-center text-[14px] leading-none transition-colors hover:text-[var(--text-primary)] disabled:opacity-30"
-                >
-                  −
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="truncate">Run in duplicates</span>
+                    <span className="text-[10px] leading-snug text-[var(--text-muted)]">
+                      Run in {dupes} copies at once, keep the best
+                    </span>
+                  </span>
                 </button>
-                <span className="min-w-[0.75rem] text-center text-[11px] tabular-nums text-[var(--text-secondary)]">
-                  {dupes}
-                </span>
-                <button
-                  type="button"
-                  aria-label="More duplicates"
-                  disabled={dupes >= MAX_DUPES}
-                  onClick={() => setDupes((n) => Math.min(MAX_DUPES, n + 1))}
-                  className="flex h-4 w-4 items-center justify-center text-[14px] leading-none transition-colors hover:text-[var(--text-primary)] disabled:opacity-30"
-                >
-                  +
-                </button>
+                <div className="flex shrink-0 items-center gap-1.5 pt-px text-[var(--text-muted)]">
+                  <button
+                    type="button"
+                    aria-label="Fewer duplicates"
+                    disabled={dupes <= MIN_DUPES}
+                    onClick={() => setDupes((n) => Math.max(MIN_DUPES, n - 1))}
+                    className="flex h-4 w-4 items-center justify-center text-[14px] leading-none transition-colors hover:text-[var(--text-primary)] disabled:opacity-30"
+                  >
+                    −
+                  </button>
+                  <span className="min-w-[0.75rem] text-center text-[11px] tabular-nums text-[var(--text-secondary)]">
+                    {dupes}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="More duplicates"
+                    disabled={dupes >= MAX_DUPES}
+                    onClick={() => setDupes((n) => Math.min(MAX_DUPES, n + 1))}
+                    className="flex h-4 w-4 items-center justify-center text-[14px] leading-none transition-colors hover:text-[var(--text-primary)] disabled:opacity-30"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>,
           document.body,
         )}

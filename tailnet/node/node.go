@@ -15,8 +15,10 @@ import (
 
 	"tailscale.com/client/local"
 	"tailscale.com/envknob"
+	"tailscale.com/health"
 	"tailscale.com/ipn"
 	"tailscale.com/ipn/ipnstate"
+	"tailscale.com/tsconst"
 	"tailscale.com/tsnet"
 )
 
@@ -60,6 +62,7 @@ type Node struct {
 	ports     map[uint16]string
 	listeners map[uint16]*forward
 	leaving   bool
+	cutOff    bool
 	dir       string
 	hostname  string
 	started   chan struct{}
@@ -120,6 +123,7 @@ func (n *Node) stop(next string) {
 	n.mu.Lock()
 	srv, cancel, started := n.srv, n.cancel, n.started
 	n.srv, n.lc, n.cancel, n.started = nil, nil, nil, nil
+	n.cutOff = false
 	for port, f := range n.listeners {
 		f.ln.Close()
 		delete(n.listeners, port)
@@ -367,7 +371,7 @@ func (n *Node) run(ctx context.Context, srv *tsnet.Server, started chan struct{}
 		}
 	}()
 	for ctx.Err() == nil {
-		w, err := lc.WatchIPNBus(ctx, ipn.NotifyInitialState)
+		w, err := lc.WatchIPNBus(ctx, ipn.NotifyInitialState|ipn.NotifyInitialHealthState)
 		if err != nil {
 			select {
 			case <-ctx.Done():
@@ -383,6 +387,9 @@ func (n *Node) run(ctx context.Context, srv *tsnet.Server, started chan struct{}
 			if nf.ErrMessage != nil && *nf.ErrMessage != "" && !requiresLogging(*nf.ErrMessage) {
 				n.noteError(srv, *nf.ErrMessage)
 				continue
+			}
+			if nf.Health != nil {
+				n.setCutOff(srv, noRelay(nf.Health))
 			}
 			n.refresh(ctx, srv, lc)
 		}
@@ -406,7 +413,30 @@ func (n *Node) refresh(ctx context.Context, srv *tsnet.Server, lc *local.Client)
 	if n.leaving && s.State == StateStopped {
 		s = Status{State: StateNeedsLogin}
 	}
+	if s.State == StateRunning && n.cutOff && s.Error == "" {
+		s.Error = relayUnreachable
+	}
 	n.setLocked(s)
+}
+
+func (n *Node) setCutOff(srv *tsnet.Server, v bool) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.srv == srv {
+		n.cutOff = v
+	}
+}
+
+// noRelay reports whether the node can reach no relay server. Signed in, it
+// still looks connected, but a device on another network has no way to it.
+func noRelay(h *health.State) bool {
+	for code := range h.Warnings {
+		switch code {
+		case tsconst.HealthWarnableNetworkStatus, tsconst.HealthWarnableNoDERPHome, tsconst.HealthWarnableNoDERPConnection:
+			return true
+		}
+	}
+	return false
 }
 
 func (n *Node) fail(srv *tsnet.Server, err error) {
@@ -519,8 +549,9 @@ func FromStatus(st *ipnstate.Status) Status {
 }
 
 const (
-	loggingRequired = "Your tailnet requires network logging, which lpm's built-in Tailscale doesn't send. Use the Tailscale app on this device instead, or ask your tailnet's admin."
-	turnedOff       = "Tailscale turned this device off. Check it in the Tailscale admin console."
+	loggingRequired  = "Your tailnet requires network logging, which lpm's built-in Tailscale doesn't send. Use the Tailscale app on this device instead, or ask your tailnet's admin."
+	turnedOff        = "Tailscale turned this device off. Check it in the Tailscale admin console."
+	relayUnreachable = "Can't reach Tailscale's servers. Until it can, only devices on the same network can connect."
 )
 
 // stoppedReason says why the backend won't run, in words the apps can show.

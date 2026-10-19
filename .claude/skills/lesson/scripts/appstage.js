@@ -20,6 +20,22 @@ const CARD_FADE_MS = 300;
 // from beside the title into its place over `riseMs` (compose.js COVER).
 const OPEN_LIFT = { titleLeadMs: 500, titleMs: 450, leadMs: 300, fadeMs: 700, riseMs: 900 };
 
+// The drawn cursor, the tap ring and the page helpers (`window.__lc`).
+function installOverlay(control, scale) {
+  return control.evaluate(
+    (css, fn, args) => {
+      if (window.__lc) return;
+      const style = document.createElement("style");
+      style.textContent = css;
+      document.head.append(style);
+      new Function("return " + fn)()(args);
+    },
+    OVERLAY_CSS,
+    installStage.toString(),
+    { cursorSvg: CURSOR_SVG, hotspot: HOTSPOT, hiddenText: [], scale },
+  );
+}
+
 function realMouseWorks() {
   try {
     const before = execFileSync("cliclick", ["p"], { encoding: "utf8" }).trim();
@@ -86,21 +102,10 @@ class AppStage extends Timing {
   }
 
   async install() {
-    const scale = this.origin.scale;
-    await this.control.evaluate(
-      (css, fn, args) => {
-        if (window.__lc) return;
-        const style = document.createElement("style");
-        style.textContent = css;
-        document.head.append(style);
-        new Function("return " + fn)()(args);
-      },
-      OVERLAY_CSS,
-      installStage.toString(),
-      { cursorSvg: CURSOR_SVG, hotspot: HOTSPOT, hiddenText: [], scale },
-    );
+    await installOverlay(this.control, this.origin.scale);
     const start = { x: this.origin.w * 0.56, y: this.origin.h * 0.52 };
     await this.control.evaluate((x, y) => window.__lc.place(x, y), start.x, start.y);
+    this.pointer = start;
     if (this.mouse === "real" && !realMouseWorks()) {
       this.log("real pointer unavailable (grant Accessibility to the terminal); dispatching events in the page");
       this.mouse = "dom";
@@ -155,6 +160,7 @@ class AppStage extends Timing {
     const ms = opts.ms ?? 750;
     if (opts.cue) await this.holdUntil(this.cueMs(opts.cue) - ms - (opts.pause ?? 0));
     await this.control.evaluate((x, y, ms) => window.__lc.moveTo(x, y, ms), p.x, p.y, ms);
+    this.pointer = p;
     if (this.mouse === "real") this.realMove(p.x, p.y);
     else await this.control.evaluate((x, y) => window.__lc.hover(x, y), p.x, p.y);
     if (opts.after) await sleep(opts.after);
@@ -216,6 +222,7 @@ class AppStage extends Timing {
   // for its camera).
   async glideTo(x, y, ms) {
     await this.control.evaluate((x2, y2, ms2) => window.__lc.moveTo(x2, y2, ms2), x, y, ms);
+    this.pointer = { x, y };
     if (this.mouse === "real") this.realMove(x, y);
   }
 
@@ -386,4 +393,4 @@ class AppStage extends Timing {
   }
 }
 
-module.exports = { AppStage, CARD_FADE_MS, OPEN_LIFT };
+module.exports = { AppStage, installOverlay, CARD_FADE_MS, OPEN_LIFT };

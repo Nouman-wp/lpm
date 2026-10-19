@@ -61,6 +61,8 @@ import { PeerDisconnectedBanner } from "./components/PeerDisconnectedBanner";
 import { startSendLaterRunner } from "./sendLater/runner";
 import { ClaudePoolConsentDialog } from "./components/ClaudePoolConsentDialog";
 import { ClaudeAccountPoolDialog } from "./components/ClaudeAccountPoolDialog";
+import { SharedTabView } from "./components/share/SharedTabView";
+import { TabShareHosts } from "./components/share/TabShareHosts";
 
 export default function App() {
   const projects = useAppStore((s) => s.projects);
@@ -137,7 +139,8 @@ export default function App() {
     view !== "terminals" &&
     view !== "fleet" &&
     view !== "stats" &&
-    view !== "scheduled";
+    view !== "scheduled" &&
+    view !== "shared";
   const isMobileSettings = view === "settings" && settingsTab === "mobile";
   const selectedProject = projects.find((p) => p.name === selected) || null;
 
@@ -348,6 +351,7 @@ export default function App() {
           )}
           {isStatsView && <StatsView />}
           {isScheduledView && <ScheduledView />}
+          {view === "shared" && <SharedTabView />}
           {view === "global-config" && (
             <GlobalConfigEditor machine={settingsMachine} onBack={backToSettings} />
           )}
@@ -407,6 +411,7 @@ export default function App() {
       <PortConflictDialog />
       <PairApprovalHost />
       <PairRequestDialog />
+      <TabShareHosts />
       <FileViewerHost />
       <TerminalDropOverlayHost />
       <ProjectSwitcher

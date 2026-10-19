@@ -815,6 +815,64 @@ of stranding on a gone client.
 field, and claims on every `sub` as before. A client that predates `ctl` sends
 `sub` without `claim`, so a current host still claims for it.
 
+## Tab sharing (guests)
+
+A host can open one terminal to another person's lpm without pairing it. The
+other machine is a **guest**: it holds a token for one share, and a share reaches
+one terminal. Host side: `tabshare.rs` (the shares, in memory only, so quitting
+lpm ends them) and `peer/guest.rs` (a guest's connection). Guest side:
+`peerclient/share.rs`. Guests use the same listener, TLS identity and terminal
+rings as paired machines, and nothing else.
+
+**Invite.** `lpm-share:` + unpadded base64url of `{v:1, h:hosts, p:port, s:secret,
+f:fp}`. `f` is required: the guest dials pinned to it before the secret leaves
+the machine. One invite serves any number of people, each let in separately,
+until the host stops sharing. The host hands it out as a link with the same
+payload in the fragment, `https://lpm.cx/join#<payload>` (the browser never
+sends it to the site); that page opens `lpm://join?i=<payload>`, which lpm
+registers on every desktop platform (`sharelink.rs`) and turns into the Join
+dialog, filled in. The dialog accepts all three forms.
+
+**Join** (first frame, TLS only):
+- guest → `{ "t": "shareJoin", "secret", "name", "platform" }`
+- host → `{ "t": "shareJoinPending", "hostName" }`, then waits up to 120 s for
+  someone at the host to answer (at most three askers wait per share)
+- host → `{ "t": "shareJoined", "guestId", "token", "hostName" }`, or `error`
+  (unknown/ended invite, declined, timed out), and closes.
+
+**Resume.** `{ "t": "auth", "deviceId": guestId, "token" }`, the same frame a paired
+machine sends. A host that finds no paired device checks its guests and answers
+`{ "t": "ready", "guest": true, "share": { id, terminalId, project, label, canType },
+"features": [] }`. A token is stored as its sha256, like a device token.
+
+**What a guest may send**, each checked against the share on every frame, so a
+change takes effect on the next frame rather than the next connection:
+- `ping`
+- `sub` / `unsub` for the shared terminal only (anything else gets the `gone`
+  exit). A guest's `sub` never claims control; its `seed` adds `cols`/`rows`.
+- `invoke` of `write_terminal` (only while the host allows typing) and
+  `terminal_exists`, both for the shared terminal only. Every other command is
+  refused, and nothing reaches the generic proxy.
+- `forget` (leave).
+
+Everything else is ignored. A guest never resizes the terminal or takes control:
+it renders at the host's size, which it learns from the seed and from
+`{ "t": "size", "id", "cols", "rows" }` on every resize. It is never sent `evt`
+frames or any frame addressed to a paired device.
+
+**Host pushes:** `{ "t": "shareInfo", canType, label, project }` when the host
+switches typing on or off; `{ "t": "shareEnded", "reason" }` (`stopped`,
+`removed`, `closed` when the terminal ends, `left`), after which the host closes
+the connection. A guest that comes back with a token the host no longer knows
+(it restarted) gets `unauthorized` and stops dialling.
+
+**Guest side.** A joined tab is kept in `peer.json` under `joined`, apart from
+`peers`, so nothing that lists paired machines sees it. It rides the same
+connection code as a paired machine (reconnect, pinning, resume by offset) under
+a slug of its own, and drops every host frame except `pong`, `result`, `seed`,
+`o`, `exit`, `size`, `shareInfo` and `shareEnded`: whoever shared a tab is a
+stranger to the guest machine.
+
 ## Commands (Tauri, frontend-facing)
 
 Host role:
@@ -845,13 +903,35 @@ Client role:
   while the offsets still point deep into their streams. `resume: false` drops
   the offset first, so the `sub` carries no `from` and the host replays in full.
 
+Tab sharing, host role:
+- `peer_shares() -> [share]`, each `{ id, terminalId, project, label, canType,
+  invite, guests: [{ id, name, joinedAt, connected }], waiting: [{ id, name }] }`
+- `peer_share_start(terminalId, project, label) -> [share]` (turns the listener on
+  for every interface, as pairing does; sharing a shared tab again keeps its invite)
+- `peer_share_stop(id)`, `peer_share_set_can_type(id, canType)`,
+  `peer_share_remove_guest(id, guest)`, `peer_share_respond(request, allow)`
+
+Tab sharing, guest role:
+- `peer_share_join(hosts, port, secret, fp) -> { slug }` (blocks for the host's
+  answer); `peer_share_join_cancel()`
+- `peer_joined_shares() -> [{ slug, hostName, host, terminalId, label, project,
+  canType, connected, ended, lastError, cols, rows, joinedAt }]`
+- `peer_share_leave(slug)`
+
 Frontend-facing events: `peer-state-changed`, `peer-invoke` (host dispatcher),
 `peer-evt-{slug}`, `peer-autosync-result` (one per unattended run),
 `peer-update-progress`, `peer-settings-changed` (host side, after `settingsSet`),
-`pty-output-peer-{slug}-…`, `pty-exit-peer-{slug}-…`.
+`pty-output-peer-{slug}-…`, `pty-exit-peer-{slug}-…`; for tab sharing
+`peer-share-changed`, `peer-share-join-request` / `peer-share-join-resolved`
+(host), `peer-joined-changed`, `peer-share-join-pending` and
+`pty-size-peer-{slug}-…` (guest).
 
 ## Limitations / trust model
 
+- **A guest is not trusted, but typing is.** A guest reaches one terminal and
+  nothing else (see **Tab sharing**), yet a guest allowed to type can run any
+  command there as the host user. The host lets each guest in by hand and turns
+  typing on for a share explicitly; it is off by default.
 - **A paired client is fully trusted, over a wide surface.** Pairing grants the
   same "full control" trust the mobile companion has, but through a generic
   command proxy rather than a fixed message set. Every command not on the host

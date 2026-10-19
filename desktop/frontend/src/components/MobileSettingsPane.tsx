@@ -5,6 +5,7 @@ import { ReachCard } from "./mobile/ReachCard";
 import { PhonesSection } from "./mobile/PhonesSection";
 import { usePeerState } from "../peer/usePeerState";
 import { useTailnetState } from "../hooks/useTailnetState";
+import { builtInReachable } from "../tailnetStatus";
 import { PeerRemotePair } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import {
@@ -206,7 +207,7 @@ export function MobileSettingsPane() {
   const deviceUsedTailscale = anyOverTailscale(state.devices);
   const awayReady = canReachAway({
     ...state,
-    builtInRunning: tailnet.state.enabled && tailnet.state.state === "running",
+    builtInRunning: builtInReachable(tailnet.state),
     deviceUsedTailscale,
   });
 

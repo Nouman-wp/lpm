@@ -23,7 +23,7 @@ function toBase64Url(text: string): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function fromBase64Url(text: string): string | null {
+export function fromBase64Url(text: string): string | null {
   try {
     const b64 = text.replace(/-/g, "+").replace(/_/g, "/");
     const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));

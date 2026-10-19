@@ -24,7 +24,11 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tungstenite::{Error as WsError, Message, WebSocket};
 
 mod phone;
+mod share;
 pub(crate) use phone::PhoneChannelError;
+pub(crate) use share::{
+    peer_joined_shares, peer_share_join, peer_share_join_cancel, peer_share_leave, JoinedShare,
+};
 
 const POLL: Duration = Duration::from_millis(25);
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -93,6 +97,9 @@ struct PeerConn {
     offsets: Mutex<HashMap<String, u64>>,
     // When each terminal last asked the host to replay after detected byte loss.
     last_resync: Mutex<HashMap<String, Instant>>,
+    // The size the host reports a shared tab at, which its guest renders at.
+    sizes: Mutex<HashMap<String, (u16, u16)>>,
+    guest: AtomicBool, // this is a tab someone shared with us, not a paired machine
     pending: Mutex<HashMap<u64, Arc<Pending>>>,
     enabled: AtomicBool,
     supports_sync: AtomicBool, // host advertised the configSync feature in `ready`
@@ -162,6 +169,8 @@ impl PeerConn {
             ended: Mutex::new(HashSet::new()),
             offsets: Mutex::new(HashMap::new()),
             last_resync: Mutex::new(HashMap::new()),
+            sizes: Mutex::new(HashMap::new()),
+            guest: AtomicBool::new(false),
             pending: Mutex::new(HashMap::new()),
             enabled: AtomicBool::new(true),
             supports_sync: AtomicBool::new(false),
@@ -1680,6 +1689,7 @@ pub fn start(hub: PeerClientHub, app: AppHandle) {
             hub.start_conn(&p.slug);
         }
     }
+    hub.start_joined();
 }
 
 /// Retire all connection threads on app exit.
@@ -1723,12 +1733,17 @@ fn run_conn(hub: PeerClientHub, conn: Arc<PeerConn>, generation: u64) {
         {
             return;
         }
-        let Some(entry) = hub.peer_entry(&conn.slug) else {
+        let Some(entry) = hub.session_entry(&conn.slug) else {
             return; // peer was removed from config
         };
         match connect_session(&hub, &conn, generation, &entry) {
             Ok(()) => backoff = BACKOFF_MIN, // clean end after a live session
             Err(e) => {
+                // A host that no longer knows a guest won't again: it restarted,
+                // or let it go while this machine was away.
+                if e == "unauthorized" && hub.is_joined(&conn.slug) {
+                    hub.end_joined(&conn.slug, "unavailable");
+                }
                 *conn.last_error.lock().unwrap() = e;
             }
         }
@@ -2172,6 +2187,11 @@ fn connect_session(
         persist_tls_fp(hub, &conn.slug, &fp);
     }
     persist_host_report(hub, &conn.slug, &rv);
+    let guest = hub.is_joined(&conn.slug);
+    conn.guest.store(guest, Ordering::Relaxed);
+    if let Some(share) = rv.get("share").filter(|_| guest) {
+        hub.note_share_info(&conn.slug, share);
+    }
     let features = rv.get("features").and_then(Value::as_array);
     let has_feature = |name: &str| {
         features
@@ -2401,7 +2421,13 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
         Err(_) => return,
     };
     let slug = &conn.slug;
-    match v.get("t").and_then(Value::as_str).unwrap_or_default() {
+    let t = v.get("t").and_then(Value::as_str).unwrap_or_default();
+    // Whoever shared a tab is a stranger to this machine, not a paired one: its
+    // frames reach that tab and nothing else here.
+    if conn.guest.load(Ordering::Relaxed) && !share::GUEST_FRAMES.contains(&t) {
+        return;
+    }
+    match t {
         "pong" => {}
         // The host says a followed folder moved. It is only a wake-up: the
         // scheduler still asks what the state is before acting on it.
@@ -2475,6 +2501,8 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                     conn.extend_offset(id, off, d.as_bytes().len());
                     d.to_string()
                 };
+                // Before the bytes, so a shared tab's screen is sized for them.
+                note_size(conn, app, id, &v);
                 let _ = app.emit(&format!("pty-output-peer-{slug}-{id}"), chunk);
             }
         }
@@ -2484,6 +2512,22 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                 let off = v.get("off").and_then(Value::as_u64);
                 conn.extend_offset(id, off, d.as_bytes().len());
                 let _ = app.emit(&format!("pty-output-peer-{slug}-{id}"), d);
+            }
+        }
+        "size" => {
+            if let (Some(app), Some(id)) = (app, v.get("id").and_then(Value::as_str)) {
+                note_size(conn, app, id, &v);
+            }
+        }
+        "shareInfo" => {
+            if let Some(hub) = app.and_then(|a| a.try_state::<PeerClientHub>()) {
+                hub.note_share_info(slug, &v);
+            }
+        }
+        "shareEnded" => {
+            if let Some(hub) = app.and_then(|a| a.try_state::<PeerClientHub>()) {
+                let reason = v.get("reason").and_then(Value::as_str).unwrap_or("stopped");
+                hub.end_joined(slug, reason);
             }
         }
         "exit" => {
@@ -2554,6 +2598,24 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
         }
         _ => {}
     }
+}
+
+/// A shared tab's host says what size its terminal is. Paired machines size
+/// their own terminals, and their hosts never send it.
+fn note_size(conn: &PeerConn, app: &AppHandle, id: &str, v: &Value) {
+    let dim = |k: &str| v.get(k).and_then(Value::as_u64).unwrap_or(0) as u16;
+    let (cols, rows) = (dim("cols"), dim("rows"));
+    if cols == 0 || rows == 0 {
+        return;
+    }
+    conn.sizes
+        .lock()
+        .unwrap()
+        .insert(id.to_string(), (cols, rows));
+    let _ = app.emit(
+        &format!("pty-size-peer-{}-{id}", conn.slug),
+        json!({ "cols": cols, "rows": rows }),
+    );
 }
 
 // --- prefixed-id parsing ------------------------------------------------------

@@ -10,6 +10,7 @@ const { CARD_FADE_MS, OPEN_LIFT } = require("./appstage");
 const { POOLS, POOLS_AT_REST } = require("./overlay");
 const { track, toFrames } = require("./keyframes");
 const { phoneLayer } = require("./phonecompose");
+const { guestLayer } = require("./twomac");
 const { insetLayer } = require("./insets");
 
 const FPS = 30;
@@ -99,6 +100,26 @@ function coverSpans(cards, totalMs) {
   });
 }
 
+// Two Macs side by side (twomac.js): the window beside a card is the left
+// one at a lone window's size, which its own smaller place can't glide to, so
+// it stands still and fades in and out with the card while the pair is hidden
+// under it (`away`). The opening card's words lift away over the pair, which
+// shows from the moment the card starts to fade.
+function crossfadeSpans(cards, totalMs) {
+  const fade = CARD_FADE_MS / 1000;
+  return cards.map((card, i) => {
+    const start = card.first ? 0 : card.startMs / 1000;
+    if (card.first && !card.hold) {
+      const h = (card.startMs + card.ms - OPEN_LIFT.leadMs) / 1000;
+      const out = (0.65 * OPEN_LIFT.fadeMs) / 1000;
+      return { card: i, a: 0, b: h + out, at: "1", fadeIn: (card.startMs + COVER.fadeInLeadMs) / 1000, fadeOut: { st: h, d: out }, away: { a: 0, b: h } };
+    }
+    const end = card.hold ? totalMs / 1000 + 1 : start + card.ms / 1000;
+    const fadeOut = card.hold ? undefined : { st: end - fade, d: fade };
+    return { card: i, a: start, b: end, at: "1", fadeIn: start, fadeInMs: CARD_FADE_MS, fadeOut, away: { a: start + fade, b: card.hold ? end : end - fade } };
+  });
+}
+
 // The window and its shadow for one span, as a full-frame layer: trimmed to
 // the span, scaled about the window's centre and moved towards the cover
 // position. The size is set per frame and the position follows from it, so
@@ -115,7 +136,9 @@ function coverLayer(span, { out, box }, shadowIn, windowIn, label) {
   // where the window's home copy begins left one empty frame between them.
   const edge = 2 / FPS;
   const trim = `trim=start=${Math.max(0, span.a - edge).toFixed(3)}:end=${(span.b + edge).toFixed(3)}`;
-  const fade = span.fadeIn != null ? `,fade=t=in:st=${span.fadeIn.toFixed(3)}:d=${(COVER.fadeInMs / 1000).toFixed(3)}:alpha=1` : "";
+  const fadeIn = span.fadeIn != null ? `,fade=t=in:st=${span.fadeIn.toFixed(3)}:d=${((span.fadeInMs ?? COVER.fadeInMs) / 1000).toFixed(3)}:alpha=1` : "";
+  const fadeOut = span.fadeOut ? `,fade=t=out:st=${span.fadeOut.st.toFixed(3)}:d=${span.fadeOut.d.toFixed(3)}:alpha=1` : "";
+  const fade = fadeIn + fadeOut;
   const padH = out.height + 2 * Math.ceil(ty) + 2;
   return [
     `[${shadowIn}]${trim}[${label}s]`,
@@ -182,16 +205,19 @@ const STILL_OUT = "out_color_matrix=bt601:out_range=pc";
 // the caller appends the audio inputs after these. `composite` is false for a
 // demo take, which already carries its frame and cards. A take that also
 // captured the phone gives the window's `region` of it (pixels) and `phone`
-// (phonecompose.js phoneLayer's layout, region, assets and taps). `insets`
-// (insets.js, with their drawn `file`s) lie over the zoomed picture.
-function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = [], zooms = [], totalMs, composite = true, take, region, phone, insets = [], insetPointer = null }) {
+// (phonecompose.js phoneLayer's layout, region, assets and taps). A take of
+// two Macs gives `guest` (the right window's region, box and assets, see
+// twomac.js) and `cover` (the box, shadow and mask of the window beside a
+// card). `insets` (insets.js, with their drawn `file`s) lie over the zoomed
+// picture.
+function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = [], zooms = [], totalMs, composite = true, take, region, phone, guest, cover, insets = [], insetPointer = null }) {
   const crop = region ? `crop=${region.w}:${region.h}:${region.x}:${region.y},` : "";
   const inputs = [];
   const parts = [];
   let last = "0:v";
   let next = 1;
   const opener = cards.find((c) => c.first && !c.hold);
-  const spans = composite ? coverSpans(cards, totalMs) : [];
+  const spans = !composite ? [] : cover ? crossfadeSpans(cards, totalMs) : coverSpans(cards, totalMs);
   // A card later in the take gets the window and shadow from inputs of its
   // own, read from where it starts: fed from the split below, its trim would
   // hold every frame before it in the other branches (a card half an hour in
@@ -203,9 +229,13 @@ function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = []
     inputs.push(...still(canvas), ...still(shadow), ...still(mask));
     // The window in its place, except while a card has it at the cover
     // position (drawn above that card, below).
-    home = spans.length ? `:enable='not(${spans.map((p) => `gte(t,${p.a.toFixed(3)})*lt(t,${p.b.toFixed(3)})`).join("+")})'` : "";
-    const shared = spans.map((span, i) => ({ span, i })).filter(({ span }) => !(take && span.a > 0));
-    late.push(...spans.map((span, i) => ({ span, i })).filter(({ span }) => take && span.a > 0));
+    const away = cover ? spans.map((p) => p.away) : spans;
+    home = away.length ? `:enable='not(${away.map((p) => `gte(t,${p.a.toFixed(3)})*lt(t,${p.b.toFixed(3)})`).join("+")})'` : "";
+    // Beside a card the pair's window is drawn at another size, from inputs
+    // of its own.
+    const apart = (span) => !!cover || (take && span.a > 0);
+    const shared = spans.map((span, i) => ({ span, i })).filter(({ span }) => !apart(span));
+    late.push(...spans.map((span, i) => ({ span, i })).filter(({ span }) => apart(span)));
     const copies = shared.length + 1;
     parts.push(
       `[0:v]${crop}scale=${box.w}:${box.h}:${CAPTURE_IN},format=rgba[w0]`,
@@ -213,9 +243,9 @@ function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = []
       `[w0][m]alphamerge${copies > 1 ? `,split=${copies}${shared.map(({ i }) => `[w${i + 1}c]`).join("")}` : ""}[w]`,
       `[2:v]format=rgba${copies > 1 ? `,split=${copies}${shared.map(({ i }) => `[s${i + 1}c]`).join("")}` : ""}[s]`,
       `[1:v][s]overlay=x=0:y=0${home}[bg]`,
-      `[bg][w]overlay=x=${box.x}:y=${box.y}:eof_action=repeat${home}[${phone ? "vm" : "v0"}]`,
+      `[bg][w]overlay=x=${box.x}:y=${box.y}:eof_action=repeat${home}[${phone || guest ? "vm" : "v0"}]`,
     );
-    spans.forEach((span, i) => parts.push(...coverLayer(span, { out, box }, `s${i + 1}c`, `w${i + 1}c`, `cv${i}`)));
+    spans.forEach((span, i) => parts.push(...coverLayer(span, { out, box: cover?.box || box }, `s${i + 1}c`, `w${i + 1}c`, `cv${i}`)));
     last = "v0";
     next = 4;
   }
@@ -258,10 +288,11 @@ function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = []
     const at = span.a.toFixed(3);
     const len = (span.b - span.a).toFixed(3);
     const from = (file) => ["-framerate", String(FPS), "-loop", "1", "-t", len, "-i", file];
-    inputs.push("-ss", at, "-t", len, "-i", take, ...from(shadow), ...from(mask));
+    const beside = cover || { box, shadow, mask };
+    inputs.push("-ss", at, "-t", len, "-i", take, ...from(beside.shadow), ...from(beside.mask));
     const shift = `setpts=PTS-STARTPTS+${at}/TB`;
     parts.push(
-      `[${input}:v]${crop}scale=${box.w}:${box.h}:${CAPTURE_IN},format=rgba[w${i + 1}t]`,
+      `[${input}:v]${crop}scale=${beside.box.w}:${beside.box.h}:${CAPTURE_IN},format=rgba[w${i + 1}t]`,
       `[${input + 2}:v]format=gray[m${i + 1}t]`,
       `[w${i + 1}t][m${i + 1}t]alphamerge,${shift}[w${i + 1}c]`,
       `[${input + 1}:v]format=rgba,${shift}[s${i + 1}c]`,
@@ -286,6 +317,11 @@ function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = []
     inputs.push(...layer.inputs);
     parts.push(...layer.parts);
   }
+  if (composite && guest) {
+    const layer = guestLayer({ from: "vm", to: "v0", base: input, ...guest, home, captureIn: CAPTURE_IN, fps: FPS });
+    inputs.push(...layer.inputs);
+    parts.push(...layer.parts);
+  }
   const count = inputs.filter((a) => a === "-i").length;
   if (!parts.length) return { inputs, filter: null, label: "0:v", count, tags: [] };
   if (!composite) {
@@ -296,4 +332,4 @@ function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = []
   return { inputs, filter: parts.join(";"), label: "[vout]", count, tags: MASTER_TAGS };
 }
 
-module.exports = { FPS, COVER, frameBox, frameAssets, videoGraph, coverSpans, zoomStage, editZooms, CAPTURE_IN, MASTER_OUT, MASTER_TAGS, STILL_OUT };
+module.exports = { FPS, COVER, frameBox, frameAssets, videoGraph, coverSpans, crossfadeSpans, zoomStage, editZooms, CAPTURE_IN, MASTER_OUT, MASTER_TAGS, STILL_OUT };

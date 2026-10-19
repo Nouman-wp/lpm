@@ -67,6 +67,8 @@ import { useFilesView } from "../store/filesView";
 import { canForkSession } from "../forkSession";
 import { actionTextColor } from "../actionColors";
 import { SendLaterTabMark } from "./SendLaterTabMark";
+import { SharedTabMark } from "./share/SharedTabMark";
+import { useTabShares } from "../store/tabShares";
 import { chordLabel } from "../keys";
 import { isMac } from "../platform";
 import { useIsFullscreen } from "../hooks/useIsFullscreen";
@@ -548,7 +550,12 @@ function PaneViewImpl(props: PaneViewProps) {
                     error={isError}
                     agentStatus={paneAgentStatus(paneStatus, t.id)}
                     color={t.color}
-                    trailing={<SendLaterTabMark historyKey={t.historyKey} />}
+                    trailing={
+                      <>
+                        <SharedTabMark terminalId={t.id} />
+                        <SendLaterTabMark historyKey={t.historyKey} />
+                      </>
+                    }
                     onClick={(e) => {
                       if (isDone) onClearStatus(t.id, "Done");
                       if (isWaiting) onClearStatus(t.id, "Waiting");
@@ -841,6 +848,14 @@ function PaneViewImpl(props: PaneViewProps) {
             x={tabMenu.x}
             y={tabMenu.y}
             pinned={tab.pinned === true}
+            canShare={isTerminalTab(tab) && !projectPeer}
+            onShare={() =>
+              useTabShares.getState().openShareDialog({
+                terminalId: tab.id,
+                project: projectName,
+                label: terminalDisplayLabel(tab),
+              })
+            }
             canFork={forkable}
             canForkCopy={forkable && canForkIntoCopy}
             canCloseOthers={canCloseOthers}

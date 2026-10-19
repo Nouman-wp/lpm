@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { decodeInvite } from "../../peer/invite";
+import { decodeShareInvite } from "../../share/invite";
+import { useTabShares } from "../../store/tabShares";
 import { MACHINE } from "../../machineWords";
 
 // The primary way to connect: paste one invite string. The field recognizes a
@@ -16,12 +18,20 @@ export function PasteInviteField({
 }) {
   const [value, setValue] = useState("");
   const trimmed = value.trim();
-  const decoded = trimmed ? decodeInvite(trimmed) : null;
-  const invalid = trimmed.length > 0 && !decoded;
-  const canConnect = !!decoded && !busy;
+  // A shared tab's invite opens that tab rather than pairing the machine.
+  const shared = trimmed ? decodeShareInvite(trimmed) : null;
+  const decoded = trimmed && !shared ? decodeInvite(trimmed) : null;
+  const valid = !!decoded || !!shared;
+  const invalid = trimmed.length > 0 && !valid;
+  const canConnect = valid && !busy;
 
   const submit = () => {
     if (!canConnect) return;
+    if (shared) {
+      useTabShares.getState().openJoinDialog(trimmed);
+      setValue("");
+      return;
+    }
     void Promise.resolve(onConnect(trimmed)).then((ok) => {
       if (ok !== false) setValue("");
     });
@@ -45,14 +55,14 @@ export function PasteInviteField({
             autoCapitalize="off"
             autoCorrect="off"
             className={`w-full rounded-lg border bg-[var(--bg-primary)] px-3 py-1.5 pr-8 text-[13px] text-[var(--text-primary)] outline-none transition-colors ${
-              decoded
+              valid
                 ? "border-[var(--accent-cyan)]"
                 : invalid
                   ? "border-[color-mix(in_srgb,var(--accent-red)_45%,var(--border))]"
                   : "border-[var(--border)] focus:border-[var(--accent-cyan)]"
             }`}
           />
-          {decoded && (
+          {valid && (
             <svg
               className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--accent-cyan)]"
               width="13"
@@ -77,12 +87,14 @@ export function PasteInviteField({
               : "bg-[var(--bg-active)] text-[var(--text-muted)]"
           }`}
         >
-          {busy ? "Connecting…" : "Connect"}
+          {shared ? "Join" : busy ? "Connecting…" : "Connect"}
         </button>
       </div>
-      {(decoded || invalid) && (
+      {(valid || invalid) && (
         <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-          {decoded
+          {shared
+            ? "An invite to a shared tab. Join to open it."
+            : decoded
             ? `Ready to connect to ${decoded.hosts[0]}.`
             : "That isn't a complete invite — paste the whole thing, or enter details manually."}
         </p>

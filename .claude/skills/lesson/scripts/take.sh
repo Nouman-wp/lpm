@@ -56,6 +56,11 @@ fi
 cleanup() {
   [ "$RECORDING" = 1 ] || return 0
   node -e 'require(process.argv[1]).quitStale(process.argv[2], () => {})' "$SCRIPTS/app.js" "$LPMDIR/lesson.sock" 2>/dev/null
+  # The second app of a two-Mac take (lesson.json "guest").
+  if [ -f "$LPMDIR-guest/.lesson-data-dir" ]; then
+    node -e 'require(process.argv[1]).quitStale(process.argv[2], () => {})' "$SCRIPTS/app.js" "$LPMDIR-guest/lesson.sock" 2>/dev/null
+    [ "$KEEP" = 1 ] || LPM_LESSON_DIR="$LPMDIR-guest" sh "$SCRIPTS/stop-lesson-daemon.sh"
+  fi
   if [ -f "$LPMDIR/.lesson-data-dir" ]; then
     [ "$KEEP" = 1 ] || LPM_LESSON_DIR="$LPMDIR" sh "$SCRIPTS/stop-lesson-daemon.sh"
     if [ -f "$LPMDIR/vite.pid" ]; then
