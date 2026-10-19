@@ -321,7 +321,8 @@ async function finish(lines, P, timeline, taken) {
   const opener = (timeline.cards || []).find((c) => c.first && !c.hold);
   if (P.main && (opener || lesson.cover)) {
     const stampFile = path.join(DIR, "thumbnail.json");
-    const want = lesson.cover ? { cover: lesson.cover, take: taken.take || null, look: CARD_LOOK } : { title: opener.title, look: CARD_LOOK };
+    const image = lesson.cover?.image && fs.statSync(path.join(DIR, lesson.cover.image)).mtimeMs;
+    const want = lesson.cover ? { cover: lesson.cover, take: taken.take || null, look: CARD_LOOK, ...(image && { image }) } : { title: opener.title, look: CARD_LOOK };
     const have = fs.existsSync(stampFile) ? JSON.parse(fs.readFileSync(stampFile, "utf8")) : null;
     const thumb = path.join(DIR, "thumbnail.jpg");
     if (!fs.existsSync(thumb) || JSON.stringify(have) !== JSON.stringify(want)) {

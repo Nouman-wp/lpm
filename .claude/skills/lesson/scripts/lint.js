@@ -20,7 +20,8 @@ function cuesIn(fn) {
 const sentences = (text) => (text.match(/[^.!?]+[.!?]*/g) || []).map((x) => x.trim()).filter(Boolean);
 
 // `kind` is "landscape" (lesson) or "vertical" (short).
-function checkLesson(lesson, beats, { kind = "landscape" } = {}) {
+// `dir` (the lesson folder) checks the files lesson.json names.
+function checkLesson(lesson, beats, { kind = "landscape", dir = null } = {}) {
   const errors = [];
   const warnings = [];
   if (!lesson.title) errors.push("lesson.json has no title");
@@ -92,12 +93,12 @@ function checkLesson(lesson, beats, { kind = "landscape" } = {}) {
     if (!/^[^#]+#\d+$/.test(id)) errors.push(`lesson.json zooms: "${id}" is not a zoom id (<line>#<n>, see the mux log)`);
     if (bad.length) errors.push(`lesson.json zooms["${id}"]: unknown ${bad.join(", ")} (scale, at, ms or drop)`);
   }
-  if (kind === "landscape") checkEdit(lesson, seen, errors, warnings);
+  if (kind === "landscape") checkEdit(lesson, seen, errors, warnings, dir);
   return { errors, warnings };
 }
 
 // lesson.json "coldOpen", "cover", "speedUpWaits" and "waitMaxSeconds" (edit.js, cover.js).
-function checkEdit(lesson, ids, errors, warnings) {
+function checkEdit(lesson, ids, errors, warnings, dir) {
   const open = lesson.coldOpen;
   if (open) {
     if (!open.text) errors.push('lesson.json coldOpen has no "text" (the hook spoken over its shots)');
@@ -118,7 +119,9 @@ function checkEdit(lesson, ids, errors, warnings) {
   if (lesson.speedUpWaits != null && typeof lesson.speedUpWaits !== "boolean") errors.push('lesson.json "speedUpWaits" is true or false');
   if (lesson.waitMaxSeconds != null && !(typeof lesson.waitMaxSeconds === "number" && lesson.waitMaxSeconds >= 5)) errors.push('lesson.json "waitMaxSeconds" is a number of seconds, 5 or more');
   const cover = lesson.cover;
-  if (cover) {
+  if (cover?.image) {
+    if (dir && !fs.existsSync(path.resolve(dir, cover.image))) errors.push(`lesson.json cover: the image "${cover.image}" is not in the lesson folder`);
+  } else if (cover) {
     if (!cover.words) errors.push('lesson.json cover has no "words" (two to four, bigger than the title card\'s)');
     else if (cover.words.split(/\s+/).length > 5) warnings.push(`the cover's words ("${cover.words}") are many for a thumbnail; two to four read at feed size`);
     if (!ids.has(cover.line)) errors.push(`lesson.json cover: "line" names "${cover.line}", which is not a narration line`);
@@ -138,7 +141,7 @@ function lintDir(dir, opts) {
   } catch (e) {
     return { errors: [`beats.js does not load: ${e.message.split("\n")[0]}`], warnings: [] };
   }
-  return checkLesson(lesson, beats, opts);
+  return checkLesson(lesson, beats, { ...opts, dir });
 }
 
 module.exports = { checkLesson, lintDir, cuesIn };

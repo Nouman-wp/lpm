@@ -64,8 +64,14 @@ function layout(style, words, img, aspect) {
 const escape = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/'/g, "’");
 
 // `raw` is the take's capture and `timeline` the take's own (the cover's line
-// is found in take time); `frame` is the app window's size in points.
+// is found in take time); `frame` is the app window's size in points. A
+// cover's `image` (a picture in the lesson folder, made outside the take) is
+// the thumbnail as it is.
 async function renderCover({ cover, raw, timeline, frame, file }) {
+  if (cover.image) {
+    execFileSync("ffmpeg", ["-v", "error", "-y", "-i", path.resolve(path.dirname(file), cover.image), "-vf", "scale=1280:720:flags=lanczos", "-q:v", "2", file]);
+    return;
+  }
   const line = timeline.lines.find((l) => l.id === cover.line);
   if (!line) throw new Error(`cover: the take has no line "${cover.line}"`);
   const style = cover.style || "window";
