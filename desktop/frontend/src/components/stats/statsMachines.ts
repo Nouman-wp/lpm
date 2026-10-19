@@ -28,7 +28,7 @@ export function isCounted(machine: UsageMachine): boolean {
 export function statsSubtitle(scope: string, machines: UsageMachine[]): string {
   const picked = machines.find((m) => m.id === scope);
   if (machines.length < 2 || scope === LOCAL_MACHINE) {
-    return "Local token usage across your LPM projects";
+    return "Local token usage across your lpm projects";
   }
   if (picked) return `Token usage on ${picked.name}`;
   const { many } = machinesNoun(machines);

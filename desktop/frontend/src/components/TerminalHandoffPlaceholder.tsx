@@ -23,7 +23,7 @@ export function TerminalHandoffPlaceholder({
     );
   };
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 bg-[var(--terminal-bg)] px-6 text-center">
+    <div className="terminal-surface flex min-h-0 flex-1 flex-col items-center justify-center gap-4 bg-[var(--terminal-bg)] px-6 text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)] ring-1 ring-inset ring-[var(--accent-cyan)]/20">
         <TerminalIcon />
       </div>

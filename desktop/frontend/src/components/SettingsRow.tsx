@@ -21,8 +21,8 @@ export function SettingsRow({
   const [detailsOpen, setDetailsOpen] = useState(false);
   return (
     <div className="px-4 py-3" data-settings-row={id}>
-      <div className="flex items-center justify-between gap-4">
-        <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0 flex-[1_1_12rem]">
           <p className="text-sm font-medium text-[var(--text-primary)]">{label}</p>
           <p className="text-[11px] text-[var(--text-muted)]">{description}</p>
           {below}
@@ -38,7 +38,7 @@ export function SettingsRow({
             </button>
           )}
         </div>
-        <div className="shrink-0">{children}</div>
+        <div className="min-w-0 max-w-full">{children}</div>
       </div>
       {footer}
       {details && (

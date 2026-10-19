@@ -17,7 +17,8 @@ internal object TerminalScripts {
 
     fun feed(bytes: ByteArray) = "window.lpmFeed('${JsLiteral.base64(bytes)}')"
 
-    fun seed(data: String) = "window.lpmSeed('${JsLiteral.base64(data)}')"
+    /** `cols` is the PTY's width, which the replay was drawn at. */
+    fun seed(data: String, cols: Int) = "window.lpmSeed('${JsLiteral.base64(data)}', $cols)"
 
     fun submit(text: String) = "window.lpmSubmit('${JsLiteral.base64(text)}')"
 

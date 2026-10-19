@@ -41,7 +41,7 @@ class TerminalWebControllerTest {
     }
 
     private fun decoded(script: String): String {
-        val b64 = script.substringAfter("('").substringBefore("')")
+        val b64 = script.substringAfter("('").substringBefore("'")
         return String(Base64.getDecoder().decode(b64), Charsets.UTF_8)
     }
 
@@ -242,11 +242,12 @@ class TerminalWebControllerTest {
         val fresh = FakeSurface()
         controller.detach(surface)
         controller.attach(fresh)
-        controller.seed("snapshot", reset = true, ptyCols = 0, ptyRows = 0)
+        controller.seed("snapshot", reset = true, ptyCols = 132, ptyRows = 40)
         controller.onMessage(PageMessage("ready"))
         runQueue()
         assertEquals("window.lpmSetFontSize(16)", fresh.scripts[1])
         assertEquals("snapshot", decoded(fresh.scripts.last()))
+        assertTrue(fresh.scripts.last().endsWith("', 132)"))
     }
 
     @Test

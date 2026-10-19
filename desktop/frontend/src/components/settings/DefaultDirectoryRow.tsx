@@ -29,9 +29,9 @@ export function DefaultDirectoryRow() {
   return (
     <>
       <SettingsRow {...rowProps("general.defaultDir")}>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <span
-            className="max-w-[180px] truncate font-mono text-xs text-[var(--text-muted)]"
+            className="min-w-0 max-w-[180px] truncate font-mono text-xs text-[var(--text-muted)]"
             title={directory || undefined}
           >
             {directory || "Not set"}

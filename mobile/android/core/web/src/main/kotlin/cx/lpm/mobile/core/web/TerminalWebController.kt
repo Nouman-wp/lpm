@@ -40,7 +40,7 @@ class TerminalWebController internal constructor(private val post: (() -> Unit) 
 
     // A seed that arrives before the page is ready; only the latest matters since
     // it's a full snapshot of the screen.
-    private var pendingSeed: String? = null
+    private var pendingSeed: Pair<String, Int>? = null
 
     // Last size xterm fitted to, and whether this phone owns the terminal, so an
     // ownership handoff can re-drive the PTY to the phone's size.
@@ -92,10 +92,10 @@ class TerminalWebController internal constructor(private val post: (() -> Unit) 
         }
         feedBuffer.reset()
         if (!ready) {
-            pendingSeed = data
+            pendingSeed = data to ptyCols
             return
         }
-        evalSeed(data)
+        evalSeed(data, ptyCols)
     }
 
     fun feed(data: String) {
@@ -256,9 +256,9 @@ class TerminalWebController internal constructor(private val post: (() -> Unit) 
         applyTheme(theme)
         // Seed first (full snapshot), then any output that arrived after it. No
         // auto-focus: opening a terminal shouldn't raise the keyboard.
-        pendingSeed?.let {
+        pendingSeed?.let { (data, cols) ->
             pendingSeed = null
-            evalSeed(it)
+            evalSeed(data, cols)
         }
         flush()
     }
@@ -283,8 +283,8 @@ class TerminalWebController internal constructor(private val post: (() -> Unit) 
         announceContent()
     }
 
-    private fun evalSeed(data: String) {
-        surface?.evaluate(TerminalScripts.seed(data))
+    private fun evalSeed(data: String, cols: Int) {
+        surface?.evaluate(TerminalScripts.seed(data, cols))
         announceContent()
     }
 

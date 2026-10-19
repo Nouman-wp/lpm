@@ -19,7 +19,9 @@ class TerminalScriptsTest {
         val output = "\u001B[1;36m~/dev/storefront\u001B[0m \u001B[2m$\u001B[0m " +
             "⏺ 'quoted' \\ 😀\r\n"
         assertEquals(output, base64Argument(TerminalScripts.feed(output.toByteArray()), "lpmFeed"))
-        assertEquals(output, base64Argument(TerminalScripts.seed(output), "lpmSeed"))
+        val seed = TerminalScripts.seed(output, 120)
+        assertEquals(output, base64Argument(seed.replace("', 120)", "')"), "lpmSeed"))
+        assert(seed.endsWith("', 120)")) { seed }
         val composed = "fix the build\nplease"
         assertEquals(composed, base64Argument(TerminalScripts.submit(composed), "lpmSubmit"))
     }

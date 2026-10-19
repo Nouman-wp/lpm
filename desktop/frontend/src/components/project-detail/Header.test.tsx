@@ -19,12 +19,13 @@ afterEach(() => {
   container.remove();
 });
 
-function render(actionsWrapped: boolean) {
+function render(actionsWrapped: boolean, machineName?: string) {
   const onRowContextMenu = vi.fn();
   act(() =>
     root.render(
       <Header
         projectName="web"
+        machineName={machineName}
         showProjectName
         sidebarCollapsed={false}
         rowRef={createRef<HTMLDivElement>()}
@@ -55,5 +56,15 @@ describe("Header", () => {
     const handler = render(true);
     rightClick(container.querySelector('[data-testid="actions"]')!);
     expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it("names the connected computer a project runs on", () => {
+    render(false, "Studio Mac");
+    expect(container.querySelector("h1")!.textContent).toBe("webStudio Mac");
+  });
+
+  it("shows only the project name for a local project", () => {
+    render(false);
+    expect(container.querySelector("h1")!.textContent).toBe("web");
   });
 });

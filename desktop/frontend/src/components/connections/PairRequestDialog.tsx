@@ -4,10 +4,7 @@ import { PeerState, PeerHostRespondPairing } from "../../../bridge/commands";
 import { Modal } from "../ui/Modal";
 import type { PeerPairRequest, PeerStateShape } from "../../peer/usePeerState";
 import { MACHINE } from "../../machineWords";
-
-function groupSas(sas: string): string {
-  return sas.length === 6 ? `${sas.slice(0, 3)} ${sas.slice(3)}` : sas;
-}
+import { groupSas } from "./groupSas";
 
 // Approval dialog for another Mac that discovered this one on the network and
 // asked to connect without an invite. Mounted at the app root so a request — which

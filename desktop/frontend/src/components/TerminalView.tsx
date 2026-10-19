@@ -1232,7 +1232,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
           />
         </TerminalTabDnd>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
+        <div className="terminal-surface flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
           <TerminalIcon />
           <p className="text-xs">No terminals yet</p>
           <NewTerminalButton

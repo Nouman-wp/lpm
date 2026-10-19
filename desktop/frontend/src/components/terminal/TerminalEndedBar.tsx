@@ -16,7 +16,7 @@ export function TerminalEndedBar({ targetLabel, exitCode, onRestart, onClose }: 
   return (
     <div
       role="status"
-      className="flex items-center gap-2 border-t border-[var(--border)] bg-[var(--terminal-bg)] px-3 py-1.5 text-[12px]"
+      className="terminal-surface flex items-center gap-2 border-t border-[var(--border)] bg-[var(--terminal-bg)] px-3 py-1.5 text-[12px]"
     >
       <span className="min-w-0 flex-1 truncate text-[var(--text-secondary)]">
         {targetLabel} {how} — it no longer takes input.

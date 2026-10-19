@@ -157,7 +157,7 @@ struct WebTerminalView: UIViewRepresentable {
         private var flushScheduled = false
         // A seed that arrives before the page is ready; only the latest matters
         // since it's a full snapshot of the screen.
-        private var pendingSeed: String?
+        private var pendingSeed: (data: String, cols: Int)?
         // Last size xterm fitted to, and whether this phone currently owns the
         // terminal — so ownership handoff can re-drive the PTY to the phone's size.
         private var lastCols = 0
@@ -250,8 +250,8 @@ struct WebTerminalView: UIViewRepresentable {
             matchPtySize(cols: ptyCols, rows: ptyRows)
             guard reset else { feed(data); return }
             feedBuffer.removeAll(keepingCapacity: true)
-            guard ready else { pendingSeed = data; return }
-            evalSeed(data)
+            guard ready else { pendingSeed = (data, ptyCols); return }
+            evalSeed(data, cols: ptyCols)
         }
 
         /// A seed carries the PTY's size, which can still be another surface's: a
@@ -279,9 +279,9 @@ struct WebTerminalView: UIViewRepresentable {
             announceContent()
         }
 
-        private func evalSeed(_ data: String) {
+        private func evalSeed(_ data: String, cols: Int) {
             let b64 = Data(data.utf8).base64EncodedString()
-            web?.evaluateJavaScript("window.lpmSeed('\(b64)')")
+            web?.evaluateJavaScript("window.lpmSeed('\(b64)', \(cols))")
             announceContent()
         }
 
@@ -388,7 +388,7 @@ struct WebTerminalView: UIViewRepresentable {
                 // Seed first (full snapshot), then any output that arrived after it.
                 // No auto-focus: opening a terminal shouldn't raise the keyboard —
                 // the user taps the terminal when they want to type.
-                if let s = pendingSeed { pendingSeed = nil; evalSeed(s) }
+                if let s = pendingSeed { pendingSeed = nil; evalSeed(s.data, cols: s.cols) }
                 flush()
             default:
                 break

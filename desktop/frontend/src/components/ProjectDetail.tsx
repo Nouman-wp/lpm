@@ -456,6 +456,8 @@ export function ProjectDetail({
 
   const parentProject = useAppStore((s) => findParentProject(project, s.projects));
   const displayName = projectDisplayName(project, parentProject);
+  const projectPeerSlug = peerSlugOf(project.root);
+  const machineName = projectPeerSlug ? peerAlias(peerState.peers, projectPeerSlug) : undefined;
 
   const reorderActions = useAppStore((s) => s.reorderActions);
   const previewReorderActions = useAppStore((s) => s.previewReorderActions);
@@ -774,7 +776,7 @@ export function ProjectDetail({
   const controlsNode = (
     <Controls
       project={project}
-      peerViaSsh={peerState.peers.some((p) => p.slug === peerSlugOf(project.root) && !!p.sshHost)}
+      peerViaSsh={peerState.peers.some((p) => p.slug === projectPeerSlug && !!p.sshHost)}
       loading={loading}
       activeProfile={activeProfile}
       runningServiceNames={runningServiceNames}
@@ -840,6 +842,7 @@ export function ProjectDetail({
       <div className="flex h-full flex-col">
         <Header
           projectName={displayName}
+          machineName={machineName}
           showProjectName={showProjectName}
           sidebarCollapsed={sidebarCollapsed}
           rowRef={headerRowRef}

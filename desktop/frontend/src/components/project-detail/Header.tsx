@@ -1,7 +1,10 @@
 import { type MouseEvent, type ReactNode, type RefObject } from "react";
+import { LaptopIcon } from "../connections/LaptopIcon";
 
 interface HeaderProps {
   projectName: string;
+  // The connected computer the project runs on; absent for a local project.
+  machineName?: string;
   showProjectName: boolean;
   sidebarCollapsed: boolean;
   rowRef: RefObject<HTMLDivElement | null>;
@@ -19,6 +22,7 @@ interface HeaderProps {
 
 export function Header({
   projectName,
+  machineName,
   showProjectName,
   sidebarCollapsed,
   rowRef,
@@ -47,6 +51,12 @@ export function Header({
             } ${alignTop ? "leading-8" : ""}`}
           >
             {projectName}
+            {machineName && (
+              <span className="ml-2 inline-flex -translate-y-0.5 items-center gap-1 rounded-md bg-[var(--bg-active)] px-1.5 py-0.5 align-middle text-[11px] font-medium tracking-normal text-[var(--text-muted)]">
+                <LaptopIcon size={11} />
+                {machineName}
+              </span>
+            )}
           </h1>
         )}
         {/* Children keep their width so useOverflowWrap can see the overflow and wrap. */}

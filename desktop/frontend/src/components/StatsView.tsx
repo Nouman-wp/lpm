@@ -159,7 +159,7 @@ export function StatsView() {
               <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-6 text-center">
                 <div className="text-sm font-medium">No local agent usage found</div>
                 <p className="mt-1 max-w-md text-xs leading-5 text-[var(--text-muted)]">
-                  LPM reads token metadata from Claude Code and Codex session histories. Usage
+                  lpm reads token metadata from Claude Code and Codex session histories. Usage
                   appears here after an agent runs inside a configured local project.
                 </p>
                 <div className="mt-4 flex items-center gap-4 text-[11px] text-[var(--text-muted)]">

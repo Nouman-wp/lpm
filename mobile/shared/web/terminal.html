@@ -270,6 +270,11 @@
   // Report geometry after a fit so the PTY reflows to the phone's real size.
   let lastCols = 0, lastRows = 0;
   function refit() {
+    // A page not laid out yet (a pooled view off screen) proposes xterm's 2-column
+    // minimum. Fitting to it would reflow the screen through 2 columns and resize
+    // the PTY to match; the real fit follows once the page has a size.
+    const dims = fit.proposeDimensions();
+    if (!dims || dims.cols <= 2) return;
     try { fit.fit(); } catch (e) {}
     const c = term.cols, r = term.rows;
     if (c !== lastCols || r !== lastRows) {
@@ -297,7 +302,20 @@
   // skipping a full TextDecoder pass + intermediate JS string on every chunk.
   let lastOutputAt = 0;
   window.lpmFeed = b64 => { lastOutputAt = performance.now(); term.write(b64ToBytes(b64)); };
-  window.lpmSeed = b64 => { lastOutputAt = performance.now(); term.reset(); term.write(b64ToBytes(b64)); refit(); };
+  // A replay is the output as the PTY drew it, at the PTY's width. Written at a
+  // narrower phone width, zsh's end-of-line padding wraps and leaves a stray "%"
+  // line above every prompt, so it goes in at that width and the fit reflows it.
+  // The reset is RIS in the stream rather than term.reset(), so it lands after
+  // anything still queued (an earlier seed) instead of before it. The refit runs
+  // outside the write loop: xterm stops draining writes resized from a callback.
+  let seedGen = 0;
+  window.lpmSeed = (b64, cols) => {
+    lastOutputAt = performance.now();
+    const gen = ++seedGen;
+    if (cols > 0 && cols !== term.cols) term.resize(cols, term.rows);
+    term.write('\x1bc');
+    term.write(b64ToBytes(b64), () => setTimeout(() => { if (gen === seedGen) refit(); }));
+  };
   window.lpmSetInsets = (top, bottom) => {
     document.documentElement.style.setProperty('--top-inset', top + 'px');
     document.documentElement.style.setProperty('--bottom-inset', bottom + 'px');

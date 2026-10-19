@@ -1,5 +1,6 @@
 import type { DiscoveredPeer } from "../../peer/usePeerState";
 import { Row } from "./GroupedList";
+import { groupSas } from "./groupSas";
 import { LaptopIcon } from "./LaptopIcon";
 
 // A Mac lpm found on this network. Connecting asks it for approval, so the row
@@ -27,17 +28,16 @@ export function NearbyMacRow({
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-[var(--text-primary)]">{mac.name}</p>
         {waiting ? (
-          <p className="truncate text-[11px] text-[var(--text-muted)]">
-            Waiting for approval on {mac.name}
+          <>
+            <p className="truncate text-[11px] text-[var(--text-muted)]">
+              Waiting for approval on {mac.name}
+            </p>
             {sas ? (
-              <>
-                {" · "}
-                <span className="font-mono tracking-widest text-[var(--text-secondary)]">
-                  {sas}
-                </span>
-              </>
+              <p className="mt-1 font-mono text-base font-semibold tracking-[0.2em] text-[var(--text-primary)] tabular-nums">
+                {groupSas(sas)}
+              </p>
             ) : null}
-          </p>
+          </>
         ) : (
           <p className="text-[11px] text-[var(--text-muted)]">Nearby on this network</p>
         )}

@@ -405,7 +405,7 @@ function PaneViewImpl(props: PaneViewProps) {
   // Keep the focused tab on screen. The margin clears the w-6 fade gradient at
   // each edge so the tab isn't left half-hidden under it.
   const scrollTabIntoView = useCallback(
-    (tab: HTMLElement | null) => {
+    (tab: HTMLElement | null, behavior: ScrollBehavior = "smooth") => {
       const container = scrollRef.current;
       if (!container || !tab) return;
       const containerRect = container.getBoundingClientRect();
@@ -417,7 +417,7 @@ function PaneViewImpl(props: PaneViewProps) {
         elementWidth: tabRect.width,
         margin: 28,
       });
-      if (next !== null) container.scrollTo({ left: next, behavior: "smooth" });
+      if (next !== null) container.scrollTo({ left: next, behavior });
     },
     [scrollRef],
   );
@@ -432,6 +432,18 @@ function PaneViewImpl(props: PaneViewProps) {
       scrollRef.current?.querySelector<HTMLElement>("[data-active-tab]") ?? null,
     );
   }, [scrollTabIntoView, terminalIdx, activeServiceName, pane.tabs.length, scrollNonce]);
+
+  // A strip that gets narrower (window resize, sidebar, a split, a hidden
+  // project shown again) would otherwise leave the active tab off the edge.
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() =>
+      scrollTabIntoView(container.querySelector<HTMLElement>("[data-active-tab]"), "instant"),
+    );
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [scrollRef, scrollTabIntoView]);
 
   const windowFullscreen = useIsFullscreen();
   const containerClass = fullscreen

@@ -28,12 +28,12 @@ const server: UsageMachine = {
 
 describe("statsSubtitle", () => {
   it("keeps the local copy with nothing paired", () => {
-    expect(statsSubtitle("all", [local])).toBe("Local token usage across your LPM projects");
+    expect(statsSubtitle("all", [local])).toBe("Local token usage across your lpm projects");
   });
 
   it("keeps the local copy when this computer is picked", () => {
     expect(statsSubtitle("local", [local, laptop])).toBe(
-      "Local token usage across your LPM projects",
+      "Local token usage across your lpm projects",
     );
   });
 

@@ -194,6 +194,18 @@
   --composer-inert-bg: color-mix(in srgb, var(--terminal-fg) 12%, transparent);
 }
 
+/* The same for app chrome drawn straight on the terminal background (placeholders,
+   the ended bar): a light app theme with a dark terminal theme would otherwise
+   put dark text on a dark panel. */
+.terminal-surface {
+  --text-primary: var(--terminal-fg);
+  --text-secondary: color-mix(in srgb, var(--terminal-fg) 80%, var(--terminal-bg));
+  --text-muted: color-mix(in srgb, var(--terminal-fg) 60%, var(--terminal-bg));
+  --bg-primary: var(--terminal-bg);
+  --bg-hover: var(--terminal-header-hover);
+  --border: color-mix(in srgb, var(--terminal-fg) 18%, transparent);
+}
+
 body {
   margin: 0;
   font-family:
