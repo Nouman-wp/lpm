@@ -96,7 +96,7 @@ class UsageWidgetLinesTest {
     }
 
     @Test
-    fun `a window with no figure saves without one and reads as 0%`() {
+    fun `a window with no figure saves without one and reads as 0 percent`() {
         val saved = UsageWidgetWindow.of(LimitWindow(Double.NaN, nowSeconds + hour))
         assertNull(saved.usedPercent)
         val json = Json { ignoreUnknownKeys = true }
