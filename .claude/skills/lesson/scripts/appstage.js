@@ -73,9 +73,11 @@ class AppStage extends Timing {
     this.log(`warning: ${message}`);
   }
 
-  // Page coordinates → the finished video's pixels (the window sits in `box`).
+  // Page coordinates → the finished video's pixels (the window sits in `box`;
+  // a browser's page starts `offset` below the window's top-left).
   outPoint(p) {
-    return { x: this.box.x + (p.x * this.box.w) / this.origin.w, y: this.box.y + (p.y * this.box.h) / this.origin.h };
+    const o = this.offset || { x: 0, y: 0 };
+    return { x: this.box.x + ((p.x + o.x) * this.box.w) / this.origin.w, y: this.box.y + ((p.y + o.y) * this.box.h) / this.origin.h };
   }
 
   // Push the picture in on `sel` (compose.js does the actual zoom); 1.6–2 reads
@@ -161,7 +163,8 @@ class AppStage extends Timing {
     if (opts.cue) await this.holdUntil(this.cueMs(opts.cue) - ms - (opts.pause ?? 0));
     await this.control.evaluate((x, y, ms) => window.__lc.moveTo(x, y, ms), p.x, p.y, ms);
     this.pointer = p;
-    if (this.mouse === "real") this.realMove(p.x, p.y);
+    if (this.app.input) await this.app.input.move(p.x, p.y);
+    else if (this.mouse === "real") this.realMove(p.x, p.y);
     else await this.control.evaluate((x, y) => window.__lc.hover(x, y), p.x, p.y);
     if (opts.after) await sleep(opts.after);
     return p;
@@ -223,12 +226,15 @@ class AppStage extends Timing {
   async glideTo(x, y, ms) {
     await this.control.evaluate((x2, y2, ms2) => window.__lc.moveTo(x2, y2, ms2), x, y, ms);
     this.pointer = { x, y };
-    if (this.mouse === "real") this.realMove(x, y);
+    if (this.app.input) await this.app.input.move(x, y);
+    else if (this.mouse === "real") this.realMove(x, y);
   }
 
   async pressAt(p) {
     await this.control.evaluate(() => window.__lc.tap());
-    if (this.mouse === "real") {
+    if (this.app.input) {
+      await this.app.input.click(p.x, p.y);
+    } else if (this.mouse === "real") {
       // Another app in front (a browser an agent opened full screen) would
       // take the click; the press lands only with the lesson window back.
       await this.ensureFrontmost("clicking");
@@ -264,7 +270,7 @@ class AppStage extends Timing {
   // The lesson app is brought back once, else the take stops before typing.
   // Matched by pid: the user's own lpm is also called lpm-desktop.
   async ensureFrontmost(what = "typing") {
-    if (this.mouse !== "real") return;
+    if (this.mouse !== "real" || this.app.input) return;
     const front = () => {
       try {
         const out = execFileSync("osascript", ["-e", 'tell application "System Events" to tell (first application process whose frontmost is true) to return (unix id as text) & tab & name'], { encoding: "utf8" });
@@ -289,7 +295,8 @@ class AppStage extends Timing {
     await this.ensureFrontmost();
     const parts = opts.words ? text.match(/\S+\s*|\s+/g) || [] : text;
     for (const part of parts) {
-      if (this.mouse === "real") execFileSync("cliclick", [`t:${part}`]);
+      if (this.app.input) await this.app.input.type(part);
+      else if (this.mouse === "real") execFileSync("cliclick", [`t:${part}`]);
       else await this.control.evaluate((c) => window.__lc.typeText(c), part);
       await sleep(part === " " ? 40 : 55 + Math.random() * 45);
     }
@@ -300,7 +307,9 @@ class AppStage extends Timing {
   // key press (`kp:`) never reaches the page — neither xterm nor the composer
   // saw one — so the real keyboard goes through System Events.
   async press(key) {
-    if (this.mouse === "real") {
+    if (this.app.input) {
+      await this.app.input.press(key);
+    } else if (this.mouse === "real") {
       const names = { Enter: "return", Escape: "esc", Tab: "tab", ArrowDown: "down", ArrowUp: "up", Backspace: "delete", " ": "space" };
       await this.keys(names[key] || key.toLowerCase());
     } else {
@@ -333,6 +342,7 @@ class AppStage extends Timing {
   // A native shortcut such as "cmd+shift+g", through System Events, for the
   // parts of the app that are not web content (the folder picker sheet).
   async keys(combo) {
+    if (this.app.input) return this.app.input.keys(combo);
     await this.ensureFrontmost();
     const parts = combo.toLowerCase().split("+");
     const key = parts.pop();

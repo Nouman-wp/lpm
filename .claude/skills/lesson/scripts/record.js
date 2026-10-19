@@ -167,6 +167,8 @@ function appStamp(ui) {
 // `guest` ({ env, settings, window }, lesson.json "guest") starts a second app on its
 // own data directory beside the first, standing in for another Mac, and
 // records both; beats switch between them with `s.use("guest" | "host")`.
+// `guest.browser` puts a browser there instead (browserside.js), for someone
+// without lpm.
 // `win` sizes the app window (points); `Stage` may extend AppStage with beat
 // calls of its own, and whatever its `timelineExtras()` returns is saved with
 // the timeline; `pace` tightens or loosens the gaps around the narration.
@@ -195,14 +197,18 @@ async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmD
   let stopping = false;
   try {
     const state = prepareState({ lpmDir, lesson, keepState, log });
-    const other = guest && prepareState({ lpmDir: guestDir(state.lpmDir), lesson: { ...lesson, settings: { ...lesson.settings, ...guest.settings } }, keepState, workspace: false, log });
+    const other = guest && !guest.browser && prepareState({ lpmDir: guestDir(state.lpmDir), lesson: { ...lesson, settings: { ...lesson.settings, ...guest.settings } }, keepState, workspace: false, log });
     if (beats.setup) await beats.setup({ lpmDir: state.lpmDir, workspace: state.workspace, lesson, settings: state.settings, guestDir: other?.lpmDir, guestSettings: other?.settings });
     if (!keepState) later(() => killStaleServices(state.lpmDir, log));
     if (other && !keepState) later(() => killStaleServices(other.lpmDir, log));
     app = await launchApp({ lpmDir: state.lpmDir, env: lesson.env, log });
     later(() => app.close());
     let otherApp = null;
-    if (other) {
+    if (guest?.browser) {
+      otherApp = await require("./browserside").launchBrowser({ log: (m) => log(`guest: ${m}`) });
+      later(() => otherApp.close());
+      await otherApp.control.call("window", { w: otherSize.w, h: otherSize.h });
+    } else if (other) {
       otherApp = await launchApp({ lpmDir: other.lpmDir, env: { ...lesson.env, ...guest.env }, log: (m) => log(`guest: ${m}`) });
       later(() => otherApp.close());
       await otherApp.control.call("window", { w: otherSize.w, h: otherSize.h });
@@ -241,7 +247,7 @@ async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmD
     stage = await Stage.open(app, capture, {
       framesDir, log, mouse, origin, out: OUT,
       box: layout ? layout.mac : pair ? pair.host : frameBox(OUT, FRAME, ZOOM),
-      guest: pair && { app: otherApp, origin: placed.otherOrigin, box: pair.guest },
+      guest: pair && { app: otherApp, origin: placed.otherOrigin, box: pair.guest, offset: otherApp.contentOffset && (await otherApp.contentOffset()) },
       phone: phoneSide && { driver: phoneSide.driver, press: phoneSide.press, home: phoneSide.home, back: phoneSide.back, relaunch: phoneSide.relaunch, statusBar: phoneSide.statusBar, layout },
     });
     later(() => stage.finish());
