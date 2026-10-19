@@ -26,8 +26,8 @@ function compose(device, dev, shots, rawDir, outDir, { log = console.log } = {})
     shots: shots.map((s, i) => ({
       raw: path.join(rawDir, `${s.name}.png`),
       out: path.join(outDir, `${String(i + 1).padStart(2, "0")}-${s.name}.png`),
-      title: s.title,
-      subtitle: s.subtitle,
+      title: s.captions?.[device]?.title ?? s.title,
+      subtitle: s.captions?.[device]?.subtitle ?? s.subtitle,
     })),
   };
   for (const s of spec.shots) {

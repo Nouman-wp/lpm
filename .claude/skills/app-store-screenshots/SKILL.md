@@ -43,7 +43,8 @@ raw pixels, one number or top-left/top-right/bottom-right/bottom-left, `cutout` 
 simctl leaves out as x/y/width/height in raw pixels, and for the Duo the `pose` and the
 `display` to capture) and `shots` in store order, each with
 `name`, `route`, `title` (`\n` for the line break, two lines at most), `subtitle` (one line,
-about 50 characters on iPhone), `devices`, and an optional `wait` in seconds (default 4).
+about 50 characters on iPhone), `devices`, an optional `wait` in seconds (default 4), and
+optional `captions` to give one device its own `title`/`subtitle`.
 Route steps, joined by ` > `, are pushed in order:
 `list` · `project:<name>` · `terminal:<project>/<terminalId>` · `changes:<project>` ·
 `usage` · `stats` · `activity` · `automations` · `automation:<project>/<jobId>`.
@@ -71,11 +72,15 @@ are nearly square and its camera is a circle top-right, which `compose` draws ba
 2. Give the user the full paths (`ls` the folders).
 3. Uploading to App Store Connect replaces public listing images: only with the user's OK.
    Version page → App Previews and Screenshots → "iPhone with Dynamic Island (medium display)",
-   "iPad 13\" display" and "iPhone Duo" (closed, open or both, whatever App Store Connect asks
-   for; it has no Duo upload yet as of October 2026) → Remove All, then upload in order. Duo
-   screenshots put an "optimized for iPhone Duo" badge on the product page, and from April 2027
-   Apple requires them for builds made with the iOS 27.1 SDK or later. Chrome's `file_upload` only reads
-   files this session may read: copy the PNGs into the scratchpad first.
+   "iPad 13\" display" and "iPhone Duo" → Remove All, then upload in order. The iPhone Duo slot
+   (10 at most) takes both sizes in one set, and the user wants the terminal shown closed, then
+   open: inner `projects`, outer `agent`, inner `agent` (captioned "Unfold for more room"), inner
+   `diff`, `usage`, `stats`, `automation`, then outer `project` last (the only other closed shot
+   whose caption the open set doesn't already use). Duo screenshots put an
+   "optimized for iPhone Duo" badge on the product page, and from April 2027 Apple requires them
+   for builds made with the iOS 27.1 SDK or later. Chrome's `file_upload` only reads files this
+   session may read, and at most 10 MB per call: copy the PNGs into the scratchpad first and
+   upload a set in batches.
 
 **When the app changes**
 - A screen moved or got a new look: just run `all`.

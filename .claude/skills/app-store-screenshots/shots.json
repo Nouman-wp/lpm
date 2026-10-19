@@ -23,7 +23,10 @@
       "wait": 6,
       "title": "Reply to your\nAI agents",
       "subtitle": "Read what they did and send the next prompt",
-      "devices": ["iphone", "ipad", "duo-closed", "duo-open"]
+      "devices": ["iphone", "ipad", "duo-closed", "duo-open"],
+      "captions": {
+        "duo-open": { "title": "Unfold for\nmore room", "subtitle": "More of the session on iPhone Duo's big screen" }
+      }
     },
     {
       "name": "project",
