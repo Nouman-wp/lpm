@@ -5,7 +5,6 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import cx.lpm.mobile.core.data.di.ApplicationScope
 import cx.lpm.mobile.core.data.link.LinkState
-import cx.lpm.mobile.core.data.mac.MacRecord
 import cx.lpm.mobile.core.data.projects.ProjectsState
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.session.MacSession
@@ -68,7 +67,7 @@ class AgentWidgetPublisher @Inject constructor(
         scope.launch {
             session.state
                 .filterNot { it.demoMode }
-                .map { state -> state.macs.map(::widgetId).toSet() }
+                .map { state -> state.macs.map { it.widgetId }.toSet() }
                 .distinctUntilChanged()
                 .collect { kept ->
                     withContext(Dispatchers.IO) {
@@ -101,7 +100,7 @@ internal fun liveMac(
     }
     val record = state.activeRecord ?: return null
     return AgentWidgetMac(
-        id = widgetId(record),
+        id = record.widgetId,
         rows = agentWidgetRows(
             projects.projects,
             terminals.terminalTitles,
@@ -110,6 +109,3 @@ internal fun liveMac(
         name = record.displayName
     )
 }
-
-/** The Mac's server id, or its local id for a Mac too old to send one. */
-internal fun widgetId(record: MacRecord): String = record.serverId ?: record.localId

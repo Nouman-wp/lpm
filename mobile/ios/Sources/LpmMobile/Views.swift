@@ -35,6 +35,7 @@ struct ContentView: View {
         }
         .modifier(ConnectionSheets())
         .background { AgentWidgetPublisher() }
+        .background { UsageWidgetPublisher() }
         .onOpenURL { model.openAgentWidgetLink($0) }
         .onChange(of: BuiltInTailscale.shared.status.state) { _, state in model.tailnetChanged(state) }
         .onChange(of: scenePhase) { _, phase in

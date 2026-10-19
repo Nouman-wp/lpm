@@ -432,7 +432,7 @@ final class AppModel {
         MacStore.migrateLegacyIfNeeded()
         macs = MacStore.loadRecords()
         activeMacId = MacStore.loadActiveId() ?? macs.first?.localId
-        pruneAgentWidget()
+        pruneWidgets()
         restoreSnapshot()
         guard let cred = activeCredential() else { return }
         connectBest(credential: cred)
@@ -926,7 +926,7 @@ final class AppModel {
         demoMode = false
         macs = MacStore.loadRecords()
         activeMacId = MacStore.loadActiveId() ?? macs.first?.localId
-        pruneAgentWidget()
+        pruneWidgets()
         restoreSnapshot()
         if let cred = activeCredential() { connectBest(credential: cred) }
     }
@@ -1029,7 +1029,7 @@ final class AppModel {
         macs.removeAll { gone.contains($0.localId) }
         if wasActive { activeMacId = next?.localId }
         persistMacs()
-        pruneAgentWidget()
+        pruneWidgets()
         if wasActive, let next, let cred = Keychain.load(for: linkRecord(of: next).localId) {
             restoreSnapshot()
             connectBest(credential: cred)

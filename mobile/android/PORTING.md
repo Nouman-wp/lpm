@@ -214,7 +214,7 @@ Port order is top to bottom within each milestone below. Lines are iOS sizes.
 | Notes → `:feature:notes` | NotesScreen, NotesChatView, NotesComposer, NotesMessageRow, NotesAttachmentView, NotesSearchStore, NotesStore, NotesTypes, NoteAttachmentStore | 1,736 |
 | Memory → `:feature:memory` | MemoryScreen, MemorySessionView, MemoryCreateSheet, MemoryEditorSheet, MemoryStore, MemoryTypes, ComposerMemorySheet | 1,167 |
 | Files / preview → `:feature:files`, `:core:web` | FileFetch, FilePreviewContent, FilePreviewKind, FilePreviewPlatformViews, FilePreviewSheet, MarkdownWebView, MarkdownImageLoader, MarkdownLink | 854 |
-| Usage / stats, Token activity widget → `:feature:usage` | Usage*, StatsFormat, StatsScreen, TokenActivityFeed, Shared/TokenActivityStore, Shared/UsageNumbers, Widgets/TokenActivityWidget, Widgets/TokenActivityView | 3,090 |
+| Usage / stats, Usage and Token activity widgets → `:feature:usage` | Usage*, StatsFormat, StatsScreen, TokenActivityFeed, Shared/TokenActivityStore, Shared/UsageNumbers, Shared/UsageWindows, Shared/UsageWidgetStore, Widgets/TokenActivityWidget, Widgets/TokenActivityView, Widgets/UsageWidget, Widgets/UsageWidgetView | 3,090 |
 | Claude accounts → `:feature:claudeaccount` | ClaudeAccountConsent, ClaudeAccountMenu, ClaudeAccountModel, ClaudeInUse, AppModel+ClaudeAccount | 493 |
 | Speech (read aloud) → `:feature:speech` | SpeechBar, SpeechClip, SpeechPrefs, SpeechSettingsView, SpeechStore, SpeechText | 1,171 |
 | Settings → `:feature:settings` | SettingsSheet, AppearanceMode | 112 |
@@ -238,6 +238,7 @@ Port order is top to bottom within each milestone below. Lines are iOS sizes.
 | Swift Charts (Stats) | Compose Canvas |
 | Haptics | `HapticFeedback` |
 | WidgetKit (Agents widget: app-group file the app and notification extension write, a timeline reading a minute) | Glance (`:feature:widgets`): a file in `filesDir` the live session and FCM write, redrawn by an inexact non-wakeup alarm each minute while a time is counting |
+| WidgetKit (Usage widget: app-group file the app writes while a Mac is live, with each row's windows so the widget keeps the countdowns moving; a timeline entry a minute for an hour) | Glance (`:feature:usage`): a file in `filesDir` the live session writes, redrawn by an inexact non-wakeup alarm each minute while it has rows |
 | WidgetKit (Token activity widget: app-group file the app writes after a 30-day `stats` read; its pills run an App Intent in the widget; a timeline entry at midnight) | Glance (`:feature:usage`): a file in `filesDir` the live session writes; the pills run an `ActionCallback`; `updatePeriodMillis` of an hour moves "Today" past midnight |
 | Keyboard handling (steady terminal frame, hardware Return sends, no smart punctuation) | `WindowInsets.ime`, `onPreviewKeyEvent`, `KeyboardOptions(autoCorrectEnabled = false)` |
 | Embedded Go `LpmTailnet` static lib | `gomobile bind` AAR from a new `tailnet/android` module (own `go.mod` with `replace lpm.cx/tailnet => ..` and `tool golang.org/x/mobile/cmd/gobind`, so the desktop sidecar's module stays clean). Android 11+ blocks netlink, so register a netmon interface getter fed from `ConnectivityManager` (the role `defaultroute_darwin.go` plays on iOS). The `.so` is already 16 KB page-aligned, as Play requires for native code |
@@ -265,6 +266,7 @@ widget's pills, speech recognition, biometrics.
 | UserDefaults | `activity.groupByProject`, `automation.scheduleOpen`, `automation.setupOpen`, `filePreviewMarkdownSource`, `actionPrimaryLastUsed`, `zoneOpenLayers`, `newTab.lastPick`, `macUpdate.dismissed.<id>` | UI memory |
 | Files | `Caches/project-lists/<localId>.json`; `ApplicationSupport/tailnet/` (no backup) | offline project list; tailnet state (`noBackupFilesDir`) |
 | App group `group.cx.lpm.mobile` | `token-activity.json` (Android: `filesDir`); UserDefaults `tokenActivity.range` (7, 14 or 30; missing = 7) | the Token activity widget's last 30-day read and the range its pills picked |
+| App group `group.cx.lpm.mobile` | `usage-widget.json` (Android: `filesDir`) | the Usage widget's rows from the Mac last live, and when the phone last had them |
 
 ## Demo Mode
 

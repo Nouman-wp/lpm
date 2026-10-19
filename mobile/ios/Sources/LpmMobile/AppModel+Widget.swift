@@ -24,14 +24,15 @@ extension AppModel {
         record.serverId ?? record.localId.uuidString
     }
 
-    /// Drop the widget's rows for Macs the phone no longer has: a removed Mac, or
+    /// Drop the widgets' rows for Macs the phone no longer has: a removed Mac, or
     /// the demo once it's left.
-    func pruneAgentWidget() {
+    func pruneWidgets() {
         guard !demoMode else { return }
         let kept = Set(macs.map(agentWidgetId))
         Task.detached(priority: .utility) {
             let gone = Set(AgentWidgetStore.load().map(\.id)).subtracting(kept)
             if !gone.isEmpty { AgentWidgetStore.remove(gone) }
+            UsageWidgetStore.keep(kept)
         }
     }
 

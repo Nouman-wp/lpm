@@ -5,6 +5,7 @@ import cx.lpm.mobile.core.data.mac.CredentialStore
 import cx.lpm.mobile.core.data.prefs.AppPreferences
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.push.PushStartup
+import cx.lpm.mobile.feature.usage.widget.UsageWidgetPublisher
 import cx.lpm.mobile.feature.widgets.AgentWidgetPublisher
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -25,6 +26,7 @@ class AppStartup @Inject constructor(
     private val session: MacSession,
     private val push: PushStartup,
     private val widgets: AgentWidgetPublisher,
+    private val usageWidget: UsageWidgetPublisher,
     @param:ApplicationScope private val scope: CoroutineScope
 ) {
     private val mutableReady = MutableStateFlow(false)
@@ -40,6 +42,7 @@ class AppStartup @Inject constructor(
             session.bootstrap()
             push.start()
             widgets.start()
+            usageWidget.start()
             mutableReady.value = true
         }
     }

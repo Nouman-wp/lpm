@@ -6,21 +6,6 @@ import Foundation
 // Two units live inside one object: `resetsAt` is unix SECONDS while `updatedAt`
 // is unix MILLIS. Optional fields are omitted from the payload, never null.
 
-/// One plan window. `usedPercent` is whatever the tool reported and is NOT
-/// clamped — readings above 100 occur — so clamp it for a bar and nothing else.
-/// It reads as not-a-number when the Mac sent no usable figure, which the pace
-/// math turns into an "unknown" verdict rather than a fabricated 0%.
-/// `resetsAt` is 0 when the tool did not say when the window turns over.
-struct LimitWindow {
-    let usedPercent: Double
-    let resetsAt: Int
-
-    init(_ o: [String: Any]) {
-        usedPercent = (o["usedPercent"] as? NSNumber)?.doubleValue ?? .nan
-        resetsAt = (o["resetsAt"] as? NSNumber)?.intValue ?? 0
-    }
-}
-
 /// One tool's latest reading. `accountId` is Claude-only (its per-account config
 /// directory, usually "default"); `label` is the Codex plan or the Claude model
 /// display name. `updatedAt` is unix millis, so it is read through NSNumber —

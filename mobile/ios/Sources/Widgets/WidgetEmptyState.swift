@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 /// What a widget shows with nothing to list: a badge, what's missing and what to do
 /// about it, under the widget's own header. Medium adds a button-like hint for the
@@ -83,14 +82,7 @@ struct WidgetEmptyState<Header: View>: View {
 }
 
 private extension Color {
-    static let widgetActionFill = dynamic(light: (230, 238, 253), dark: (29, 42, 69))
-    static let widgetActionInk = dynamic(light: (29, 78, 216), dark: (138, 184, 255))
-    static let widgetQuietFill = dynamic(light: (240, 240, 243), dark: (44, 44, 46))
-
-    static func dynamic(light: (CGFloat, CGFloat, CGFloat), dark: (CGFloat, CGFloat, CGFloat)) -> Color {
-        Color(UIColor { traits in
-            let (r, g, b) = traits.userInterfaceStyle == .dark ? dark : light
-            return UIColor(red: r / 255, green: g / 255, blue: b / 255, alpha: 1)
-        })
-    }
+    static let widgetActionFill = widget(light: (230, 238, 253), dark: (29, 42, 69))
+    static let widgetActionInk = widget(light: (29, 78, 216), dark: (138, 184, 255))
+    static let widgetQuietFill = widget(light: (240, 240, 243), dark: (44, 44, 46))
 }

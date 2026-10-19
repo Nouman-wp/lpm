@@ -37,6 +37,7 @@ import androidx.glance.unit.ColorProvider
 import cx.lpm.mobile.core.data.push.NotificationOpenTarget
 import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.theme.DarkLpmColors
+import cx.lpm.mobile.core.designsystem.widget.WidgetText
 import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.model.AgentWidgetItem
 import cx.lpm.mobile.core.model.AgentWidgetMac

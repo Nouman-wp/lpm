@@ -108,6 +108,15 @@
     <string name="rows_new_sessions_always">New sessions in %1$s always use it</string>
     <string name="rows_no_window">No usage window reported yet.</string>
 
+    <!-- Usage widget -->
+    <string name="usage_widget_title">Usage</string>
+    <string name="usage_widget_description">How much of each agent\'s plan is used, and when it resets.</string>
+    <string name="usage_widget_as_of">as of %1$s</string>
+    <string name="usage_widget_empty_title">No usage yet</string>
+    <string name="usage_widget_empty_body">Open lpm while your Mac is connected to load your plan usage.</string>
+    <string name="usage_widget_empty_body_small">Open lpm to load it.</string>
+    <string name="usage_widget_empty_action">Open lpm</string>
+
     <!-- Token activity widget -->
     <string name="token_activity_title">Token activity</string>
     <string name="token_activity_description">Tokens and estimated cost over the last 7, 14 or 30 days.</string>

@@ -31,16 +31,32 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
 /** Which list the usage rows sit under: the projects list, or a project's screen. */
 data class UsageRowsKey(val session: SessionKey = SessionKey.Live, val project: String? = null)
 
+@Serializable
 enum class UsageAccountMark {
     /** New sessions use this account. */
+    @SerialName("current")
     Current,
 
     /** The rest of the pool, which switching can move to. */
+    @SerialName("standby")
     Standby
+}
+
+/** The row's tag: whether new sessions use its account, or it's in the pool they can switch to. */
+internal fun usageAccountMark(row: UsageRow, inUse: ClaudeInUse?): UsageAccountMark? {
+    val account = row.account ?: return null
+    inUse ?: return null
+    return when (account) {
+        inUse.current -> UsageAccountMark.Current
+        in inUse.standby -> UsageAccountMark.Standby
+        else -> null
+    }
 }
 
 data class UsageRowItem(val row: UsageRow, val mark: UsageAccountMark?)
@@ -100,23 +116,13 @@ class UsageRowsViewModel @AssistedInject constructor(
         // As on the desktop, a lone account needs no tag to tell it apart.
         val tagged = rows.count { it.account != null } >= 2
         UsageRowsUiState(
-            rows = rows.map { UsageRowItem(it, if (tagged) mark(it, inUse) else null) },
+            rows = rows.map { UsageRowItem(it, if (tagged) usageAccountMark(it, inUse) else null) },
             inUse = inUse,
             switches = project != null && accounts?.hasAdded == true,
             now = now.toDouble(),
             macNow = macNow,
             shown = key.project?.let { it in terminals.terminals } ?: projects.projectsLoaded
         )
-    }
-
-    private fun mark(row: UsageRow, inUse: ClaudeInUse?): UsageAccountMark? {
-        val account = row.account ?: return null
-        inUse ?: return null
-        return when (account) {
-            inUse.current -> UsageAccountMark.Current
-            in inUse.standby -> UsageAccountMark.Standby
-            else -> null
-        }
     }
 
     /**

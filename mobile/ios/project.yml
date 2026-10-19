@@ -167,8 +167,8 @@ targets:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
 
-  # Home Screen widgets: the Agents list, read from the app group the app and the
-  # notification extension write.
+  # Home Screen widgets: Agents, Usage and Token activity, read from the app group
+  # the app and the notification extension write.
   LpmMobileWidgets:
     type: app-extension
     platform: iOS

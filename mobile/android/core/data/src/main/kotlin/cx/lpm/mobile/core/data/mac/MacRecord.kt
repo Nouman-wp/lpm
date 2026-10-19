@@ -29,6 +29,9 @@ data class MacRecord(
 ) {
     val id: String get() = localId
 
+    /** What the widgets file this Mac's rows under: its server id, or its local id for a Mac too old to send one. */
+    val widgetId: String get() = serverId ?: localId
+
     val isLinuxHost: Boolean get() = platform == "linux"
 
     /** The user's custom name if set, otherwise the learned name (maybe an address). */

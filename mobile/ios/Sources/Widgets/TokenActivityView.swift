@@ -175,12 +175,6 @@ private struct DashedLine: Shape {
 }
 
 private extension Color {
-    static let claude = Color(red: 217 / 255, green: 119 / 255, blue: 87 / 255)
-    static let codex = Color(red: 16 / 255, green: 163 / 255, blue: 127 / 255)
     /// The cost figure's blue, darker on a light widget so it stays readable.
-    static let tokenCost = Color(UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 125 / 255, green: 183 / 255, blue: 1, alpha: 1)
-            : UIColor(red: 31 / 255, green: 111 / 255, blue: 209 / 255, alpha: 1)
-    })
+    static let tokenCost = Color.widget(light: (31, 111, 209), dark: (125, 183, 255))
 }

@@ -5,6 +5,7 @@ import WidgetKit
 struct LpmWidgets: WidgetBundle {
     var body: some Widget {
         AgentListWidget()
+        UsageWidget()
         TokenActivityWidget()
     }
 }
