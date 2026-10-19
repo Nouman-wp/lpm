@@ -27,9 +27,9 @@
         <item quantity="one">%1$d problem</item>
         <item quantity="other">%1$d problems</item>
     </plurals>
-    <plurals name="widget_agents_working">
-        <item quantity="one">%1$d working</item>
-        <item quantity="other">%1$d working</item>
+    <plurals name="widget_agents_running">
+        <item quantity="one">%1$d running</item>
+        <item quantity="other">%1$d running</item>
     </plurals>
     <plurals name="widget_agents_done">
         <item quantity="one">%1$d done</item>

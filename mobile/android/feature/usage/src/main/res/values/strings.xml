@@ -54,7 +54,10 @@
     <string name="stats_machines_all_macs">All Macs</string>
     <string name="stats_machines_all_computers">All computers</string>
     <string name="stats_machines_added">Added together</string>
-    <string name="stats_machines_some_added">%1$d of %2$d added together</string>
+    <plurals name="stats_machines_some_added">
+        <item quantity="one">%1$d of %2$d added together</item>
+        <item quantity="other">%1$d of %2$d added together</item>
+    </plurals>
     <string name="stats_machine_online">Online</string>
     <string name="stats_machine_offline">Offline</string>
     <string name="stats_machine_failed">Couldn\'t read its stats</string>

@@ -3,9 +3,13 @@ import WidgetKit
 
 /// The Agents widget: a header, then up to four agent tabs, most urgent first.
 /// Small opens the top agent's terminal; medium opens whichever row is tapped.
+/// It's a dark card in light mode too, so the state colors read the same on any
+/// Home Screen.
 struct AgentListView: View {
     @Environment(\.widgetFamily) private var family
     let entry: AgentListEntry
+
+    private static let card = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
 
     private var small: Bool { family == .systemSmall }
     private var now: Int { Int(entry.date.timeIntervalSince1970 * 1000) }
@@ -24,13 +28,13 @@ struct AgentListView: View {
                             row(item)
                         }
                     }
-                    Spacer(minLength: 0)
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .environment(\.colorScheme, .dark)
         .widgetURL(small ? shown.first.flatMap(link) : nil)
-        .containerBackground(.background, for: .widget)
+        .containerBackground(Self.card, for: .widget)
     }
 
     private var header: some View {
@@ -48,7 +52,7 @@ struct AgentListView: View {
         }
     }
 
-    /// "3 need you · 4 working · 3 done", each count in its state's color.
+    /// "3 need you · 4 running · 3 done", each count in its state's color.
     private var summary: Text {
         let count = { (state: AgentState) in entry.items.filter { $0.row.state == state }.count }
         var parts: [Text] = []
@@ -60,7 +64,7 @@ struct AgentListView: View {
             parts.append(Text(words).foregroundStyle(AgentState.error.tint))
         }
         if count(.working) > 0 {
-            parts.append(Text("\(count(.working)) working").foregroundStyle(AgentSweep.still))
+            parts.append(Text("\(count(.working)) running").foregroundStyle(AgentSweep.still))
         }
         if count(.done) > 0 {
             parts.append(Text("\(count(.done)) done").foregroundStyle(AgentState.done.tint))
@@ -112,7 +116,8 @@ private struct AgentWidgetLine: View {
             }
             .fixedSize()
         }
-        .frame(height: small ? 24 : 26)
+        // As tall as the design where four rows fit, shorter on a smaller widget.
+        .frame(maxHeight: small ? 26 : 28)
     }
 
     /// A bell while it waits on you, an alert for a problem, a check once done.
@@ -127,7 +132,7 @@ private struct AgentWidgetLine: View {
         }
         if let symbol {
             Image(systemName: symbol)
-                .font(.system(size: small ? 10 : 12, weight: .semibold))
+                .font(.system(size: small ? 11 : 13, weight: .semibold))
                 .foregroundStyle(row.state.tint)
         }
     }

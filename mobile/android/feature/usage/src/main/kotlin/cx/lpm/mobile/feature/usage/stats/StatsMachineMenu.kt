@@ -153,7 +153,12 @@ private fun allMachinesDetail(machines: List<UsageMachine>): String {
     val what = if (counted.size == machines.size) {
         stringResource(R.string.stats_machines_added)
     } else {
-        stringResource(R.string.stats_machines_some_added, counted.size, machines.size)
+        pluralStringResource(
+            R.plurals.stats_machines_some_added,
+            counted.size,
+            counted.size,
+            machines.size
+        )
     }
     val totals = counted.mapNotNull { it.totalTokens }
     if (totals.size != counted.size) return what

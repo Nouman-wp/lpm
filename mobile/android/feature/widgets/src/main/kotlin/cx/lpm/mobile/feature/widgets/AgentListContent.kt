@@ -19,7 +19,6 @@ import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.appWidgetBackground
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.background
-import androidx.glance.color.ColorProvider
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
@@ -38,7 +37,6 @@ import androidx.glance.unit.ColorProvider
 import cx.lpm.mobile.core.data.push.NotificationOpenTarget
 import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.theme.DarkLpmColors
-import cx.lpm.mobile.core.designsystem.theme.LightLpmColors
 import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.model.AgentWidgetItem
 import cx.lpm.mobile.core.model.AgentWidgetMac
@@ -46,21 +44,28 @@ import cx.lpm.mobile.core.model.agentWidgetItems
 import cx.lpm.mobile.core.push.PushNotifier
 
 private const val PADDING_DP = 16f
+private const val HEADER_DP = 18f
+private const val MIN_ROW_DP = 18f
+private const val RULE_DP = 0.5f
 private const val MEDIUM_MIN_WIDTH_DP = 200f
 private const val SHOWN = 4
 
 /**
  * The Agents widget: a header, then up to four agent tabs, most urgent first. Small
  * opens the top agent's terminal; medium opens whichever row is tapped. With no
- * agent to list, either size opens the app.
+ * agent to list, either size opens the app. It's a dark card in light mode too, so
+ * the state colors read the same on any home screen.
  */
 @Composable
 internal fun AgentListContent(macs: List<AgentWidgetMac>, now: Long) {
     val context = LocalContext.current
-    val small = LocalSize.current.width.value < MEDIUM_MIN_WIDTH_DP
+    val size = LocalSize.current
+    val small = size.width.value < MEDIUM_MIN_WIDTH_DP
     val items = agentWidgetItems(macs)
     val shown = items.take(SHOWN)
-    val rowWidth = LocalSize.current.width.value - 2 * PADDING_DP
+    val rowWidth = size.width.value - 2 * PADDING_DP
+    val gap = if (small) 8f else 6f
+    val rowHeight = rowHeight(size.height.value - 2 * PADDING_DP - HEADER_DP - gap, small)
     val open = if (small || items.isEmpty()) open(context, shown.firstOrNull()) else null
     Column(
         modifier = GlanceModifier
@@ -81,18 +86,34 @@ internal fun AgentListContent(macs: List<AgentWidgetMac>, now: Long) {
             AgentListEmpty(macs, now, small)
         } else {
             Header(items, small)
-            Spacer(GlanceModifier.height(if (small) 8.dp else 6.dp))
+            Spacer(GlanceModifier.height(gap.dp))
             shown.forEachIndexed { index, item ->
                 if (!small && index > 0) {
                     Box(
-                        GlanceModifier.fillMaxWidth().height(0.5.dp).background(Palette.separator)
+                        GlanceModifier
+                            .fillMaxWidth()
+                            .height(RULE_DP.dp)
+                            .background(Palette.separator)
                     ) {
                     }
                 }
-                AgentLine(item, now, small, rowWidth, if (small) null else open(context, item))
+                AgentLine(
+                    item,
+                    now,
+                    small,
+                    rowWidth,
+                    rowHeight,
+                    if (small) null else open(context, item)
+                )
             }
         }
     }
+}
+
+/** As tall as the design where four rows fit, shorter on a smaller widget. */
+private fun rowHeight(listDp: Float, small: Boolean): Float {
+    val rules = if (small) 0f else (SHOWN - 1) * RULE_DP
+    return ((listDp - rules) / SHOWN).coerceIn(MIN_ROW_DP, if (small) 26f else 28f)
 }
 
 @Composable
@@ -119,7 +140,7 @@ private fun Header(items: List<AgentWidgetItem>, small: Boolean) {
     }
 }
 
-/** "3 need you · 4 working · 3 done", each count in its state's color. */
+/** "3 need you · 4 running · 3 done", each count in its state's color. */
 @Composable
 private fun Summary(items: List<AgentWidgetItem>) {
     val context = LocalContext.current
@@ -134,7 +155,7 @@ private fun Summary(items: List<AgentWidgetItem>) {
                 AgentState.Error
         },
         count(AgentState.Working).takeIf { it > 0 }?.let {
-            context.resources.getQuantityString(R.plurals.widget_agents_working, it, it) to
+            context.resources.getQuantityString(R.plurals.widget_agents_running, it, it) to
                 AgentState.Working
         },
         count(AgentState.Done).takeIf { it > 0 }?.let {
@@ -166,6 +187,7 @@ private fun AgentLine(
     now: Long,
     small: Boolean,
     widthDp: Float,
+    heightDp: Float,
     open: Action?
 ) {
     val context = LocalContext.current
@@ -185,7 +207,7 @@ private fun AgentLine(
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .height(if (small) 24.dp else 26.dp)
+            .height(heightDp.dp)
             .then(open?.let { GlanceModifier.clickable(it) } ?: GlanceModifier),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -239,7 +261,7 @@ private fun Mark(state: AgentState, small: Boolean) {
         AgentState.Done -> DesignR.drawable.ic_check
         AgentState.Working, AgentState.Idle -> return
     }
-    val size = if (small) 12.dp else 14.dp
+    val size = if (small) 13.dp else 15.dp
     Image(
         provider = ImageProvider(icon),
         contentDescription = null,
@@ -284,18 +306,13 @@ private val AgentState.tone: ColorProvider
         AgentState.Idle -> Palette.label
     }
 
-/** The app's palette, light and dark; the widget sits on the system background, as on iOS. */
+/** The app's dark palette in either theme, on iOS's dark widget card. */
 internal object Palette {
-    val background =
-        ColorProvider(
-            day = LightLpmColors.systemBackground,
-            night = DarkLpmColors.systemBackground
-        )
-    val label = ColorProvider(day = LightLpmColors.label, night = DarkLpmColors.label)
-    val secondary =
-        ColorProvider(day = LightLpmColors.secondaryLabel, night = DarkLpmColors.secondaryLabel)
-    val separator = ColorProvider(day = LightLpmColors.separator, night = DarkLpmColors.separator)
-    val orange = ColorProvider(day = LightLpmColors.orange, night = DarkLpmColors.orange)
-    val red = ColorProvider(day = LightLpmColors.red, night = DarkLpmColors.red)
-    val blue = ColorProvider(day = LightLpmColors.blue, night = DarkLpmColors.blue)
+    val background = ColorProvider(DarkLpmColors.secondarySystemBackground)
+    val label = ColorProvider(DarkLpmColors.label)
+    val secondary = ColorProvider(DarkLpmColors.secondaryLabel)
+    val separator = ColorProvider(DarkLpmColors.separator)
+    val orange = ColorProvider(DarkLpmColors.orange)
+    val red = ColorProvider(DarkLpmColors.red)
+    val blue = ColorProvider(DarkLpmColors.blue)
 }

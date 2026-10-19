@@ -56,7 +56,7 @@ class AgentListContentTest {
 
             onNode(hasText("Agents")).assertExists()
             onNode(hasText("1 need you")).assertExists()
-            onNode(hasContentDescription("1 working")).assertExists()
+            onNode(hasContentDescription("1 running")).assertExists()
             onNode(hasText("1 done")).assertExists()
             onNode(hasText("Migrate cart store")).assertExists()
             onNode(hasText("10m")).assertExists()

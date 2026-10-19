@@ -37,7 +37,8 @@ internal fun AgentListEmpty(macs: List<AgentWidgetMac>, now: Long, small: Boolea
                 context.getString(R.string.widget_agents_pair_body)
             },
             small = small,
-            hint = context.getString(R.string.widget_agents_pair_action)
+            hint = context.getString(R.string.widget_agents_pair_action),
+            dark = true
         ) {
             Header(null)
         }
@@ -62,7 +63,8 @@ internal fun AgentListEmpty(macs: List<AgentWidgetMac>, now: Long, small: Boolea
                 context.getString(R.string.widget_agents_quiet_body)
             },
             small = small,
-            footnote = macs.mapNotNull { it.seenAt }.maxOrNull()?.let { updated(context, it, now) }
+            footnote = macs.mapNotNull { it.seenAt }.maxOrNull()?.let { updated(context, it, now) },
+            dark = true
         ) {
             Header(if (small) null else label)
         }
