@@ -76,18 +76,31 @@ class CipherState {
   }
 }
 
-// Four digits both ends derive from the handshake; the host compares them with
-// the ones this page shows before letting the guest in.
-function matchCode(hash) {
+// The same list as MATCH_EMOJI in sharenoise.rs, in the same order.
+const MATCH_EMOJI = [
+  "🐶", "🐱", "🦁", "🐎", "🦄", "🐷", "🐘", "🐰", "🐼", "🐓", "🐧", "🐢", "🐟", "🐙", "🦋", "🌷",
+  "🌳", "🌵", "🍄", "🌏", "🌙", "🌈", "🔥", "🍌", "🍎", "🍓", "🌽", "🍕", "🎂", "💎", "😀", "🤖",
+  "🎩", "👓", "🔧", "🎅", "👍", "🎈", "⌛", "⏰", "🎁", "💡", "📕", "🍩", "📎", "🧲", "🔒", "🔑",
+  "🔨", "📷", "🏁", "🚂", "🚲", "🚁", "🚀", "🏆", "⚽", "🎸", "🎺", "🔔", "⚓", "🎧", "📁", "📌",
+];
+
+// What both ends derive from the handshake, for the host to compare with what this
+// page shows before letting the guest in: four emoji, or four digits on a host
+// running lpm 0.7.26.
+function matchCodes(hash) {
+  const bits = (hash[0] << 16) | (hash[1] << 8) | hash[2];
   const n = new DataView(hash.buffer, hash.byteOffset).getUint32(0) % 10000;
-  return String(n).padStart(4, "0");
+  return {
+    emoji: [18, 12, 6, 0].map((shift) => MATCH_EMOJI[(bits >> shift) & 63]).join(" "),
+    digits: String(n).padStart(4, "0"),
+  };
 }
 
 export class Session {
-  constructor(send, receive, code) {
+  constructor(send, receive, codes) {
     this.send = send;
     this.receive = receive;
-    this.code = code;
+    this.codes = codes;
     this.partial = [];
     this.size = 0;
   }
@@ -159,7 +172,7 @@ export async function initiate(hostKey, room, ephemeral = null) {
       await cipher.decrypt(h, tail);
       await mixHash(tail);
       const [send, receive] = await hkdf(ck, new Uint8Array(0));
-      return new Session(await CipherState.of(send), await CipherState.of(receive), matchCode(h));
+      return new Session(await CipherState.of(send), await CipherState.of(receive), matchCodes(h));
     },
   };
 }

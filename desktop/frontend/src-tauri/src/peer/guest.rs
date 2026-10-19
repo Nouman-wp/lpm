@@ -92,10 +92,13 @@ pub(super) fn join<L: GuestLink>(link: &mut L, app: &AppHandle, v: &Value) {
             return;
         }
     };
-    let _ = send(
-        link,
-        json!({ "t": "shareJoinPending", "hostName": machine_name() }),
-    );
+    let mut pending = json!({ "t": "shareJoinPending", "hostName": machine_name() });
+    // Unless told this machine shows emoji, a browser shows the four digits lpm
+    // 0.7.26 did.
+    if link.match_code().is_some() {
+        pending["match"] = json!("emoji");
+    }
+    let _ = send(link, pending);
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.show();
         let _ = win.set_focus();

@@ -32,8 +32,8 @@ export function connect(invite, { onFrame, onClose }) {
     const timer = setTimeout(() => ws.close(4408, "timeout"), HANDSHAKE_MS);
 
     const channel = {
-      get code() {
-        return session.code;
+      get codes() {
+        return session.codes;
       },
       send(frame) {
         outgoing = outgoing

@@ -28,7 +28,7 @@ test("the browser's handshake and frames match the host's bytes", async () => {
   assert.equal(toHex(start.first), vector.first);
 
   const session = await start.finish(hex(vector.reply));
-  assert.equal(session.code, vector.code);
+  assert.deepEqual(session.codes, { emoji: vector.emoji, digits: vector.digits });
 
   const sealed = await session.seal(vector.guestFrame);
   assert.equal(sealed.length, 1);

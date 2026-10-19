@@ -52,6 +52,7 @@ let retries = 0;
 let terminalId = "";
 let canType = false;
 let hostName = "";
+let label = "";
 let end = null;
 let resyncing = false;
 let reqId = 0;
@@ -61,12 +62,12 @@ function show(id) {
   $("live").hidden = id !== "live";
 }
 
-function panel({ title, text = "", code = "", form = false, again = false }) {
+function panel({ title, text = "", check = "", form = false, again = false }) {
   show("panel");
   $("panel-title").textContent = title;
   $("panel-text").textContent = text;
-  $("code").hidden = !code;
-  $("code").textContent = code;
+  $("check").hidden = !check;
+  $("check-code").textContent = check;
   $("join-form").hidden = !form;
   $("again").hidden = !again;
   $("leave").hidden = true;
@@ -113,8 +114,8 @@ async function join(name) {
       if (f.t === "shareJoinPending") {
         panel({
           title: `Waiting for ${f.hostName || "them"} to let you in`,
-          text: "They'll see these four digits too. If the ones on their screen are different, don't continue.",
-          code: ch.code,
+          text: "They'll see your request on their screen.",
+          check: f.match === "emoji" ? ch.codes.emoji : ch.codes.digits,
         });
       } else if (f.t === "shareJoined") {
         admitted = { guestId: f.guestId, token: f.token };
@@ -135,7 +136,7 @@ async function join(name) {
     return null;
   });
   if (!ch) return;
-  panel({ title: "Asking to join…", code: ch.code });
+  panel({ title: "Asking to join…" });
   ch.send({ t: "shareJoin", secret: invite.secret, name });
 }
 
@@ -144,6 +145,9 @@ async function join(name) {
 function ensureView() {
   if (view) return view;
   view = createTerminal($("term"), (data) => type(data));
+  // The composer lines up with the terminal it types into.
+  const term = $("term");
+  new ResizeObserver(() => $("live").style.setProperty("--term-width", `${term.offsetWidth}px`)).observe(term);
   return view;
 }
 
@@ -152,13 +156,23 @@ function type(data) {
   channel.send({ t: "invoke", reqId: ++reqId, cmd: "write_terminal", args: { id: terminalId, data } });
 }
 
+// While the host keeps the tab view only, the composer stays in place, inert, so
+// the terminal above doesn't move when typing is switched on.
 function setCanType(value) {
   canType = value;
   view?.setCanType(value);
-  $("prompt").disabled = !value;
-  $("send").disabled = !value;
-  for (const b of $("keys").querySelectorAll("button")) b.disabled = !value;
-  $("prompt").placeholder = value ? "Message" : `${hostName || "The host"} hasn't let you type`;
+  $("box").inert = !value;
+  $("locked").hidden = value;
+  $("locked").firstElementChild.textContent = `${hostName || "The host"} hasn't let you type`;
+  syncComposer();
+}
+
+function syncComposer() {
+  const prompt = $("prompt");
+  prompt.placeholder = `Send to ${label || "this tab"}…`;
+  prompt.style.height = "auto";
+  prompt.style.height = `${prompt.scrollHeight}px`;
+  $("send").disabled = !canType || !prompt.value.trim();
 }
 
 function subscribe() {
@@ -187,8 +201,9 @@ function onLive(f) {
       retries = 0;
       hostName = f.hostName || "";
       terminalId = f.share?.terminalId ?? "";
-      $("title").textContent = [f.share?.label, hostName && `from ${hostName}`].filter(Boolean).join(" ");
-      document.title = `${f.share?.label || "Shared tab"} · lpm`;
+      label = f.share?.label ?? "";
+      $("title").textContent = [label, hostName && `from ${hostName}`].filter(Boolean).join(" ");
+      document.title = `${label || "Shared tab"} · lpm`;
       show("live");
       $("leave").hidden = false;
       notice("");
@@ -289,7 +304,10 @@ $("composer").addEventListener("submit", (e) => {
   if (!text.trim() || !canType || !view) return;
   view.deliver(text, type);
   $("prompt").value = "";
+  syncComposer();
 });
+
+$("prompt").addEventListener("input", syncComposer);
 
 $("prompt").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {

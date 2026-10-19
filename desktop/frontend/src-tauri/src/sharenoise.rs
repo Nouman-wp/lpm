@@ -31,12 +31,23 @@ pub(crate) fn keypair() -> Keypair {
         .expect("x25519 keypair")
 }
 
-/// Four digits both ends derive from the handshake. The host compares the ones on
-/// its screen with the guest's before letting them in, so someone else holding a
-/// forwarded invite can't pass for the person it was sent to.
+// Distinct at a glance, easy to name aloud, and each one code point every platform
+// draws as emoji. Sixty-four, so each carries six bits of the handshake hash.
+const MATCH_EMOJI: [&str; 64] = [
+    "🐶", "🐱", "🦁", "🐎", "🦄", "🐷", "🐘", "🐰", "🐼", "🐓", "🐧", "🐢", "🐟", "🐙", "🦋", "🌷",
+    "🌳", "🌵", "🍄", "🌏", "🌙", "🌈", "🔥", "🍌", "🍎", "🍓", "🌽", "🍕", "🎂", "💎", "😀", "🤖",
+    "🎩", "👓", "🔧", "🎅", "👍", "🎈", "⌛", "⏰", "🎁", "💡", "📕", "🍩", "📎", "🧲", "🔒", "🔑",
+    "🔨", "📷", "🏁", "🚂", "🚲", "🚁", "🚀", "🏆", "⚽", "🎸", "🎺", "🔔", "⚓", "🎧", "📁", "📌",
+];
+
+/// Four emoji both ends derive from the handshake. The host can ask which ones the
+/// guest sees before letting them in, so someone else holding a forwarded invite
+/// can't pass for the person it was sent to.
 fn match_code(hash: &[u8]) -> String {
-    let n = u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]]) % 10_000;
-    format!("{n:04}")
+    let bits = u32::from_be_bytes([0, hash[0], hash[1], hash[2]]);
+    [18, 12, 6, 0]
+        .map(|shift| MATCH_EMOJI[(bits >> shift) as usize & 63])
+        .join(" ")
 }
 
 pub(crate) struct Accepted {
@@ -180,7 +191,7 @@ mod tests {
         let host = keypair();
         let (mut guest, mut accepted) = guest_handshake(&host.public, ROOM, &host.private).unwrap();
         assert_eq!(guest.code, accepted.code);
-        assert_eq!(accepted.code.len(), 4);
+        assert_eq!(accepted.code.split(' ').count(), 4);
 
         let hello = guest_seal(&mut guest, 1, br#"{"t":"ping"}"#);
         assert_eq!(
@@ -305,11 +316,11 @@ mod tests {
         let got = serde_json::json!({
             "first": hex::encode(&first),
             "reply": hex::encode(&reply),
-            "code": code,
+            "emoji": code,
             "guestSealed": hex::encode(&guest_sealed),
             "hostSealed": hex::encode(&host_sealed),
         });
-        for k in ["first", "reply", "code", "guestSealed", "hostSealed"] {
+        for k in ["first", "reply", "emoji", "guestSealed", "hostSealed"] {
             assert_eq!(got[k], vector[k], "{k}");
         }
         assert_eq!(

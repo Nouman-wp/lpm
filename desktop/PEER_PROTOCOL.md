@@ -836,7 +836,10 @@ dialog, filled in. The dialog accepts all three forms.
 **Join** (first frame, TLS only):
 - guest → `{ "t": "shareJoin", "secret", "name", "platform" }`
 - host → `{ "t": "shareJoinPending", "hostName" }`, then waits up to 120 s for
-  someone at the host to answer (at most three askers wait per share)
+  someone at the host to answer (at most three askers wait per share). To a
+  browser it adds `"match": "emoji"`: the page shows the handshake's four emoji
+  (`sharenoise.rs`), or four digits for a host on lpm 0.7.26, which sent no
+  `match`
 - host → `{ "t": "shareJoined", "guestId", "token", "hostName" }`, or `error`
   (unknown/ended invite, declined, timed out), and closes.
 

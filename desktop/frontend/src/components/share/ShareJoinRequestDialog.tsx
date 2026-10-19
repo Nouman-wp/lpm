@@ -57,15 +57,12 @@ export function ShareJoinRequestDialog() {
         {canType ? " and can type in it." : ". They can't type in it until you allow it."}
       </p>
       {request.code ? (
-        <>
-          <p className="mt-4 text-center font-mono text-3xl font-semibold tracking-[0.3em] text-[var(--text-primary)]">
-            {request.code}
+        <div className="mt-4 flex items-center gap-3 rounded-xl bg-[var(--bg-secondary)] px-3 py-2.5">
+          <span className="shrink-0 text-lg leading-none tracking-wider">{request.code}</span>
+          <p className="text-xs text-[var(--text-muted)]">
+            Joining from a browser. Not sure it's them? Ask which emoji they see.
           </p>
-          <p className="mt-3 text-xs text-[var(--text-muted)]">
-            They're joining from a browser. Ask them which four digits they see, and
-            only let them in if they match.
-          </p>
-        </>
+        </div>
       ) : (
         <p className="mt-3 text-xs text-[var(--text-muted)]">
           Only let them in if you sent them the invite.

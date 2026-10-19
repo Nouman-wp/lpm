@@ -23,7 +23,10 @@
         <p class="eyebrow">Shared tab</p>
         <h1 id="panel-title">Loading…</h1>
         <p id="panel-text" class="lead"></p>
-        <p id="code" class="code" hidden></p>
+        <div id="check" class="check" hidden>
+          <p id="check-code" class="check-code"></p>
+          <p class="check-text">They see the same, if they want to check it's you.</p>
+        </div>
         <form id="join-form" class="join" hidden>
           <label for="name">Your name</label>
           <input id="name" maxlength="64" autocomplete="name" required />
@@ -38,19 +41,34 @@
 
       <section id="live" class="live" hidden>
         <div class="frame"><div id="term"></div></div>
-        <p id="notice" class="notice" hidden></p>
-        <div id="keys" class="keys">
-          <button type="button" data-key="esc">Esc</button>
-          <button type="button" data-key="up" aria-label="Up">↑</button>
-          <button type="button" data-key="down" aria-label="Down">↓</button>
-          <button type="button" data-key="tab">Tab</button>
-          <button type="button" data-key="enter" aria-label="Return">⏎</button>
-          <button type="button" data-key="interrupt">Ctrl C</button>
+        <div class="dock">
+          <p id="notice" class="notice" hidden></p>
+          <form id="composer" class="composer">
+            <div id="box" class="box">
+              <textarea id="prompt" rows="1" spellcheck="false" autocomplete="off" enterkeyhint="send"></textarea>
+              <div class="tools">
+                <div id="keys" class="keys">
+                  <button type="button" data-key="esc" title="Escape">Esc</button>
+                  <button type="button" data-key="up" aria-label="Up" title="Up">
+                    <svg viewBox="0 0 24 24"><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></svg>
+                  </button>
+                  <button type="button" data-key="down" aria-label="Down" title="Down">
+                    <svg viewBox="0 0 24 24"><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></svg>
+                  </button>
+                  <button type="button" data-key="tab" title="Tab">Tab</button>
+                  <button type="button" data-key="enter" aria-label="Return" title="Return">
+                    <svg viewBox="0 0 24 24"><path d="m9 10-5 5 5 5" /><path d="M20 4v7a4 4 0 0 1-4 4H4" /></svg>
+                  </button>
+                  <button type="button" data-key="interrupt" title="Interrupt">Ctrl C</button>
+                </div>
+                <button id="send" class="send" type="submit" aria-label="Send" title="Send · Enter" disabled>
+                  <svg viewBox="0 0 24 24"><path d="M22 2 11 13" /><path d="m22 2-7 20-4-9-9-4z" /></svg>
+                </button>
+              </div>
+            </div>
+            <p id="locked" class="locked" hidden><span></span></p>
+          </form>
         </div>
-        <form id="composer" class="composer">
-          <textarea id="prompt" rows="2" placeholder="Message" disabled></textarea>
-          <button id="send" type="submit" disabled>Send</button>
-        </form>
       </section>
     </main>
   </body>

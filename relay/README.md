@@ -15,8 +15,8 @@ guest joins from, served at `https://lpm-share-relay.lpm-share-relay.workers.dev
   messages between them, tagged with an 8-byte id per guest.
 - Each guest runs a Noise NK handshake with the host (`public/noise.js` and
   `sharenoise.rs`; `test/noise-vector.json` pins both to the same bytes). The
-  relay only ever sees ciphertext. Both ends show four digits derived from the
-  handshake, and the host compares them before letting the guest in.
+  relay only ever sees ciphertext. Both ends show four emoji derived from the
+  handshake, which the host can ask about before letting the guest in.
 - After that the guest speaks the same protocol as a guest in lpm, under the
   same rules (`peer/guest.rs`): one terminal, view only until the host allows
   typing.
