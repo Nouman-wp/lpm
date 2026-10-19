@@ -43,6 +43,9 @@ async function launchBrowser({ url = "about:blank", log = () => {} } = {}) {
     headless: false,
     viewport: null,
     userAgent: SAFARI,
+    // Pages follow the Mac's appearance, as the lesson app does (Playwright
+    // would otherwise force light).
+    colorScheme: null,
     // The relay page allows no eval, and the drawn cursor is built with one.
     bypassCSP: true,
     ignoreDefaultArgs: ["--enable-automation"],
