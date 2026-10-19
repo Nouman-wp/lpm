@@ -27,16 +27,19 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
+import androidx.glance.layout.RowScope
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.layout.width
 import androidx.glance.semantics.contentDescription
 import androidx.glance.semantics.semantics
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
+import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import cx.lpm.mobile.core.designsystem.R as DesignR
@@ -50,10 +53,12 @@ import kotlin.math.ceil
 
 /**
  * The Token activity widget (iOS `TokenActivityView`): the range's tokens and estimated
- * cost, a stacked bar per day, and 7D / 14D / 30D pills.
+ * cost, a stacked bar per day, and 7D / 14D / 30D pills. Small stacks the totals and
+ * moves the pills under the bars.
  */
 @Composable
 internal fun TokenActivityContent(range: Int, window: TokenActivityWindow?, launch: Intent?) {
+    val small = LocalSize.current.width < MEDIUM_MIN_WIDTH
     val root = GlanceModifier.fillMaxSize()
         .appWidgetBackground()
         .cornerRadius(16.dp)
@@ -65,16 +70,48 @@ internal fun TokenActivityContent(range: Int, window: TokenActivityWindow?, laun
                 icon = DesignR.drawable.ic_bar_chart,
                 tone = WidgetEmptyTone.Action,
                 title = string(R.string.token_activity_empty_title),
-                message = string(R.string.token_activity_empty_body),
+                message = string(
+                    if (small) {
+                        R.string.token_activity_empty_body_small
+                    } else {
+                        R.string.token_activity_empty_body
+                    }
+                ),
+                small = small,
                 hint = string(R.string.token_activity_empty_action)
             ) {
                 Header(range, pills = false)
             }
+        } else if (small) {
+            val area = smallBarArea()
+            Header(range, pills = false)
+            Spacer(GlanceModifier.height(4.dp))
+            Figure(
+                formatTokenCount(window.tokens),
+                string(R.string.token_activity_tokens),
+                window,
+                Palette.primary,
+                small = true
+            )
+            Figure(
+                formatUsd(window.cost),
+                string(R.string.token_activity_estimated),
+                window,
+                Palette.cost,
+                small = true
+            )
+            Spacer(GlanceModifier.height(8.dp))
+            TokenActivityChart(window, area, small)
+            Spacer(GlanceModifier.height(8.dp))
+            // Whatever the chrome estimate leaves over, so the pills keep to the bottom.
+            Spacer(GlanceModifier.defaultWeight())
+            Row(GlanceModifier.fillMaxWidth()) { Pills(range, fill = true) }
         } else {
+            val area = barArea()
             Header(range, pills = true)
             Totals(window)
             Spacer(GlanceModifier.defaultWeight())
-            if (window.tokens > 0) Bars(window.days, barArea()) else NoTokens(window, barArea())
+            TokenActivityChart(window, area, small)
             Axis(window)
         }
     }
@@ -90,16 +127,30 @@ private fun Header(range: Int, pills: Boolean) {
         )
         if (pills) {
             Spacer(GlanceModifier.defaultWeight())
-            TokenActivityRepository.RANGES.forEach { days -> Pill(days, picked = days == range) }
+            Pills(range, fill = false)
         }
     }
 }
 
+/** The range pills; small spreads them across the widget's width. */
 @Composable
-private fun Pill(days: Int, picked: Boolean) {
+private fun RowScope.Pills(range: Int, fill: Boolean) {
+    TokenActivityRepository.RANGES.forEachIndexed { index, days ->
+        val gap = GlanceModifier.padding(start = if (fill && index == 0) 0.dp else 4.dp)
+        Pill(days, picked = days == range, fill, if (fill) gap.defaultWeight() else gap)
+    }
+}
+
+@Composable
+private fun Pill(
+    days: Int,
+    picked: Boolean,
+    fill: Boolean,
+    modifier: GlanceModifier = GlanceModifier
+) {
     val label = plural(R.plurals.token_activity_range_label, days, days)
     Box(
-        GlanceModifier.padding(start = 4.dp)
+        modifier
             .clickable(
                 actionRunCallback<PickTokenRangeAction>(
                     actionParametersOf(PickTokenRangeAction.DaysKey to days)
@@ -108,7 +159,7 @@ private fun Pill(days: Int, picked: Boolean) {
             .semantics { contentDescription = label }
     ) {
         Box(
-            GlanceModifier.height(22.dp)
+            (if (fill) GlanceModifier.fillMaxWidth() else GlanceModifier).height(22.dp)
                 .cornerRadius(11.dp)
                 .background(if (picked) Palette.primary else Palette.pill)
                 .padding(horizontal = 8.dp),
@@ -129,29 +180,22 @@ private fun Pill(days: Int, picked: Boolean) {
 /** The range's totals, held back to grey when it has none. */
 @Composable
 private fun Totals(window: TokenActivityWindow) {
-    val none = window.tokens == 0L
     Row(GlanceModifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.Bottom) {
-        Text(
+        Figure(
             formatTokenCount(window.tokens),
-            style = TextStyle(
-                if (none) Palette.secondary else Palette.primary,
-                22.sp,
-                FontWeight.Bold
-            ),
-            maxLines = 1
+            string(R.string.token_activity_tokens),
+            window,
+            Palette.primary,
+            small = false
         )
-        Caption(string(R.string.token_activity_tokens))
-        Text(
+        Spacer(GlanceModifier.width(12.dp))
+        Figure(
             formatUsd(window.cost),
-            modifier = GlanceModifier.padding(start = 12.dp),
-            style = TextStyle(
-                if (none) Palette.secondary else Palette.cost,
-                22.sp,
-                FontWeight.Bold
-            ),
-            maxLines = 1
+            string(R.string.token_activity_estimated),
+            window,
+            Palette.cost,
+            small = false
         )
-        Caption(string(R.string.token_activity_estimated))
         Spacer(GlanceModifier.defaultWeight())
         if (window.tokens > 0 && window.cost > 0) {
             Caption(
@@ -164,11 +208,34 @@ private fun Totals(window: TokenActivityWindow) {
     }
 }
 
+/** A total and its unit, held back to grey when the range has no tokens. */
 @Composable
-private fun Caption(text: String) {
+private fun Figure(
+    value: String,
+    unit: String,
+    window: TokenActivityWindow,
+    tint: ColorProvider,
+    small: Boolean
+) {
+    Row(verticalAlignment = Alignment.Bottom) {
+        Text(
+            value,
+            style = TextStyle(
+                if (window.tokens == 0L) Palette.secondary else tint,
+                (if (small) 18 else 22).sp,
+                FontWeight.Bold
+            ),
+            maxLines = 1
+        )
+        Caption(unit, bottom = if (small) 3.dp else 4.dp)
+    }
+}
+
+@Composable
+private fun Caption(text: String, bottom: Dp = 4.dp) {
     Text(
         text,
-        modifier = GlanceModifier.padding(start = 4.dp, bottom = 4.dp),
+        modifier = GlanceModifier.padding(start = 4.dp, bottom = bottom),
         style = TextStyle(Palette.secondary, 11.sp),
         maxLines = 1
     )
@@ -178,123 +245,10 @@ private fun Caption(text: String) {
 @Composable
 private fun barArea(): Dp = (LocalSize.current.height - CHROME_HEIGHT).coerceIn(MIN_BARS, MAX_BARS)
 
-/**
- * One stacked bar a day, Codex over Claude, scaled to the range's busiest day. A
- * widget row holds ten children at most, so the days are split into even groups.
- */
+/** Small's bars take whatever height the totals and the pills leave. */
 @Composable
-private fun Bars(days: List<TokenActivityDay>, area: Dp) {
-    val peak = maxOf(1L, days.maxOf { it.totalTokens })
-    val gap = when {
-        days.size > 20 -> 2.dp
-        days.size > 10 -> 6.dp
-        else -> 16.dp
-    }
-    val groups = ceil(days.size / MAX_CHILDREN.toDouble()).toInt()
-    val chunk = ceil(days.size / groups.toDouble()).toInt()
-    val summary = barsSummary(days)
-    Column {
-        Row(
-            GlanceModifier.fillMaxWidth().height(area - 1.dp).semantics {
-                contentDescription =
-                    summary
-            },
-            verticalAlignment = Alignment.Bottom
-        ) {
-            days.chunked(chunk).forEach { group ->
-                Row(
-                    GlanceModifier.defaultWeight().fillMaxHeight(),
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    group.forEach { day ->
-                        Column(
-                            GlanceModifier.defaultWeight().fillMaxHeight().padding(
-                                horizontal =
-                                    gap / 2
-                            ),
-                            verticalAlignment = Alignment.Bottom
-                        ) {
-                            val codex = (area - 1.dp) * (day.codexTokens.toFloat() / peak)
-                            val claude = (area - 1.dp) * (day.claudeTokens.toFloat() / peak)
-                            if (codex >
-                                0.dp
-                            ) {
-                                Box(
-                                    GlanceModifier.fillMaxWidth().height(
-                                        codex
-                                    ).background(Palette.codex)
-                                ) {
-                                }
-                            }
-                            if (codex > 0.dp && claude > 0.dp) Spacer(GlanceModifier.height(1.dp))
-                            if (claude >
-                                0.dp
-                            ) {
-                                Box(
-                                    GlanceModifier.fillMaxWidth().height(
-                                        claude
-                                    ).background(Palette.claude)
-                                ) {
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        Box(GlanceModifier.fillMaxWidth().height(1.dp).background(Palette.baseline)) {}
-    }
-}
-
-/** A range without a token: says so where the bars would stand, over a dashed baseline. */
-@Composable
-private fun NoTokens(window: TokenActivityWindow, area: Dp) {
-    val days = window.days.size
-    Column {
-        Box(
-            GlanceModifier.fillMaxWidth().height(area - 1.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                plural(
-                    if (window.endsToday) {
-                        R.plurals.token_activity_none_recent
-                    } else {
-                        R.plurals.token_activity_bars_empty
-                    },
-                    days,
-                    days
-                ),
-                style = TextStyle(Palette.secondary, 12.sp),
-                maxLines = 1
-            )
-        }
-        Image(
-            provider = ImageProvider(R.drawable.token_activity_dashed_line),
-            contentDescription = null,
-            colorFilter = ColorFilter.tint(Palette.dash),
-            contentScale = ContentScale.FillBounds,
-            modifier = GlanceModifier.fillMaxWidth().height(1.dp)
-        )
-    }
-}
-
-@Composable
-private fun barsSummary(days: List<TokenActivityDay>): String {
-    val busiest = days.maxBy { it.totalTokens }
-    return if (busiest.totalTokens == 0L) {
-        plural(R.plurals.token_activity_bars_empty, days.size, days.size)
-    } else {
-        plural(
-            R.plurals.token_activity_bars,
-            days.size,
-            days.size,
-            shortUsageDate(busiest.date),
-            formatTokenCount(busiest.totalTokens),
-            formatUsd(busiest.cost)
-        )
-    }
-}
+private fun smallBarArea(): Dp =
+    (LocalSize.current.height - SMALL_CHROME_HEIGHT).coerceAtLeast(MIN_BARS)
 
 @Composable
 private fun Axis(window: TokenActivityWindow) {
@@ -330,8 +284,8 @@ private fun string(@StringRes id: Int, vararg args: Any): String =
 private fun plural(@PluralsRes id: Int, count: Int, vararg args: Any): String =
     LocalContext.current.resources.getQuantityString(id, count, *args)
 
-/** iOS's widget colors: the system background and labels, light and dark. */
-private object Palette {
+/** The Token activity widget's colors: iOS's system background and labels, light and dark. */
+internal object Palette {
     val background = ColorProvider(day = Color.White, night = Color(0xFF1C1C1E))
     val primary = ColorProvider(day = Color.Black, night = Color.White)
     val secondary = ColorProvider(day = Color(0xFF8A8A8E), night = Color(0xFF98989F))
@@ -343,7 +297,8 @@ private object Palette {
     val codex = ColorProvider(Color(0xFF10A37F))
 }
 
+private val MEDIUM_MIN_WIDTH = 200.dp
 private val CHROME_HEIGHT = 112.dp
+private val SMALL_CHROME_HEIGHT = 146.dp
 private val MIN_BARS = 24.dp
 private val MAX_BARS = 58.dp
-private const val MAX_CHILDREN = 10

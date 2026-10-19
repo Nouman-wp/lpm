@@ -11,7 +11,7 @@ struct TokenActivityWidget: Widget {
         }
         .configurationDisplayName("Token activity")
         .description("Tokens and estimated cost over the last 7, 14 or 30 days.")
-        .supportedFamilies([.systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
 

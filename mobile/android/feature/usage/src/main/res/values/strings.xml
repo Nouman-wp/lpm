@@ -122,6 +122,7 @@
     <string name="token_activity_description">Tokens and estimated cost over the last 7, 14 or 30 days.</string>
     <string name="token_activity_empty_title">No numbers yet</string>
     <string name="token_activity_empty_body">Open lpm while your Mac is connected to load your token use.</string>
+    <string name="token_activity_empty_body_small">Open lpm to load it.</string>
     <string name="token_activity_empty_action">Open lpm</string>
     <string name="token_activity_range">%1$dD</string>
     <plurals name="token_activity_range_label">
