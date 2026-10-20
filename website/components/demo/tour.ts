@@ -96,7 +96,7 @@ export const TOUR_STEP_CATALOG: Record<TourStepId, TourStepCopy> = {
   addSshHost: {
     title: "Add an SSH host",
     body: "Pick a host from your SSH config. The remote project lands in the same sidebar as your local ones.",
-    leadMs: 5600,
+    leadMs: 6500,
   },
   start: {
     title: "Start the project",

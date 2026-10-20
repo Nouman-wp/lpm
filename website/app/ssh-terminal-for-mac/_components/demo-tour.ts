@@ -16,7 +16,7 @@ export const SSH_DEMO: PageDemo = {
       id: "addSshHost",
       host: "devbox",
       title: "Pick a host from ~/.ssh/config",
-      body: "Add project, then SSH Host: the hosts in your SSH config are listed. Pick devbox and it joins the same sidebar.",
+      body: "Add project, Server, then Just SSH in: the hosts in your SSH config are listed. Pick devbox and it joins the same sidebar.",
       hint: {
         short: "devbox joined the sidebar",
         long: "devbox is in the same sidebar as saas-app. Click anything.",

@@ -83,8 +83,8 @@ export function addProjectMoves(
   };
 }
 
-// The sidebar's +, SSH Host, the host list read from ~/.ssh/config, the host,
-// Add project.
+// The sidebar's +, Server, Just SSH in, the host list read from ~/.ssh/config,
+// the host, Add project.
 export function addSshHostMoves(
   ctx: TourContext,
   step: StepOf<"addSshHost">,
@@ -98,8 +98,9 @@ export function addSshHostMoves(
   });
   return {
     moves: [
-      pickerMove(ctx, step, "add-project", -3600, 1000),
-      pickerMove(ctx, step, "source-ssh", -2700),
+      pickerMove(ctx, step, "add-project", -4500, 1000),
+      pickerMove(ctx, step, "source-server", -3600),
+      pickerMove(ctx, step, "server-ssh", -2700),
       pickerMove(ctx, step, "ssh-host-picker", -1800),
       pickerMove(ctx, step, `ssh-host:${step.host}`, -900),
       {

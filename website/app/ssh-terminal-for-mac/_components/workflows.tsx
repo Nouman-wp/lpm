@@ -14,7 +14,7 @@ const WORKFLOWS: Workflow[] = [
         snippet — a <code className="text-xs">Host devbox</code> entry with{" "}
         <code className="text-xs">ProxyJump bastion</code> and the right key
         path. You paste it into your config, click &ldquo;Add a project&rdquo;
-        in lpm, choose &ldquo;SSH Host&rdquo;, and pick{" "}
+        in lpm, choose &ldquo;Server&rdquo;, then &ldquo;Just SSH in&rdquo;, and pick{" "}
         <code className="text-xs">devbox</code> from the dropdown. Pick any host
         from <code className="text-xs">~/.ssh/config</code> and the form fills
         itself while preserving the <code className="text-xs">devbox</code>{" "}

@@ -11,6 +11,7 @@ import {
 import { BackButton } from "./back-button";
 import { NO_AUTOFILL } from "./no-autofill";
 import { SshProjectForm } from "./ssh-project-form";
+import { ServerModePicker } from "./server-mode-picker";
 import { FOCUS_RING, PRESS } from "./ui";
 import {
   DialogHeader,
@@ -61,7 +62,7 @@ type Props = {
   onCreate: (input: NewProjectInput) => void;
 };
 
-type Phase = "pick" | "local" | "ssh" | "clone" | "template";
+type Phase = "pick" | "local" | "server" | "ssh" | "clone" | "template";
 
 type Template = {
   id: string;
@@ -342,15 +343,11 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
               <SourceOption
                 icon={<Server size={22} strokeWidth={1.5} />}
                 color="#22d3ee"
-                label="SSH Host"
-                desc="Connect to a remote machine over SSH"
-                onClick={(event) => {
-                  // Only a visitor's own click moves focus into the dialog;
-                  // the tour's clicks are not trusted events.
-                  setSshFocus(event.nativeEvent.isTrusted);
-                  setPhase("ssh");
-                }}
-                tourTarget="source-ssh"
+                label="Server"
+                desc="A machine you reach over SSH"
+                onClick={() => setPhase("server")}
+                tourTarget="source-server"
+                drills
               />
               <button
                 type="button"
@@ -387,9 +384,22 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
         />
       )}
 
+      {phase === "server" && (
+        <ServerModePicker
+          onBack={() => setPhase("pick")}
+          onClose={handleClose}
+          onSsh={(event) => {
+            // Only a visitor's own click moves focus into the dialog;
+            // the tour's clicks are not trusted events.
+            setSshFocus(event.nativeEvent.isTrusted);
+            setPhase("ssh");
+          }}
+        />
+      )}
+
       {phase === "ssh" && (
         <SshProjectForm
-          onBack={() => setPhase("pick")}
+          onBack={() => setPhase("server")}
           onClose={handleClose}
           focusOnOpen={sshFocus}
           onCreate={(input) => {
@@ -603,13 +613,15 @@ function SourceOption({
   desc,
   onClick,
   tourTarget,
+  drills = false,
 }: {
   icon: ReactNode;
   color: string;
   label: string;
   desc: string;
-  onClick: (event: React.MouseEvent) => void;
+  onClick: () => void;
   tourTarget?: string;
+  drills?: boolean;
 }) {
   return (
     <button
@@ -624,12 +636,17 @@ function SourceOption({
       >
         {icon}
       </div>
-      <div className="min-w-0 pt-0.5">
+      <div className="min-w-0 flex-1 pt-0.5">
         <div className="text-[13px] font-medium text-[#e5e5e5]">{label}</div>
         <div className="mt-0.5 text-[11px] leading-relaxed text-[#b3b3b3]">
           {desc}
         </div>
       </div>
+      {drills && (
+        <span className="mt-2 flex shrink-0 text-[#919191]">
+          <ChevronRight size={14} strokeWidth={1.5} />
+        </span>
+      )}
     </button>
   );
 }
