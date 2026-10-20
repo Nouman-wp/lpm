@@ -18,15 +18,17 @@ export function MacsSection({
   peers,
   host,
   refresh,
+  cancelPairingOnLeave = false,
 }: {
   macs: PeerClient[];
   peers: PeerClient[];
   host: PeerHostState;
   refresh: () => Promise<void>;
+  cancelPairingOnLeave?: boolean;
 }) {
   const [addOpen, setAddOpen] = useState(false);
   const [removePeer, setRemovePeer] = useState<PeerClient | null>(null);
-  const pairing = usePeerConnect({ peers, host, refresh });
+  const pairing = usePeerConnect({ peers, host, refresh, cancelOnUnmount: cancelPairingOnLeave });
 
   // An invite that pairs folds the add panel away; one that fails leaves it open
   // with what was typed.

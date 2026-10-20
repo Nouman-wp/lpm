@@ -1118,7 +1118,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setUpLinuxHost: () =>
     set({ sshModalOpen: false, addProjectTarget: null, addProjectStart: "linux-host", addProjectPickerOpen: true }),
 
-  openSSHProject: () => set({ sshModalOpen: true }),
+  openSSHProject: () =>
+    set({ sshModalOpen: true, addProjectPickerOpen: false, addProjectTarget: null, addProjectStart: null }),
 
   closeAddProjectPicker: () =>
     set({ addProjectPickerOpen: false, addProjectTarget: null, addProjectStart: null }),

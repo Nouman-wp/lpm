@@ -15,15 +15,21 @@ import { Group, GroupHeader, Row } from "./GroupedList";
 import { AddRow } from "./AddRow";
 import { RowMenu } from "./RowMenu";
 import { StatusLine } from "./StatusLine";
+import { BuiltInTailscaleRow } from "../mobile/BuiltInTailscaleRow";
+import { useTailnetState } from "../../hooks/useTailnetState";
 import { MACHINE as M } from "../../machineWords";
 
 export function HostSection({
   host,
   refresh,
+  peersOverTailscale,
 }: {
   host: PeerHostState;
   refresh: () => Promise<void>;
+  // A machine this one connects to is reached over Tailscale right now.
+  peersOverTailscale: boolean;
 }) {
+  const tailnet = useTailnetState();
   const [portDraft, setPortDraft] = useState(host.port);
   const [pairingBusy, setPairingBusy] = useState(false);
   const [revokeDevice, setRevokeDevice] = useState<{ id: string; name: string } | null>(null);
@@ -155,6 +161,14 @@ export function HostSection({
             />
           </Row>
         )}
+
+        <BuiltInTailscaleRow
+          audience="machines"
+          tailnet={tailnet}
+          hasApp={!!tailnet.state.systemIp}
+          live
+          deviceOnTailscale={peersOverTailscale}
+        />
       </Group>
 
       <GroupHeader className="mt-8">

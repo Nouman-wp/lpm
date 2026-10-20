@@ -131,6 +131,8 @@ struct PeerConn {
     phones: Mutex<HashMap<u64, SyncSender<String>>>,
     in_run: AtomicBool,        // a request just queued is one of a run (see invoke_in_run)
     generation: AtomicU64,     // bump to retire the current connection thread
+    // The address that answered last, dialled first next time.
+    last_host: Mutex<Option<String>>,
     // Present only for a peer reached over SSH. Owned here so the forward is torn
     // down with the connection rather than outliving it as a stray ssh process.
     tunnel: Mutex<Option<crate::peertunnel::Tunnel>>,
@@ -201,6 +203,7 @@ impl PeerConn {
             phones: Mutex::new(HashMap::new()),
             in_run: AtomicBool::new(false),
             generation: AtomicU64::new(0),
+            last_host: Mutex::new(None),
         }
     }
 
@@ -487,6 +490,13 @@ impl PeerClientHub {
                             .map(|t| t.state().as_str())
                     })
                     .unwrap_or("");
+                // The live session came in at a tailnet address: the row says so,
+                // since that is the route that keeps working away from home.
+                let over_tailscale = connected
+                    && !p.ssh.is_set()
+                    && conn
+                        .and_then(|c| c.last_host.lock().unwrap().clone())
+                        .is_some_and(|h| crate::tailnet_dial::is_tailnet_host(&h));
                 let (updating, update_error) = crate::hostautoupdate::row_state(&p.slug);
                 json!({
                     "slug": p.slug,
@@ -496,6 +506,7 @@ impl PeerClientHub {
                     "port": p.port,
                     "enabled": p.enabled,
                     "connected": connected,
+                    "overTailscale": over_tailscale,
                     "supportsSync": supports_sync,
                     "supportsSync2": supports_sync2,
                     "supportsGitBring": supports_git_bring,
@@ -746,7 +757,14 @@ impl PeerClientHub {
                             }
                         }
                         "paired" => {
-                            return self.finish_pair_request(&mut ws, &v, &host, port, captured_fp);
+                            return self.finish_pair_request(
+                                &mut ws,
+                                &v,
+                                &host,
+                                &hosts,
+                                port,
+                                captured_fp,
+                            );
                         }
                         "error" => {
                             let e = v
@@ -786,6 +804,7 @@ impl PeerClientHub {
         ws: &mut ClientWs,
         reply: &Value,
         host: &str,
+        hosts: &[String],
         port: u16,
         captured_fp: Option<String>,
     ) -> Result<Value, String> {
@@ -821,6 +840,7 @@ impl PeerClientHub {
                 slug: slug.clone(),
                 alias: host_name,
                 host: host.to_string(),
+                addrs: usable_addrs(hosts.iter().cloned(), host),
                 port,
                 device_id,
                 token,
@@ -1982,11 +2002,66 @@ fn dial_plain(host: &str, port: u16, timeout: Option<Duration>) -> Result<Client
     Ok(ws)
 }
 
-/// Dial a persisted peer per its pin state, returning `(ws, wasTls, capturedFp)`.
-/// Pinned → wss-only, no fallback. Unpinned → wss capturing the leaf, or plaintext
-/// if the TLS layer fails.
-fn dial_for_session(entry: &PeerEntry) -> Result<(ClientWs, bool, Option<String>), String> {
-    dial_endpoint(&entry.host, entry.port, entry)
+/// At most this many of a host's own addresses are kept for it.
+const MAX_ADDRS: usize = 8;
+
+/// The addresses a host gave for itself that another machine could dial: each
+/// once, never loopback, and not `host`, which is dialled anyway.
+fn usable_addrs(addrs: impl IntoIterator<Item = String>, host: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for addr in addrs {
+        let addr = addr.trim().to_string();
+        let local = addr.eq_ignore_ascii_case("localhost")
+            || addr
+                .parse::<std::net::IpAddr>()
+                .is_ok_and(|ip| ip.is_loopback() || ip.is_unspecified());
+        if addr.is_empty() || local || addr == host || out.contains(&addr) {
+            continue;
+        }
+        out.push(addr);
+        if out.len() == MAX_ADDRS {
+            break;
+        }
+    }
+    out
+}
+
+/// Where to dial a peer, in order: the address that answered last time, the one
+/// it was paired at, then the others it reported. A machine that left home goes
+/// on reaching its peer over Tailscale without waiting on the home address first.
+fn dial_order(entry: &PeerEntry, last_host: Option<&str>) -> Vec<String> {
+    let known: Vec<&String> = std::iter::once(&entry.host).chain(&entry.addrs).collect();
+    let mut order: Vec<String> = Vec::new();
+    if let Some(last) = last_host.filter(|h| known.iter().any(|k| k.as_str() == *h)) {
+        order.push(last.to_string());
+    }
+    for h in known {
+        if !order.contains(h) {
+            order.push(h.clone());
+        }
+    }
+    order
+}
+
+/// Dial each address in turn and keep the first that answers, with the address.
+/// All but the last get a short connect cap, so one that can't be reached from
+/// this network doesn't hold up the next; a lone address keeps the OS default.
+/// When none answers, the first one's error is the one reported.
+fn dial_first<T>(
+    hosts: &[String],
+    mut dial: impl FnMut(&str, Option<Duration>) -> Result<T, String>,
+) -> Result<(T, String), String> {
+    let mut first_err: Option<String> = None;
+    for (i, host) in hosts.iter().enumerate() {
+        let cap = (i + 1 < hosts.len()).then_some(CONNECT_TIMEOUT);
+        match dial(host, cap) {
+            Ok(v) => return Ok((v, host.clone())),
+            Err(e) => {
+                first_err.get_or_insert(e);
+            }
+        }
+    }
+    Err(first_err.unwrap_or_else(|| "no address to dial".to_string()))
 }
 
 /// Bring this peer's SSH forward up (idempotent) and return the local port to
@@ -2024,16 +2099,17 @@ fn dial_endpoint(
     host: &str,
     port: u16,
     entry: &PeerEntry,
+    timeout: Option<Duration>,
 ) -> Result<(ClientWs, bool, Option<String>), String> {
     match entry.tls_fp.as_deref() {
         Some(fp) => {
-            let ws = dial_pinned(host, port, fp, None, IDENTITY_CHANGED)?;
+            let ws = dial_pinned(host, port, fp, timeout, IDENTITY_CHANGED)?;
             Ok((ws, true, None))
         }
-        None => match dial_capture(host, port, None) {
+        None => match dial_capture(host, port, timeout) {
             Ok((ws, fp)) => Ok((ws, true, Some(fp))),
             Err(_) => {
-                let ws = dial_plain(host, port, None)?;
+                let ws = dial_plain(host, port, timeout)?;
                 Ok((ws, false, None))
             }
         },
@@ -2125,6 +2201,21 @@ fn apply_host_report(p: &mut PeerEntry, ready: &Value) -> bool {
         *field = value.to_string();
         true
     });
+    // Absent from a host that predates it: keep what pairing stored.
+    let addrs = ready
+        .get("hostAddrs")
+        .and_then(Value::as_array)
+        .map(|list| {
+            let reported = list.iter().filter_map(Value::as_str).map(str::to_string);
+            usable_addrs(reported, &p.host)
+        });
+    let changed = match addrs {
+        Some(addrs) if addrs != p.addrs => {
+            p.addrs = addrs;
+            true
+        }
+        _ => changed,
+    };
     let headless = ready.get("hostHeadless").and_then(Value::as_bool);
     if p.headless == headless {
         return changed;
@@ -2169,9 +2260,14 @@ fn connect_session(
     // that won't come up is reported as itself rather than as "host offline".
     let (mut ws, was_tls, captured_fp) = if entry.ssh.is_set() {
         let port = ensure_tunnel(conn, entry)?;
-        dial_endpoint("127.0.0.1", port, entry)?
+        dial_endpoint("127.0.0.1", port, entry, None)?
     } else {
-        dial_for_session(entry)?
+        let last = conn.last_host.lock().unwrap().clone();
+        let (dialled, host) = dial_first(&dial_order(entry, last.as_deref()), |h, cap| {
+            dial_endpoint(h, entry.port, entry, cap)
+        })?;
+        *conn.last_host.lock().unwrap() = Some(host);
+        dialled
     };
     ws.send(Message::text(
         json!({ "t": "auth", "deviceId": entry.device_id, "token": entry.token }).to_string(),
@@ -2854,6 +2950,7 @@ pub(crate) fn add_peer_blocking(
         cfg.peers.push(PeerEntry {
             slug: slug.clone(),
             alias,
+            addrs: usable_addrs(hosts.iter().cloned(), &host),
             host,
             port,
             device_id,
@@ -3631,6 +3728,94 @@ mod tests {
         let unknown = [entry("dddddddd", ""), entry("eeeeeeee", "")];
         assert_eq!(superseded(&unknown, "eeeeeeee"), Vec::<usize>::new());
         assert_eq!(superseded(&peers, "ffffffff"), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn a_host_report_keeps_the_addresses_worth_dialling() {
+        let mut p = PeerEntry {
+            host: "192.168.0.80".into(),
+            ..Default::default()
+        };
+        let ready = json!({
+            "t": "ready",
+            "hostAddrs": ["192.168.0.80", "100.107.232.39", "127.0.0.1", "", "100.107.232.39", "::1"],
+        });
+        assert!(apply_host_report(&mut p, &ready));
+        assert_eq!(p.addrs, ["100.107.232.39"]);
+        assert!(
+            !apply_host_report(&mut p, &ready),
+            "nothing new, nothing saved"
+        );
+    }
+
+    #[test]
+    fn a_host_that_reports_no_addresses_keeps_the_ones_from_pairing() {
+        let mut p = PeerEntry {
+            host: "192.168.0.80".into(),
+            addrs: vec!["100.107.232.39".into()],
+            ..Default::default()
+        };
+        assert!(!apply_host_report(&mut p, &json!({ "t": "ready" })));
+        assert_eq!(p.addrs, ["100.107.232.39"]);
+        // One that does report them is believed, even when it has none to add.
+        assert!(apply_host_report(
+            &mut p,
+            &json!({ "t": "ready", "hostAddrs": ["192.168.0.80"] })
+        ));
+        assert!(p.addrs.is_empty());
+    }
+
+    #[test]
+    fn dials_the_address_that_answered_last_then_the_paired_one_then_the_rest() {
+        let p = PeerEntry {
+            host: "192.168.0.80".into(),
+            addrs: vec!["100.107.232.39".into(), "10.0.0.4".into()],
+            ..Default::default()
+        };
+        assert_eq!(
+            dial_order(&p, None),
+            ["192.168.0.80", "100.107.232.39", "10.0.0.4"]
+        );
+        assert_eq!(
+            dial_order(&p, Some("100.107.232.39")),
+            ["100.107.232.39", "192.168.0.80", "10.0.0.4"]
+        );
+        // An address the host no longer reports isn't dialled for remembering it.
+        assert_eq!(
+            dial_order(&p, Some("172.16.0.9")),
+            ["192.168.0.80", "100.107.232.39", "10.0.0.4"]
+        );
+    }
+
+    #[test]
+    fn falls_back_to_the_next_address_with_a_short_cap_on_all_but_the_last() {
+        let hosts = ["192.168.0.80".to_string(), "100.107.232.39".to_string()];
+        let mut caps = Vec::new();
+        let (v, host) = dial_first(&hosts, |h, cap| {
+            caps.push(cap);
+            if h == "100.107.232.39" {
+                Ok("session")
+            } else {
+                Err(format!("unreachable {h}"))
+            }
+        })
+        .unwrap();
+        assert_eq!((v, host.as_str()), ("session", "100.107.232.39"));
+        assert_eq!(caps, [Some(CONNECT_TIMEOUT), None]);
+
+        let lone = ["192.168.0.80".to_string()];
+        let err = dial_first(&lone, |_, cap| {
+            assert_eq!(cap, None, "a lone address keeps the OS default");
+            Err::<(), _>("unreachable".to_string())
+        })
+        .unwrap_err();
+        assert_eq!(err, "unreachable");
+
+        let err = dial_first(&hosts, |h, _| Err::<(), _>(format!("unreachable {h}"))).unwrap_err();
+        assert_eq!(
+            err, "unreachable 192.168.0.80",
+            "the first address's error is reported"
+        );
     }
 
     #[test]

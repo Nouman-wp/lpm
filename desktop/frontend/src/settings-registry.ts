@@ -577,6 +577,14 @@ export const ROWS = {
     description: "Control another machine's projects from this one",
     keywords: ["peer", "remote", "mac", "linux", "server", "host", "nearby", "discover"],
   },
+  "connections.tailscale": {
+    kind: "row",
+    tab: "connections",
+    id: "connections.tailscale",
+    label: "Built-in Tailscale",
+    description: `Reach your other ${MACHINE.plural} from any network, without the Tailscale app`,
+    keywords: ["tailscale", "tailnet", "vpn", "away", "anywhere", "remote", "peer", "mac", "linux"],
+  },
   "connections.hostUpdates": {
     kind: "row",
     tab: "connections",

@@ -14,21 +14,39 @@ import { SyncSection } from "./connections/SyncSection";
 // Linux hosts get their own list: they're headless servers you keep work running
 // on, not machines someone is sitting at, and they're brought online differently.
 // A Linux or Windows desktop is someone's machine, so it sits with the Macs.
-export function ConnectionsPane() {
+export function ConnectionsPane({
+  cancelPairingOnLeave = false,
+  showLinuxHosts = true,
+}: {
+  cancelPairingOnLeave?: boolean;
+  showLinuxHosts?: boolean;
+}) {
   const { state, refresh } = usePeerState();
   const linuxHosts = state.peers.filter(isLinuxHost);
   const macs = state.peers.filter((p) => !isLinuxHost(p));
+  const synced = showLinuxHosts ? state.peers : macs;
 
   return (
     <div className="mt-2">
       <p className="mb-6 text-[12px] leading-relaxed text-[var(--text-muted)]">
-        Connect {MACHINE.thisMachine} to {MACHINE.anotherMachine}, or to a Linux server, and work across both from one place.
+        Connect {MACHINE.thisMachine} to {MACHINE.anotherMachine}
+        {showLinuxHosts && ", or to a Linux server,"} and work across both from one place.
         A connected machine's projects appear in your sidebar and open just like local ones.
       </p>
-      <HostSection host={state.host} refresh={refresh} />
-      <MacsSection macs={macs} peers={state.peers} host={state.host} refresh={refresh} />
-      <LinuxHostsSection hosts={linuxHosts} refresh={refresh} />
-      {state.peers.length > 0 && <SyncSection peers={state.peers} />}
+      <HostSection
+        host={state.host}
+        refresh={refresh}
+        peersOverTailscale={state.peers.some((p) => p.overTailscale)}
+      />
+      <MacsSection
+        macs={macs}
+        peers={state.peers}
+        host={state.host}
+        refresh={refresh}
+        cancelPairingOnLeave={cancelPairingOnLeave}
+      />
+      {showLinuxHosts && <LinuxHostsSection hosts={linuxHosts} refresh={refresh} />}
+      {synced.length > 0 && <SyncSection peers={synced} />}
     </div>
   );
 }

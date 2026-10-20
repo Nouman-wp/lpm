@@ -62,7 +62,8 @@ export function humanizeError(raw: string): string {
 // while it is actually the thing that's wrong.
 export function peerStatus(peer: PeerClient): PeerStatus {
   if (!peer.enabled) return { tone: "off", text: "Off", detail: "" };
-  if (peer.connected) return { tone: "live", text: "Connected", detail: "" };
+  if (peer.connected)
+    return { tone: "live", text: peer.overTailscale ? "Connected over Tailscale" : "Connected", detail: "" };
   if (peer.sshHost) {
     if (peer.tunnel === "connecting")
       return { tone: "pending", text: `Connecting over SSH to ${peer.sshHost}…`, detail: "" };

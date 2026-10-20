@@ -66,6 +66,9 @@ type Phase = "pick" | "local" | "server" | "ssh" | "clone";
 
 const DEST_FOLDERS = ["~/Projects", "~/Code", "~/dev", "~/work"];
 
+const SECTION_LABEL =
+  "px-4 pb-1 pt-3 text-[10.5px] font-semibold uppercase tracking-wider text-[#919191]";
+
 function deriveNameFromUrl(url: string): string {
   const trimmed = url.trim();
   if (!trimmed) return "";
@@ -300,12 +303,13 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
             >
               Add a project
             </p>
-            <div className="mt-3 flex flex-col">
+            <div className="mt-1 flex flex-col">
+              <p className={SECTION_LABEL}>On this Mac</p>
               <SourceOption
                 icon={<Folder size={22} strokeWidth={1.5} />}
                 color="#facc15"
                 label="Local Folder"
-                desc="A project on this machine — pick a folder on disk"
+                desc="Pick a folder on disk"
                 onClick={() => setPhase("local")}
                 tourTarget="source-local"
               />
@@ -316,6 +320,8 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                 desc="Clone from a Git repo URL into a local folder"
                 onClick={() => setPhase("clone")}
               />
+              <div className="mx-4 mt-2 h-px bg-[#2e2e2e]" />
+              <p className={SECTION_LABEL}>Remote</p>
               <SourceOption
                 icon={<Server size={22} strokeWidth={1.5} />}
                 color="#22d3ee"

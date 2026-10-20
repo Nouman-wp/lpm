@@ -140,7 +140,7 @@ First client frame within 20s, or the host closes the socket.
   entry instead of listing the host twice. The client also drops any other entry
   with the same `hostId` once paired. An older host ignores the field.
 - **Resume** (already paired): client → `{ "t": "auth", "deviceId", "token" }`
-  host → `{ "t": "ready", "hostName", "hostPlatform", "hostHeadless", "hostVersion", "phoneServerId", "features": ["configSync", "configSync2"] }`
+  host → `{ "t": "ready", "hostName", "hostPlatform", "hostHeadless", "hostVersion", "phoneServerId", "hostAddrs", "features": ["configSync", "configSync2"] }`
 - On failure either returns `{ "t": "error", "error" }` and the host closes.
   `error` is `revoked` when the host removed this device itself (Remove access,
   remembered in `host.revoked`, newest 64): the client drops the host's entry
@@ -178,6 +178,18 @@ before desktops shipped. Older clients ignore the field.
 `mobile/PROTOCOL.md`). The client stores it on the peer entry so a phone connected
 to the client can tell whether it already has this host before asking it for a
 pairing code. Absent from a build that predates it.
+
+`hostAddrs` lists the addresses the host can be reached at right now, the same
+ones its invites carry: its LAN address, then its Tailscale address (the
+Tailscale app's, or the built-in node's while that is connected). A host bound to
+one interface lists only that one. The client keeps them on the peer entry
+(`addrs`, at most 8, loopback and the entry's own `host` dropped), seeded at
+pairing from the invite's or discovery's addresses and replaced on every `ready`
+that carries the field. When `host` doesn't answer, the client dials them in
+turn, the address that answered last time first; every dial but the last is
+capped at 3 s. So a Mac paired on the LAN reconnects over Tailscale from another
+network, and one whose LAN address changed finds it again. Absent from a build
+that predates it: the client keeps what it has.
 
 `features` advertises optional capabilities the client keys behavior on (unknown
 entries ignored). `configSync` = the config-sync frames below exist at all;

@@ -5,27 +5,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { encodeInvite } from "../peer/invite";
 
 const mocks = vi.hoisted(() => ({
-  store: { addProjectForPeer: vi.fn(), projects: [] as { name: string }[] },
-  commands: {
-    PeerState: vi.fn(),
-    PeerAdd: vi.fn(),
-    PeerPairRequest: vi.fn(),
-    PeerPairCancel: vi.fn(),
-    PeerDiscoveryStart: vi.fn(),
-    PeerDiscoveryStop: vi.fn(),
-    ReadClipboardText: vi.fn(),
-  },
+  store: { addProjectForPeer: vi.fn(), openSSHProject: vi.fn(), projects: [] as { name: string }[] },
+  commands: {} as Record<string, ReturnType<typeof vi.fn>>,
   handlers: new Map<string, (payload: unknown) => void>(),
 }));
 
 vi.mock("../store/app", () => ({
   useAppStore: (select: (state: unknown) => unknown) => select(mocks.store),
 }));
-vi.mock("../store/tabShares", () => ({
-  useTabShares: { getState: () => ({ openJoinDialog: vi.fn() }) },
-}));
-vi.mock("../../bridge/commands", () => mocks.commands);
+vi.mock("../../bridge/commands", () =>
+  new Proxy(
+    {},
+    {
+      has: () => true,
+      get: (_t, prop: string) =>
+        prop === "then" ? undefined : (mocks.commands[prop] ??= vi.fn().mockResolvedValue(undefined)),
+    },
+  ),
+);
 vi.mock("../../bridge/runtime", () => ({
+  BrowserOpenURL: vi.fn(),
   EventsOn: (name: string, cb: (payload: unknown) => void) => {
     mocks.handlers.set(name, cb);
     return () => mocks.handlers.delete(name);
@@ -36,33 +35,35 @@ import { AnotherComputerScreen } from "./AnotherComputerScreen";
 
 const HOST = { enabled: false, port: 8766, running: false, guestsOnly: false, hostId: "", pairing: null, devices: [], pairRequests: [] };
 const OFFICE = { slug: "aaaa1111", alias: "Office PC", host: "10.0.0.2", port: 8766, hostId: "office", enabled: true, connected: true, platform: "windows" };
-const IMAC = { slug: "bbbb2222", alias: "Home iMac", host: "10.0.0.3", port: 8766, hostId: "imac", enabled: true, connected: false };
-const STUDIO = { slug: "cccc3333", alias: "Studio Mac", host: "10.0.0.9", port: 8766, hostId: "studio", enabled: true, connected: true };
+const STUDIO = { slug: "cccc3333", alias: "Studio Mac", host: "10.0.0.9", port: 8766, hostId: "studio", enabled: true, connected: false };
 const NEARBY_STUDIO = { id: "studio", name: "Studio Mac", hosts: ["10.0.0.9"], port: 8766, dev: false };
 const INVITE = encodeInvite({ hosts: ["10.0.0.9"], port: 8766, code: "K7Q2M9" });
 
 let container: HTMLDivElement;
 let root: Root;
 
+function command(name: string) {
+  return (mocks.commands[name] ??= vi.fn().mockResolvedValue(undefined));
+}
+
 async function flush() {
   await act(async () => {});
 }
 
-function emit(event: string, payload: unknown) {
+function emit(event: string, payload: unknown = undefined) {
   act(() => mocks.handlers.get(event)?.(payload));
 }
 
-function buttonWith(text: string): HTMLButtonElement {
-  const found = [...container.querySelectorAll("button")].find((b) => b.textContent?.includes(text));
-  if (!found) throw new Error(`no button with "${text}"`);
-  return found;
+function peers(list: unknown[]) {
+  command("PeerState").mockResolvedValue({ host: HOST, peers: list });
 }
 
-// The first button reading exactly "Connect": a paired row's "Connected" status
-// would match a looser search.
-function connectButton(): HTMLButtonElement {
-  const found = [...container.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Connect");
-  if (!found) throw new Error("no Connect button");
+// Exact, so "Connect" doesn't match "Connect another computer".
+function button(text: string, exact = true): HTMLButtonElement {
+  const found = [...container.querySelectorAll("button")].find((b) =>
+    exact ? b.textContent?.trim() === text : b.textContent?.includes(text),
+  );
+  if (!found) throw new Error(`no button "${text}"`);
   return found;
 }
 
@@ -75,14 +76,11 @@ function type(text: string) {
   });
 }
 
-async function click(button: HTMLButtonElement) {
-  await act(async () => button.click());
-}
-
 beforeEach(async () => {
-  mocks.store.projects = [{ name: "peer-aaaa1111-web" }, { name: "peer-aaaa1111-api" }, { name: "local-app" }];
-  mocks.commands.PeerState.mockResolvedValue({ host: HOST, peers: [OFFICE, IMAC] });
-  mocks.commands.ReadClipboardText.mockResolvedValue("");
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  peers([OFFICE]);
+  command("ReadClipboardText").mockResolvedValue("");
+  command("GetVersion").mockResolvedValue("0.7.30");
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -94,84 +92,69 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   mocks.handlers.clear();
+  for (const k of Object.keys(mocks.commands)) delete mocks.commands[k];
   vi.clearAllMocks();
 });
 
 describe("AnotherComputerScreen", () => {
-  it("opens the picker on a computer it already pairs with", async () => {
-    expect(container.textContent).toContain("Connected · 2 projects");
-    expect(buttonWith("Home iMac").disabled).toBe(true);
-
-    await click(buttonWith("Office PC"));
-
-    expect(mocks.store.addProjectForPeer).toHaveBeenCalledWith("aaaa1111", "Office PC");
+  it("is Settings → Connections", () => {
+    const text = container.textContent;
+    expect(text).toContain("Allow control of this");
+    expect(text).toContain("Built-in Tailscale");
+    expect(text).toContain("you connect to");
+    expect(text).toContain("Office PC");
+    expect(text).toContain("Config sync");
   });
 
-  it("pairs from a pasted invite, then opens the picker on that computer", async () => {
-    mocks.commands.PeerAdd.mockResolvedValue({ slug: "cccc3333" });
-    mocks.commands.PeerState.mockResolvedValue({ host: HOST, peers: [OFFICE, IMAC, STUDIO] });
-
-    type(INVITE);
-    await click(connectButton());
+  it("leaves Linux hosts to the Server screen", async () => {
+    peers([OFFICE, { ...STUDIO, slug: "dddd4444", alias: "Build box", platform: "linux", headless: true }]);
+    emit("peer-state-changed");
     await flush();
 
-    expect(mocks.commands.PeerAdd).toHaveBeenCalledWith(["10.0.0.9"], 8766, "K7Q2M9", "", undefined);
-    expect(mocks.store.addProjectForPeer).toHaveBeenCalledWith("cccc3333", "Studio Mac", true);
+    const text = container.textContent;
+    expect(text).not.toContain("Linux hosts you connect to");
+    expect(text).not.toContain("Build box");
+    expect(text).not.toContain("or to a Linux server");
   });
 
-  it("says why and stays put when pairing fails", async () => {
-    mocks.commands.PeerAdd.mockRejectedValue("pairing code expired");
-
+  it("goes on to adding a project on a computer added here once it's connected", async () => {
+    command("PeerAdd").mockResolvedValue({ slug: STUDIO.slug });
+    await act(async () => button("Connect another", false).click());
+    peers([OFFICE, STUDIO]);
     type(INVITE);
-    await click(connectButton());
+    await act(async () => button("Connect").click());
+    await flush();
+    emit("peer-state-changed");
+    await flush();
 
-    expect(container.textContent).toContain("pairing code expired");
+    expect(command("PeerAdd")).toHaveBeenCalledWith(["10.0.0.9"], 8766, "K7Q2M9", "", undefined);
+    expect(mocks.store.addProjectForPeer).not.toHaveBeenCalled();
+
+    peers([OFFICE, { ...STUDIO, connected: true }]);
+    emit("peer-state-changed");
+    await flush();
+
+    expect(mocks.store.addProjectForPeer).toHaveBeenCalledWith(STUDIO.slug, "Studio Mac", true);
+  });
+
+  it("leaves computers that were already there alone", async () => {
+    peers([{ ...OFFICE, connected: false }]);
+    emit("peer-state-changed");
+    await flush();
+    peers([OFFICE]);
+    emit("peer-state-changed");
+    await flush();
+
     expect(mocks.store.addProjectForPeer).not.toHaveBeenCalled();
   });
 
-  it("asks a nearby computer, shows the number to compare, and opens it once accepted", async () => {
-    let accept: (v: { slug: string }) => void = () => {};
-    mocks.commands.PeerPairRequest.mockReturnValue(new Promise((resolve) => (accept = resolve)));
+  it("withdraws a nearby request still waiting when the screen is left", async () => {
+    command("PeerPairRequest").mockReturnValue(new Promise(() => {}));
     emit("peer-discovery", [NEARBY_STUDIO]);
-
-    await click(connectButton());
-    emit("peer-pair-pending", { sas: "482913" });
-
-    expect(mocks.commands.PeerPairRequest).toHaveBeenCalledWith(["10.0.0.9"], 8766);
-    expect(container.textContent).toContain("482 913");
-
-    mocks.commands.PeerState.mockResolvedValue({ host: HOST, peers: [OFFICE, IMAC, STUDIO] });
-    await act(async () => accept({ slug: "cccc3333" }));
-    await flush();
-
-    expect(mocks.store.addProjectForPeer).toHaveBeenCalledWith("cccc3333", "Studio Mac", true);
-  });
-
-  it("withdraws a waiting request when the screen is left", async () => {
-    mocks.commands.PeerPairRequest.mockReturnValue(new Promise(() => {}));
-    emit("peer-discovery", [NEARBY_STUDIO]);
-    await click(connectButton());
+    await act(async () => button("Connect").click());
 
     act(() => root.render(<></>));
 
-    expect(mocks.commands.PeerPairCancel).toHaveBeenCalled();
-    expect(mocks.store.addProjectForPeer).not.toHaveBeenCalled();
-  });
-
-  it("offers an invite already in the clipboard", async () => {
-    act(() => root.unmount());
-    mocks.commands.ReadClipboardText.mockResolvedValue(INVITE);
-    mocks.commands.PeerAdd.mockResolvedValue({ slug: "cccc3333" });
-    root = createRoot(container);
-    act(() => root.render(<AnotherComputerScreen />));
-    await flush();
-
-    expect(container.textContent).toContain("Invite found in your clipboard");
-    mocks.commands.PeerState.mockResolvedValue({ host: HOST, peers: [OFFICE, IMAC, STUDIO] });
-    await click(connectButton());
-    await flush();
-
-    expect(mocks.commands.PeerAdd).toHaveBeenCalledWith(["10.0.0.9"], 8766, "K7Q2M9", "", undefined);
-    expect(mocks.store.addProjectForPeer).toHaveBeenCalledWith("cccc3333", "Studio Mac", true);
+    expect(command("PeerPairCancel")).toHaveBeenCalled();
   });
 });

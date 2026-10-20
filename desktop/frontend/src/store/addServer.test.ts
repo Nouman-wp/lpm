@@ -52,4 +52,14 @@ describe("adding a server", () => {
     useAppStore.getState().openSSHProject();
     expect(useAppStore.getState().sshModalOpen).toBe(true);
   });
+
+  it("swaps the picker for the SSH project form when Connections is shown inside it", () => {
+    useAppStore.setState({ sshModalOpen: false, addProjectPickerOpen: true, addProjectTarget: null, addProjectStart: null });
+
+    useAppStore.getState().openSSHProject();
+
+    const s = useAppStore.getState();
+    expect(s.sshModalOpen).toBe(true);
+    expect(s.addProjectPickerOpen).toBe(false);
+  });
 });

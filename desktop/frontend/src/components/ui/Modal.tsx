@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 import { useEventListener } from "../../hooks/useEventListener";
 import { useModalDrag } from "../../hooks/useModalDrag";
 import { useOverlay } from "../../store/overlay";
+import { coveredByLayer } from "./layers";
 
 interface ModalProps {
   open: boolean;
@@ -61,7 +62,7 @@ export function Modal({
   useEventListener(
     "keydown",
     (e) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !coveredByLayer(contentRef.current)) onClose();
     },
     document,
     open && closeOnEscape && dimmed,

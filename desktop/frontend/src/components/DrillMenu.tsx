@@ -1,7 +1,8 @@
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { useEventListener } from "../hooks/useEventListener";
 import { ChevronLeftIcon, XIcon } from "./icons";
 import { DrillCrumb } from "./DrillCrumb";
+import { coveredByLayer } from "./ui/layers";
 
 export interface DrillApi {
   push: (screen: DrillScreen) => void;
@@ -36,6 +37,7 @@ export function DrillMenu({
   showClose?: boolean;
 }) {
   const [stack, setStack] = useState<DrillScreen[]>(initialStack ?? []);
+  const panelRef = useRef<HTMLDivElement>(null);
   const api: DrillApi = {
     push: (screen) => setStack((s) => [...s, screen]),
     pop: () => setStack((s) => s.slice(0, -1)),
@@ -54,6 +56,7 @@ export function DrillMenu({
       if (e.key !== "Escape") return;
       // Mid-drag, Escape cancels the drag, through dnd-kit's own listener.
       if (document.body.hasAttribute("data-lpm-drag")) return;
+      if (coveredByLayer(panelRef.current)) return;
       if (drilled) {
         e.stopImmediatePropagation();
         api.pop();
@@ -85,6 +88,7 @@ export function DrillMenu({
 
   return (
     <div
+      ref={panelRef}
       className={`relative ${screen.width ?? widthClassName} overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl`}
     >
       {showClose && (

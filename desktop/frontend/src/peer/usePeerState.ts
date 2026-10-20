@@ -44,6 +44,8 @@ export interface PeerClient {
   hostId?: string;
   enabled: boolean;
   connected: boolean;
+  // The live connection runs over Tailscale (built-in or the app).
+  overTailscale?: boolean;
   supportsSync?: boolean;
   supportsSync2?: boolean;
   // The peer's build can hand its working state over ("Bring changes").

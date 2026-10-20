@@ -31,6 +31,11 @@ describe("peerStatus", () => {
     expect(peerStatus(peer()).tone).toBe("pending");
   });
 
+  it("says when the connection runs over Tailscale", () => {
+    expect(peerStatus(peer({ connected: true, overTailscale: true })).text).toBe("Connected over Tailscale");
+    expect(peerStatus(peer({ connected: true, overTailscale: false })).text).toBe("Connected");
+  });
+
   it("keeps the raw error as the tooltip behind a rewritten one", () => {
     const s = peerStatus(peer({ lastError: "Operation timed out (os error 60)" }));
     expect(s.tone).toBe("error");

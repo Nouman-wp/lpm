@@ -27,9 +27,11 @@ function tailnet(state: Partial<TailnetState>, opened = false): Tailnet {
   };
 }
 
-function render(t: Tailnet) {
+function render(t: Tailnet, audience?: "phones" | "machines") {
   act(() => {
-    root.render(<BuiltInTailscaleRow tailnet={t} hasApp={false} live deviceOnTailscale={false} />);
+    root.render(
+      <BuiltInTailscaleRow tailnet={t} hasApp={false} live deviceOnTailscale={false} audience={audience} />,
+    );
   });
 }
 
@@ -64,6 +66,19 @@ describe("BuiltInTailscaleRow", () => {
     render(tailnet({ state: "running", account: "you@example.com", ip: "100.64.0.1", error }));
     expect(container.textContent).toContain(error);
     expect(container.textContent).not.toContain("Ready");
+  });
+
+  it("walks another machine through setup, not a phone, in Connections", () => {
+    render(tailnet({ enabled: false, state: "off" }), "machines");
+    expect(container.textContent).toContain("Reach your other");
+    act(() => [...container.querySelectorAll("button")].find((b) => b.textContent === "Set up")!.click());
+    expect(container.textContent).toContain("turn it on in Settings → Connections with the same account");
+    expect(container.textContent).not.toContain("lpm Link");
+    expect(container.querySelector('[data-settings-row="connections.tailscale"]')).not.toBeNull();
+
+    render(tailnet({ state: "running", account: "you@example.com", ip: "100.64.0.1" }), "machines");
+    expect(container.textContent).toContain("picks up this address the next time it connects");
+    expect(container.textContent).not.toContain("lpm Link");
   });
 
   it("still offers Cancel while a fresh node starts", () => {

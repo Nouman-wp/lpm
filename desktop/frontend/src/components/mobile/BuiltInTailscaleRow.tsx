@@ -8,6 +8,7 @@ import { BrowserOpenURL } from "../../../bridge/runtime";
 import { TAILSCALE_ADMIN_URL } from "../../tailnetStatus";
 import type { Tailnet } from "../../hooks/useTailnetState";
 import { useMachineWords } from "../settings/useMachineWords";
+import { MACHINE } from "../../machineWords";
 
 interface RowView {
   tone: TileTone;
@@ -18,12 +19,15 @@ interface RowView {
 }
 
 /** Built-in Tailscale as one of the ways in: a row that always says where it
- *  stands and offers the one next step, with a short setup panel under it. */
+ *  stands and offers the one next step, with a short setup panel under it.
+ *  The same node serves phones and other machines; `audience` picks whose
+ *  setup the copy walks through. */
 export function BuiltInTailscaleRow({
   tailnet,
   hasApp,
   live,
   deviceOnTailscale,
+  audience = "phones",
 }: {
   tailnet: Tailnet;
   /** The Tailscale app runs on this machine, so built-in is optional. */
@@ -32,8 +36,10 @@ export function BuiltInTailscaleRow({
   live: boolean;
   /** A paired device has come in over Tailscale, so it knows the way. */
   deviceOnTailscale: boolean;
+  audience?: "phones" | "machines";
 }) {
   const words = useMachineWords();
+  const forMachines = audience === "machines";
   const { state: s, busy, failure, opened, setEnabled, signIn, signOut } = tailnet;
   const [setupOpen, setSetupOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -80,7 +86,9 @@ export function BuiltInTailscaleRow({
         badge: hasApp ? undefined : "Recommended",
         subtitle: hasApp
           ? "Optional while the Tailscale app runs here"
-          : `Reach ${words.thisMachine} from anywhere, no Tailscale app needed`,
+          : forMachines
+            ? `Reach your other ${MACHINE.plural} from anywhere, no Tailscale app needed`
+            : `Reach ${words.thisMachine} from anywhere, no Tailscale app needed`,
         action: !showSetup && (
           <button onClick={() => setSetupOpen(true)} className={hasApp ? SECONDARY_BUTTON : PRIMARY_BUTTON}>
             Set up
@@ -168,12 +176,19 @@ export function BuiltInTailscaleRow({
     resuming
       ? "Finish signing in to Tailscale in your browser."
       : `Sign in to Tailscale on ${words.thisMachine}. It's free for personal use.`,
-    "On your phone, sign in with the same account: lpm Link → Built-in Tailscale.",
-    "Open lpm Link once on this Wi-Fi. It picks up the new address by itself.",
+    ...(forMachines
+      ? [
+          `On your other ${MACHINE.plural}, turn it on in Settings → Connections with the same account.`,
+          `${MACHINE.Plural} paired before pick up the new address the next time they connect.`,
+        ]
+      : [
+          "On your phone, sign in with the same account: lpm Link → Built-in Tailscale.",
+          "Open lpm Link once on this Wi-Fi. It picks up the new address by itself.",
+        ]),
   ];
 
   return (
-    <div data-settings-row="mobile.tailscale">
+    <div data-settings-row={forMachines ? "connections.tailscale" : "mobile.tailscale"}>
       <WayInRow
         icon={<Grip size={16} />}
         title="Built-in Tailscale"
@@ -217,8 +232,9 @@ export function BuiltInTailscaleRow({
       )}
       {s.enabled && s.state === "running" && !deviceOnTailscale && (
         <p className="px-4 pb-3 pl-16 text-[11px] leading-relaxed text-[var(--text-muted)]">
-          On your phone, sign in to Built-in Tailscale in lpm Link with the same account. A phone
-          paired before picks up this address the next time it opens on your network.
+          {forMachines
+            ? `Turn it on with the same account on your other ${MACHINE.plural} too. One paired before picks up this address the next time it connects.`
+            : "On your phone, sign in to Built-in Tailscale in lpm Link with the same account. A phone paired before picks up this address the next time it opens on your network."}
         </p>
       )}
       {failure && (

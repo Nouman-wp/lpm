@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Smartphone } from "lucide-react";
 import { useAppStore } from "../store/app";
+import { MACHINE } from "../machineWords";
 import { CheckIcon, ChevronRightIcon, CloudBranchIcon, FolderIcon, ServerIcon } from "./icons";
 import { Modal } from "./ui/Modal";
 import { DrillMenu, type DrillScreen } from "./DrillMenu";
@@ -14,11 +15,15 @@ import type { IconListMenuItem } from "./ui/IconListMenu";
 export type NewProjectKind = "local" | "ssh" | "clone";
 
 const WIDE_SCREEN = "w-[400px]";
+const SETTINGS_SCREEN = "w-[600px]";
 
 export const NEW_PROJECT_SOURCES: IconListMenuItem<NewProjectKind>[] = [
-  { key: "local", icon: <FolderIcon />, color: "#facc15", label: "Local Folder", desc: "A project on this machine — pick a folder on disk" },
+  { key: "local", icon: <FolderIcon />, color: "#facc15", label: "Local Folder", desc: "Pick a folder on disk" },
   { key: "clone", icon: <CloudBranchIcon />, color: "#a78bfa", label: "Clone Repository", desc: "Clone from a Git repo URL into a local folder" },
 ];
+
+const SECTION_LABEL =
+  "px-4 pb-1 pt-3 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-muted)]";
 
 // On a remote Mac only folder + clone make sense, and the copy points at that
 // Mac. Servers and other computers are hidden.
@@ -40,13 +45,13 @@ export function NewProjectPicker() {
     const installScreen: DrillScreen = { title: "Linux host", width: WIDE_SCREEN, render: () => <InstallLpmScreen /> };
     const computerScreen: DrillScreen = {
       title: "Another computer",
-      width: WIDE_SCREEN,
+      width: SETTINGS_SCREEN,
       render: () => <AnotherComputerScreen />,
     };
     const phoneScreen: DrillScreen = {
       title: "Phone",
-      width: WIDE_SCREEN,
-      render: (api) => <PhoneScreen drill={api} width={WIDE_SCREEN} />,
+      width: SETTINGS_SCREEN,
+      render: () => <PhoneScreen />,
     };
     const serverScreen: DrillScreen = {
       title: "Server",
@@ -71,7 +76,8 @@ export function NewProjectPicker() {
               </span>
             </p>
           )}
-          <div className="mt-3 flex flex-col">
+          <div className={target ? "mt-3 flex flex-col" : "mt-1 flex flex-col"}>
+            {!target && <h4 className={SECTION_LABEL}>On {MACHINE.thisMachine}</h4>}
             {sources.map((s) => (
               <button
                 key={s.key}
@@ -90,6 +96,12 @@ export function NewProjectPicker() {
                 </div>
               </button>
             ))}
+            {!target && (
+              <>
+                <div className="mx-4 mt-2 h-px bg-[var(--border)]" />
+                <h4 className={SECTION_LABEL}>Remote</h4>
+              </>
+            )}
             {!target && (
               <button
                 onClick={() => api.push(serverScreen)}

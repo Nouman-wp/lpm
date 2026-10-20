@@ -267,6 +267,10 @@ pub(crate) struct PeerEntry {
     pub slug: String,
     pub alias: String,
     pub host: String,
+    // The host's other addresses (its Tailscale one, say), tried when `host`
+    // doesn't answer. Refreshed from every `ready`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub addrs: Vec<String>,
     pub port: u16,
     pub device_id: String,
     pub token: String,
@@ -1268,6 +1272,7 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Sessi
                         "hostVersion": crate::commands_real::get_version(),
                         "hostUpdateChannel": crate::updatechannel::Channel::current().as_str(),
                         "phoneServerId": crate::remote::phone_server_id(app),
+                        "hostAddrs": invite_hosts(&hub.host_config()),
                         "features": host_features() })
                     .to_string(),
                 ));
@@ -2797,6 +2802,7 @@ mod tests {
                 slug: "beefcafe".into(),
                 alias: "Laptop".into(),
                 host: "100.64.0.5".into(),
+                addrs: vec!["192.168.1.5".into()],
                 port: 8766,
                 device_id: "x".into(),
                 token: "secret".into(),
@@ -2839,6 +2845,7 @@ mod tests {
         // A Linux desktop must not come back as a host to be installed over.
         assert_eq!(back.peers[0].headless, Some(false));
         assert_eq!(back.peers[0].phone_server_id, "sid");
+        assert_eq!(back.peers[0].addrs, ["192.168.1.5"]);
         assert_eq!(back.host.devices[0].slug_assigned, "abcd1234");
         assert_eq!(back.peers.len(), 1);
         assert_eq!(back.peers[0].slug, "beefcafe");
