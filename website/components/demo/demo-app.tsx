@@ -26,6 +26,7 @@ import { AutomationsView } from "./automations-view";
 import { UsageView } from "./usage-view";
 import { StatsView } from "./stats-view";
 import { MobileView } from "./mobile-view";
+import { useMobileSettingsState } from "./mobile-settings-state";
 import {
   INITIAL_JOBS,
   runningJobCount,
@@ -184,6 +185,7 @@ export function DemoApp({
     DEFAULT_USAGE_SETTINGS,
   );
   const [adding, setAdding] = useState(false);
+  const mobileSettings = useMobileSettingsState();
   const [notice, setNotice] = useState<DemoNotice | null>(null);
   const dismissNotice = useCallback(() => setNotice(null), []);
   const [visited, setVisited] = useState<Set<string>>(
@@ -943,7 +945,7 @@ export function DemoApp({
           ) : view === "stats" ? (
             <StatsView omit={tour.omitProjects} />
           ) : view === "mobile" ? (
-            <MobileView />
+            <MobileView settings={mobileSettings} />
           ) : null}
           {/* Visited projects stay mounted: switching away must not reboot a
             service's logs or erase a conversation you were having. */}
@@ -995,6 +997,7 @@ export function DemoApp({
           open={adding}
           onClose={() => setAdding(false)}
           onCreate={handleAddProject}
+          mobileSettings={mobileSettings}
         />
         <DemoToast notice={notice} onDismiss={dismissNotice} />
         {removing && (

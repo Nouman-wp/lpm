@@ -12,11 +12,18 @@ import { BackButton } from "./back-button";
 import { NO_AUTOFILL } from "./no-autofill";
 import { SshProjectForm } from "./ssh-project-form";
 import { ServerModePicker } from "./server-mode-picker";
+import { AnotherComputerScreen } from "./another-computer-screen";
+import { DrillPanel } from "./drill-panel";
+import { MobileSettings } from "./mobile-settings";
+import type { MobileSettingsState } from "./mobile-settings-state";
+import {
+  ProjectSourcePicker,
+  type ProjectSource,
+} from "./project-source-picker";
 import { FOCUS_RING, PRESS } from "./ui";
 import {
   DialogHeader,
   DialogPanel,
-  MenuCloseButton,
   FIELD_CLASS,
   FieldLabel,
   HelpText,
@@ -27,12 +34,10 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Cloud,
   File as FileIcon,
   Folder,
   Home,
   Search,
-  Server,
 } from "lucide-react";
 
 function FilledFolder({ size = 13 }: { size?: number }) {
@@ -60,14 +65,14 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onCreate: (input: NewProjectInput) => void;
+  mobileSettings: MobileSettingsState;
 };
 
-type Phase = "pick" | "local" | "server" | "ssh" | "clone";
+type Phase = ProjectSource | "pick" | "ssh";
+
+const DRILLED: ReadonlySet<Phase> = new Set(["server", "computer", "phone"]);
 
 const DEST_FOLDERS = ["~/Projects", "~/Code", "~/dev", "~/work"];
-
-const SECTION_LABEL =
-  "px-4 pb-1 pt-3 text-[10.5px] font-semibold uppercase tracking-wider text-[#919191]";
 
 function deriveNameFromUrl(url: string): string {
   const trimmed = url.trim();
@@ -211,7 +216,12 @@ function getColumns(roots: FsNode[], path: string[]): FsNode[][] {
   return cols;
 }
 
-export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
+export function DemoAddProjectModal({
+  open,
+  onClose,
+  onCreate,
+  mobileSettings,
+}: Props) {
   const [phase, setPhase] = useState<Phase>("pick");
   const [name, setName] = useState("");
   const [sshFocus, setSshFocus] = useState(false);
@@ -256,8 +266,12 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
 
   useEffect(() => {
     if (!open) return;
+    // Like the app's DrillMenu, Escape backs out of a drilled screen and only
+    // closes from the top.
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") handleClose();
+      if (e.key !== "Escape") return;
+      if (DRILLED.has(phase)) setPhase("pick");
+      else handleClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -290,50 +304,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
       />
 
       {phase === "pick" && (
-        <div
-          role="dialog"
-          aria-labelledby="add-project-title"
-          className="relative w-[360px] overflow-hidden rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] py-1.5 shadow-2xl"
-        >
-          <MenuCloseButton onClick={handleClose} />
-          <div className="px-2 pb-1 pt-3.5">
-            <p
-              id="add-project-title"
-              className="px-4 text-[13px] font-medium text-[#e5e5e5]"
-            >
-              Add a project
-            </p>
-            <div className="mt-1 flex flex-col">
-              <p className={SECTION_LABEL}>On this Mac</p>
-              <SourceOption
-                icon={<Folder size={22} strokeWidth={1.5} />}
-                color="#facc15"
-                label="Local Folder"
-                desc="Pick a folder on disk"
-                onClick={() => setPhase("local")}
-                tourTarget="source-local"
-              />
-              <SourceOption
-                icon={<Cloud size={22} strokeWidth={1.5} />}
-                color="#a78bfa"
-                label="Clone Repository"
-                desc="Clone from a Git repo URL into a local folder"
-                onClick={() => setPhase("clone")}
-              />
-              <div className="mx-4 mt-2 h-px bg-[#2e2e2e]" />
-              <p className={SECTION_LABEL}>Remote</p>
-              <SourceOption
-                icon={<Server size={22} strokeWidth={1.5} />}
-                color="#22d3ee"
-                label="Server"
-                desc="A machine you reach over SSH"
-                onClick={() => setPhase("server")}
-                tourTarget="source-server"
-                drills
-              />
-            </div>
-          </div>
-        </div>
+        <ProjectSourcePicker onPick={setPhase} onClose={handleClose} />
       )}
 
       {phase === "local" && (
@@ -357,6 +328,30 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
             setPhase("ssh");
           }}
         />
+      )}
+
+      {phase === "computer" && (
+        <DrillPanel
+          title="Another computer"
+          width="w-[600px]"
+          onBack={() => setPhase("pick")}
+          onClose={handleClose}
+        >
+          <AnotherComputerScreen />
+        </DrillPanel>
+      )}
+
+      {phase === "phone" && (
+        <DrillPanel
+          title="Phone"
+          width="w-[600px]"
+          onBack={() => setPhase("pick")}
+          onClose={handleClose}
+        >
+          <div className="min-h-0 overflow-y-auto px-5 pb-5 pt-2">
+            <MobileSettings state={mobileSettings} />
+          </div>
+        </DrillPanel>
       )}
 
       {phase === "ssh" && (
@@ -509,51 +504,6 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
       )}
 
     </div>
-  );
-}
-
-function SourceOption({
-  icon,
-  color,
-  label,
-  desc,
-  onClick,
-  tourTarget,
-  drills = false,
-}: {
-  icon: ReactNode;
-  color: string;
-  label: string;
-  desc: string;
-  onClick: () => void;
-  tourTarget?: string;
-  drills?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      data-tour={tourTarget}
-      className={`group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[#2a2a2a] ${FOCUS_RING}`}
-    >
-      <div
-        className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#2a2a2a] transition-colors group-hover:bg-[#333333]"
-        style={{ color }}
-      >
-        {icon}
-      </div>
-      <div className="min-w-0 flex-1 pt-0.5">
-        <div className="text-[13px] font-medium text-[#e5e5e5]">{label}</div>
-        <div className="mt-0.5 text-[11px] leading-relaxed text-[#b3b3b3]">
-          {desc}
-        </div>
-      </div>
-      {drills && (
-        <span className="mt-2 flex shrink-0 text-[#919191]">
-          <ChevronRight size={14} strokeWidth={1.5} />
-        </span>
-      )}
-    </button>
   );
 }
 

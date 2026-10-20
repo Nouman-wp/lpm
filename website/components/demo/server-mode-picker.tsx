@@ -1,8 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Check, ChevronLeft, Clock, Server, SquareTerminal } from "lucide-react";
-import { MenuCloseButton } from "./ui-kit";
+import { Check, Clock, Server, SquareTerminal } from "lucide-react";
+import { DrillPanel } from "./drill-panel";
 import { FOCUS_RING } from "./ui";
 
 type PointKind = "pro" | "time" | "plain";
@@ -43,24 +43,7 @@ export function ServerModePicker({
   onSsh: (event: React.MouseEvent) => void;
 }) {
   return (
-    <div
-      role="dialog"
-      aria-label="Server"
-      className="relative w-[360px] max-w-[calc(100%-2rem)] overflow-hidden rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] py-1.5 shadow-2xl"
-    >
-      <MenuCloseButton onClick={onClose} />
-      <button
-        type="button"
-        onClick={onBack}
-        className={`mx-2 mb-1 flex items-center gap-1 rounded-lg py-1 pl-1 pr-2.5 text-left transition-colors hover:bg-[#2a2a2a] ${FOCUS_RING}`}
-      >
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center text-[#b3b3b3]">
-          <ChevronLeft size={14} strokeWidth={1.5} />
-        </span>
-        <span className="min-w-0 truncate text-[12.5px] font-medium text-[#e5e5e5]">
-          Server
-        </span>
-      </button>
+    <DrillPanel title="Server" onBack={onBack} onClose={onClose}>
       <div className="flex flex-col gap-2.5 px-4 pb-3.5 pt-1.5">
         <p className="text-[12px] text-[#b3b3b3]">How should lpm work with it?</p>
         <div
@@ -110,6 +93,6 @@ export function ServerModePicker({
           </div>
         </button>
       </div>
-    </div>
+    </DrillPanel>
   );
 }
