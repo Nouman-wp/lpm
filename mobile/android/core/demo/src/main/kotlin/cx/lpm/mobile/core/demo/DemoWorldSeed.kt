@@ -187,7 +187,7 @@ internal fun DemoWorld.seedTerminals() {
             id = "demo-storefront-claude",
             label = "Claude",
             project = "storefront",
-            emoji = "✨",
+            emoji = "✻",
             cli = "claude",
             buffer = "Welcome to Claude Code\r\n\r\n"
         )

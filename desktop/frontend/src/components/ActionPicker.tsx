@@ -13,6 +13,7 @@ import {
   isRunnableAction,
 } from "../actionTree";
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon } from "./icons";
+import { EmojiMark } from "./EmojiMark";
 import { loadRememberedChild, resolvePrimaryChild } from "./splitPrimary";
 
 interface ActionPickerProps {
@@ -130,7 +131,9 @@ export function ActionPicker({ actions, value, onChange, scope = "global" }: Act
       >
         <span className="flex min-w-0 items-center gap-2">
           {selected?.emoji && (
-            <span className="shrink-0">{selected.emoji}</span>
+            <span className="flex shrink-0 items-center">
+              <EmojiMark emoji={selected.emoji} />
+            </span>
           )}
           <span className="truncate text-[var(--text-primary)]">
             {selected ? selected.label || selected.name : "Select an action"}
@@ -259,7 +262,11 @@ export function ActionPicker({ actions, value, onChange, scope = "global" }: Act
 function RowBody({ action }: { action: ActionInfo }) {
   return (
     <>
-      {action.emoji && <span className="shrink-0">{action.emoji}</span>}
+      {action.emoji && (
+        <span className="flex shrink-0 items-center">
+          <EmojiMark emoji={action.emoji} />
+        </span>
+      )}
       <span className="min-w-0 flex-1 truncate">
         {action.label || action.name}
       </span>

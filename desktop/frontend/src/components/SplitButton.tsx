@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import type { ActionInfo, ZoneDisplay } from "../types";
 import { ChevronDownIcon } from "./icons";
-import { withEmoji } from "../withEmoji";
+import { EmojiLabel } from "./EmojiLabel";
 import { actionButtonStyle, actionTextColor } from "../actionColors";
 import { isChildId } from "../actionIds";
 import { useActionsActiveId } from "./ActionsDnd";
@@ -193,7 +193,11 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, onHo
         style={{ color: actionTextColor(primaryColor) }}
         className={`flex items-center whitespace-nowrap ${s.primaryFill} ${s.roundedL} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
       >
-        {primaryChild ? withEmoji(primaryChild.emoji, primaryChild.label) : withEmoji(action.emoji, action.label)}
+        {primaryChild ? (
+          <EmojiLabel emoji={primaryChild.emoji} label={primaryChild.label} />
+        ) : (
+          <EmojiLabel emoji={action.emoji} label={action.label} />
+        )}
       </button>
       <button
         onClick={() => setOpen((v) => !v)}
@@ -210,7 +214,7 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, onHo
       style={actionButtonStyle(action.color)}
       className={`inline-flex items-center gap-1 whitespace-nowrap ${s.fill} ${s.height} ${s.rounded} ${s.border} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
     >
-      {withEmoji(action.emoji, action.label)}
+      <EmojiLabel emoji={action.emoji} label={action.label} />
       <ChevronDownIcon />
     </button>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { RefreshAgentTools } from "../../bridge/commands";
 import {
   agentToolsAction,
   fetchStatuses,
@@ -20,7 +21,9 @@ export function SidebarAgentToolsPill() {
   };
 
   useEffect(() => {
-    refresh();
+    RefreshAgentTools()
+      .catch(() => {})
+      .then(refresh);
   }, []);
 
   const action = agentToolsAction(skill.status, cli.status);

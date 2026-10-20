@@ -5,6 +5,7 @@ import { Tooltip } from "./ui/Tooltip";
 import { Combo } from "./KeyCombo";
 import type { ActionInfo } from "../types";
 import { withEmoji } from "../withEmoji";
+import { EmojiLabel } from "./EmojiLabel";
 import { actionButtonStyle } from "../actionColors";
 import { formatShortcut, parseShortcut } from "../shortcutParse";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
@@ -52,6 +53,7 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
     );
   }
   const displayLabel = withEmoji(action.emoji, action.label);
+  const shownLabel = <EmojiLabel emoji={action.emoji} label={action.label} />;
   const parsedShortcut =
     action.cmd && action.shortcut ? parseShortcut(action.shortcut) : null;
   const shortcutLabel = parsedShortcut ? formatShortcut(parsedShortcut) : null;
@@ -67,7 +69,7 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
         style={actionButtonStyle(action.color)}
         className={FLAT_SIZE_CLASSES[size]}
       >
-        {displayLabel}
+        {shownLabel}
       </button>
     );
   }
@@ -78,7 +80,7 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
       onMouseEnter={handleHover}
       disabled={disabled}
       variant="secondary"
-      label={displayLabel}
+      label={shownLabel}
       color={action.color}
     />
   );
@@ -87,7 +89,7 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
     <Tooltip
       content={
         <span className="flex items-center gap-2">
-          {displayLabel}
+          {shownLabel}
           <Combo label={shortcutLabel} />
         </span>
       }

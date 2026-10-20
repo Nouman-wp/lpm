@@ -1,7 +1,7 @@
 import { useCallback, type CSSProperties } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { ActionInfo } from "../types";
-import { withEmoji } from "../withEmoji";
+import { EmojiLabel } from "./EmojiLabel";
 import { actionTextColor } from "../actionColors";
 import { MenuSplitRow } from "./MenuSplitRow";
 import { useActionsActiveId, useActionsSettlingId, useMenuDrop } from "./ActionsDnd";
@@ -40,7 +40,7 @@ export function ActionMenuRow({ child, onRun, onDrill }: Props) {
   const mode = menuDrop?.target === child.name ? menuDrop.mode : null;
 
   const style: CSSProperties = { opacity: settling ? 0 : isDragging ? 0.4 : undefined };
-  const label = withEmoji(child.emoji, child.label);
+  const label = <EmojiLabel emoji={child.emoji} label={child.label} />;
   const hasChildren = !!child.children?.length;
 
   let row;

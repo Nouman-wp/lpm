@@ -1,11 +1,11 @@
 import { useMemo } from "react";
-import { Users } from "lucide-react";
 import { useAppStore } from "../store/app";
-import { useTabShares } from "../store/tabShares";
 import { ChevronRightIcon, CloudBranchIcon, FolderIcon, ServerIcon } from "./icons";
 import { Modal } from "./ui/Modal";
 import { DrillMenu, type DrillScreen } from "./DrillMenu";
 import { GeneratorList } from "./GeneratorList";
+import { ServerModeScreen } from "./ServerModeScreen";
+import { InstallLpmScreen } from "./InstallLpmScreen";
 import type { IconListMenuItem } from "./ui/IconListMenu";
 
 export type NewProjectKind = "local" | "ssh" | "clone";
@@ -13,11 +13,10 @@ export type NewProjectKind = "local" | "ssh" | "clone";
 export const NEW_PROJECT_SOURCES: IconListMenuItem<NewProjectKind>[] = [
   { key: "local", icon: <FolderIcon />, color: "#facc15", label: "Local Folder", desc: "A project on this machine — pick a folder on disk" },
   { key: "clone", icon: <CloudBranchIcon />, color: "#a78bfa", label: "Clone Repository", desc: "Clone from a Git repo URL into a local folder" },
-  { key: "ssh", icon: <ServerIcon />, color: "#22d3ee", label: "SSH Host", desc: "Connect to a remote machine over SSH" },
 ];
 
 // On a remote Mac only folder + clone make sense, and the copy points at that
-// Mac. SSH and templates are hidden.
+// Mac. Servers and templates are hidden.
 function remoteSources(alias: string): IconListMenuItem<NewProjectKind>[] {
   return [
     { key: "local", icon: <FolderIcon />, color: "#facc15", label: "Local Folder", desc: `A folder already on ${alias}` },
@@ -33,6 +32,13 @@ export function NewProjectPicker() {
 
   const root = useMemo<DrillScreen>(() => {
     const generatorsScreen: DrillScreen = { title: "Templates", render: () => <GeneratorList /> };
+    const installScreen: DrillScreen = { title: "Install lpm", render: () => <InstallLpmScreen /> };
+    const serverScreen: DrillScreen = {
+      title: "Server",
+      render: (api) => (
+        <ServerModeScreen onInstall={() => api.push(installScreen)} onSsh={() => onPick("ssh")} />
+      ),
+    };
     const sources = target ? remoteSources(target.alias) : NEW_PROJECT_SOURCES;
     const heading = target ? `Add a project on ${target.alias}` : "Add a project";
     return {
@@ -60,6 +66,23 @@ export function NewProjectPicker() {
             ))}
             {!target && (
               <button
+                onClick={() => api.push(serverScreen)}
+                className="group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[var(--bg-hover)]"
+              >
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-hover)] text-[#22d3ee] transition-colors group-hover:bg-[var(--bg-active)] [&_svg]:h-[22px] [&_svg]:w-[22px]">
+                  <ServerIcon />
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <div className="text-[13px] font-medium text-[var(--text-primary)]">Server</div>
+                  <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-secondary)]">A machine you reach over SSH</div>
+                </div>
+                <span className="mt-2 flex shrink-0 text-[var(--text-muted)]">
+                  <ChevronRightIcon />
+                </span>
+              </button>
+            )}
+            {!target && (
+              <button
                 onClick={() => api.push(generatorsScreen)}
                 className="group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[var(--bg-hover)]"
               >
@@ -75,32 +98,17 @@ export function NewProjectPicker() {
                 </span>
               </button>
             )}
-            {!target && (
-              <button
-                onClick={() => {
-                  onClose();
-                  useTabShares.getState().openJoinDialog();
-                }}
-                className="group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[var(--bg-hover)]"
-              >
-                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-hover)] text-[var(--accent-cyan)] transition-colors group-hover:bg-[var(--bg-active)]">
-                  <Users size={20} />
-                </div>
-                <div className="min-w-0 pt-0.5">
-                  <div className="text-[13px] font-medium text-[var(--text-primary)]">Join a shared tab</div>
-                  <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-secondary)]">Open a tab someone shared with you, from their invite</div>
-                </div>
-              </button>
-            )}
           </div>
         </div>
       ),
     };
   }, [onPick, target]);
 
+  // Keyed by target so pairing a server from the Install lpm screen lands on
+  // that server's own root, not the screen the pairing started from.
   return (
     <Modal open={open} onClose={onClose} zIndexClassName="z-50">
-      <DrillMenu root={root} onClose={onClose} widthClassName="w-[360px]" />
+      <DrillMenu key={target?.slug ?? ""} root={root} onClose={onClose} widthClassName="w-[360px]" />
     </Modal>
   );
 }

@@ -39,6 +39,7 @@ import cx.lpm.mobile.core.designsystem.component.listSeparator
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.ui.AgentToneText
+import cx.lpm.mobile.core.ui.EmojiLabel
 import cx.lpm.mobile.feature.projects.R as ProjectsR
 import cx.lpm.mobile.feature.projects.agents.AgentStatusTrail
 
@@ -130,12 +131,14 @@ fun TabRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AgentToneText(
-                    text = term.title,
-                    state = agent?.state,
-                    style = LpmTheme.typography.body,
+                EmojiLabel(
+                    emoji = term.emoji,
+                    label = term.label,
+                    fontSize = LpmTheme.typography.body.fontSize,
                     modifier = Modifier.weight(1f, fill = false)
-                )
+                ) {
+                    AgentToneText(text = it, state = agent?.state, style = LpmTheme.typography.body)
+                }
                 if (agent != null && agent.shared > 0) {
                     Text(
                         text = "+${agent.shared}",

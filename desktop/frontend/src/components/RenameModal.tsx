@@ -86,6 +86,7 @@ export function RenameModal({
               value={emoji}
               onSelect={setEmoji}
               placeholder={<TerminalIcon />}
+              agents
             />
           )}
           <input

@@ -28,7 +28,7 @@ class DemoTerminalsTest {
             terminals.map { it.string("id") }
         )
         assertEquals(listOf("Terminal 1", "Claude"), terminals.map { it.string("label") })
-        assertEquals(listOf("", "✨"), terminals.map { it.string("emoji") })
+        assertEquals(listOf("", "✻"), terminals.map { it.string("emoji") })
         assertEquals(listOf("", "claude"), terminals.map { it.string("cli") })
     }
 

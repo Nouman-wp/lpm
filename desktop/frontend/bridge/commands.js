@@ -376,6 +376,9 @@ export function AgentSkillStatus() {
 export function InstallAgentSkill() {
   return invoke("install_agent_skill");
 }
+export function RefreshAgentTools() {
+  return invoke("refresh_agent_tools");
+}
 export function InstallUpdate() {
   return invoke("install_update");
 }

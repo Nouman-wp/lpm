@@ -121,7 +121,7 @@ private fun PlainButton(
             ),
         horizontalPadding = 14.dp
     ) { style ->
-        FaceLabel(action.displayLabel, style)
+        FaceLabel(action, style)
     }
 }
 
@@ -162,7 +162,7 @@ private fun SplitButton(
                 .padding(start = 14.dp, end = 12.dp),
             contentAlignment = Alignment.Center
         ) {
-            FaceLabel(primary.displayLabel, style)
+            FaceLabel(primary, style)
         }
         Box(
             Modifier
@@ -221,7 +221,7 @@ private fun MenuButton(
                 ),
             horizontalPadding = 14.dp
         ) { style ->
-            FaceLabel(action.displayLabel, style)
+            FaceLabel(action, style)
             Chevron(style, Modifier.padding(start = 6.dp))
         }
         ContextMenu(expanded = menu, onDismissRequest = { menu = false }) {

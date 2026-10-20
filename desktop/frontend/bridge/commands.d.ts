@@ -118,6 +118,7 @@ export function InstallCli(...args: any[]): Promise<any>;
 export function CliInstallStatus(...args: any[]): Promise<any>;
 export function AgentSkillStatus(...args: any[]): Promise<any>;
 export function InstallAgentSkill(...args: any[]): Promise<any>;
+export function RefreshAgentTools(...args: any[]): Promise<any>;
 export function InstallKokoro(...args: any[]): Promise<any>;
 export function InstallUpdate(...args: any[]): Promise<any>;
 export function RollbackUpdate(...args: any[]): Promise<any>;

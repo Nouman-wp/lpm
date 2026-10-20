@@ -103,3 +103,19 @@ private struct Mark24: Shape {
         return p.applying(CGAffineTransform(translationX: rect.midX - 12 * s, y: rect.midY - 12 * s).scaledBy(x: s, y: s))
     }
 }
+
+extension AgentMark {
+    /// The mark an action's or tab's emoji stands for; nil for any other emoji.
+    static func ofEmoji(_ emoji: String) -> AgentMark? {
+        agentForEmoji(emoji).flatMap { AgentMark($0) }
+    }
+}
+
+/// The agent one of the desktop's agent glyphs stands for (agentEmoji.ts): an
+/// action's or tab's emoji stays one character, so four non-emoji glyphs name the
+/// agents. nil for any other emoji.
+func agentForEmoji(_ emoji: String) -> String? {
+    agentEmoji[emoji.trimmingCharacters(in: .whitespacesAndNewlines)]
+}
+
+private let agentEmoji = ["✻": "claude", "◆": "codex", "✦": "gemini", "▣": "opencode"]

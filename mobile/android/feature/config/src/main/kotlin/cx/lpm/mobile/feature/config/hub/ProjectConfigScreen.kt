@@ -30,8 +30,8 @@ import cx.lpm.mobile.core.designsystem.component.SwipeAction
 import cx.lpm.mobile.core.designsystem.component.SwipeActionsBox
 import cx.lpm.mobile.core.designsystem.component.listSeparator
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
-import cx.lpm.mobile.core.model.Action
 import cx.lpm.mobile.core.ui.ActionErrorsNotice
+import cx.lpm.mobile.core.ui.EmojiLabel
 import cx.lpm.mobile.feature.config.R
 
 /** Which editor the configuration sheet has open over it. */
@@ -124,7 +124,8 @@ fun ProjectConfigScreen(
             ) {
                 state.actions.forEach { action ->
                     DeletableRow(
-                        title = actionTitle(action),
+                        title = action.label,
+                        emoji = action.emoji,
                         subtitle = if (action.isRunnable) {
                             null
                         } else {
@@ -179,7 +180,8 @@ private fun DeletableRow(
     title: String,
     subtitle: String?,
     onClick: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    emoji: String = ""
 ) {
     val haptics = LocalHapticFeedback.current
     SwipeActionsBox(
@@ -195,21 +197,36 @@ private fun DeletableRow(
             }
         )
     ) {
-        DisclosureRow(title = title, subtitle = subtitle, onClick = onClick)
+        DisclosureRow(title = title, subtitle = subtitle, onClick = onClick, emoji = emoji)
     }
 }
 
-/** A title with an optional caption under it, and the disclosure chevron. */
+/**
+ * A title, led by [emoji] when given, with an optional caption under it, and the
+ * disclosure chevron.
+ */
 @Composable
-private fun DisclosureRow(title: String, subtitle: String?, onClick: () -> Unit) {
+private fun DisclosureRow(
+    title: String,
+    subtitle: String?,
+    onClick: () -> Unit,
+    emoji: String = ""
+) {
     ListRow(onClick = onClick, trailing = { DisclosureChevron() }) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = title,
-                style = LpmTheme.typography.body,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            EmojiLabel(
+                emoji = emoji,
+                label = title,
+                fontSize = LpmTheme.typography.body.fontSize,
+                plain = emojiTitle(emoji, title)
+            ) {
+                Text(
+                    text = it,
+                    style = LpmTheme.typography.body,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             if (subtitle != null) {
                 Text(
                     text = subtitle,
@@ -223,8 +240,8 @@ private fun DisclosureRow(title: String, subtitle: String?, onClick: () -> Unit)
 }
 
 @Composable
-private fun actionTitle(action: Action): String = if (action.emoji.isEmpty()) {
-    action.label
+private fun emojiTitle(emoji: String, label: String): String = if (emoji.isEmpty()) {
+    label
 } else {
-    stringResource(R.string.config_action_title, action.emoji, action.label)
+    stringResource(R.string.config_action_title, emoji, label)
 }

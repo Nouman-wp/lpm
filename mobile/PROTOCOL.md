@@ -893,6 +893,8 @@ actions: [ActionInfo]     // recursive: { name (composite parent:child), label, 
                           // `inputs[].options[].label`, each with its own `configLabel`. The Mac emits
                           // `projects-changed` when a rendered label moves (a new tag or branch, new command
                           // output, an age ticking over), so the phone redraws by refetching `projects`.
+                          // An `emoji` of `✻`, `◆`, `✦` or `▣` (trimmed) is drawn as the claude, codex, gemini or
+                          // opencode mark by clients that can, and shown as-is otherwise (a Terminal's `emoji` too).
                           // Editors read `actionBody`, which keeps the templates, and `labelRefresh`/`labelRefreshOnHover`/
                           // `labelRefreshOnChange` ride along as unmanaged keys (the Mac watches files itself). `labelRefreshOnHover: true` asks a pointer-driven client to
                           // rerun the action's commands when hovered; the phone has no hover and ignores it
@@ -1157,7 +1159,7 @@ cols: uint16
 rows: uint16
 remote: bool     // spawned over ssh
 pinned: bool     // desktop tab pin state
-emoji: string    // the tab's emoji icon (empty if unset) — mirrors the desktop tab icon
+emoji: string    // the tab's emoji icon (empty if unset) — mirrors the desktop tab icon; agent glyphs as on ActionInfo
 canFork: bool    // the desktop's tab menu offers Fork session (an agent tab with a conversation to fork)
 canForkCopy: bool // … and Fork into copy (not for a project that runs over SSH)
 canTitle: bool   // … and Use conversation title (a renamed agent tab with a conversation)

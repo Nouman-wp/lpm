@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { withEmoji } from "../../withEmoji";
 import { actionButtonStyle } from "../../actionColors";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { ChevronDownIcon } from "../icons";
+import { EmojiLabel } from "../EmojiLabel";
 import type { RunMode } from "./actionInference";
 import {
   MockActionPlaceholder,
@@ -68,7 +68,7 @@ export function ActionPreviewPanel({
 }) {
   const trimmedName = name.trim();
   const hasName = trimmedName.length > 0;
-  const displayLabel = withEmoji(emoji, trimmedName);
+  const shownLabel = <EmojiLabel emoji={emoji} label={trimmedName} />;
   const colorStyle = actionButtonStyle(color);
   const [menuOpen, setMenuOpen] = useState(false);
   const [running, setRunning] = useState<DemoState>(null);
@@ -193,7 +193,7 @@ export function ActionPreviewPanel({
                     style={colorStyle}
                     className={`inline-flex whitespace-nowrap rounded-lg border bg-[var(--action-tint,var(--bg-primary))] px-3.5 py-1.5 text-xs font-medium transition hover:bg-[var(--action-tint-strong,var(--bg-hover))] active:scale-[0.96] ${SHAPE_PREVIEW_BUTTON_CLASS}`}
                   >
-                    {displayLabel}
+                    {shownLabel}
                   </button>
                 ) : shape === "split" ? (
                   <div ref={menuRef} className="relative">
@@ -206,7 +206,7 @@ export function ActionPreviewPanel({
                         onClick={triggerRun}
                         className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5 transition hover:bg-[var(--action-tint-strong,var(--bg-hover))] active:scale-[0.96]"
                       >
-                        {displayLabel}
+                        {shownLabel}
                       </button>
                       <button
                         type="button"
@@ -226,7 +226,7 @@ export function ActionPreviewPanel({
                       style={colorStyle}
                       className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--action-tint-strong,var(--bg-hover))] ${SHAPE_PREVIEW_BUTTON_CLASS} ${menuOpen ? "bg-[var(--action-tint-strong,var(--bg-hover))]" : "bg-[var(--action-tint,var(--bg-primary))]"}`}
                     >
-                      {displayLabel}
+                      {shownLabel}
                       <ChevronDownIcon />
                     </button>
                     {dropdown}
@@ -240,13 +240,13 @@ export function ActionPreviewPanel({
                     key={`${running ?? "idle"}-${replayNonce}`}
                     running={shownRunning}
                     cmd={resolvedCmd}
-                    label={displayLabel}
+                    label={shownLabel}
                     display={display}
                     highlight={frameHighlight}
                     questions={
                       hasQuestions ? (
                         <QuestionsDemo
-                          label={displayLabel}
+                          label={shownLabel}
                           inputs={inputs}
                           answers={answers}
                           submitLabel={confirm ? "Next" : "Run"}
@@ -273,7 +273,7 @@ export function ActionPreviewPanel({
 
               <ActionSummary
                 shape={shape}
-                label={displayLabel}
+                label={shownLabel}
                 display={display}
                 runMode={runMode}
                 reuse={reuse}
@@ -326,7 +326,7 @@ function ActionSummary({
   promptFor,
 }: {
   shape: Shape;
-  label: string;
+  label: ReactNode;
   display: "header" | "footer";
   runMode: RunMode;
   reuse: boolean;

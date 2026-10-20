@@ -98,7 +98,7 @@ A script anywhere else stays on this Mac, so the synced action fails on the othe
 | `labelRefresh` | number or string | How often the action's `$(…)` commands run: seconds, or a number with `s`, `m` or `h` such as `5m`. Defaults to `1m`; the floor is `5s`. |
 | `labelRefreshOnHover` | boolean | Run the action's `$(…)` commands again when the pointer rests on the button; see [Dynamic labels](#dynamic-labels). |
 | `labelRefreshOnChange` | boolean | Run the action's `$(…)` commands again soon after files in the project change; see [Dynamic labels](#dynamic-labels). |
-| `emoji` | string | Icon shown on the button and on the terminal tab it opens. May hold variables and `$(…)` commands; see [Dynamic labels](#dynamic-labels). |
+| `emoji` | string | Icon shown on the button and on the terminal tab it opens. `✻`, `◆`, `✦` and `▣` draw the Claude Code, Codex, Gemini and OpenCode marks. May hold variables and `$(…)` commands; see [Dynamic labels](#dynamic-labels). |
 | `color` | string | Accent for the button and its terminal tab: a named accent (`red`, `orange`, `claude`, `amber`, `yellow`, `lime`, `green`, `emerald`, `teal`, `cyan`, `sky`, `blue`, `indigo`, `violet`, `purple`, `fuchsia`, `pink`, `rose`, `slate`, `gray`, `stone`), a named accent plus `-deep` such as `blue-deep`, or any CSS color such as `"#8b5cf6"` (quote a leading `#`). |
 | `shortcut` | string | Shortcut that runs the action while the project is open, such as `cmd+shift+b`: `cmd` (`ctrl` counts as `cmd`) or `alt`/`opt`, optionally `shift`, and exactly one key. |
 | `cwd` | string | Relative to the local root or remote `ssh.dir`; local paths must exist. |

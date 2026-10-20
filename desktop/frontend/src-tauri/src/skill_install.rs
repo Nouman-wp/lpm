@@ -218,7 +218,12 @@ fn write_all(dirs: &[PathBuf], what: &str) {
     }
 }
 
+// The startup pass and the sidebar's pass can overlap at launch; one at a time
+// means the second sees the files current and writes nothing.
+static REFRESH: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn refresh_all(dirs: &[PathBuf]) {
+    let _one_at_a_time = REFRESH.lock();
     if overall_status(dirs) != "outdated" {
         return;
     }
@@ -286,6 +291,19 @@ pub fn agent_skill_status() -> Result<Value, String> {
         "bundledVersion": bundled_version,
         "installedVersion": installed_version,
     }))
+}
+
+/// The sidebar runs this before reading the statuses, so the Agent tools badge
+/// only offers what still needs the user — a fresh install, or a CLI link that
+/// takes an administrator's password — never an update the app could just make.
+/// Same terms as the startup pass: nothing the user didn't opt into, no prompts.
+#[tauri::command(async)]
+pub fn refresh_agent_tools() {
+    if crate::lesson::active() {
+        return;
+    }
+    refresh_all(&targets());
+    crate::cli_install::repair_symlink_quietly();
 }
 
 #[tauri::command(async)]

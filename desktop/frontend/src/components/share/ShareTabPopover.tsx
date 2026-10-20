@@ -181,7 +181,7 @@ export function ShareTabPopover() {
                   : "On your clipboard. It opens in lpm on their computer."
                 : share.browser
                   ? "Opens in lpm, or in any browser with nothing to install."
-                  : "Opens in lpm on their computer, or under Add → Join a shared tab."}
+                  : "Opens in lpm on their computer."}
             </p>
             {qrOpen && (
               <div className="mt-3">

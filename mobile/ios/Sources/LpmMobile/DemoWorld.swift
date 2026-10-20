@@ -421,7 +421,7 @@ struct DemoWorld {
             Terminal(id: "demo-storefront-1", label: "Terminal 1", project: "storefront",
                      buffer: "~/dev/storefront $ "),
             Terminal(id: "demo-storefront-claude", label: "Claude", project: "storefront",
-                     emoji: "✨", cli: "claude",
+                     emoji: "✻", cli: "claude",
                      buffer: "Welcome to Claude Code\r\n\r\n"),
         ]
     }

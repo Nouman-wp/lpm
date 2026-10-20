@@ -1,4 +1,5 @@
 import { TerminalIcon } from "./icons";
+import { EmojiMark } from "./EmojiMark";
 import { AGENT_STATE_LABEL, AGENT_STATE_TONE, type AgentState } from "../agentStatus";
 import type { SendTargetRow } from "../sendTargets";
 
@@ -49,7 +50,7 @@ export function SendTargetItem({
         }`}
       >
         <span className="flex h-4 w-4 shrink-0 items-center justify-center text-[var(--text-muted)]">
-          {row.emoji || <TerminalIcon />}
+          {row.emoji ? <EmojiMark emoji={row.emoji} size={16} /> : <TerminalIcon />}
         </span>
         <span className="min-w-0 flex-1 truncate">{row.label}</span>
         {blockedReason ? (

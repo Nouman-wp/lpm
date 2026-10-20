@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.sp
 import cx.lpm.mobile.core.designsystem.R
 import cx.lpm.mobile.core.designsystem.component.glass
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.Action
+import cx.lpm.mobile.core.ui.EmojiLabel
 
 /** How a face draws its label and chevron: the action's color, smaller in the footer. */
 @Immutable
@@ -79,6 +81,14 @@ internal fun FaceLabel(text: String, style: FaceStyle, modifier: Modifier = Modi
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
     )
+}
+
+/** An action's emoji and label inside an [ActionFace], an agent's emoji drawn as its mark. */
+@Composable
+internal fun FaceLabel(action: Action, style: FaceStyle, modifier: Modifier = Modifier) {
+    EmojiLabel(action.emoji, action.label, style.text.fontSize, modifier) {
+        FaceLabel(it, style)
+    }
 }
 
 /** `chevron.down` at 11 pt bold, in the face's color. */

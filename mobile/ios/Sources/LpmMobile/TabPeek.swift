@@ -20,10 +20,12 @@ struct TabPeekCard: View {
     let term: TerminalInfo
     let agent: ProjectAgentRow
 
+    @ScaledMetric(relativeTo: .headline) private var markSide: CGFloat = 20
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             VStack(alignment: .leading, spacing: 12) {
-                Text(term.title)
+                EmojiLabel(emoji: term.emoji, label: term.label, markSide: markSide)
                     .font(.headline)
                     .lineLimit(3)
                 Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {

@@ -14,6 +14,7 @@ import { ScrollFadeEdges } from "./ui/ScrollFadeEdges";
 import { Pane, type PaneHandle } from "./Pane";
 import { HeaderTab } from "./terminal/HeaderTab";
 import { RenameModal } from "./RenameModal";
+import { EmojiMark } from "./EmojiMark";
 import { TabContextMenu } from "./terminal/TabContextMenu";
 import { ServiceTabContextMenu } from "./terminal/ServiceTabContextMenu";
 import { ServiceExitBar } from "./terminal/ServiceExitBar";
@@ -128,7 +129,7 @@ function TabIcon({ tab }: { tab: TerminalInstance }) {
         className="flex h-3.5 w-3.5 items-center justify-center text-[12px] leading-none"
         style={{ color: actionTextColor(tab.color) }}
       >
-        {tab.emoji}
+        <EmojiMark emoji={tab.emoji} />
       </span>
     );
   return <TerminalIcon />;

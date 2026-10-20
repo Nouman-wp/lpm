@@ -9,6 +9,7 @@ import {
 import { createPortal } from "react-dom";
 import { SmileIcon } from "./icons";
 import { EmojiPickerPanel } from "./EmojiPickerPanel";
+import { EmojiMark } from "./EmojiMark";
 import { useEventListener } from "../hooks/useEventListener";
 import { useDismissOnEscape } from "../hooks/useDismissOnEscape";
 import { insertAtSelection } from "../insertAtSelection";
@@ -110,6 +111,8 @@ interface EmojiSlotButtonProps {
   // Fill the relative parent (a standalone slot) instead of the default
   // left-anchored overlay used inside a composer input.
   fill?: boolean;
+  // Offer the agents' marks too, for an action's or a tab's emoji.
+  agents?: boolean;
 }
 
 /**
@@ -124,6 +127,7 @@ export function EmojiSlotButton({
   size = "md",
   placeholder,
   fill = false,
+  agents = false,
 }: EmojiSlotButtonProps) {
   const { open, setOpen, toggleRef, panelRef, panelStyle } = useEmojiPanel(inputRef);
   const { icon: iconSize } = SIZES[size];
@@ -152,7 +156,9 @@ export function EmojiSlotButton({
         }`}
       >
         {value ? (
-          <span className="text-[18px] leading-none">{value}</span>
+          <span className="text-[18px] leading-none">
+            <EmojiMark emoji={value} size={18} />
+          </span>
         ) : (
           <span className="flex items-center justify-center [&>svg]:h-[18px] [&>svg]:w-[18px]">
             {placeholder ?? <SmileIcon size={iconSize} />}
@@ -164,6 +170,7 @@ export function EmojiSlotButton({
         panelStyle={panelStyle}
         panelRef={panelRef}
         onSelect={handleSelect}
+        agents={agents}
       />
     </>
   );
@@ -197,16 +204,18 @@ function EmojiPanelPortal({
   panelStyle,
   panelRef,
   onSelect,
+  agents = false,
 }: {
   open: boolean;
   panelStyle: CSSProperties | null;
   panelRef: RefObject<HTMLDivElement | null>;
   onSelect: (emoji: string) => void;
+  agents?: boolean;
 }) {
   if (!open || !panelStyle) return null;
   return createPortal(
     <div ref={panelRef} style={panelStyle} className={PANEL_CLASS}>
-      <EmojiPickerPanel onSelect={onSelect} />
+      <EmojiPickerPanel onSelect={onSelect} agents={agents} />
     </div>,
     document.body,
   );

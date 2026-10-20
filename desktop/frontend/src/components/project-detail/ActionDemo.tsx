@@ -189,7 +189,7 @@ export function RunModeDemo({
 }: {
   running: DemoState;
   cmd: string;
-  label: string;
+  label: ReactNode;
   display: "header" | "footer";
   highlight: FrameHighlight;
   // Rendered in the "questions" state; the panel owns the answers so the
@@ -326,7 +326,7 @@ function OnceDemo({
   onFinished,
 }: {
   cmd: string;
-  label: string;
+  label: ReactNode;
   onCancel: () => void;
   onFinished: () => void;
 }) {
@@ -363,7 +363,7 @@ function BackgroundDemo({
   label,
   onFinished,
 }: {
-  label: string;
+  label: ReactNode;
   onFinished: () => void;
 }) {
   const finishedRef = useRef(onFinished);

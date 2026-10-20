@@ -1,4 +1,5 @@
 import { slugify } from "../../slugify";
+import { AGENT_EMOJI } from "../../agentEmoji";
 import { inferRunMode, shouldConfirm, type RunMode } from "./actionInference";
 import type { ActionConfigLayer } from "../../actionConfig";
 import type { InputType } from "./actionInputs";
@@ -265,7 +266,7 @@ export function buildSuggestions(sources: SuggestionSources): ActionTemplate[] {
   if (sources.hasClaude) {
     aiAgents.push({
       id: "scan-claude",
-      emoji: "🤖",
+      emoji: AGENT_EMOJI.claude,
       name: "Claude Code",
       cmd: "claude",
       runMode: "terminal",
@@ -274,7 +275,7 @@ export function buildSuggestions(sources: SuggestionSources): ActionTemplate[] {
   if (sources.hasCodex) {
     aiAgents.push({
       id: "scan-codex",
-      emoji: "🤖",
+      emoji: AGENT_EMOJI.codex,
       name: "Codex",
       cmd: "codex",
       runMode: "terminal",
@@ -283,7 +284,7 @@ export function buildSuggestions(sources: SuggestionSources): ActionTemplate[] {
   if (sources.hasGemini) {
     aiAgents.push({
       id: "scan-gemini",
-      emoji: "🤖",
+      emoji: AGENT_EMOJI.gemini,
       name: "Gemini",
       cmd: "gemini",
       runMode: "terminal",
@@ -292,7 +293,7 @@ export function buildSuggestions(sources: SuggestionSources): ActionTemplate[] {
   if (sources.hasOpencode) {
     aiAgents.push({
       id: "scan-opencode",
-      emoji: "🤖",
+      emoji: AGENT_EMOJI.opencode,
       name: "OpenCode",
       cmd: "opencode",
       runMode: "terminal",

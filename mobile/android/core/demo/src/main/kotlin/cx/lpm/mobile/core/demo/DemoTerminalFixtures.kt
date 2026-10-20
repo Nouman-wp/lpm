@@ -30,7 +30,7 @@ internal fun DemoServer.seedTerminalFixtures() {
             id = "demo-storefront-claude",
             label = "Claude",
             project = "storefront",
-            emoji = "✨",
+            emoji = "✻",
             cli = "claude",
             buffer = claudeWelcome("storefront")
         )

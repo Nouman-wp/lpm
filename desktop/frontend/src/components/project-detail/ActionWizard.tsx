@@ -120,6 +120,7 @@ import { AIButton } from "../ui/AIButton";
 import { SegmentedControl } from "../ui/SegmentedControl";
 import { Switch } from "../ui/Switch";
 import { EmojiSlotButton } from "../EmojiPickerButton";
+import { EmojiLabel } from "../EmojiLabel";
 import { useDiscardGuard } from "../../hooks/useDiscardGuard";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { enterHint } from "../../shortcutHints";
@@ -271,7 +272,7 @@ const ACTION_TEMPLATES: ActionTemplate[] = [
   },
   {
     id: "ai-agent",
-    emoji: "🤖",
+    emoji: "✻",
     name: "AI coding session",
     cmd: "claude",
     runMode: "terminal",
@@ -952,6 +953,7 @@ export function ActionWizard({
   const step2Complete = showShape && (shape === "button" || hasMenuOption);
   const step3Complete = showRunMode;
   const actionLabel = withEmoji(emoji, name.trim() || PLACEHOLDER_LABEL);
+  const actionPreview = <EmojiLabel emoji={emoji} label={name.trim() || PLACEHOLDER_LABEL} />;
   // The preview mocks only the header and footer frames; a zone shows in its row.
   const previewDisplay =
     display === "footer" ||
@@ -1415,6 +1417,7 @@ export function ActionWizard({
                           onSelect={(next) => updateField("emoji", next)}
                           size="md"
                           placeholder={<TerminalIcon />}
+                          agents
                         />
                         <input
                           ref={nameRef}
@@ -1512,6 +1515,7 @@ export function ActionWizard({
                           shape={shape}
                           options={SHAPE_OPTIONS}
                           previewLabel={actionLabel}
+                          preview={actionPreview}
                           onChange={(next) => updateField("shape", next)}
                         />
                       </FieldSection>
@@ -1874,7 +1878,7 @@ function TemplateButton({
       className="flex min-w-0 flex-col gap-0.5 rounded-lg border border-transparent bg-[var(--bg-secondary)] px-3 py-2.5 text-left transition hover:-translate-y-px hover:border-[var(--border)] hover:bg-[var(--bg-hover)] hover:shadow-sm active:translate-y-0"
     >
       <span className="truncate text-[13px] font-medium text-[var(--text-primary)]">
-        {template.emoji} {template.name}
+        <EmojiLabel emoji={template.emoji} label={template.name} />
       </span>
       <span
         className="truncate font-mono text-[11px] text-[var(--text-muted)]"
@@ -2055,11 +2059,13 @@ function ShapeMenu({
   shape,
   options,
   previewLabel,
+  preview,
   onChange,
 }: {
   shape: Shape;
   options: typeof SHAPE_OPTIONS;
   previewLabel: string;
+  preview: ReactNode;
   onChange: (next: Shape) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -2121,7 +2127,7 @@ function ShapeMenu({
                   </span>
                 </span>
                 <span className="hidden shrink-0 sm:block">
-                  <ShapePreviewButton shape={opt.shape} label={previewLabel} />
+                  <ShapePreviewButton shape={opt.shape} label={preview} />
                 </span>
               </button>
             );
@@ -2132,7 +2138,7 @@ function ShapeMenu({
   );
 }
 
-function ShapePreviewButton({ shape, label }: { shape: Shape; label: string }) {
+function ShapePreviewButton({ shape, label }: { shape: Shape; label: ReactNode }) {
   if (shape === "button") {
     return (
       <span

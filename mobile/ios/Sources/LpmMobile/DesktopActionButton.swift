@@ -33,7 +33,7 @@ struct DesktopActionButton: View {
     private var button: some View {
         if action.isRunnable {
             Button { onRun(action) } label: {
-                Text(action.displayLabel)
+                face(action)
                     .lineLimit(1)
                     .padding(.horizontal, 14)
                     .frame(maxWidth: fill ? .infinity : nil)
@@ -49,7 +49,7 @@ struct DesktopActionButton: View {
                 ActionMenuItems(actions: action.children, onPick: run)
             } label: {
                 HStack(spacing: 6) {
-                    Text(action.displayLabel).lineLimit(1)
+                    face(action).lineLimit(1)
                     chevron
                 }
                 .padding(.horizontal, 14)
@@ -64,7 +64,7 @@ struct DesktopActionButton: View {
     private func split(_ primary: Action) -> some View {
         HStack(spacing: 0) {
             Button { run(primary) } label: {
-                Text(primary.displayLabel)
+                face(primary)
                     .lineLimit(1)
                     .padding(.leading, 14)
                     .padding(.trailing, 12)
@@ -95,6 +95,12 @@ struct DesktopActionButton: View {
     private static let divider = Color(UIColor {
         $0.userInterfaceStyle == .dark ? UIColor(white: 1, alpha: 0.2) : .separator
     })
+
+    /// The emoji and label, an agent's mark sized like an emoji in the face's
+    /// 15 pt (footer 14 pt) type.
+    private func face(_ action: Action) -> some View {
+        EmojiLabel(emoji: action.emoji, label: action.label, markSide: compact ? 17 : 18)
+    }
 
     private var chevron: some View {
         Image(systemName: "chevron.down")

@@ -506,14 +506,14 @@ describe("AI agent suggestions", () => {
     expect(suggestions.slice(0, 2)).toEqual([
       {
         id: "scan-claude",
-        emoji: "🤖",
+        emoji: "✻",
         name: "Claude Code",
         cmd: "claude",
         runMode: "terminal",
       },
       {
         id: "scan-codex",
-        emoji: "🤖",
+        emoji: "◆",
         name: "Codex",
         cmd: "codex",
         runMode: "terminal",
@@ -580,7 +580,7 @@ describe("AI agent suggestions", () => {
     ]);
     expect(suggestions.find((s) => s.cmd === "gemini")).toMatchObject({
       id: "scan-gemini",
-      emoji: "🤖",
+      emoji: "✦",
       name: "Gemini",
       runMode: "terminal",
     });

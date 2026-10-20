@@ -265,7 +265,7 @@ extension DemoServer {
             DemoWorld.Terminal(id: "demo-storefront-1", label: "Terminal 1", project: "storefront",
                                buffer: prompt + "ls\r\n" + lsOutput("storefront") + prompt),
             DemoWorld.Terminal(id: "demo-storefront-claude", label: "Claude", project: "storefront",
-                               emoji: "✨", cli: "claude", buffer: claudeWelcome("storefront")),
+                               emoji: "✻", cli: "claude", buffer: claudeWelcome("storefront")),
         ]
         world.composerDraftRev = 1
         world.composerDrafts["demo-storefront-claude"] = DemoWorld.ComposerDraft(

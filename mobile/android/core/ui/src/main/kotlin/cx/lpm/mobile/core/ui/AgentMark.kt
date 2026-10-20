@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.trimmingWhitespace
 
 /**
  * An agent's own mark, as the desktop draws it (AgentGlyph.tsx), with no tile (iOS
@@ -28,8 +29,21 @@ enum class AgentMark(@DrawableRes internal val drawable: Int, internal val mono:
             "opencode" -> OpenCode
             else -> null
         }
+
+        /** The mark an action's or tab's emoji stands for; null for any other emoji. */
+        fun ofEmoji(emoji: String): AgentMark? = agentForEmoji(emoji)?.let(::of)
     }
 }
+
+/**
+ * The agent one of the desktop's agent glyphs stands for (agentEmoji.ts): an action's or
+ * tab's emoji stays one character, so four non-emoji glyphs name the agents. Null for any
+ * other emoji.
+ */
+fun agentForEmoji(emoji: String): String? = AgentEmoji[emoji.trimmingWhitespace()]
+
+private val AgentEmoji =
+    mapOf("✻" to "claude", "◆" to "codex", "✦" to "gemini", "▣" to "opencode")
 
 /** Draws [mark] in its own colors; OpenCode's takes the label color. */
 @Composable

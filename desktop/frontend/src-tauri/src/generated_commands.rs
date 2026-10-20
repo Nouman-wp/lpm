@@ -83,6 +83,7 @@ macro_rules! all_command_handlers {
             install_cli,
             agent_skill_status,
             install_agent_skill,
+            refresh_agent_tools,
             create_branch,
             create_project,
             create_project_from_clone,

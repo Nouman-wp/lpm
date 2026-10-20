@@ -11,12 +11,16 @@ struct TabRow: View {
     let agent: ProjectAgentRow?
     let onOpen: () -> Void
 
+    @ScaledMetric(relativeTo: .body) private var markSide: CGFloat = 20
+
     var body: some View {
         Button(action: onOpen) {
             HStack(spacing: 8) {
-                Text(term.title)
-                    .lineLimit(1)
-                    .agentTone(agent?.state)
+                EmojiLabel(emoji: term.emoji, label: term.label, markSide: markSide) {
+                    Text($0)
+                        .lineLimit(1)
+                        .agentTone(agent?.state)
+                }
                 if let agent, agent.shared > 0 {
                     Text("+\(agent.shared)")
                         .font(.caption)

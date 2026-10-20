@@ -8,7 +8,7 @@ const GEMINI_SPARKLE = "M12 2C12.6 7.2 16.8 11.4 22 12C16.8 12.6 12.6 16.8 12 22
 
 // Each agent's own mark in its color, with no tile, so it sits in a row with
 // the line icons around it. Codex is the >_ its CLI prints, in a hexagon.
-export function AgentGlyph({ agent, size = 16 }: { agent: AICLI; size?: number }) {
+export function AgentGlyph({ agent, size = 16 }: { agent: AICLI; size?: number | string }) {
   const gradientId = `agent-glyph-${useId().replace(/[^\w-]/g, "")}`;
   return (
     <svg aria-hidden data-agent={agent} viewBox="0 0 24 24" width={size} height={size} className="shrink-0">

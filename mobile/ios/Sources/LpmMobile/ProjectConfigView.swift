@@ -34,6 +34,7 @@ struct ProjectConfigView: View {
     let project: Project
 
     @State private var route: ConfigRoute?
+    @ScaledMetric(relativeTo: .body) private var markSide: CGFloat = 20
 
     // The live project, re-read each render so the lists reflect edits the
     // moment a save refreshes the projects push.
@@ -121,7 +122,7 @@ struct ProjectConfigView: View {
                 Button {
                     route = .editAction(action.name)
                 } label: {
-                    disclosureRow(title: actionTitle(action),
+                    disclosureRow(title: action.label, emoji: action.emoji,
                                   subtitle: action.isRunnable ? nil : "Menu")
                 }
                 .buttonStyle(.plain)
@@ -156,10 +157,12 @@ struct ProjectConfigView: View {
 
     // MARK: row helpers
 
-    private func disclosureRow(title: String, subtitle: String?) -> some View {
+    private func disclosureRow(title: String, emoji: String = "", subtitle: String?) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).foregroundStyle(.primary)
+                EmojiLabel(emoji: emoji, label: title, markSide: markSide,
+                           plain: emoji.isEmpty ? title : "\(emoji)  \(title)")
+                    .foregroundStyle(.primary)
                 if let subtitle {
                     Text(subtitle).font(.caption).foregroundStyle(.secondary)
                 }
@@ -176,10 +179,6 @@ struct ProjectConfigView: View {
         Button(action: action) {
             Label(title, systemImage: "plus")
         }
-    }
-
-    private func actionTitle(_ action: Action) -> String {
-        action.emoji.isEmpty ? action.label : "\(action.emoji)  \(action.label)"
     }
 
     private func serviceCount(_ count: Int) -> String {

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { MockModalShell } from "./ActionDemo";
 import { previewValue, type InputDraft } from "./actionInputs";
 
@@ -13,7 +14,7 @@ export function QuestionsDemo({
   onCancel,
   onSubmit,
 }: {
-  label: string;
+  label: ReactNode;
   inputs: InputDraft[];
   answers: Record<string, string>;
   submitLabel: string;

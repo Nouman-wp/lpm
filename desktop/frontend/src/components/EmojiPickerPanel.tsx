@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { EmojiPicker } from "frimousse";
+import { matchingAgentEmoji } from "../agentEmoji";
+import { EmojiAgentRow } from "./EmojiAgentRow";
+import { EmojiButton } from "./EmojiButton";
 
 const SUGGESTED_EMOJIS = [
   "🚀", "✨", "🔥", "⚡", "💎", "🎯", "🏆", "📈",
@@ -10,10 +13,13 @@ const COLUMNS = 8;
 
 interface EmojiPickerPanelProps {
   onSelect: (emoji: string) => void;
+  // Offer the agents' marks (Claude, Codex…) first, for actions and tabs.
+  agents?: boolean;
 }
 
-export function EmojiPickerPanel({ onSelect }: EmojiPickerPanelProps) {
+export function EmojiPickerPanel({ onSelect, agents = false }: EmojiPickerPanelProps) {
   const [search, setSearch] = useState("");
+  const agentMatches = agents && matchingAgentEmoji(search).length > 0;
 
   return (
     <EmojiPicker.Root
@@ -28,13 +34,16 @@ export function EmojiPickerPanel({ onSelect }: EmojiPickerPanelProps) {
         className="mx-2 mt-2 appearance-none rounded-md border border-transparent bg-[var(--bg-primary)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-muted)]"
       />
       <EmojiPicker.Viewport className="relative flex-1 outline-none">
+        {agents && <EmojiAgentRow search={search} columns={COLUMNS} onSelect={onSelect} />}
         {search === "" && <SuggestedRow onSelect={onSelect} />}
         <EmojiPicker.Loading className="absolute inset-0 flex items-center justify-center text-[11px] text-[var(--text-muted)]">
           Loading…
         </EmojiPicker.Loading>
-        <EmojiPicker.Empty className="absolute inset-0 flex items-center justify-center text-[11px] text-[var(--text-muted)]">
-          No matches
-        </EmojiPicker.Empty>
+        {!agentMatches && (
+          <EmojiPicker.Empty className="absolute inset-0 flex items-center justify-center text-[11px] text-[var(--text-muted)]">
+            No matches
+          </EmojiPicker.Empty>
+        )}
         <EmojiPicker.List
           className="select-none pb-1.5"
           components={{
@@ -98,20 +107,5 @@ function SuggestedRow({ onSelect }: { onSelect: (emoji: string) => void }) {
         ))}
       </div>
     </div>
-  );
-}
-
-function EmojiButton({
-  children,
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      type="button"
-      {...props}
-      className="flex aspect-square items-center justify-center rounded-md text-xl transition-colors hover:bg-[var(--bg-hover)] data-[active]:bg-[var(--bg-hover)]"
-    >
-      {children}
-    </button>
   );
 }

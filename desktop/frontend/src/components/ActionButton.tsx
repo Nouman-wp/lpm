@@ -1,4 +1,4 @@
-import type { MouseEvent } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { actionButtonStyle } from "../actionColors";
 
 const actionStyles = {
@@ -26,7 +26,7 @@ export function ActionButton({
   onMouseEnter?: () => void;
   disabled: boolean;
   variant: keyof typeof actionStyles;
-  label: string;
+  label: ReactNode;
   color?: string;
 }) {
   return (
