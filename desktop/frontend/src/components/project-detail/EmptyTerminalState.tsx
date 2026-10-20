@@ -26,6 +26,22 @@ import { LaunchpadPrompt } from "./LaunchpadPrompt";
 import { LaunchpadSessionRow } from "./LaunchpadSessionRow";
 
 const RECENT_SESSIONS = 3;
+// From the app's chrome down to the terminal's background over the upper part
+// of the page, eased at both ends so no edge shows where it starts or stops.
+const FADE_STOPS = [
+  [100, 0],
+  [96, 8],
+  [86, 16],
+  [70, 24],
+  [50, 32],
+  [30, 40],
+  [14, 48],
+  [4, 56],
+  [0, 64],
+] as const;
+const FADE_IN = `linear-gradient(to bottom, ${FADE_STOPS.map(
+  ([chrome, at]) => `color-mix(in srgb, var(--bg-primary) ${chrome}%, var(--terminal-bg)) ${at}%`,
+).join(", ")})`;
 const CAPTION = "text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]";
 
 interface EmptyTerminalStateProps {
@@ -133,7 +149,7 @@ export function EmptyTerminalState({
   // On the terminal's own background, like the footer under it and the
   // terminals that replace it, in the terminal theme's colors.
   return (
-    <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] bg-[var(--terminal-bg)]">
+    <div className="flex min-h-0 flex-1 flex-col" style={{ background: FADE_IN }}>
       <div className="terminal-surface composer-terminal-surface flex min-h-0 flex-1 flex-col overflow-y-auto px-6">
         <div className="m-auto flex w-full max-w-xl flex-col gap-5 py-10">
           <h3 className="text-center text-[17px] font-semibold tracking-tight text-[var(--text-primary)]">
