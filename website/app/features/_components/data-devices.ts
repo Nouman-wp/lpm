@@ -6,7 +6,7 @@ import {
   Smartphone,
   SquareTerminal,
 } from "lucide-react";
-import { LINUX_HOST_PATH, SSH_TERMINAL_MAC_PATH } from "@/lib/links";
+import { LINUX_HOST_PATH, SHARE_TERMINAL_PATH, SSH_TERMINAL_MAC_PATH } from "@/lib/links";
 import type { FeatureArea } from "./feature-types";
 
 export const DEVICES_AREA: FeatureArea = {
@@ -38,6 +38,13 @@ export const DEVICES_AREA: FeatureArea = {
     },
   ],
   features: [
+    {
+      title: "Share a tab with anyone",
+      body: "Send a link to one terminal tab. People join from lpm or any browser, watch it live at your size, and type only once you switch them to Can type. You let each person in.",
+      note: "Browsers join through lpm's relay, encrypted end to end so the relay can't read the tab.",
+      href: SHARE_TERMINAL_PATH,
+      linkLabel: "Share a terminal",
+    },
     {
       title: "Pair the way that suits you",
       body: "Paste a one-time invite, type an address and code by hand, or tap a nearby computer and confirm the same 6-digit code on both screens.",

@@ -173,6 +173,10 @@ const LESSON_CAPTION: Record<
     heading: "Buttons that show your last release, and update themselves",
     blurb: "A short video: put Git facts and a command's output in a label, and watch it change as the code does.",
   },
+  "share-terminal-in-browser": {
+    heading: "Share a terminal tab with anyone, right in their browser",
+    blurb: "A short video: send an invite, let a teammate in from their browser, and let them type.",
+  },
 };
 
 function DesktopOnlyPrompt({

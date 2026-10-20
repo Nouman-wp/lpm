@@ -121,6 +121,13 @@ const LESSONS = {
       "Make lpm's action buttons show live information: your last release and how long ago it was, the branch you're on, or anything a command prints.",
     uploadDate: "2026-10-13T09:00:00+00:00",
   },
+  "share-terminal-in-browser": {
+    id: "vflMFPmbf5s",
+    name: "Share Your Claude Code Terminal with Anyone, Right in Their Browser",
+    description:
+      "Share a Claude Code terminal tab in lpm with anyone: they follow it live in their browser, with nothing to install, view only, or type in it with you once you allow it.",
+    uploadDate: "2026-10-19T09:00:00+00:00",
+  },
   "sixty-seconds": {
     id: "H46vW5DPbZk",
     name: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",

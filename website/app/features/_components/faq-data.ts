@@ -22,7 +22,7 @@ export const FEATURE_FAQS = [
   {
     question: "Which features talk to the network?",
     answer:
-      "A few, and none of them send your code to lpm. Update checks go to GitHub, AI commit messages go through the agent CLI you installed under your own account, links to your other computers, servers, and iPhone are direct, and iPhone push alerts cross one relay encrypted so only your phone can read them. The desktop app, CLI, and iPhone app have no analytics or telemetry built in.",
+      "A few, and none of them let lpm read your code. Update checks go to GitHub, AI commit messages go through the agent CLI you installed under your own account, and links to your other computers, servers, and iPhone are direct. Two things cross a relay, encrypted so it can't read them: iPhone push alerts, and a tab you share with someone's browser. The desktop app, CLI, and iPhone app have no analytics or telemetry built in.",
   },
   {
     question: "Can I use lpm from my iPhone or another computer?",

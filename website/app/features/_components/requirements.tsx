@@ -62,7 +62,7 @@ const REQUIREMENTS: Requirement[] = [
   {
     icon: Globe,
     title: "Away from home",
-    body: "Tailscale on both devices, or another network route you set up. lpm has no cloud relay for terminals.",
+    body: "Tailscale on both devices, or another network route you set up. Your own devices never connect through a cloud relay.",
   },
 ];
 

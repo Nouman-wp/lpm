@@ -27,6 +27,7 @@ export const MOBILE_PATH = "/mobile";
 export const FEATURES_PATH = "/features";
 export const AUTOMATIONS_PATH = "/schedule-claude-code-tasks";
 export const PARALLEL_PATH = "/run-claude-code-in-parallel";
+export const SHARE_TERMINAL_PATH = "/share-terminal";
 export const APP_STORE_URL =
   "https://apps.apple.com/us/app/lpm-link/id6788396977";
 export const VS_BASE_PATH = "/vs";
