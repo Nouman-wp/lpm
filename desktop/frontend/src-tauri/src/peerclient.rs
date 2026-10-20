@@ -2192,7 +2192,11 @@ fn connect_session(
     if let Some(share) = rv.get("share").filter(|_| guest) {
         hub.note_share_info(&conn.slug, share);
     }
-    let features = rv.get("features").and_then(Value::as_array);
+    // Whoever shared a tab is a stranger: nothing a feature would hand over is theirs.
+    let features = rv
+        .get("features")
+        .filter(|_| !guest)
+        .and_then(Value::as_array);
     let has_feature = |name: &str| {
         features
             .map(|a| a.iter().any(|f| f.as_str() == Some(name)))
@@ -2603,11 +2607,9 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
 /// A shared tab's host says what size its terminal is. Paired machines size
 /// their own terminals, and their hosts never send it.
 fn note_size(conn: &PeerConn, app: &AppHandle, id: &str, v: &Value) {
-    let dim = |k: &str| v.get(k).and_then(Value::as_u64).unwrap_or(0) as u16;
-    let (cols, rows) = (dim("cols"), dim("rows"));
-    if cols == 0 || rows == 0 {
+    let Some((cols, rows)) = share::reported_size(v) else {
         return;
-    }
+    };
     conn.sizes
         .lock()
         .unwrap()

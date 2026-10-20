@@ -36,6 +36,9 @@ struct Share {
     can_type: bool,
     secret: String,
     guests: Vec<Guest>,
+    // Where the terminal's output stood when sharing began: guests get nothing
+    // from before it.
+    floor: u64,
 }
 
 struct Waiting {
@@ -98,7 +101,7 @@ impl Registry {
         self.shares.iter_mut().find(|s| s.id == id)
     }
 
-    fn start(&mut self, terminal: &str, project: &str, label: &str) -> String {
+    fn start(&mut self, terminal: &str, project: &str, label: &str, floor: u64) -> String {
         if let Some(s) = self.shares.iter_mut().find(|s| s.terminal == terminal) {
             s.project = project.to_string();
             s.label = label.to_string();
@@ -113,6 +116,7 @@ impl Registry {
             can_type: false,
             secret: random_token(24),
             guests: Vec::new(),
+            floor,
         });
         id
     }
@@ -369,6 +373,11 @@ pub(crate) fn is_live(session: &GuestSession) -> bool {
     registry().live(session).is_some()
 }
 
+/// The first output offset the guest may be handed.
+pub(crate) fn floor(session: &GuestSession) -> u64 {
+    registry().live(session).map_or(u64::MAX, |s| s.floor)
+}
+
 pub(crate) fn is_shared(share: &str) -> bool {
     registry().share(share).is_some()
 }
@@ -453,6 +462,7 @@ pub(crate) fn leave(app: &AppHandle, session: &GuestSession) {
 /// Called for every terminal that ends here, shared or not.
 pub(crate) fn terminal_ended(app: &AppHandle, terminal: &str) {
     if registry().terminal_ended(terminal) {
+        sync_listener(app);
         changed(app);
     }
 }
@@ -464,26 +474,13 @@ pub(crate) fn resized(terminal: &str, cols: u16, rows: u16) {
 
 // --- host commands ------------------------------------------------------------
 
-/// Guests reach this machine through the Connections listener, so sharing turns
-/// it on the way pairing does.
-fn ensure_listening(app: &AppHandle) -> Result<(), String> {
-    let hub = app.state::<PeerHub>();
-    let cfg = hub.config_arc();
-    let snapshot = {
-        let mut cfg = cfg.lock().unwrap();
-        let reachable = cfg.host.enabled && peer::bind_address(&cfg.host) != peer::LOOPBACK;
-        if reachable {
-            return Ok(());
-        }
-        cfg.host.enabled = true;
-        cfg.host.bind_address = peer::ALL_INTERFACES.to_string();
-        cfg.host.lan = true;
-        cfg.clone()
-    };
-    peer::save_config(&snapshot)?;
-    peer::apply(&hub, app);
-    let _ = app.emit("peer-state-changed", ());
-    Ok(())
+/// Guests reach this machine through the Connections listener, which stays up
+/// for them while any tab is shared, whatever Allow control says.
+fn sync_listener(app: &AppHandle) {
+    static SYNC: Mutex<()> = Mutex::new(());
+    let _held = SYNC.lock().unwrap_or_else(|e| e.into_inner());
+    let sharing = !registry().shares.is_empty();
+    peer::set_sharing(app, sharing);
 }
 
 /// `lpm-share:` + unpadded base64url of `{v:1, h:hosts, p:port, s:secret, f:fp}`,
@@ -514,7 +511,7 @@ fn listing(app: &AppHandle) -> Value {
         let cfg = hub.config_arc();
         let cfg = cfg.lock().unwrap();
         (
-            peer::invite_hosts(&cfg.host),
+            peer::share_hosts(&cfg.host),
             peer::effective_port(cfg.host.port),
         )
     };
@@ -546,8 +543,9 @@ pub async fn peer_share_start(
     if !crate::remote::pair_requests_supported() {
         return Err("Sharing needs someone at this machine to let guests in.".into());
     }
-    ensure_listening(&app)?;
-    let id = registry().start(&terminal_id, &project, &label);
+    let floor = app.state::<PeerHub>().ring_offset(&terminal_id);
+    let id = registry().start(&terminal_id, &project, &label, floor);
+    sync_listener(&app);
     crate::sharerelay::open(&app, &id);
     changed(&app);
     Ok(listing(&app))
@@ -556,6 +554,7 @@ pub async fn peer_share_start(
 #[tauri::command]
 pub async fn peer_share_stop(app: AppHandle, id: String) -> Value {
     if registry().stop(&id, "stopped") {
+        sync_listener(&app);
         changed(&app);
     }
     listing(&app)
@@ -608,7 +607,7 @@ mod tests {
     #[test]
     fn a_guest_reaches_only_the_shared_terminal() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude");
+        let share = reg.start("web-1", "web", "claude", 0);
         let (session, _) = joined(&mut reg, &share);
         assert!(reg.may_watch(&session, "web-1"));
         assert!(!reg.may_watch(&session, "web-2"));
@@ -617,7 +616,7 @@ mod tests {
     #[test]
     fn typing_waits_for_the_host_to_allow_it() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude");
+        let share = reg.start("web-1", "web", "claude", 0);
         let (session, _) = joined(&mut reg, &share);
         assert!(!reg.may_type(&session, "web-1"));
         reg.set_can_type(&share, true);
@@ -630,7 +629,7 @@ mod tests {
     #[test]
     fn a_token_opens_only_its_own_guest() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude");
+        let share = reg.start("web-1", "web", "claude", 0);
         let (a, token_a) = joined(&mut reg, &share);
         let (b, _) = joined(&mut reg, &share);
         assert_eq!(reg.check(&a.guest, &token_a), Some(a.clone()));
@@ -642,7 +641,7 @@ mod tests {
     #[test]
     fn stopping_ends_every_guest_and_the_invite() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude");
+        let share = reg.start("web-1", "web", "claude", 0);
         let secret = secret_of(&reg, &share);
         let (session, token) = joined(&mut reg, &share);
         let (tx, rx) = mpsc::sync_channel(4);
@@ -666,7 +665,7 @@ mod tests {
     #[test]
     fn a_removed_guest_is_told_and_others_stay() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude");
+        let share = reg.start("web-1", "web", "claude", 0);
         let (a, _) = joined(&mut reg, &share);
         let (b, _) = joined(&mut reg, &share);
         let (tx_a, rx_a) = mpsc::sync_channel(4);
@@ -695,7 +694,7 @@ mod tests {
     #[test]
     fn a_closed_terminal_ends_its_share() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude");
+        let share = reg.start("web-1", "web", "claude", 0);
         let (session, _) = joined(&mut reg, &share);
         assert!(!reg.terminal_ended("web-2"));
         assert!(reg.terminal_ended("web-1"));
@@ -705,7 +704,7 @@ mod tests {
     #[test]
     fn an_unknown_invite_is_refused() {
         let mut reg = Registry::default();
-        reg.start("web-1", "web", "claude");
+        reg.start("web-1", "web", "claude", 0);
         assert!(matches!(
             reg.begin_join("nope", "Sam", None),
             Err(JoinRefusal::UnknownInvite)
@@ -719,7 +718,7 @@ mod tests {
     #[test]
     fn only_a_few_can_wait_at_once() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude");
+        let share = reg.start("web-1", "web", "claude", 0);
         let secret = secret_of(&reg, &share);
         let tickets: Vec<JoinTicket> = (0..MAX_WAITING)
             .map(|_| reg.begin_join(&secret, "Sam", None).ok().unwrap())
@@ -736,7 +735,7 @@ mod tests {
     #[test]
     fn stopping_turns_away_those_still_waiting() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude");
+        let share = reg.start("web-1", "web", "claude", 0);
         let secret = secret_of(&reg, &share);
         let ticket = reg.begin_join(&secret, "Sam", None).ok().unwrap();
         reg.stop(&share, "stopped");
@@ -747,9 +746,9 @@ mod tests {
     #[test]
     fn sharing_a_shared_tab_again_keeps_its_invite() {
         let mut reg = Registry::default();
-        let first = reg.start("web-1", "web", "claude");
+        let first = reg.start("web-1", "web", "claude", 0);
         let secret = secret_of(&reg, &first);
-        let again = reg.start("web-1", "web", "renamed");
+        let again = reg.start("web-1", "web", "renamed", 0);
         assert_eq!(first, again);
         assert_eq!(secret_of(&reg, &again), secret);
         assert_eq!(reg.share(&again).unwrap().label, "renamed");
@@ -758,8 +757,8 @@ mod tests {
     #[test]
     fn a_resize_reaches_only_that_terminals_guests() {
         let mut reg = Registry::default();
-        let one = reg.start("web-1", "web", "a");
-        let two = reg.start("web-2", "web", "b");
+        let one = reg.start("web-1", "web", "a", 0);
+        let two = reg.start("web-2", "web", "b", 0);
         let (a, _) = joined(&mut reg, &one);
         let (b, _) = joined(&mut reg, &two);
         let (tx_a, rx_a) = mpsc::sync_channel(4);

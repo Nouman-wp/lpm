@@ -39,9 +39,10 @@ use tungstenite::{accept_hdr, Error as WsError, Message, WebSocket};
 
 mod guest;
 mod guestlink;
+mod listen;
 
 pub(crate) use guest::serve_relayed;
-pub(crate) use guestlink::{GuestLink, Incoming};
+pub(crate) use guestlink::{drain, GuestLink, Incoming};
 
 const DEFAULT_PORT: u16 = 8766; // mobile owns 8765
 const POLL: Duration = Duration::from_millis(25); // read-timeout / outbound-drain cadence
@@ -373,7 +374,12 @@ struct HostInner {
     next_nudge: AtomicU64,
     next_dispatch: AtomicU64,
     generation: AtomicU64,
-    enabled: AtomicBool, // mirror of config.host.enabled, checked on the pty tee hot path
+    enabled: AtomicBool, // mirror of config.host.enabled
+    sharing: AtomicBool, // a tab here is shared (tabshare.rs)
+    // Paired machines or a shared tab's guests may connect (peer/listen.rs);
+    // checked on the pty tee hot path.
+    listening: AtomicBool,
+    guests_only: AtomicBool,
     running: AtomicBool, // a listener is currently bound
 }
 
@@ -403,6 +409,9 @@ impl PeerHub {
                 next_dispatch: AtomicU64::new(0),
                 generation: AtomicU64::new(0),
                 enabled: AtomicBool::new(false),
+                sharing: AtomicBool::new(false),
+                listening: AtomicBool::new(false),
+                guests_only: AtomicBool::new(false),
                 running: AtomicBool::new(false),
             }),
         }
@@ -422,18 +431,26 @@ impl PeerHub {
     }
 
     /// Register a new tap-to-approve pairing request, returning its id, the
-    /// human-verified SAS, and the receiver the connection thread parks on.
-    fn begin_pair_request(&self, name: &str) -> (String, String, mpsc::Receiver<PairDecision>) {
+    /// human-verified SAS, and the receiver the connection thread parks on. None
+    /// while as many are already waiting as the screen should hold.
+    fn begin_pair_request(
+        &self,
+        name: &str,
+    ) -> Option<(String, String, mpsc::Receiver<PairDecision>)> {
+        let mut requests = self.inner.pair_requests.lock().unwrap();
+        if requests.len() >= MAX_PAIR_REQUESTS {
+            return None;
+        }
         let id = uuid::Uuid::new_v4().to_string();
         let sas = gen_sas();
         let (tx, rx) = mpsc::sync_channel::<PairDecision>(1);
-        self.inner.pair_requests.lock().unwrap().push(PendingPair {
+        requests.push(PendingPair {
             id: id.clone(),
             name: name.chars().take(64).collect(),
             sas: sas.clone(),
             decision: tx,
         });
-        (id, sas, rx)
+        Some((id, sas, rx))
     }
 
     /// Deliver the user's decision to the waiting connection thread and clear the
@@ -495,11 +512,14 @@ impl PeerHub {
     /// under the rings, which `tee_exit` holds while it reads who to tell about an
     /// exit — and a terminal leaves pty's map before that — so a viewer is either
     /// subscribed in time to hear of the exit or finds the terminal gone here.
+    ///
+    /// Nothing before stream offset `floor` is handed out.
     fn ring_attach(
         &self,
         subs: &Mutex<HashSet<String>>,
         id: &str,
         from: Option<u64>,
+        floor: u64,
         alive: impl FnOnce() -> bool,
     ) -> Option<(String, u64, bool)> {
         let rings = self.inner.rings.locked();
@@ -507,13 +527,19 @@ impl PeerHub {
             return None;
         }
         subs.lock().unwrap().insert(id.to_string());
+        let from = from.filter(|f| *f >= floor);
         Some(match from.and_then(|f| rings.since(id, f)) {
             Some((data, off)) => (data, off, false),
             None => {
-                let (data, off) = rings.seed(id);
+                let (data, off) = rings.seed(id, floor);
                 (data, off, true)
             }
         })
+    }
+
+    /// Where `id`'s output stream has got to.
+    pub(crate) fn ring_offset(&self, id: &str) -> u64 {
+        self.inner.rings.locked().total(id)
     }
 
     fn drop_ring(&self, id: &str) {
@@ -531,12 +557,12 @@ pub(crate) fn hosting(app: &AppHandle) -> bool {
 }
 
 /// Append a PTY output chunk to the peer ring and fan it out to subscribed peers.
-/// A no-op when the host server is disabled. Never blocks the reader.
+/// A no-op when nobody may connect. Never blocks the reader.
 pub fn tee_output(app: &AppHandle, id: &str, _project: &str, text: &str) {
     let Some(hub) = app.try_state::<PeerHub>() else {
         return;
     };
-    if !hub.inner.enabled.load(Ordering::Relaxed) {
+    if !hub.inner.listening.load(Ordering::Relaxed) {
         return;
     }
     // Appending and taking the list of viewers to hand this chunk to are one
@@ -580,7 +606,7 @@ pub fn tee_exit(app: &AppHandle, id: &str, code: i32) {
     let Some(hub) = app.try_state::<PeerHub>() else {
         return;
     };
-    if !hub.inner.enabled.load(Ordering::Relaxed) {
+    if !hub.inner.listening.load(Ordering::Relaxed) {
         return;
     }
     let payload = json!({ "t": "exit", "id": id, "code": code }).to_string();
@@ -785,24 +811,31 @@ fn ensure_host_id(hub: &PeerHub) {
 pub fn apply(hub: &PeerHub, app: &AppHandle) {
     let generation = hub.inner.generation.fetch_add(1, Ordering::SeqCst) + 1;
     let cfg = hub.host_config();
-    // Terminals keep running while hosting is off, but `tee_output` returns
+    let plan = listen::plan(&cfg, hub.inner.sharing.load(Ordering::SeqCst));
+    hub.inner.enabled.store(cfg.enabled, Ordering::Relaxed);
+    hub.inner
+        .guests_only
+        .store(plan.as_ref().is_some_and(|p| !p.paired), Ordering::Relaxed);
+    // Terminals keep running while nobody may connect, but `tee_output` returns
     // early, so their output goes unrecorded. Either edge of that gap leaves the
     // rings holding offsets with missing bytes behind them: retire every offset
     // handed out so far, so a peer that comes back with one is refused a resume
     // and reseeded instead of being handed a slice with a silent hole in front.
-    if hub.inner.enabled.swap(cfg.enabled, Ordering::Relaxed) != cfg.enabled {
+    let listening = plan.is_some();
+    if hub.inner.listening.swap(listening, Ordering::Relaxed) != listening {
         hub.inner.rings.invalidate_all();
     }
-    if !cfg.enabled {
+    let Some(plan) = plan else {
         hub.inner.running.store(false, Ordering::Relaxed);
         crate::mdns::withdraw_peer();
         crate::tailnet::set_forward(crate::tailnet::Service::Peer, None);
         return;
-    }
-    let bind = bind_address(&cfg);
+    };
+    let bind = plan.bind;
     let port = effective_port(cfg.port);
     let addr = format!("{bind}:{port}");
-    let advertise = bind != LOOPBACK;
+    // Only paired machines look for this one; a guest has the invite's addresses.
+    let advertise = plan.paired && bind != LOOPBACK;
     crate::tailnet::set_forward(crate::tailnet::Service::Peer, None);
     let host_id = cfg.host_id.clone();
     let (hub, app) = (hub.clone(), app.clone());
@@ -870,9 +903,28 @@ pub fn apply(hub: &PeerHub, app: &AppHandle) {
 pub fn stop(hub: &PeerHub) {
     hub.inner.generation.fetch_add(1, Ordering::SeqCst);
     hub.inner.enabled.store(false, Ordering::Relaxed);
+    hub.inner.listening.store(false, Ordering::Relaxed);
+    hub.inner.guests_only.store(false, Ordering::Relaxed);
     hub.inner.running.store(false, Ordering::Relaxed);
     hub.inner.clients.lock().unwrap().clear();
     crate::mdns::withdraw_peer();
+}
+
+/// A tab here started or stopped being shared (tabshare.rs): its guests need the
+/// listener even while Allow control is off.
+pub(crate) fn set_sharing(app: &AppHandle, sharing: bool) {
+    let Some(hub) = app.try_state::<PeerHub>() else {
+        return;
+    };
+    if hub.inner.sharing.swap(sharing, Ordering::SeqCst) == sharing {
+        return;
+    }
+    let cfg = hub.host_config();
+    if listen::plan(&cfg, !sharing) == listen::plan(&cfg, sharing) {
+        return;
+    }
+    apply(&hub, app);
+    let _ = app.emit("peer-state-changed", ());
 }
 
 fn accept_loop(listener: TcpListener, hub: PeerHub, app: AppHandle, generation: u64) {
@@ -1100,7 +1152,12 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Sessi
         }
     };
     let v: Value = serde_json::from_str(&txt).ok()?;
+    let guests_only = hub.inner.guests_only.load(Ordering::Relaxed);
     match v.get("t").and_then(Value::as_str) {
+        Some("pair" | "pairRequest") if guests_only => {
+            let _ = ws.send(Message::text(control_off_frame()));
+            None
+        }
         Some("pair") => {
             let code = v.get("code").and_then(Value::as_str).unwrap_or_default();
             let name = v.get("name").and_then(Value::as_str).unwrap_or("Mac");
@@ -1148,7 +1205,11 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Sessi
                 .and_then(Value::as_str)
                 .unwrap_or_default();
             let token = v.get("token").and_then(Value::as_str).unwrap_or_default();
-            if check_device(hub, id, token) {
+            let paired = check_device(hub, id, token);
+            if paired && guests_only {
+                let _ = ws.send(Message::text(control_off_frame()));
+                None
+            } else if paired {
                 // hostPlatform rides every auth, not just pairing, so a peer
                 // paired before this existed learns it on its next connect.
                 let _ = ws.send(Message::text(
@@ -1172,6 +1233,12 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Sessi
         }
         _ => None,
     }
+}
+
+/// What a paired machine, or one asking to pair, hears while only a shared tab's
+/// guests may connect.
+fn control_off_frame() -> String {
+    json!({ "t": "error", "error": "Allow control is turned off there." }).to_string()
 }
 
 fn normalize_code(s: &str) -> String {
@@ -1239,6 +1306,8 @@ fn pair_device(
 
 const PAIR_APPROVE_WINDOW: Duration = Duration::from_secs(120);
 const RECIPROCAL_WINDOW: Duration = Duration::from_secs(30);
+// Each one is a dialog on this machine's screen, so nobody nearby can stack many.
+const MAX_PAIR_REQUESTS: usize = 3;
 
 /// The immediate refusal for a pair-by-approval request on a machine nobody is
 /// at to approve it (a headless host), or `None` when the dialog can be shown.
@@ -1269,7 +1338,13 @@ fn handle_pair_request(
         let _ = ws.send(Message::text(frame.to_string()));
         return None;
     }
-    let (id, sas, rx) = hub.begin_pair_request(name);
+    let Some((id, sas, rx)) = hub.begin_pair_request(name) else {
+        let _ = ws.send(Message::text(
+            json!({ "t": "error", "error": "Others are already asking to connect. Try again shortly." })
+                .to_string(),
+        ));
+        return None;
+    };
     let _ = ws.send(Message::text(
         json!({ "t": "pairPending", "sas": sas }).to_string(),
     ));
@@ -1495,7 +1570,7 @@ fn handle_msg(
                 // the phone: the viewing Mac is the geometry authority and would
                 // only be fighting its own fit.
                 let from = v.get("from").and_then(Value::as_u64);
-                let attached = hub.ring_attach(subs, &id, from, || terminal_alive(app, &id));
+                let attached = hub.ring_attach(subs, &id, from, 0, || terminal_alive(app, &id));
                 let Some((data, off, reset)) = attached else {
                     return send(ws, gone_frame(&id));
                 };
@@ -2170,11 +2245,13 @@ fn host_state_value(hub: &PeerHub) -> Value {
         .iter()
         .map(|p| json!({ "id": p.id, "name": p.name, "sas": p.sas }))
         .collect();
+    let plan = listen::plan(&cfg, hub.inner.sharing.load(Ordering::SeqCst));
     json!({
         "enabled": cfg.enabled,
         "port": effective_port(cfg.port),
         "lan": cfg.lan,
-        "bindAddress": bind_address(&cfg),
+        "bindAddress": plan.as_ref().map_or_else(|| bind_address(&cfg), |p| p.bind.clone()),
+        "guestsOnly": plan.is_some_and(|p| !p.paired),
         "running": hub.inner.running.load(Ordering::Relaxed),
         "hostId": cfg.host_id,
         "pairing": pairing_value(&cfg),
@@ -2453,7 +2530,15 @@ pub(crate) fn platform_id() -> &'static str {
 /// Bound to everything, any of them may work, so offer them all and let the
 /// joining machine try in order.
 pub(crate) fn invite_hosts(cfg: &HostConfig) -> Vec<String> {
-    let bind = bind_address(cfg);
+    hosts_for(bind_address(cfg))
+}
+
+/// The addresses a shared tab's invite names (peer/listen.rs).
+pub(crate) fn share_hosts(cfg: &HostConfig) -> Vec<String> {
+    hosts_for(listen::share_bind(cfg))
+}
+
+fn hosts_for(bind: String) -> Vec<String> {
     if bind != ALL_INTERFACES {
         return vec![bind];
     }
@@ -2571,12 +2656,30 @@ mod tests {
         let hub = PeerHub::default();
         hub.inner.rings.locked().push("web-1", "old screen");
         let subs = Mutex::new(HashSet::new());
-        assert!(hub.ring_attach(&subs, "web-1", None, || false).is_none());
+        assert!(hub.ring_attach(&subs, "web-1", None, 0, || false).is_none());
         assert!(subs.lock().unwrap().is_empty());
 
-        let (data, off, reset) = hub.ring_attach(&subs, "web-1", None, || true).unwrap();
+        let (data, off, reset) = hub.ring_attach(&subs, "web-1", None, 0, || true).unwrap();
         assert_eq!((data.as_str(), off, reset), ("old screen", 10, true));
         assert!(subs.lock().unwrap().contains("web-1"));
+    }
+
+    // A shared tab's guest picks its own `from`, and one from before the share
+    // began must not reach back past it.
+    #[test]
+    fn a_resume_from_before_the_floor_reseeds_from_it() {
+        let hub = PeerHub::default();
+        hub.inner
+            .rings
+            .locked()
+            .push("web-1", "export TOKEN=secret\n");
+        let floor = hub.ring_offset("web-1");
+        hub.inner.rings.locked().push("web-1", "after");
+        let subs = Mutex::new(HashSet::new());
+        let (data, off, reset) = hub
+            .ring_attach(&subs, "web-1", Some(0), floor, || true)
+            .unwrap();
+        assert_eq!((data.as_str(), off, reset), ("after", floor + 5, true));
     }
 
     #[test]
@@ -3150,7 +3253,7 @@ mod tests {
     #[test]
     fn pair_request_resolve_delivers_decision_and_removes_entry() {
         let hub = PeerHub::default();
-        let (id, sas, rx) = hub.begin_pair_request("Laptop");
+        let (id, sas, rx) = hub.begin_pair_request("Laptop").unwrap();
         assert_eq!(sas.len(), 6);
         assert_eq!(hub.inner.pair_requests.lock().unwrap().len(), 1);
         hub.resolve_pair_request(&id, true, true);
@@ -3162,10 +3265,22 @@ mod tests {
     #[test]
     fn remove_pair_request_drops_pending_on_requester_disconnect() {
         let hub = PeerHub::default();
-        let (id, _sas, _rx) = hub.begin_pair_request("Laptop");
+        let (id, _sas, _rx) = hub.begin_pair_request("Laptop").unwrap();
         assert_eq!(hub.inner.pair_requests.lock().unwrap().len(), 1);
         hub.remove_pair_request(&id);
         assert!(hub.inner.pair_requests.lock().unwrap().is_empty());
+    }
+
+    // Anyone on the network can ask, and each request is a dialog here.
+    #[test]
+    fn only_a_few_pair_requests_wait_at_once() {
+        let hub = PeerHub::default();
+        let waiting: Vec<_> = (0..MAX_PAIR_REQUESTS)
+            .map(|_| hub.begin_pair_request("Laptop").expect("room to wait"))
+            .collect();
+        assert!(hub.begin_pair_request("Laptop").is_none());
+        hub.remove_pair_request(&waiting[0].0);
+        assert!(hub.begin_pair_request("Laptop").is_some());
     }
 
     // Drive the tap-to-approve wire path over a real socket, exercising the real
@@ -3199,7 +3314,7 @@ mod tests {
                     };
                     let v: Value = serde_json::from_str(&txt).unwrap();
                     let name = v.get("name").and_then(Value::as_str).unwrap_or("Mac");
-                    let (id, sas, rx) = hub2.begin_pair_request(name);
+                    let (id, sas, rx) = hub2.begin_pair_request(name).unwrap();
                     let _ = ws.send(Message::text(
                         json!({ "t": "pairPending", "sas": sas }).to_string(),
                     ));

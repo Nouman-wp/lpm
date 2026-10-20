@@ -9,8 +9,8 @@ const HOST = "host";
 const GUEST = "guest";
 const ID_BYTES = 8;
 const MAX_GUESTS = 16;
-// The largest Noise message, plus the id.
-const MAX_MESSAGE = 65535 + ID_BYTES;
+// The largest Noise message; the host's also carry the id.
+const MAX_NOISE = 65535;
 const FORGET_AFTER_MS = 24 * 60 * 60 * 1000;
 const OPEN = 1;
 
@@ -106,7 +106,8 @@ export class Room extends DurableObject<object> {
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     const from = ws.deserializeAttachment() as Attachment;
-    if (typeof message !== "string" && message.byteLength > MAX_MESSAGE) {
+    const limit = from.role === HOST ? MAX_NOISE + ID_BYTES : MAX_NOISE;
+    if (typeof message !== "string" && message.byteLength > limit) {
       close(ws, CLOSE.tooBig, "message too big");
       return;
     }

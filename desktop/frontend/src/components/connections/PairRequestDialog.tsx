@@ -56,11 +56,11 @@ export function PairRequestDialog() {
       contentClassName="w-[380px] rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 shadow-2xl"
     >
       <h2 className="text-base font-semibold text-[var(--text-primary)]">
-        {active.name} wants to connect
+        Let {active.name} control {MACHINE.thisMachine}?
       </h2>
       <p className="mt-1.5 text-sm text-[var(--text-secondary)]">
-        Make sure this code matches the one on{" "}
-        <span className="font-medium text-[var(--text-primary)]">{active.name}</span>.
+        It could open every project and run commands here. Make sure this code matches the one
+        on <span className="font-medium text-[var(--text-primary)]">{active.name}</span>.
       </p>
 
       <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-4 text-center">

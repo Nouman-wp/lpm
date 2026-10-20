@@ -28,6 +28,8 @@ export interface PeerHostState {
   enabled: boolean;
   port: number;
   running: boolean;
+  // Up only for the guests of a tab shared from here, with control off.
+  guestsOnly: boolean;
   hostId: string;
   pairing: PeerHostPairing | null;
   devices: PeerHostDevice[];
@@ -114,6 +116,7 @@ export const DEFAULT_PEER_STATE: PeerStateShape = {
     enabled: false,
     port: 8766,
     running: false,
+    guestsOnly: false,
     hostId: "",
     pairing: null,
     devices: [],

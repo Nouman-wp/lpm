@@ -63,11 +63,15 @@ impl Ring {
     /// because older bytes fell out of the ring — so the replay begins on a row
     /// boundary instead of part-way through a line or an escape sequence. It is
     /// led by the modes the program set before the tail, which it can't carry.
-    pub fn seed(&self) -> (String, u64) {
-        let skip = self.buf.len().saturating_sub(SEED_CAP);
+    ///
+    /// Nothing before stream offset `floor` is replayed. Cut there, the text
+    /// starts where a chunk did, so no partial line is dropped.
+    pub fn seed(&self, floor: u64) -> (String, u64) {
+        let start = (floor.saturating_sub(self.base) as usize).min(self.buf.len());
+        let skip = self.buf.len().saturating_sub(SEED_CAP).max(start);
         let bytes: Vec<u8> = self.buf.iter().skip(skip).copied().collect();
         let s = String::from_utf8_lossy(&bytes).into_owned();
-        let partial = skip > 0 || self.truncated;
+        let partial = skip > start || (start == 0 && self.truncated);
         let tail = match (partial, s.find('\n')) {
             (true, Some(i)) => &s[i + 1..],
             _ => &s,
@@ -132,11 +136,15 @@ impl RingsGuard<'_> {
 
     /// A replay for a fresh screen. An unknown terminal seeds empty at offset 0,
     /// which is also where its stream starts.
-    pub fn seed(&self, id: &str) -> (String, u64) {
+    pub fn seed(&self, id: &str, floor: u64) -> (String, u64) {
         match self.0.get(id) {
-            Some(r) => r.seed(),
+            Some(r) => r.seed(floor),
             None => (String::new(), 0),
         }
+    }
+
+    pub fn total(&self, id: &str) -> u64 {
+        self.0.get(id).map_or(0, Ring::total)
     }
 
     pub fn since(&self, id: &str, from: u64) -> Option<(String, u64)> {
@@ -207,7 +215,7 @@ mod tests {
         let mut r = rings.locked();
         r.push("t1", "line one\nline two\n");
         assert_eq!(
-            r.seed("t1"),
+            r.seed("t1", 0),
             ("line one\nline two\n".to_string(), 18),
             "a short stream seeds whole — nothing was cut mid-line"
         );
@@ -218,9 +226,21 @@ mod tests {
         // the ring having overflowed.
         r.push("t1", &"y".repeat(SEED_CAP));
         r.push("t1", "\ntail");
-        let (data, off) = r.seed("t1");
+        let (data, off) = r.seed("t1", 0);
         assert_eq!(data, "tail");
         assert_eq!(off, 18 + SEED_CAP as u64 + 5);
+    }
+
+    // A tab shared now must not hand its guest what it printed before.
+    #[test]
+    fn a_seed_from_a_floor_holds_back_what_came_before_it() {
+        let rings = PtyRings::default();
+        let mut r = rings.locked();
+        r.push("t1", "export TOKEN=secret\n");
+        let floor = r.total("t1");
+        r.push("t1", "after");
+        assert_eq!(r.seed("t1", floor), ("after".to_string(), floor + 5));
+        assert_eq!(r.seed("t1", 0).0, "export TOKEN=secret\nafter");
     }
 
     #[test]
@@ -229,7 +249,7 @@ mod tests {
         rings.locked().push("t1", "output");
         rings.drop_ring("t1");
         let r = rings.locked();
-        assert_eq!(r.seed("t1"), (String::new(), 0));
+        assert_eq!(r.seed("t1", 0), (String::new(), 0));
         assert!(r.since("t1", 0).is_none());
     }
 
@@ -253,7 +273,7 @@ mod tests {
         assert!(r.since("t1", 0).is_none());
 
         // Offsets minted after the gap resume normally.
-        let (_, now_at) = r.seed("t1");
+        let (_, now_at) = r.seed("t1", 0);
         assert!(now_at > away_at);
         assert_eq!(r.since("t1", now_at), Some((String::new(), now_at)));
     }
@@ -270,9 +290,9 @@ mod tests {
 
         let mut r = rings.locked();
         r.push("t1", "line one\nline two\n");
-        assert_eq!(r.seed("t1").0, "line one\nline two\n");
+        assert_eq!(r.seed("t1", 0).0, "line one\nline two\n");
         r.push("t1", "line three\n");
-        assert_eq!(r.seed("t1").0, "line one\nline two\nline three\n");
+        assert_eq!(r.seed("t1", 0).0, "line one\nline two\nline three\n");
     }
 
     // Bytes actually falling out of the ring still leave the first line held
@@ -283,7 +303,7 @@ mod tests {
         ring.push(&"x".repeat(RING_CAP - 4));
         ring.push("cut\nkept\n");
         assert!(ring.truncated, "the ring overflowed");
-        assert_eq!(ring.seed().0, "kept\n");
+        assert_eq!(ring.seed(0).0, "kept\n");
     }
 
     // A full-screen program's startup scrolls out of the tail long before anyone
@@ -295,7 +315,7 @@ mod tests {
         ring.push("\x1b[?1049h\x1b[?1003h\x1b[?1006h");
         ring.push(&"frame\n".repeat(RING_CAP));
         ring.push("last frame");
-        let (data, off) = ring.seed();
+        let (data, off) = ring.seed(0);
         assert!(
             data.starts_with("\x1b[?1049h\x1b[?1003h\x1b[?1006hframe\n"),
             "{:?}",

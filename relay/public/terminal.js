@@ -1,5 +1,6 @@
 import { Terminal } from "./vendor/xterm.mjs";
 import { Unicode11Addon } from "./vendor/addon-unicode11.mjs";
+import { hostSize } from "./size.js";
 
 // The shared tab, drawn at the host's columns and rows (the host's own view keeps
 // its size) and fitted to the window by font size.
@@ -47,8 +48,9 @@ export function createTerminal(host, onInput) {
   return {
     term,
     resize(cols, rows) {
-      if (!cols || !rows || (cols === term.cols && rows === term.rows)) return;
-      term.resize(cols, rows);
+      const size = hostSize(cols, rows);
+      if (!size || (size.cols === term.cols && size.rows === term.rows)) return;
+      term.resize(size.cols, size.rows);
       term.options.fontSize = PREFERRED_FONT;
       fit();
     },

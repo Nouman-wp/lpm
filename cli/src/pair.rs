@@ -94,26 +94,7 @@ pub fn run_connections(ctx: &Ctx, json: bool) -> Result<(), RunError> {
     }
 
     let host = value.get("host").cloned().unwrap_or(Value::Null);
-    let running = host
-        .get("running")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    let port = host.get("port").and_then(Value::as_u64).unwrap_or(0);
-    // The address matters more than the port on a server: it's the difference
-    // between "reachable over the tailnet" and "answering the open internet",
-    // and there's no window here to check it in.
-    let bind = host
-        .get("bindAddress")
-        .and_then(Value::as_str)
-        .unwrap_or("127.0.0.1");
-    println!(
-        "Hosting: {}",
-        if running {
-            format!("on, {bind}:{port}{}", reach_hint(bind))
-        } else {
-            "off".to_string()
-        }
-    );
+    println!("Hosting: {}", hosting_line(&host));
 
     let devices = host
         .get("devices")
@@ -162,6 +143,24 @@ pub fn run_connections(ctx: &Ctx, json: bool) -> Result<(), RunError> {
 
 /// Spell out what a bind address means for who can reach this machine — the two
 /// that matter are "nobody without a tunnel" and "anyone who can route here".
+fn hosting_line(host: &Value) -> String {
+    let flag = |k: &str| host.get(k).and_then(Value::as_bool).unwrap_or(false);
+    let port = host.get("port").and_then(Value::as_u64).unwrap_or(0);
+    // The address matters more than the port on a server: it's the difference
+    // between "reachable over the tailnet" and "answering the open internet",
+    // and there's no window here to check it in.
+    let bind = host
+        .get("bindAddress")
+        .and_then(Value::as_str)
+        .unwrap_or("127.0.0.1");
+    let at = format!("{bind}:{port}{}", reach_hint(bind));
+    match (flag("running"), flag("guestsOnly")) {
+        (false, _) => "off".to_string(),
+        (true, true) => format!("off, but guests of a shared tab can join on {at}"),
+        (true, false) => format!("on, {at}"),
+    }
+}
+
 fn reach_hint(bind: &str) -> &'static str {
     match bind {
         "127.0.0.1" | "localhost" => " (this machine only)",
@@ -190,6 +189,25 @@ mod tests {
         assert_eq!(platform_suffix(&serde_json::json!({"platform": "macos"})), "");
         // Paired before hosts reported a platform: say nothing rather than guess.
         assert_eq!(platform_suffix(&serde_json::json!({})), "");
+    }
+
+    // A shared tab keeps the listener up with control off; saying "on" would
+    // claim paired machines can connect.
+    #[test]
+    fn a_listener_up_only_for_a_shared_tab_reads_as_off() {
+        let host = serde_json::json!({
+            "running": true, "guestsOnly": true, "port": 8766, "bindAddress": "0.0.0.0",
+        });
+        assert_eq!(
+            hosting_line(&host),
+            "off, but guests of a shared tab can join on 0.0.0.0:8766 (every network interface)"
+        );
+        let host = serde_json::json!({ "running": true, "port": 8766, "bindAddress": "127.0.0.1" });
+        assert_eq!(
+            hosting_line(&host),
+            "on, 127.0.0.1:8766 (this machine only)"
+        );
+        assert_eq!(hosting_line(&serde_json::json!({})), "off");
     }
 
     #[test]

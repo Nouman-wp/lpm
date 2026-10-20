@@ -10,6 +10,11 @@ use serde::{Deserialize, Serialize};
 const JOIN_WINDOW: Duration = Duration::from_secs(150);
 pub(crate) const JOINED_CHANGED_EVENT: &str = "peer-joined-changed";
 const JOIN_PENDING_EVENT: &str = "peer-share-join-pending";
+// Past any real screen: a 6K display at the smallest font is about 1250×340.
+const MAX_COLS: u64 = 2000;
+const MAX_ROWS: u64 = 1000;
+const MAX_TEXT: usize = 120;
+const MAX_TERMINAL_ID: usize = 256;
 
 static JOIN_GEN: AtomicU64 = AtomicU64::new(0);
 
@@ -60,6 +65,24 @@ impl JoinedShare {
     }
 }
 
+/// The size a shared tab's host reports, kept within what a screen can show.
+/// None for a size no host sends.
+pub(super) fn reported_size(v: &Value) -> Option<(u16, u16)> {
+    let dim = |k: &str, max: u64| {
+        let n = v.get(k).and_then(Value::as_u64).filter(|n| *n > 0)?;
+        Some(n.min(max) as u16)
+    };
+    Some((dim("cols", MAX_COLS)?, dim("rows", MAX_ROWS)?))
+}
+
+/// Text from a host this machine never paired with, as it is kept in peer.json.
+fn host_text(s: &str) -> String {
+    s.chars()
+        .filter(|c| !c.is_control())
+        .take(MAX_TEXT)
+        .collect()
+}
+
 /// What the host's `ready` and `shareInfo` frames say about the tab, applied to
 /// the stored entry so the sidebar keeps naming it while it's unreachable.
 fn apply_info(j: &mut JoinedShare, info: &Value) -> bool {
@@ -69,9 +92,13 @@ fn apply_info(j: &mut JoinedShare, info: &Value) -> bool {
         j.project.clone(),
         j.can_type,
     );
-    let text = |k: &str| info.get(k).and_then(Value::as_str).map(str::to_string);
-    if let Some(t) = text("terminalId") {
-        j.terminal_id = t;
+    let text = |k: &str| info.get(k).and_then(Value::as_str).map(host_text);
+    if let Some(t) = info
+        .get("terminalId")
+        .and_then(Value::as_str)
+        .filter(|t| t.len() <= MAX_TERMINAL_ID)
+    {
+        j.terminal_id = t.to_string();
     }
     if let Some(l) = text("label") {
         j.label = l;
@@ -144,7 +171,7 @@ impl PeerClientHub {
             if !j.ended.is_empty() {
                 return false;
             }
-            j.ended = reason.to_string();
+            j.ended = host_text(reason);
             true
         });
         if let Some(conn) = self.inner.conns.lock().unwrap().get(slug) {
@@ -306,7 +333,7 @@ impl PeerClientHub {
                         guest_id: s("guestId"),
                         token: s("token"),
                         tls_fp: fp,
-                        host_name: Some(s("hostName"))
+                        host_name: Some(host_text(&s("hostName")))
                             .filter(|n| !n.is_empty())
                             .unwrap_or_else(|| "Another machine".into()),
                         joined_at: crate::status::now_millis(),
@@ -405,6 +432,46 @@ mod tests {
         assert!(!apply_info(&mut j, &json!({ "canType": true })));
         assert!(apply_info(&mut j, &json!({ "canType": false })));
         assert!(!j.can_type);
+    }
+
+    // A hostile sharer can claim any size; xterm.js allocates every cell of it.
+    #[test]
+    fn a_host_size_is_kept_within_a_real_screen() {
+        let size = |v: Value| reported_size(&v);
+        assert_eq!(
+            size(json!({ "cols": 65535, "rows": 65535 })),
+            Some((2000, 1000))
+        );
+        assert_eq!(size(json!({ "cols": 70000, "rows": 40 })), Some((2000, 40)));
+        assert_eq!(
+            size(json!({ "cols": 1250, "rows": 340 })),
+            Some((1250, 340))
+        );
+        for bad in [
+            json!({ "cols": 0, "rows": 24 }),
+            json!({ "rows": 24 }),
+            json!({ "cols": -80, "rows": 24 }),
+            json!({ "cols": 80.5, "rows": 24 }),
+            json!({ "cols": "80", "rows": 24 }),
+        ] {
+            assert_eq!(size(bad), None);
+        }
+    }
+
+    // What the host sends is saved in peer.json, beside paired machines' tokens.
+    #[test]
+    fn host_text_is_kept_short_and_printable() {
+        let mut j = JoinedShare::default();
+        apply_info(
+            &mut j,
+            &json!({ "label": "L".repeat(100_000), "terminalId": "t".repeat(300) }),
+        );
+        assert_eq!(j.label.len(), MAX_TEXT);
+        assert!(
+            j.terminal_id.is_empty(),
+            "an id can't be cut short and still work"
+        );
+        assert_eq!(host_text("claude\u{1b}[2J\n"), "claude[2J");
     }
 
     #[test]

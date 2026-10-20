@@ -99,7 +99,13 @@ export function HostSection({
               Allow control of {M.thisMachine}
             </p>
             <div className="mt-0.5">
-              {!host.enabled ? (
+              {!host.enabled && host.guestsOnly ? (
+                <StatusLine
+                  tone="off"
+                  text={`Off — only people you let into a shared tab can reach ${M.thisMachine}`}
+                  className="text-[12px]"
+                />
+              ) : !host.enabled ? (
                 <StatusLine
                   tone="off"
                   text={`Off — turn on to let ${M.anotherMachine} connect`}

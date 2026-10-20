@@ -11,11 +11,13 @@ use snow::{params::NoiseParams, Builder, Keypair, TransportState};
 const PATTERN: &str = "Noise_NK_25519_AESGCM_SHA256";
 const PROLOGUE: &str = "lpm-share-relay/1 ";
 const TAG: usize = 16;
-const MAX_MESSAGE: usize = 65535;
+pub(crate) const MAX_MESSAGE: usize = 65535;
 const PIECE: usize = 32 * 1024;
 // Far above any frame lpm sends (a seed is a terminal's ring), so a guest can't
 // make this machine buffer without bound.
 const MAX_FRAME: usize = 16 * 1024 * 1024;
+// A join or sign-in is a few hundred bytes; only a guest let in sends more.
+const MAX_JOIN_FRAME: usize = PIECE;
 
 fn params() -> NoiseParams {
     PATTERN.parse().expect("valid noise pattern")
@@ -77,10 +79,7 @@ pub(crate) fn accept(private: &[u8], room: &str, first: &[u8]) -> Option<Accepte
     let code = match_code(hs.get_handshake_hash());
     let transport = hs.into_transport_mode().ok()?;
     Some(Accepted {
-        session: Session {
-            transport,
-            partial: Vec::new(),
-        },
+        session: Session::new(transport),
         reply,
         code,
     })
@@ -89,9 +88,23 @@ pub(crate) fn accept(private: &[u8], room: &str, first: &[u8]) -> Option<Accepte
 pub(crate) struct Session {
     transport: TransportState,
     partial: Vec<u8>,
+    max_frame: usize,
 }
 
 impl Session {
+    fn new(transport: TransportState) -> Self {
+        Session {
+            transport,
+            partial: Vec::new(),
+            max_frame: MAX_JOIN_FRAME,
+        }
+    }
+
+    /// The guest was let in (peer/guest.rs), so frames as big as lpm's own may come.
+    pub(crate) fn admit(&mut self) {
+        self.max_frame = MAX_FRAME;
+    }
+
     /// The Noise messages that carry `frame`.
     pub(crate) fn seal(&mut self, frame: &[u8]) -> Result<Vec<Vec<u8>>, ()> {
         let mut pieces: Vec<&[u8]> = frame.chunks(PIECE).collect();
@@ -126,7 +139,7 @@ impl Session {
             .read_message(message, &mut plain)
             .map_err(|_| ())?;
         let (&flag, body) = plain[..n].split_first().ok_or(())?;
-        if self.partial.len() + body.len() > MAX_FRAME {
+        if self.partial.len() + body.len() > self.max_frame {
             return Err(());
         }
         self.partial.extend_from_slice(body);
@@ -236,6 +249,38 @@ mod tests {
         );
     }
 
+    // Anyone holding the invite gets this far without the host letting them in.
+    #[test]
+    fn a_guest_not_yet_let_in_cant_send_a_big_frame() {
+        let host = keypair();
+        let (mut guest, mut accepted) = guest_handshake(&host.public, ROOM, &host.private).unwrap();
+        let piece = vec![b'x'; PIECE];
+        assert_eq!(
+            accepted.session.open(&guest_seal(&mut guest, 0, &piece)),
+            Ok(None)
+        );
+        assert_eq!(
+            accepted.session.open(&guest_seal(&mut guest, 0, &piece)),
+            Err(())
+        );
+    }
+
+    #[test]
+    fn a_guest_let_in_may_send_a_big_frame() {
+        let host = keypair();
+        let (mut guest, mut accepted) = guest_handshake(&host.public, ROOM, &host.private).unwrap();
+        accepted.session.admit();
+        let piece = vec![b'x'; PIECE];
+        for _ in 0..3 {
+            assert_eq!(
+                accepted.session.open(&guest_seal(&mut guest, 0, &piece)),
+                Ok(None)
+            );
+        }
+        let whole = accepted.session.open(&guest_seal(&mut guest, 1, &piece));
+        assert_eq!(whole.map(|f| f.map(|f| f.len())), Ok(Some(PIECE * 4)));
+    }
+
     #[test]
     fn the_wrong_key_or_room_never_completes() {
         let host = keypair();
@@ -302,10 +347,7 @@ mod tests {
         guest.read_message(&reply, &mut scratch).unwrap();
         let code = match_code(guest.get_handshake_hash());
 
-        let mut host = Session {
-            transport: host.into_transport_mode().unwrap(),
-            partial: Vec::new(),
-        };
+        let mut host = Session::new(host.into_transport_mode().unwrap());
         let mut guest = guest.into_transport_mode().unwrap();
         let mut plain = text_of("guestFrame");
         plain.insert(0, 1);

@@ -5,7 +5,7 @@
 // the share on every use, so stopping a share or removing a guest takes effect
 // on the next frame rather than the next connection. It is never handed an
 // event, and never reaches the generic command proxy.
-use super::guestlink::{GuestLink, Incoming};
+use super::guestlink::{drain, GuestLink, Incoming};
 use super::*;
 use crate::tabshare::{self, GuestSession};
 
@@ -154,22 +154,20 @@ pub(super) fn serve<L: GuestLink>(
         },
     );
     tabshare::connect_viewer(&app, conn_id, &session, tx);
+    link.admitted();
     link.set_wait(POLL);
     let mut quick_until: Option<Instant> = None;
     let mut quick = false;
 
-    'main: loop {
-        if hub.inner.generation.load(Ordering::SeqCst) != generation {
+    loop {
+        if drain(&rx, POLL, |s| link.queue_text(s)).is_err() {
             break;
         }
-        while let Ok(s) = rx.try_recv() {
-            if link.queue_text(s).is_err() {
-                break 'main;
-            }
-        }
         let _ = link.flush_out();
-        // After the drain, so the frame that says why it ended goes out first.
-        if !tabshare::is_live(&session) {
+        // After the drain, so the frame that says why it ended goes out first:
+        // the last share ending can close the listener right behind it.
+        if hub.inner.generation.load(Ordering::SeqCst) != generation || !tabshare::is_live(&session)
+        {
             break;
         }
         let want_quick = quick_until.is_some_and(|t| Instant::now() < t);
@@ -222,8 +220,9 @@ fn handle<L: GuestLink>(
                 return send(link, gone_frame(&id));
             }
             let from = v.get("from").and_then(Value::as_u64);
+            let floor = tabshare::floor(session);
             let Some((data, off, reset)) =
-                hub.ring_attach(subs, &id, from, || terminal_alive(app, &id))
+                hub.ring_attach(subs, &id, from, floor, || terminal_alive(app, &id))
             else {
                 return send(link, gone_frame(&id));
             };

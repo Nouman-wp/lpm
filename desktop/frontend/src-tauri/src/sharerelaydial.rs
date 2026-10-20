@@ -5,9 +5,13 @@ use std::sync::Arc;
 use std::time::Duration;
 use tauri::Url;
 use tungstenite::client::IntoClientRequest;
+use tungstenite::protocol::WebSocketConfig;
 use tungstenite::WebSocket;
 
 const DIAL_TIMEOUT: Duration = Duration::from_secs(15);
+// About twice the largest message the relay forwards. Refusing one ends the whole
+// link, and every browser guest with it, so this must never be tight.
+const MAX_RELAY_MESSAGE: usize = 128 * 1024;
 
 pub(crate) enum RelayStream {
     Plain(TcpStream),
@@ -98,6 +102,10 @@ pub(crate) fn dial(relay: &Url, room: &str, token: &str) -> Result<RelayWs, Stri
     } else {
         RelayStream::Plain(tcp)
     };
-    let (ws, _) = tungstenite::client(request, stream).map_err(|e| e.to_string())?;
+    let config = WebSocketConfig::default()
+        .max_message_size(Some(MAX_RELAY_MESSAGE))
+        .max_frame_size(Some(MAX_RELAY_MESSAGE));
+    let (ws, _) = tungstenite::client::client_with_config(request, stream, Some(config))
+        .map_err(|e| e.to_string())?;
     Ok(ws)
 }

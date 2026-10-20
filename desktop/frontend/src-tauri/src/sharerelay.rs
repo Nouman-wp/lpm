@@ -4,7 +4,7 @@
 // relay announces each browser that connects there and forwards Noise messages it
 // can't read (sharenoise.rs); each guest then runs under exactly the rules a guest
 // on the network gets (peer/guest.rs).
-use crate::peer::{GuestLink, Incoming};
+use crate::peer::{drain, GuestLink, Incoming};
 use crate::sharenoise;
 use crate::sharerelaydial::{dial, RelayWs};
 use serde_json::{json, Value};
@@ -28,8 +28,10 @@ const HANDSHAKE_WAIT: Duration = Duration::from_secs(20);
 const FIRST_BACKOFF: Duration = Duration::from_secs(1);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 const GUEST_QUEUE: usize = 256;
-const OUT_QUEUE: usize = 1024;
-const MAX_GUESTS: usize = 32;
+// Every guest's frames wait behind this many on the one link.
+const OUT_QUEUE: usize = 64;
+// As many as relay/src/room.ts lets into a room.
+const MAX_GUESTS: usize = 16;
 const CONN_LEN: usize = 8;
 
 type ConnId = [u8; CONN_LEN];
@@ -148,10 +150,17 @@ fn parse_conn(hex_id: &str) -> Option<ConnId> {
     hex::decode(hex_id).ok()?.try_into().ok()
 }
 
+fn close_frame(conn: ConnId) -> Message {
+    Message::text(json!({ "t": "close", "c": hex::encode(conn) }).to_string())
+}
+
 /// One connection to the relay: true when it dropped, false once the share ended.
 fn serve_room(app: &AppHandle, share: &str, room: &str, private: &[u8], mut ws: RelayWs) -> bool {
     let (out_tx, out_rx) = mpsc::sync_channel::<Out>(OUT_QUEUE);
     let mut guests: HashMap<ConnId, SyncSender<Vec<u8>>> = HashMap::new();
+    // Guests this thread let go of, told to the relay ahead of everything queued:
+    // it can't wait on its own full queue.
+    let mut closing: Vec<ConnId> = Vec::new();
     let _ = ws.get_ref().tcp().set_read_timeout(Some(POLL));
     let mut checked = Instant::now();
     let mut pinged = Instant::now();
@@ -165,17 +174,23 @@ fn serve_room(app: &AppHandle, share: &str, room: &str, private: &[u8], mut ws: 
                 return false;
             }
         }
-        while let Ok(out) = out_rx.try_recv() {
+        for conn in closing.drain(..) {
+            if ws.write(close_frame(conn)).is_err() {
+                return true;
+            }
+        }
+        let sent = drain(&out_rx, POLL, |out| {
             let msg = match out {
                 Out::Data(conn, bytes) => Message::binary([&conn[..], &bytes].concat()),
                 Out::Close(conn) => {
                     guests.remove(&conn);
-                    Message::text(json!({ "t": "close", "c": hex::encode(conn) }).to_string())
+                    close_frame(conn)
                 }
             };
-            if ws.write(msg).is_err() {
-                return true;
-            }
+            ws.write(msg).map_err(|_| ())
+        });
+        if sent.is_err() {
+            return true;
         }
         if pinged.elapsed() >= KEEPALIVE {
             pinged = Instant::now();
@@ -188,10 +203,16 @@ fn serve_room(app: &AppHandle, share: &str, room: &str, private: &[u8], mut ws: 
             _ => {}
         }
         match ws.read() {
-            Ok(Message::Binary(frame)) => forward(&mut guests, &frame, &out_tx),
-            Ok(Message::Text(text)) => {
-                announce(app, room, private, text.as_str(), &mut guests, &out_tx)
-            }
+            Ok(Message::Binary(frame)) => forward(&mut guests, &frame, &mut closing),
+            Ok(Message::Text(text)) => announce(
+                app,
+                room,
+                private,
+                text.as_str(),
+                &mut guests,
+                &out_tx,
+                &mut closing,
+            ),
             Ok(Message::Close(_)) => return true,
             Ok(_) => {}
             Err(e) if waiting(&e) => {}
@@ -201,16 +222,21 @@ fn serve_room(app: &AppHandle, share: &str, room: &str, private: &[u8], mut ws: 
 }
 
 /// A browser's Noise message, handed to the session it belongs to.
-fn forward(guests: &mut HashMap<ConnId, SyncSender<Vec<u8>>>, frame: &[u8], out: &SyncSender<Out>) {
+fn forward(
+    guests: &mut HashMap<ConnId, SyncSender<Vec<u8>>>,
+    frame: &[u8],
+    closing: &mut Vec<ConnId>,
+) {
     let Some(conn) = frame.get(..CONN_LEN).and_then(|c| ConnId::try_from(c).ok()) else {
         return;
     };
     let Some(tx) = guests.get(&conn) else {
         return;
     };
-    if tx.try_send(frame[CONN_LEN..].to_vec()).is_err() {
+    let fits = frame.len() <= CONN_LEN + sharenoise::MAX_MESSAGE;
+    if !fits || tx.try_send(frame[CONN_LEN..].to_vec()).is_err() {
         guests.remove(&conn);
-        let _ = out.try_send(Out::Close(conn));
+        closing.push(conn);
     }
 }
 
@@ -222,6 +248,7 @@ fn announce(
     text: &str,
     guests: &mut HashMap<ConnId, SyncSender<Vec<u8>>>,
     out: &SyncSender<Out>,
+    closing: &mut Vec<ConnId>,
 ) {
     let Ok(v) = serde_json::from_str::<Value>(text) else {
         return;
@@ -230,9 +257,7 @@ fn announce(
         return;
     };
     match v.get("t").and_then(Value::as_str) {
-        Some("open") if guests.len() >= MAX_GUESTS => {
-            let _ = out.try_send(Out::Close(conn));
-        }
+        Some("open") if guests.len() >= MAX_GUESTS => closing.push(conn),
         Some("open") => {
             let (tx, rx) = mpsc::sync_channel(GUEST_QUEUE);
             guests.insert(conn, tx);
@@ -263,7 +288,7 @@ fn welcome(
         .ok()
         .and_then(|first| sharenoise::accept(private, room, &first));
     let Some(accepted) = accepted else {
-        let _ = out.try_send(Out::Close(conn));
+        let _ = out.send(Out::Close(conn));
         return;
     };
     if out.send(Out::Data(conn, accepted.reply)).is_err() {
@@ -300,6 +325,10 @@ impl GuestLink for RelayLink {
 
     fn match_code(&self) -> Option<&str> {
         Some(&self.code)
+    }
+
+    fn admitted(&mut self) {
+        self.session.admit();
     }
 
     fn set_wait(&mut self, wait: Duration) {
@@ -339,7 +368,7 @@ impl GuestLink for RelayLink {
 
     fn close_link(&mut self) {
         if !std::mem::replace(&mut self.closed, true) {
-            let _ = self.out.try_send(Out::Close(self.conn));
+            let _ = self.out.send(Out::Close(self.conn));
         }
     }
 }
@@ -366,16 +395,40 @@ mod tests {
 
     #[test]
     fn a_full_or_gone_session_is_closed_at_the_relay() {
-        let (out, out_rx) = mpsc::sync_channel(4);
+        let mut closing = Vec::new();
         let (tx, rx) = mpsc::sync_channel(1);
         let conn = [7u8; CONN_LEN];
         let mut guests = HashMap::from([(conn, tx)]);
         let frame = [&conn[..], b"abc"].concat();
-        forward(&mut guests, &frame, &out);
+        forward(&mut guests, &frame, &mut closing);
         assert_eq!(rx.try_recv().unwrap(), b"abc");
-        forward(&mut guests, &frame, &out);
-        forward(&mut guests, &frame, &out);
+        forward(&mut guests, &frame, &mut closing);
+        forward(&mut guests, &frame, &mut closing);
         assert!(guests.is_empty());
-        assert!(matches!(out_rx.try_recv(), Ok(Out::Close(c)) if c == conn));
+        assert_eq!(closing, [conn]);
+    }
+
+    // Past the largest Noise message the frame can only be junk, and only the
+    // guest it names is closed: the relay link carries every other guest too.
+    #[test]
+    fn an_oversized_message_closes_only_its_guest() {
+        let mut closing = Vec::new();
+        let (big, big_rx) = mpsc::sync_channel(4);
+        let (small, small_rx) = mpsc::sync_channel(4);
+        let mut guests = HashMap::from([([1u8; CONN_LEN], big), ([2u8; CONN_LEN], small)]);
+        let largest = [&[1u8; CONN_LEN][..], &vec![0; sharenoise::MAX_MESSAGE]].concat();
+        forward(&mut guests, &largest, &mut closing);
+        assert_eq!(big_rx.try_recv().unwrap().len(), sharenoise::MAX_MESSAGE);
+
+        forward(&mut guests, &[&largest[..], b"!"].concat(), &mut closing);
+        assert!(big_rx.try_recv().is_err());
+        assert_eq!(closing, [[1u8; CONN_LEN]]);
+        assert!(guests.contains_key(&[2u8; CONN_LEN]));
+        forward(
+            &mut guests,
+            &[&[2u8; CONN_LEN][..], b"ok"].concat(),
+            &mut closing,
+        );
+        assert_eq!(small_rx.try_recv().unwrap(), b"ok");
     }
 }

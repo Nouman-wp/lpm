@@ -213,6 +213,7 @@ function onLive(f) {
       break;
     }
     case "seed":
+      if (f.id !== terminalId) break;
       resyncing = false;
       view.resize(f.cols, f.rows);
       if (f.reset) view.term.reset();
