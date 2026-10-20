@@ -15,13 +15,16 @@ import {
   DialogPanel,
   FIELD_CLASS,
   FieldLabel,
+  HelpText,
   PrimaryButton,
   SecondaryButton,
 } from "./ui-kit";
 
-// The app's "Connect to SSH host" dialog: pick a host from ~/.ssh/config and
+// The app's "Add an SSH project" dialog: pick a host from ~/.ssh/config and
 // its alias, user and port fill in, or enter one by hand. The project name
-// follows the host until it is edited.
+// follows the host until it is edited. Its Linux host hint goes back to the
+// Server screen, where installing lpm on the server is shown but left to the
+// app.
 export function SshProjectForm({
   onBack,
   onClose,
@@ -37,6 +40,7 @@ export function SshProjectForm({
   const [host, setHost] = useState("");
   const [user, setUser] = useState("");
   const [port, setPort] = useState("");
+  const [dir, setDir] = useState("");
   const [name, setName] = useState("");
   const [nameEdited, setNameEdited] = useState(false);
   const hostRef = useRef<HTMLInputElement>(null);
@@ -82,14 +86,25 @@ export function SshProjectForm({
   return (
     <DialogPanel
       className="relative max-w-[calc(100%-2rem)]"
-      aria-label="Connect to SSH host"
+      aria-label="Add an SSH project"
     >
       <BackButton onClick={onBack} />
       <DialogHeader
-        title="Connect to SSH host"
-        description="Creates a project that connects to a remote host. Services, actions, and terminals will run over this SSH connection."
+        title="Add an SSH project"
+        description="Opens one folder on a server as a project. Its terminals, services and actions run over SSH from this Mac, and nothing is installed on the server."
         onClose={onClose}
       />
+      <p className="mt-2 text-[11px] leading-relaxed text-[#919191]">
+        Keeping several projects on this server?{" "}
+        <button
+          type="button"
+          onClick={onBack}
+          className="font-medium text-[#b3b3b3] hover:text-[#e5e5e5] hover:underline"
+        >
+          Set it up as a Linux host
+        </button>{" "}
+        instead.
+      </p>
 
       <form
         autoComplete="off"
@@ -144,6 +159,24 @@ export function SshProjectForm({
               </div>
 
               <div className="col-span-2">
+                <FieldLabel>
+                  Project folder on the server{" "}
+                  <span className="font-normal text-[#919191]">(optional)</span>
+                </FieldLabel>
+                <input
+                  value={dir}
+                  onChange={(e) => setDir(e.target.value)}
+                  placeholder="/var/www/app"
+                  {...NO_AUTOFILL}
+                  className={FIELD_CLASS}
+                />
+                <HelpText>
+                  Terminals open here; blank means the home folder. For another
+                  folder on this server, add another SSH project.
+                </HelpText>
+              </div>
+
+              <div className="col-span-2">
                 <FieldLabel>Project name</FieldLabel>
                 <input
                   value={projectName}
@@ -151,7 +184,7 @@ export function SshProjectForm({
                     setName(e.target.value);
                     setNameEdited(true);
                   }}
-                  placeholder="my-server"
+                  placeholder="my-app"
                   {...NO_AUTOFILL}
                   className={FIELD_CLASS}
                 />

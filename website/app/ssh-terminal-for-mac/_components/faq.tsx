@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
+import { LINUX_HOST_PATH } from "@/lib/links";
 import { jsonLdString } from "@/lib/structured-data";
 
 type QA = {
@@ -47,6 +49,28 @@ const FAQS: QA[] = [
     ),
     answerText:
       "When you add an SSH project, lpm reads ~/.ssh/config (and any files pulled in by Include directives, up to four levels deep), parses out the non-wildcard Host blocks, and shows them in a dropdown. Pick a host and lpm pre-fills the host alias, user, port, and identity file in the form. lpm connects through that alias, so OpenSSH can still apply alias-scoped options such as HostName, ProxyJump, and ProxyCommand. The import is one read, and your config file stays the source of truth.",
+  },
+  {
+    question: "Should I add an SSH project or set up a Linux host?",
+    answer: (
+      <>
+        Both start from + above your projects, then Server. Just SSH in adds an
+        SSH project: one folder on the server, run over SSH from your Mac,
+        without installing lpm there. For another folder, add another SSH
+        project. Install lpm there sets the server up as a Linux host instead:
+        lpm runs on the server itself, one host holds as many projects as you
+        like, and its agents keep working while your Mac sleeps. More on that in{" "}
+        <Link
+          href={LINUX_HOST_PATH}
+          className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
+        >
+          running Claude Code on a remote server
+        </Link>
+        .
+      </>
+    ),
+    answerText:
+      "Both start from + above your projects, then Server. Just SSH in adds an SSH project: one folder on the server, run over SSH from your Mac, without installing lpm there. For another folder, add another SSH project. Install lpm there sets the server up as a Linux host instead: lpm runs on the server itself, one host holds as many projects as you like, and its agents keep working while your Mac sleeps. More on that in running Claude Code on a remote server.",
   },
   {
     question: "Can I forward a remote port to localhost without typing ssh -L?",

@@ -10,10 +10,10 @@ export default function Cta() {
           <br className="hidden sm:block" /> The server does the hours.
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          Download lpm, type{" "}
-          <code className="font-mono text-[0.9em]">user@your-server</code> in
-          Settings → Connections, and let Claude Code and Codex work on a
-          machine that never sleeps.
+          Download lpm, add your server with the{" "}
+          <code className="font-mono text-[0.9em]">user@your-server</code> you
+          would type after ssh, and let Claude Code and Codex work on a machine
+          that never sleeps.
         </p>
 
         <div className="mt-10 flex justify-center">

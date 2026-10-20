@@ -39,11 +39,12 @@ export default function QuickAnswer() {
               Mac the moment it needs an answer.
             </p>
             <p>
-              lpm takes the same idea and manages the plumbing. In{" "}
+              lpm takes the same idea and manages the plumbing. Click{" "}
               <strong className="font-medium text-gray-900 dark:text-gray-100">
-                Settings → Connections
+                + → Server → Install lpm there
               </strong>{" "}
-              you type <code className="font-mono text-[0.9em]">user@host</code>
+              (or open Settings → Connections) and type{" "}
+              <code className="font-mono text-[0.9em]">user@host</code>
               {" — "}lpm installs itself on that server over SSH, pairs the two
               machines without you copying a secret anywhere, and forwards the
               connection so nothing new is exposed. From then on the
@@ -60,7 +61,9 @@ export default function QuickAnswer() {
                 reaching a remote box from a Mac terminal
               </Link>
               : here the whole of lpm is running on the Linux machine, and your
-              Mac is the window onto it.
+              Mac is the window onto it. When one folder is all you need, the
+              Server screen&rsquo;s other choice, Just SSH in, opens it as an SSH
+              project without installing lpm on the server.
             </p>
           </div>
         </div>

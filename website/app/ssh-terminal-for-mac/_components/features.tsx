@@ -24,7 +24,8 @@ const FEATURES: Feature[] = [
     title: "Pick any host from ~/.ssh/config",
     body: (
       <>
-        Open the SSH project picker and a dropdown appears, populated from your{" "}
+        Click + above your projects, choose Server, then Just SSH in, and a
+        dropdown appears, populated from your{" "}
         <code className="text-xs">~/.ssh/config</code>. Selecting a host
         pre-fills the host alias, user, port, and identity file in one click.{" "}
         <code className="text-xs">Include</code> directives are followed up to

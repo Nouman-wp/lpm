@@ -65,8 +65,9 @@ const STEPS: Step[] = [
     title: "Its projects show up in your sidebar",
     body: (
       <>
-        Under the server&rsquo;s own name, beside your local projects. Open one
-        and it is the same project view: the same terminal tabs, the same
+        Under the server&rsquo;s own name, beside your local projects, and one
+        server holds as many as you like: clone a repository onto it or pick a
+        folder that is already there. Open one and it is the same project view: the same terminal tabs, the same
         service controls, the same review pane. The only things that stay behind
         are the ones that need an app installed on your Mac.
       </>
@@ -103,8 +104,7 @@ export default function HowItWorks() {
           ))}
         </ol>
         <p className="mt-6 text-center text-xs text-gray-500 dark:text-gray-400">
-          Already have lpm on the server? Untick the install box and lpm just
-          pairs with it.
+          Already have lpm on the server? lpm sees it and just pairs with it.
         </p>
       </div>
     </section>
