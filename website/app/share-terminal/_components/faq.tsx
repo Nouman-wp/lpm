@@ -26,7 +26,7 @@ const FAQS: QA[] = [
   {
     question: "Can anyone with the link get in? How secure is it?",
     answer:
-      "The link alone gets nobody in. Every person asks to join under a name, and lpm shows you the request with Let in and Deny. Browser guests also see four emoji that match the ones on your screen, so you can ask which ones they see before letting them in. A browser connection is encrypted end to end between their browser and your computer: lpm's relay passes it along and can't read it. Teammates who join from lpm connect straight to your computer, encrypted and pinned to it.",
+      "The link alone gets nobody in. Every person asks to join under a name, and lpm shows you the request with Let in and Deny. Browser guests also see four emoji that match the ones on your screen, so you can ask which ones they see before letting them in. A browser connection is encrypted end to end between their browser and your computer, through lpm's relay. The page a browser joins from comes from lpm too, so for the most private join, use lpm: teammates who join from lpm connect straight to your computer, encrypted and pinned to it.",
   },
   {
     question: "What can a guest do on my computer?",

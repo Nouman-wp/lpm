@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { roomOf } from "./claim";
 
 // One shared tab's room. Its host (lpm on the sharing machine) holds one socket and
 // each browser guest holds another. What they send each other is Noise ciphertext
@@ -58,23 +59,31 @@ export class Room extends DurableObject<object> {
   }
 
   async fetch(request: Request): Promise<Response> {
+    if (new URL(request.url).pathname.endsWith("/host")) return this.host(request);
     if (await this.ctx.storage.get("ended")) return this.refuse(CLOSE.ended, "sharing ended");
-    return new URL(request.url).pathname.endsWith("/host") ? this.host(request) : this.guest();
+    return this.guest();
   }
 
   private openHost(): WebSocket | undefined {
     return this.ctx.getWebSockets(HOST).find((ws) => ws.readyState === OPEN);
   }
 
-  // The first host to arrive claims the room with its token; only that token
-  // takes it back after a reconnect.
+  // A room named for the token (claim.ts) is that host's, whoever got here first.
+  // One an older lpm named at random goes to the first token to claim it, and
+  // only that token takes it back after a reconnect.
   private async host(request: Request): Promise<Response> {
     const token = /^Bearer (\S+)$/.exec(request.headers.get("Authorization") ?? "")?.[1];
     if (!token) return new Response("Unauthorized", { status: 401 });
     const hash = await sha256(token);
+    const owner = new URL(request.url).pathname === `/room/${await roomOf(token)}/host`;
     const claimed = await this.ctx.storage.get<string>("host");
-    if (claimed && claimed !== hash) return new Response("Forbidden", { status: 403 });
-    if (!claimed) await this.ctx.storage.put("host", hash);
+    if (owner) {
+      await this.ctx.storage.delete("ended");
+    } else {
+      if (await this.ctx.storage.get("ended")) return this.refuse(CLOSE.ended, "sharing ended");
+      if (claimed && claimed !== hash) return new Response("Forbidden", { status: 403 });
+    }
+    if (claimed !== hash) await this.ctx.storage.put("host", hash);
     await this.ctx.storage.deleteAlarm();
     for (const ws of this.ctx.getWebSockets(HOST)) close(ws, CLOSE.replaced, "replaced");
     // Their sessions lived in the connection that just went away.

@@ -79,6 +79,16 @@ fn random_token(bytes: usize) -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b)
 }
 
+/// The room `token` claims. The relay checks one against the other, so nobody
+/// else holding the invite can take the room, even once the relay forgot it.
+/// Must match roomOf in relay/src/claim.ts.
+fn room_of(token: &str) -> String {
+    use base64::Engine as _;
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(token.as_bytes());
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&digest[..16])
+}
+
 /// Start taking browser guests for `share`, until it ends.
 pub(crate) fn open(app: &AppHandle, share: &str) {
     use base64::Engine as _;
@@ -87,8 +97,8 @@ pub(crate) fn open(app: &AppHandle, share: &str) {
     };
     let keypair = sharenoise::keypair();
     let private = Zeroizing::new(keypair.private);
-    let room_id = random_token(16);
     let token = random_token(32);
+    let room_id = room_of(&token);
     {
         let mut rooms = rooms();
         if rooms.contains_key(share) {
@@ -382,6 +392,13 @@ impl Drop for RelayLink {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // The same vector as relay/test/claim.test.mjs.
+    #[test]
+    fn a_token_names_its_room_the_way_the_relay_checks_it() {
+        assert_eq!(room_of("abc"), "ungWv48Bz-pBQUDeXa4iIw");
+        assert_eq!(room_of(&random_token(32)).len(), 22);
+    }
 
     #[test]
     fn a_connection_id_is_eight_bytes_of_hex() {

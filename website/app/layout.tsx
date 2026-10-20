@@ -195,18 +195,22 @@ export default async function RootLayout({
           {children}
         </main>
         <Footer />
-        <Script
-          src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
-          strategy="afterInteractive"
-        />
+        {/* /join holds a shared tab's invite in its address, so nobody else's
+            script runs there. */}
         <Script id="ga-init" strategy="afterInteractive">
           {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            var page = { page_location: location.href.split('#')[0] };
-            gtag('config', '${GA_ID}', page);
-            gtag('config', '${GOOGLE_ADS_ID}', page);
+            if (!/^\\/join\\/?$/.test(location.pathname)) {
+              window.dataLayer = window.dataLayer || [];
+              window.gtag = function gtag(){dataLayer.push(arguments);};
+              gtag('js', new Date());
+              var page = { page_location: location.href.split('#')[0] };
+              gtag('config', '${GA_ID}', page);
+              gtag('config', '${GOOGLE_ADS_ID}', page);
+              var tag = document.createElement('script');
+              tag.async = true;
+              tag.src = 'https://www.googletagmanager.com/gtag/js?id=${GA_ID}';
+              document.head.appendChild(tag);
+            }
           `}
         </Script>
       </body>

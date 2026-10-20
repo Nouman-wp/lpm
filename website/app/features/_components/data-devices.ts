@@ -41,7 +41,7 @@ export const DEVICES_AREA: FeatureArea = {
     {
       title: "Share a tab with anyone",
       body: "Send a link to one terminal tab. People join from lpm or any browser, watch it live at your size, and type only once you switch them to Can type. You let each person in.",
-      note: "Browsers join through lpm's relay, encrypted end to end so the relay can't read the tab.",
+      note: "Browsers join through lpm's relay, encrypted end to end between the browser and your computer.",
       href: SHARE_TERMINAL_PATH,
       linkLabel: "Share a terminal",
     },

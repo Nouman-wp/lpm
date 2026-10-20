@@ -10,7 +10,7 @@ const WAYS = [
       "A link and a browser are enough, on a laptop or a phone.",
       "Works from anywhere: no shared network, no ports to open.",
       "A prompt box with Esc, the arrows, Tab, Return and Ctrl C, for answering whatever the terminal asks.",
-      "Encrypted end to end between their browser and your computer. lpm's relay passes it along and can't read it.",
+      "Encrypted end to end between their browser and your computer, through lpm's relay.",
     ],
   },
   {

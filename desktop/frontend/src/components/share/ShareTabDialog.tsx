@@ -16,6 +16,7 @@ import { useAppStore } from "../../store/app";
 import { displayNameForProjectName } from "../ProjectNameDisplay";
 import { GLOBAL_TERMINALS_KEY } from "../../terminals";
 import { shareLink } from "../../share/invite";
+import { MACHINE as M } from "../../machineWords";
 
 type Access = "view" | "type";
 
@@ -89,8 +90,8 @@ export function ShareTabDialog() {
             until you let them type.
           </p>
           <p className="mt-2 text-xs text-[var(--text-muted)]">
-            A browser reaches this tab through lpm's relay, encrypted end to end so
-            the relay can't read it.
+            A browser reaches this tab through lpm's relay, encrypted end to end
+            between their browser and {M.thisMachine}.
           </p>
         </>
       ) : (
