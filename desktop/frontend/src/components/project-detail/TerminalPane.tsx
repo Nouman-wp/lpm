@@ -97,6 +97,7 @@ export function TerminalPane({
         <TerminalView
           ref={terminalRef}
           projectName={projectName}
+          projectLabel={projectLabel}
           projectRoot={projectRoot}
           services={services}
           terminalTheme={terminalTheme}
@@ -110,6 +111,7 @@ export function TerminalPane({
           keysActive={keysActive}
           onResumeSession={onResumeSession}
           actions={actions}
+          onRunAction={onRunAction}
         />
       </div>
       {showEmptyState && (

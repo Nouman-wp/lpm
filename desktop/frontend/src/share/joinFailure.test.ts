@@ -20,6 +20,12 @@ describe("join failures", () => {
     expect(joinFailure("The host didn't answer in time.", "").retry).toBe("Ask again");
   });
 
+  it("asks again later when nobody is at a headless host to let anyone in", () => {
+    expect(
+      joinFailure("No one is there to let you in right now. Try again later.", "devbox"),
+    ).toMatchObject({ title: "No one at devbox can let you in", retry: "Ask again" });
+  });
+
   it("has nothing to retry once the link has ended", () => {
     expect(joinFailure("This invite has ended. Ask for a new one.", "").retry).toBeNull();
   });

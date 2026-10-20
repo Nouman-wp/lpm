@@ -10,9 +10,10 @@ import { useActionsActiveId } from "./ActionsDnd";
 import { ActionMenu } from "./ActionMenu";
 import { SPRING_LOAD_MS, useSpringOver } from "./springLoad";
 import {
-  PRIMARY_LAST_USED,
+  inGroupColor,
+  isSplitButton,
   loadRememberedChild,
-  rememberChild,
+  noteChildRun,
   resolvePrimaryChild,
 } from "./splitPrimary";
 
@@ -151,22 +152,12 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, onHo
   });
 
   const primaryChild = resolvePrimaryChild(action, remembered);
-  const isSplit = !!primaryChild || !!action.cmd;
+  const isSplit = isSplitButton(action, primaryChild);
 
-  const noteRun = (child: ActionInfo) => {
-    if (action.primary !== PRIMARY_LAST_USED) return;
-    if (!child.name.startsWith(`${action.name}:`)) return;
-    const rest = child.name.slice(action.name.length + 1);
-    if (rest.includes(":")) return;
-    rememberChild(scope, action.name, rest);
-    setRemembered(rest);
-  };
-
-  // Children without a color of their own launch with the group's accent, so a
-  // tab spawned from a colored split button keeps the tint the button shows.
   const runChild = (child: ActionInfo) => {
-    noteRun(child);
-    onRunAction(child.color || !action.color ? child : { ...child, color: action.color });
+    const key = noteChildRun(scope, action, child);
+    if (key) setRemembered(key);
+    onRunAction(inGroupColor(action, child));
   };
 
   const handleSelectChild = (child: ActionInfo) => {

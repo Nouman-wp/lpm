@@ -122,6 +122,7 @@ struct PeerConn {
     supports_port_tunnel: AtomicBool, // host opens its web servers here (porttunnel.rs)
     supports_phone_relay: AtomicBool, // host runs phones this Mac relays to it (peerclient/phone.rs)
     supports_limits: AtomicBool, // host trades Claude usage limits (agent_limits_share.rs)
+    supports_tab_share: AtomicBool, // this Mac may share the host's tabs (tabshare/machines.rs)
     // The phones this Mac is relaying to the host, by channel: where the frames
     // the host sends each one go.
     phones: Mutex<HashMap<u64, SyncSender<String>>>,
@@ -193,6 +194,7 @@ impl PeerConn {
             supports_port_tunnel: AtomicBool::new(false),
             supports_phone_relay: AtomicBool::new(false),
             supports_limits: AtomicBool::new(false),
+            supports_tab_share: AtomicBool::new(false),
             phones: Mutex::new(HashMap::new()),
             in_run: AtomicBool::new(false),
             generation: AtomicU64::new(0),
@@ -461,6 +463,9 @@ impl PeerClientHub {
                 let supports_port_tunnel = conn
                     .map(|c| c.supports_port_tunnel.load(Ordering::Relaxed))
                     .unwrap_or(false);
+                let supports_tab_share = conn
+                    .map(|c| c.supports_tab_share.load(Ordering::Relaxed))
+                    .unwrap_or(false);
                 let beta_updates = conn
                     .map(|c| c.beta_updates.load(Ordering::Relaxed))
                     .unwrap_or(false);
@@ -500,6 +505,7 @@ impl PeerClientHub {
                     "supportsHostFolderFolds": supports_host_folder_folds,
                     "supportsHostJobs": supports_host_jobs,
                     "supportsPortTunnel": supports_port_tunnel,
+                    "supportsTabShare": supports_tab_share,
                     "updateChannel": if beta_updates { "beta" } else { "stable" },
                     // Whether the peer's identity is pinned (verified-encrypted). An
                     // auto run refuses an unpinned channel, so the UI hints on it.
@@ -2280,6 +2286,10 @@ fn connect_session(
         has_feature(crate::agent_limits_share::LIMITS_FEATURE),
         Ordering::Relaxed,
     );
+    conn.supports_tab_share.store(
+        has_feature(crate::tabshare::TAB_SHARE_FEATURE),
+        Ordering::Relaxed,
+    );
 
     let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
     *conn.out.lock().unwrap() = Some(tx);
@@ -2585,6 +2595,11 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                 }
                 if matches!(name, "projects-changed" | "status-changed") {
                     crate::remote_machines::notify_changed(app);
+                }
+                // Someone asks to join a tab a paired Mac shared on the host, which
+                // brings this window up as asking would on a machine of its own.
+                if name == crate::tabshare::KNOCK_EVENT {
+                    crate::lifecycle::show_main(app);
                 }
                 // A forwarded config-change event is a remote sync trigger: the
                 // other Mac edited its projects/templates or wrote session memory,

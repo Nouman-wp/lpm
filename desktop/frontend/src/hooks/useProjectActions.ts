@@ -56,6 +56,8 @@ export interface RunActionOpts {
   fixedAccount?: boolean;
   // Run for someone else (a phone): its tab opens behind the one in view.
   background?: boolean;
+  // Opens its terminal in this pane rather than the focused one.
+  paneId?: string;
 }
 
 export interface UseProjectActionsResult {
@@ -153,6 +155,7 @@ export function useProjectActions({
             launchModel: opts.launchModel,
             fixedAccount: opts.fixedAccount,
             background: opts.background,
+            paneId: opts.paneId,
           });
           return;
         }
@@ -176,6 +179,7 @@ export function useProjectActions({
           launchModel: opts.launchModel,
           fixedAccount: opts.fixedAccount,
           background: opts.background,
+          paneId: opts.paneId,
         });
       } catch (err) {
         toast.error(`${action.label}: ${err}`);

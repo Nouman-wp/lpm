@@ -1,18 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown } from "lucide-react";
-import {
-  PeerShareSetCanType,
-  PeerShareStart,
-  PeerShareStop,
-  SetClipboardText,
-} from "../../../bridge/commands";
+import { SetClipboardText } from "../../../bridge/commands";
 import { ShareLinkRow } from "./ShareLinkRow";
 import { ShareQrCode } from "./ShareQrCode";
 import { ShareAccessPicker } from "./ShareAccessPicker";
 import { SharePeople } from "./SharePeople";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useEventListener } from "../../hooks/useEventListener";
-import { useTabShares, watchTabShares, type HostedShare, type ShareTarget } from "../../store/tabShares";
+import { useTabShares, watchTabShares, type ShareTarget } from "../../store/tabShares";
+import { setShareCanType, startShare, stopShare } from "../../share/shareCalls";
+import { peerSlugOf } from "../../peer/markers";
 import { useAppStore } from "../../store/app";
 import { displayNameForProjectName } from "../ProjectNameDisplay";
 import { GLOBAL_TERMINALS_KEY } from "../../terminals";
@@ -29,16 +26,22 @@ function projectOf(target: ShareTarget): string {
     : displayNameForProjectName(target.project, useAppStore.getState().projects);
 }
 
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 // Share one tab: opening it makes the link and puts it on the clipboard, so
 // sending it is the next step. People ask to join through it and are let in by
 // hand (ShareKnocks); this lists them, with what each may do.
 export function ShareTabPopover() {
   const target = useTabShares((s) => s.shareDialog);
   const close = useTabShares((s) => s.closeShareDialog);
-  const setHosted = useTabShares((s) => s.setHosted);
   const share = useTabShares((s) =>
     target ? s.hosted.find((h) => h.terminalId === target.terminalId) : undefined,
   );
+  // The paired machine the tab runs on, which shares it.
+  const machine = peerSlugOf(target?.terminalId);
+  const machineName = useTabShares((s) => (machine ? s.machineNames[machine] : undefined));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -68,14 +71,12 @@ export function ShareTabPopover() {
     if (useTabShares.getState().hosted.some((h) => h.terminalId === target.terminalId)) return;
     let live = true;
     setBusy(true);
-    PeerShareStart(target.terminalId, projectOf(target), target.label)
-      .then((rows: HostedShare[]) => {
-        setHosted(rows);
-        const made = rows.find((r) => r.terminalId === target.terminalId);
+    startShare(target, projectOf(target))
+      .then((made) => {
         if (live && made) copy(made.invite);
       })
       .catch((err) => {
-        if (live) setError(String(err));
+        if (live) setError(errorText(err));
       })
       .finally(() => {
         if (live) setBusy(false);
@@ -83,7 +84,7 @@ export function ShareTabPopover() {
     return () => {
       live = false;
     };
-  }, [target, setHosted]);
+  }, [target]);
 
   // The terminal keeps focus under the popover, and Escape there would reach
   // the agent: closing the popover takes it first.
@@ -104,13 +105,13 @@ export function ShareTabPopover() {
 
   if (!target) return null;
 
-  const run = async (call: () => Promise<HostedShare[]>) => {
+  const run = async (call: () => Promise<void>) => {
     setBusy(true);
     setError(null);
     try {
-      setHosted(await call());
+      await call();
     } catch (err) {
-      setError(String(err));
+      setError(errorText(err));
     } finally {
       setBusy(false);
     }
@@ -118,11 +119,12 @@ export function ShareTabPopover() {
 
   const stop = async () => {
     if (!share) return close();
-    await run(() => PeerShareStop(share.id));
+    await run(() => stopShare(share));
     close();
   };
 
   const project = projectOf(target);
+  const from = machine ? (machineName ?? M.anotherMachine) : M.thisMachine;
   const place = placeSharePopover(target.anchor, WIDTH, {
     width: window.innerWidth,
     height: window.innerHeight,
@@ -144,7 +146,7 @@ export function ShareTabPopover() {
               Share {target.label}
             </h2>
             <div className="mt-0.5 truncate text-xs text-[var(--text-muted)]">
-              {project ? `${project} · from ${M.thisMachine}` : `From ${M.thisMachine}`}
+              {project ? `${project} · from ${from}` : `From ${from}`}
             </div>
           </div>
           {share ? (
@@ -190,7 +192,7 @@ export function ShareTabPopover() {
               <ShareAccessPicker
                 canType={share.canType}
                 disabled={busy}
-                onChange={(canType) => void run(() => PeerShareSetCanType(share.id, canType))}
+                onChange={(canType) => void run(() => setShareCanType(share, canType))}
               />
             </div>
             <div className="mt-4">

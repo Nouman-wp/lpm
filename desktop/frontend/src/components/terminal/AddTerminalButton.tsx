@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PlusIcon } from "./icons";
 import { useHoverPopup } from "../../hooks/useHoverPopup";
+import type { LaunchpadProject } from "../../hooks/useLaunchpad";
+import type { RunActionOpts } from "../../hooks/useProjectActions";
 import { useSettingsStore } from "../../store/settings";
 import type { RemoteAgentLaunch } from "../../remoteAgentTabs";
+import type { ActionInfo } from "../../types";
 import { NewTabPopup } from "./NewTabPopup";
 
 // Long enough that reaching for + to click it doesn't flash the popup first.
 const OPEN_DELAY_MS = 300;
 
 interface AddTerminalButtonProps {
+  project: LaunchpadProject;
   onAddTerminal: () => void;
   onRunCommand: (command: string) => void;
   onOpenAgent: (launch: RemoteAgentLaunch) => void;
+  onRunAction: (action: ActionInfo, opts?: RunActionOpts) => void;
   onResumeSession?: () => void;
   // ⌘T asked for the popup here, with the keyboard in it.
   openRequested: boolean;
@@ -23,9 +28,11 @@ interface AddTerminalButtonProps {
 // "Pick agent and model on +" on, a click opens that instead. Right-click or ↓
 // opens it without the wait.
 export function AddTerminalButton({
+  project,
   onAddTerminal,
   onRunCommand,
   onOpenAgent,
+  onRunAction,
   onResumeSession,
   openRequested,
   onOpenRequestHandled,
@@ -90,6 +97,7 @@ export function AddTerminalButton({
       </button>
       {popup.open && (
         <NewTabPopup
+          project={project}
           anchorRef={buttonRef}
           focusRequest={focusRequest}
           hover={popup.panel}
@@ -98,6 +106,7 @@ export function AddTerminalButton({
           onNewTerminal={onAddTerminal}
           onRunCommand={onRunCommand}
           onOpenAgent={onOpenAgent}
+          onRunAction={onRunAction}
           onResumeSession={onResumeSession}
         />
       )}

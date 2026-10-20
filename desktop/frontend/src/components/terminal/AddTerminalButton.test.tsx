@@ -3,6 +3,14 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSettingsStore } from "../../store/settings";
+import type { ActionInfo } from "../../types";
+
+vi.mock("../../../bridge/runtime", () => ({
+  EventsOn: vi.fn(() => () => {}),
+  OnFileDrop: vi.fn(),
+  OnFileDropOff: vi.fn(),
+}));
+
 import { AddTerminalButton } from "./AddTerminalButton";
 
 let host: HTMLDivElement;
@@ -28,29 +36,31 @@ function render(props: Partial<Parameters<typeof AddTerminalButton>[0]> = {}) {
     onAddTerminal: vi.fn(),
     onRunCommand: vi.fn(),
     onOpenAgent: vi.fn(),
+    onRunAction: vi.fn(),
     onResumeSession: vi.fn(),
     onOpenRequestHandled: vi.fn(),
   };
+  const project = { name: "wt-one", label: "wt-one", root: "/tmp/wt-one", actions: [] };
   act(() =>
-    root.render(<AddTerminalButton openRequested={false} {...handlers} {...props} />),
+    root.render(<AddTerminalButton project={project} openRequested={false} {...handlers} {...props} />),
   );
   return handlers;
 }
 
 const plus = () => host.querySelector<HTMLButtonElement>('button[aria-label="New terminal"]')!;
 const popup = () => document.querySelector('[role="dialog"][aria-label="New tab"]');
-const prompt = () => document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Task or command"]')!;
-const cursorRow = () => document.querySelector('[aria-current="true"]')?.textContent ?? "";
-const row = (label: string) =>
-  Array.from(document.querySelectorAll<HTMLButtonElement>("[data-new-tab-popup] button")).find(
-    (b) => b.textContent?.includes(label),
-  )!;
-const chip = (agent: string) =>
+const prompt = () => popup()!.querySelector<HTMLElement>('[role="textbox"]')!;
+const tabs = () =>
+  [...document.querySelectorAll<HTMLButtonElement>('[role="radiogroup"][aria-label="Start in"] [role="radio"]')];
+const tab = (name: string) => tabs().find((t) => t.textContent?.endsWith(name))!;
+const button = (label: string) =>
+  [...popup()!.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.trim().startsWith(label))!;
+const modelMenu = (agent: string) =>
   document.querySelector<HTMLButtonElement>(`button[aria-label^="${agent} model and level"]`)!;
-const pill = (group: "Model" | "Level", label: string) =>
-  Array.from(
-    document.querySelectorAll<HTMLButtonElement>(`[role="radiogroup"][aria-label="${group}"] button`),
-  ).find((b) => b.textContent === label)!;
+const pill = (label: string) =>
+  [...document.querySelectorAll<HTMLButtonElement>('[role="radiogroup"][aria-label="Model"] button')].find(
+    (b) => b.textContent === label,
+  )!;
 
 function rightClick(el: Element) {
   act(() => {
@@ -58,10 +68,15 @@ function rightClick(el: Element) {
   });
 }
 
-function typeInto(el: HTMLTextAreaElement, value: string) {
-  const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+function mouseDown(el: Element) {
   act(() => {
-    setValue.call(el, value);
+    el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+  });
+}
+
+function typeInto(el: HTMLElement, text: string) {
+  act(() => {
+    el.textContent = text;
     el.dispatchEvent(new Event("input", { bubbles: true }));
   });
 }
@@ -80,71 +95,61 @@ describe("AddTerminalButton", () => {
     expect(popup()).toBeNull();
   });
 
-  it("opens the popup on right-click and sends what was typed to the agent under the cursor", () => {
-    const h = render();
+  it("shows the empty project's box on right-click, the prompt taking the keyboard", () => {
+    render();
     rightClick(plus());
     expect(popup()).not.toBeNull();
+    expect(tabs().map((t) => t.textContent)).toEqual(["Terminal", "Claude", "Codex", "Gemini", "OpenCode"]);
     expect(document.activeElement).toBe(prompt());
-    expect(cursorRow()).toContain("Claude Code");
-
-    typeInto(prompt(), "fix the flaky test");
-    expect(cursorRow()).toContain("Starts with “fix the flaky test”");
-    press(prompt(), "Enter");
-    expect(h.onOpenAgent).toHaveBeenCalledWith({
-      agent: "claude",
-      model: "",
-      effort: "",
-      prompt: "fix the flaky test",
-    });
-    expect(popup()).toBeNull();
-    expect(h.onAddTerminal).not.toHaveBeenCalled();
+    expect(button("Open Terminal")).toBeTruthy();
+    expect(popup()!.querySelector('[aria-label="Message history"]')).not.toBeNull();
   });
 
-  it("runs what was typed in a terminal picked with the arrow keys, and starts there next time", () => {
+  it("runs what was typed in a new terminal", () => {
     const h = render();
     rightClick(plus());
     typeInto(prompt(), "npm test");
-    for (let i = 0; i < 4; i++) press(prompt(), "ArrowDown");
-    expect(cursorRow()).toContain("Run in a new terminal");
-    expect(cursorRow()).toContain("$ npm test");
-
+    expect(button("Run")).toBeTruthy();
     press(prompt(), "Enter");
     expect(h.onRunCommand).toHaveBeenCalledWith("npm test");
-    expect(h.onOpenAgent).not.toHaveBeenCalled();
+    expect(popup()).toBeNull();
+  });
+
+  it("starts the picked agent with what was typed, and starts there next time", () => {
+    const h = render();
+    rightClick(plus());
+    act(() => tab("Codex").click());
+    typeInto(prompt(), "fix the flaky test");
+    press(prompt(), "Enter");
+    expect(h.onOpenAgent).toHaveBeenCalledWith({ agent: "codex", model: "", effort: "", prompt: "fix the flaky test" });
     expect(popup()).toBeNull();
 
     rightClick(plus());
-    expect(cursorRow()).toContain("New terminal");
-    press(prompt(), "Enter");
-    expect(h.onAddTerminal).toHaveBeenCalledTimes(1);
+    expect(button("Start Codex")).toBeTruthy();
   });
 
-  it("picks each agent's model and level under its row, and remembers them", () => {
+  it("stays open while a model is picked from its menu, and closes on a press outside", () => {
     const h = render();
     rightClick(plus());
-    act(() => chip("Codex").click());
-    act(() => pill("Model", "GPT-6.1 Sol").click());
-    act(() => pill("Level", "Ultra").click());
-    expect(chip("Codex").textContent).toContain("GPT-6.1 Sol · Ultra");
-    expect(chip("Claude Code").textContent).toContain("Default model");
+    act(() => tab("Codex").click());
+    act(() => modelMenu("Codex").click());
+    mouseDown(pill("GPT-6.1 Sol"));
+    act(() => pill("GPT-6.1 Sol").click());
+    expect(popup()).not.toBeNull();
 
-    act(() => row("Codex").click());
-    expect(h.onOpenAgent).toHaveBeenCalledWith({
-      agent: "codex",
-      model: "gpt-6.1-sol",
-      effort: "ultra",
-      prompt: undefined,
-    });
+    act(() => button("Start Codex").click());
+    expect(h.onOpenAgent).toHaveBeenCalledWith(expect.objectContaining({ agent: "codex", model: "gpt-6.1-sol" }));
 
     rightClick(plus());
-    expect(cursorRow()).toContain("Codex");
-    expect(chip("Codex").textContent).toContain("GPT-6.1 Sol · Ultra");
+    mouseDown(document.body);
+    expect(popup()).toBeNull();
   });
 
-  it("folds the picker on Escape before closing", () => {
+  it("closes an open menu on Escape before closing", () => {
     render();
     rightClick(plus());
-    act(() => chip("Codex").click());
+    act(() => tab("Codex").click());
+    act(() => modelMenu("Codex").click());
     expect(document.querySelector('[aria-label="Model"]')).not.toBeNull();
 
     press(prompt(), "Escape");
@@ -155,6 +160,17 @@ describe("AddTerminalButton", () => {
     expect(popup()).toBeNull();
   });
 
+  it("offers the project's agent actions and runs one in this pane's popup", () => {
+    const codex = { name: "codex", label: "Codex", cmd: "codex", confirm: false, display: "header", type: "terminal" } as ActionInfo;
+    const h = render({ project: { name: "wt-one", label: "wt-one", root: "/tmp/wt-one", actions: [codex] } });
+    rightClick(plus());
+    expect(tabs().map((t) => t.textContent)).toEqual(["Terminal", "Codex"]);
+    act(() => tab("Codex").click());
+    act(() => button("Start Codex").click());
+    expect(h.onRunAction).toHaveBeenCalledWith(codex, { prompt: undefined });
+    expect(h.onOpenAgent).not.toHaveBeenCalled();
+  });
+
   it("asks what to open on a click once + opens the menu", () => {
     useSettingsStore.setState({ pickAgentOnNewTab: true });
     const h = render();
@@ -162,7 +178,7 @@ describe("AddTerminalButton", () => {
     expect(popup()).not.toBeNull();
     expect(h.onAddTerminal).not.toHaveBeenCalled();
 
-    act(() => row("New terminal").click());
+    act(() => button("Open Terminal").click());
     expect(h.onAddTerminal).toHaveBeenCalledTimes(1);
     expect(popup()).toBeNull();
   });
@@ -190,7 +206,7 @@ describe("AddTerminalButton", () => {
   it("hands Resume a past session on and closes", () => {
     const h = render();
     rightClick(plus());
-    act(() => row("Resume a past session").click());
+    act(() => button("Resume a past session").click());
     expect(h.onResumeSession).toHaveBeenCalledTimes(1);
     expect(popup()).toBeNull();
   });

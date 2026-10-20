@@ -1,9 +1,7 @@
 package cx.lpm.mobile.feature.projects.newtab
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,12 +15,14 @@ import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.ListLeadingSlot
 import cx.lpm.mobile.core.designsystem.component.ListRow
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.ui.AgentMark
+import cx.lpm.mobile.core.ui.AgentMarkIcon
 import cx.lpm.mobile.core.ui.providerMeta
 import cx.lpm.mobile.core.ui.tint
 
 /**
  * One way a new tab can start (iOS `NewTabStartRow`): a shell, or an agent ([agent] its
- * id) on a tile in the agent's color, checked when picked.
+ * id) shown by its own mark as the desktop shows it, checked when picked.
  */
 @Composable
 internal fun NewTabStartRow(
@@ -33,27 +33,27 @@ internal fun NewTabStartRow(
     modifier: Modifier = Modifier
 ) {
     val colors = LpmTheme.colors
-    // The agent's colour, as the desktop tints it; a shell is plain.
+    // A shell, or an agent without a mark of its own, gets a symbol in the agent's colour.
     val tint = agent?.let { providerMeta(it).tint } ?: colors.secondaryLabel
     ListRow(
         modifier = modifier.semantics { selected = picked },
         onClick = onPick,
         leading = {
-            Box(
-                Modifier
-                    .size(28.dp)
-                    .background(tint.copy(alpha = TILE_WASH), RoundedCornerShape(7.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(if (agent == null) ShellIcon else AgentIcon),
-                    contentDescription = null,
-                    tint = tint,
-                    modifier = Modifier.size(16.dp)
-                )
+            Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+                val mark = agent?.let(AgentMark::of)
+                if (mark != null) {
+                    AgentMarkIcon(mark, Modifier.size(20.dp))
+                } else {
+                    Icon(
+                        painter = painterResource(if (agent == null) ShellIcon else AgentIcon),
+                        contentDescription = null,
+                        tint = tint,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         },
-        leadingSlot = TileSlot,
+        leadingSlot = MarkSlot,
         trailing = {
             if (picked) {
                 Icon(
@@ -69,7 +69,6 @@ internal fun NewTabStartRow(
     }
 }
 
-private val TileSlot = ListLeadingSlot(width = 28.dp, spacing = 12.dp)
+private val MarkSlot = ListLeadingSlot(width = 28.dp, spacing = 12.dp)
 private val ShellIcon = DesignR.drawable.ic_terminal
 private val AgentIcon = DesignR.drawable.ic_auto_awesome_fill
-private const val TILE_WASH = 0.15f

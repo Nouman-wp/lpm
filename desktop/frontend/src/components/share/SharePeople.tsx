@@ -1,15 +1,15 @@
 import { Users } from "lucide-react";
-import {
-  PeerShareDeclineAsk,
-  PeerShareRemoveGuest,
-  PeerShareRespond,
-  PeerShareSetGuestCanType,
-  PeerShareTakeKeyboards,
-} from "../../../bridge/commands";
 import { useNow } from "../../hooks/useNow";
 import { SharePersonRow } from "./SharePersonRow";
 import { ShareWaitingRow } from "./ShareWaitingRow";
 import { anyoneTypes, type HostedShare, type ShareGuest } from "../../store/tabShares";
+import {
+  declineAsk,
+  removeGuest,
+  respondToJoin,
+  setGuestCanType,
+  takeKeyboards,
+} from "../../share/shareCalls";
 
 // "Typing now" holds this long past the last keys the host heard about.
 const TYPING_NOW_MS = 5000;
@@ -25,7 +25,7 @@ export function SharePeople({
 }: {
   share: HostedShare;
   busy: boolean;
-  run: (call: () => Promise<HostedShare[]>) => void;
+  run: (call: () => Promise<void>) => void;
 }) {
   const now = useNow(share.guests.some((g) => typingAt(g, Date.now())), 1000);
 
@@ -52,7 +52,7 @@ export function SharePeople({
           <button
             type="button"
             disabled={busy}
-            onClick={() => run(() => PeerShareTakeKeyboards(share.id))}
+            onClick={() => run(() => takeKeyboards(share))}
             className="rounded-md px-1.5 py-0.5 text-[11px] font-medium text-[var(--accent-amber)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
           >
             Take every keyboard back
@@ -64,7 +64,7 @@ export function SharePeople({
           <ShareWaitingRow
             key={w.id}
             waiting={w}
-            onRespond={(allow) => run(() => PeerShareRespond(w.id, allow))}
+            onRespond={(allow) => run(() => respondToJoin(share, w.id, allow))}
           />
         ))}
         {share.guests.map((g) => (
@@ -73,9 +73,9 @@ export function SharePeople({
             guest={g}
             busy={busy}
             typingNow={typingAt(g, now)}
-            onSetCanType={(canType) => run(() => PeerShareSetGuestCanType(share.id, g.id, canType))}
-            onDeclineAsk={() => run(() => PeerShareDeclineAsk(share.id, g.id))}
-            onRemove={() => run(() => PeerShareRemoveGuest(share.id, g.id))}
+            onSetCanType={(canType) => run(() => setGuestCanType(share, g.id, canType))}
+            onDeclineAsk={() => run(() => declineAsk(share, g.id))}
+            onRemove={() => run(() => removeGuest(share, g.id))}
           />
         ))}
       </div>

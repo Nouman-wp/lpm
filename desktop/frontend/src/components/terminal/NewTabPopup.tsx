@@ -1,5 +1,4 @@
 import {
-  Fragment,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -10,26 +9,16 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { computeStyle } from "../../hooks/useAnchoredPanel";
+import { useLaunchpad, type LaunchpadProject, type LaunchpadTargets } from "../../hooks/useLaunchpad";
 import { useOverlay } from "../../store/overlay";
-import { useSettingsStore } from "../../store/settings";
-import { chordLabel } from "../../keys";
-import { AI_CLI_OPTIONS, type AICLI } from "../../types";
-import { newTabModelLabel, type NewTabDestination } from "../../newTabPick";
-import { useNewTabMemory, type NewTabTargets } from "../../hooks/useNewTabMemory";
-import { HistoryIcon, TerminalIcon } from "../icons";
-import { AgentGlyph } from "./AgentGlyph";
-import { LauncherModelChip } from "./LauncherModelChip";
-import { LauncherModelPicker } from "./LauncherModelPicker";
-import { LauncherRow } from "./LauncherRow";
+import { LaunchpadPrompt } from "../project-detail/LaunchpadPrompt";
 import { NewTabFooter } from "./NewTabFooter";
 
-const POPUP_WIDTH = 388;
-const CAPTION =
-  "px-2 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]";
+const POPUP_WIDTH = 480;
+const PLACEMENT = ["left", "top", "bottom", "maxHeight"] as const;
 
-type Destination = NewTabDestination | "resume";
-
-export interface NewTabPopupProps extends NewTabTargets {
+export interface NewTabPopupProps extends LaunchpadTargets {
+  project: LaunchpadProject;
   anchorRef: RefObject<HTMLElement | null>;
   // Bumped when it was opened on purpose (a click, ⌘T, right-click, ↓), so the
   // prompt takes the keyboard; 0 while it only shows on hover.
@@ -41,43 +30,38 @@ export interface NewTabPopupProps extends NewTabTargets {
   onResumeSession?: () => void;
 }
 
-// ↑ on the prompt's first line and ↓ on its last move the cursor; elsewhere
-// they move the caret between the prompt's lines.
-function caretMoves(el: HTMLTextAreaElement, key: string): boolean {
-  return key === "ArrowUp"
-    ? el.value.slice(0, el.selectionStart).includes("\n")
-    : el.value.slice(el.selectionEnd).includes("\n");
-}
-
-// What + offers: type a task or a command, then pick where it goes. An agent
-// takes it as its first prompt, on the model and level its row shows; a
-// terminal runs it. Left empty, the pick just opens.
+// What + offers, in the empty project's box: where it goes picked at the top,
+// then a task for that agent or a command for a terminal. ↵ starts it in a new
+// tab; left empty, the pick just opens.
 export function NewTabPopup({
+  project,
   anchorRef,
   focusRequest,
   hover,
   onPin,
   onClose,
-  onNewTerminal,
-  onRunCommand,
-  onOpenAgent,
   onResumeSession,
+  ...targets
 }: NewTabPopupProps) {
   const [style, setStyle] = useState<CSSProperties | null>(null);
-  const { memory, changePick, launch } = useNewTabMemory({ onNewTerminal, onRunCommand, onOpenAgent });
-  const [cursor, setCursor] = useState<Destination>(memory.last);
-  const [expanded, setExpanded] = useState<AICLI | null>(null);
-  const [text, setText] = useState("");
-  const promptRef = useRef<HTMLTextAreaElement>(null);
+  const launchpad = useLaunchpad(project, targets);
+  const [focusTick, setFocusTick] = useState(0);
+  const popupRef = useRef<HTMLDivElement>(null);
+  // Its menus (a model, a split button's items, the prompt history) render
+  // outside it, but a press in one still reaches it through React first.
+  const pressedInside = useRef(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
-  const askOnPlus = useSettingsStore((s) => s.pickAgentOnNewTab ?? false);
   useOverlay(true);
 
+  // Any scroll reaches the listener, the prompt's own and its history's too:
+  // only a move of the anchor re-renders the popup.
   useLayoutEffect(() => {
     const place = () => {
       const rect = anchorRef.current?.getBoundingClientRect();
-      if (rect) setStyle(computeStyle(rect, POPUP_WIDTH, "below", "left", true));
+      if (!rect) return;
+      const next = computeStyle(rect, POPUP_WIDTH, "below", "left", true);
+      setStyle((prev) => (prev && PLACEMENT.every((k) => prev[k] === next[k]) ? prev : next));
     };
     place();
     window.addEventListener("resize", place);
@@ -88,164 +72,72 @@ export function NewTabPopup({
     };
   }, [anchorRef]);
 
-  const placed = style !== null;
-  useEffect(() => {
-    if (placed && focusRequest > 0) promptRef.current?.focus({ preventScroll: true });
-  }, [placed, focusRequest]);
-
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
-      const target = e.target as Element | null;
-      if (anchorRef.current?.contains(target)) return;
-      if (target?.closest?.("[data-new-tab-popup]")) return;
+      if (pressedInside.current) {
+        pressedInside.current = false;
+        return;
+      }
+      if (anchorRef.current?.contains(e.target as Node)) return;
       onCloseRef.current();
     };
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
   }, [anchorRef]);
 
-  const command = text.trim();
-  const firstLine = command.split("\n")[0];
-  const destinations: Destination[] = [
-    ...AI_CLI_OPTIONS.map((o) => o.value),
-    "terminal",
-    ...(onResumeSession ? (["resume"] as const) : []),
-  ];
-
-  const choose = (destination: Destination) => {
-    onClose();
-    if (destination === "resume") onResumeSession?.();
-    else launch(destination, command);
+  // Picked while it only shows on hover: the keyboard moves into the prompt
+  // for what goes there.
+  const select = (id: string) => {
+    launchpad.select(id);
+    if (!popupRef.current?.contains(document.activeElement)) setFocusTick((n) => n + 1);
   };
 
-  const toggleExpanded = (agent: AICLI) => {
-    setCursor(agent);
-    setExpanded((open) => (open === agent ? null : agent));
-    promptRef.current?.focus({ preventScroll: true });
+  const start = () => {
+    if (launchpad.start()) onClose();
   };
 
-  const onPromptKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
-    e.preventDefault();
-    choose(cursor);
-  };
+  const resume =
+    onResumeSession &&
+    (() => {
+      onClose();
+      onResumeSession();
+    });
 
-  // Escape backs out one step: the open picker first, then the popup. It only
-  // reaches here from inside, so an Escape meant for the terminal underneath
-  // stays there.
+  // Only reaches here from inside, so an Escape meant for the terminal
+  // underneath stays there; an open menu in it takes Escape first.
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-      if (expanded) setExpanded(null);
-      else onClose();
-      return;
-    }
-    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-    if (e.target instanceof HTMLTextAreaElement && caretMoves(e.target, e.key)) return;
+    if (e.key !== "Escape") return;
     e.preventDefault();
-    const at = Math.max(0, destinations.indexOf(cursor));
-    const next = at + (e.key === "ArrowDown" ? 1 : -1);
-    setCursor(destinations[Math.min(destinations.length - 1, Math.max(0, next))]);
+    e.stopPropagation();
+    onClose();
   };
 
   if (!style) return null;
-  const typed = command !== "";
 
   return createPortal(
     <div
-      data-new-tab-popup
+      ref={popupRef}
       role="dialog"
       aria-label="New tab"
       style={style}
       onPointerEnter={hover?.onPointerEnter}
       onPointerLeave={hover?.onPointerLeave}
-      onMouseDown={onPin}
+      onMouseDown={() => {
+        pressedInside.current = true;
+        onPin();
+      }}
       onFocus={onPin}
       onKeyDown={onKeyDown}
-      className="z-[80] flex flex-col overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl"
+      className="z-[80] flex flex-col overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] p-1.5 shadow-2xl"
     >
-      <div
-        data-text-scope
-        className="flex items-start gap-2 border-b border-[var(--border)] px-3 pb-2 pt-2.5"
-      >
-        <span aria-hidden className="font-mono text-[13px] leading-[19px] text-[var(--text-muted)]">
-          ›
-        </span>
-        <textarea
-          ref={promptRef}
-          rows={2}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={onPromptKeyDown}
-          placeholder="Type a task or a command, then pick where it goes"
-          aria-label="Task or command"
-          className="block min-w-0 flex-1 resize-none bg-transparent p-0 text-[13px] leading-[19px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-        />
-      </div>
-      <div role="group" aria-label={typed ? "Send to" : "Open"} className="flex flex-col gap-px p-1.5">
-        <div aria-hidden className={CAPTION}>
-          {typed ? "Send to" : "Open"}
-        </div>
-        {AI_CLI_OPTIONS.map((o) => {
-          const pick = memory.picks[o.value];
-          const modelLabel = newTabModelLabel(pick);
-          const active = cursor === o.value;
-          const open = expanded === o.value;
-          return (
-            <Fragment key={o.value}>
-              <LauncherRow
-                label={o.label}
-                leading={<AgentGlyph agent={o.value} />}
-                sub={typed && active ? `Starts with “${firstLine}”` : undefined}
-                active={active}
-                onPoint={() => setCursor(o.value)}
-                onChoose={() => choose(o.value)}
-                trailing={
-                  modelLabel && (
-                    <LauncherModelChip
-                      label={modelLabel}
-                      agentLabel={o.label}
-                      open={open}
-                      active={active}
-                      onToggle={() => toggleExpanded(o.value)}
-                    />
-                  )
-                }
-              />
-              {open && <LauncherModelPicker pick={pick} onChange={changePick} />}
-            </Fragment>
-          );
-        })}
-        <div className="mx-2 my-1 h-px bg-[var(--border)]" />
-        <LauncherRow
-          label={typed ? "Run in a new terminal" : "New terminal"}
-          leading={<TerminalIcon />}
-          sub={typed ? `$ ${firstLine}` : undefined}
-          mono
-          active={cursor === "terminal"}
-          onPoint={() => setCursor("terminal")}
-          onChoose={() => choose("terminal")}
-          trailing={
-            !askOnPlus &&
-            cursor !== "terminal" && (
-              <kbd className="shrink-0 font-sans text-[11px] text-[var(--text-muted)]">
-                {chordLabel({ key: "t", meta: true })}
-              </kbd>
-            )
-          }
-        />
-        {onResumeSession && (
-          <LauncherRow
-            label="Resume a past session…"
-            leading={<HistoryIcon />}
-            active={cursor === "resume"}
-            onPoint={() => setCursor("resume")}
-            onChoose={() => choose("resume")}
-          />
-        )}
-      </div>
-      <NewTabFooter />
+      <LaunchpadPrompt
+        project={project}
+        launchpad={launchpad}
+        focusRequest={focusRequest + focusTick}
+        onSelect={select}
+        onStart={start}
+      />
+      <NewTabFooter onResumeSession={resume} />
     </div>,
     document.body,
   );

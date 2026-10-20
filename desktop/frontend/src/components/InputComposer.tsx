@@ -103,6 +103,13 @@ interface InputComposerProps {
   onChange?: (value: ComposerValue) => void;
   placeholder?: string;
   autoFocus?: boolean;
+  // Bumped to move the keyboard into the field, the caret at the end.
+  focusRequest?: number;
+  // When set, plain ↵ submits through it; Shift+↵ still adds a line.
+  onSubmit?: () => void;
+  // "terminal" frames the box like the terminal's own composer: flush with
+  // what's above it and focusing quietly. Dialogs keep the accent focus.
+  tone?: "dialog" | "terminal";
   // When set, a message-history button recalls past prompts for this project.
   history?: ComposerHistory;
   // Working directory AI-edit transforms run in (the project root). When set, an
@@ -144,6 +151,9 @@ export function InputComposer({
   onChange,
   placeholder,
   autoFocus,
+  focusRequest,
+  onSubmit,
+  tone = "dialog",
   history,
   aiCwd,
   memory,
@@ -525,6 +535,13 @@ export function InputComposer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!focusRequest || !editor) return;
+    editor.focus({ preventScroll: true });
+    placeCaretAtEnd(editor);
+  }, [focusRequest]);
+
   useComposerDragMove(editorRef, boxRef);
 
   // OS (Finder) drops arrive as paths via the shared drop bridge; claim them when
@@ -696,6 +713,11 @@ export function InputComposer({
       else edits.undo();
       return;
     }
+    if (onSubmit && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      onSubmit();
+      return;
+    }
     // Shift+Enter inserts a newline; plain Enter bubbles so the host (e.g. a
     // dialog) can submit on it.
     if (e.key === "Enter" && e.shiftKey && !e.nativeEvent.isComposing) {
@@ -758,7 +780,6 @@ export function InputComposer({
     <>
       <div
         ref={boxRef}
-        data-input-composer
         data-composer-box
         onDrop={handleDrop}
         onDragOver={(e) => {
@@ -771,7 +792,11 @@ export function InputComposer({
           const next = e.relatedTarget as Node | null;
           if (!next || !e.currentTarget.contains(next)) setDragOver(false);
         }}
-        className="relative mt-2 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] transition-colors focus-within:border-[var(--accent-cyan)]"
+        className={`relative rounded-xl border border-[var(--composer-border)] bg-[var(--composer-surface)] transition-colors ${
+          tone === "terminal"
+            ? "focus-within:border-[var(--composer-border-focus)]"
+            : "mt-2 focus-within:border-[var(--accent-cyan)]"
+        }`}
       >
         {dragOver && <TerminalDropOverlay compact label="Drop files to add" />}
 

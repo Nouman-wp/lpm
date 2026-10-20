@@ -37,6 +37,13 @@ export function joinFailure(error: string, host: string): JoinFailure {
       return { kind: "ended", title: "This link has ended", text: "Sharing stopped. Ask for a new link.", retry: null };
     case "That invite is incomplete. Ask for a new one.":
       return { kind: "ended", title: "This link isn't complete", text: "Ask them to send it again, and copy all of it.", retry: null };
+    case "No one is there to let you in right now. Try again later.":
+      return {
+        kind: "refused",
+        title: host ? `No one at ${host} can let you in` : "No one can let you in right now",
+        text: "Nobody is at the computer sharing this tab. Ask again once they're back.",
+        retry: "Ask again",
+      };
     case "Others are already waiting to join this tab. Try again shortly.":
       return { kind: "other", title: "Too many people are asking at once", text: "Try again in a moment.", retry: "Try again" };
     case "The host closed the connection.":

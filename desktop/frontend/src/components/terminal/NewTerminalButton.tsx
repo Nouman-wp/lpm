@@ -1,16 +1,14 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { LaunchpadProject, LaunchpadTargets } from "../../hooks/useLaunchpad";
 import { useSettingsStore } from "../../store/settings";
-import type { RemoteAgentLaunch } from "../../remoteAgentTabs";
 import { NewTabPopup } from "./NewTabPopup";
 
 const noop = () => {};
 
-interface NewTerminalButtonProps {
+interface NewTerminalButtonProps extends LaunchpadTargets {
   className: string;
   children: ReactNode;
-  onNewTerminal: () => void;
-  onRunCommand: (command: string) => void;
-  onOpenAgent: (launch: RemoteAgentLaunch) => void;
+  project: LaunchpadProject;
   onResumeSession?: () => void;
   // ⌘T asked for the popup here, with the keyboard in it.
   openRequested?: boolean;
@@ -22,12 +20,11 @@ interface NewTerminalButtonProps {
 export function NewTerminalButton({
   className,
   children,
-  onNewTerminal,
-  onRunCommand,
-  onOpenAgent,
+  project,
   onResumeSession,
   openRequested = false,
   onOpenRequestHandled = noop,
+  ...targets
 }: NewTerminalButtonProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   // 0 while closed; bumped on every open so the prompt takes the keyboard.
@@ -45,21 +42,20 @@ export function NewTerminalButton({
       <button
         ref={buttonRef}
         type="button"
-        onClick={() => (askOnPlus ? setFocusRequest((n) => n + 1) : onNewTerminal())}
+        onClick={() => (askOnPlus ? setFocusRequest((n) => n + 1) : targets.onNewTerminal())}
         className={className}
       >
         {children}
       </button>
       {focusRequest > 0 && (
         <NewTabPopup
+          project={project}
           anchorRef={buttonRef}
           focusRequest={focusRequest}
           onPin={noop}
           onClose={() => setFocusRequest(0)}
-          onNewTerminal={onNewTerminal}
-          onRunCommand={onRunCommand}
-          onOpenAgent={onOpenAgent}
           onResumeSession={onResumeSession}
+          {...targets}
         />
       )}
     </>

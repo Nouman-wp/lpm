@@ -1,12 +1,13 @@
-import { useState, type MouseEvent } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { useAnchoredPanel } from "../../hooks/useAnchoredPanel";
-import { useEventListener } from "../../hooks/useEventListener";
-import type { LaunchpadOption, LaunchpadTab } from "../../launchpadAgentActions";
+import { useDismissOnEscape } from "../../hooks/useDismissOnEscape";
+import type { LaunchpadTab } from "../../launchpadAgentActions";
 import { useOverlay } from "../../store/overlay";
 import { AgentGlyph } from "../terminal/AgentGlyph";
-import { launchpadTabClass } from "./launchpadTabStyle";
+import { LaunchpadRadioTab } from "./LaunchpadRadioTab";
+import { LAUNCHPAD_TAB, LAUNCHPAD_TAB_HOVER, launchpadTabTone } from "./launchpadTabStyle";
 
 const PANEL_WIDTH = 240;
 
@@ -32,76 +33,45 @@ export function LaunchpadGroupTab({
     flip: true,
   });
   useOverlay(open);
-  useEventListener(
-    "keydown",
-    (e) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      setOpen(false);
-    },
-    window,
-    open,
-  );
+  useDismissOnEscape(open, () => setOpen(false));
 
   const picked = tab.options.find((o) => o.id === value) ?? null;
-  // A click leaves the keyboard in the prompt.
-  const keepFocus = (e: MouseEvent) => e.preventDefault();
-  const choose = (id: string) => {
-    setOpen(false);
-    onChange(id);
-  };
-
+  const lead = tab.primary && (picked ?? tab.primary);
+  const hover = picked ? "" : LAUNCHPAD_TAB_HOVER;
+  const toggle = () => setOpen((v) => !v);
   const chevron = <ChevronDown size={12} strokeWidth={2} className="shrink-0 opacity-70" />;
-  const split = (lead: LaunchpadOption) => (
-    <div className={`${launchpadTabClass(picked !== null, false)} gap-0`}>
-      <button
-        type="button"
-        role="radio"
-        aria-checked={picked !== null}
-        onMouseDown={keepFocus}
-        onClick={() => onChange(lead.id)}
-        className={`flex h-full items-center gap-1.5 rounded-l-lg pl-2.5 pr-1.5 ${
-          picked ? "" : "hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-        }`}
-      >
-        <AgentGlyph agent={lead.agent} />
-        {lead.label}
-      </button>
-      <button
-        type="button"
-        aria-label={`Pick from ${tab.label}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onMouseDown={keepFocus}
-        onClick={() => setOpen((v) => !v)}
-        className={`flex h-full items-center rounded-r-lg pl-1 pr-1.5 ${
-          open ? "bg-[var(--bg-hover)]" : picked ? "" : "hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-        }`}
-      >
-        {chevron}
-      </button>
-    </div>
-  );
 
   return (
     <div ref={triggerRef}>
-      {tab.primary ? (
-        split(picked ?? tab.primary)
+      {lead ? (
+        <div className={`${LAUNCHPAD_TAB} ${launchpadTabTone(picked !== null)}`}>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={picked !== null}
+            onClick={() => onChange(lead.id)}
+            className={`flex h-full items-center gap-1.5 rounded-l-lg pl-2.5 pr-1.5 ${hover}`}
+          >
+            <AgentGlyph agent={lead.agent} size={14} />
+            {lead.label}
+          </button>
+          <button
+            type="button"
+            aria-label={`Pick from ${tab.label}`}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            onClick={toggle}
+            className={`flex h-full items-center rounded-r-lg pl-1 pr-1.5 ${open ? "bg-[var(--bg-hover)]" : hover}`}
+          >
+            {chevron}
+          </button>
+        </div>
       ) : (
-        <button
-          type="button"
-          role="radio"
-          aria-checked={picked !== null}
-          aria-haspopup="menu"
-          aria-expanded={open}
-          onMouseDown={keepFocus}
-          onClick={() => setOpen((v) => !v)}
-          className={`${launchpadTabClass(picked !== null)} px-2.5`}
-        >
+        <LaunchpadRadioTab checked={picked !== null} aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
           <AgentGlyph agent={(picked ?? tab.options[0]).agent} />
           {picked?.label ?? tab.label}
           {chevron}
-        </button>
+        </LaunchpadRadioTab>
       )}
       {open &&
         style &&
@@ -119,8 +89,10 @@ export function LaunchpadGroupTab({
                 type="button"
                 role="menuitemradio"
                 aria-checked={o.id === value}
-                onMouseDown={keepFocus}
-                onClick={() => choose(o.id)}
+                onClick={() => {
+                  setOpen(false);
+                  onChange(o.id);
+                }}
                 className="mx-1.5 flex w-[calc(100%-12px)] items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
               >
                 <AgentGlyph agent={o.agent} />

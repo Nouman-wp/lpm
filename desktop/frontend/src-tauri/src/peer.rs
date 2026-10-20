@@ -102,6 +102,7 @@ const HOST_FEATURES: &[&str] = &[
     crate::hostjobs::HOST_JOBS_FEATURE,
     crate::remote::relayed::PHONE_RELAY_FEATURE,
     crate::agent_limits_share::LIMITS_FEATURE,
+    crate::tabshare::TAB_SHARE_FEATURE,
 ];
 
 /// HOST_FEATURES plus those this build offers only on some platforms.
@@ -165,6 +166,11 @@ const FORWARDED_EVENTS: &[&str] = &[
     // keeps them apart from its own.
     crate::claude_pool::CHANGED_EVENT,
     crate::claude_pool::SWITCHED_EVENT,
+    // The tabs a paired Mac shared here, for its Share list and the people
+    // asking to join them, whom it lets in.
+    crate::tabshare::CHANGED_EVENT,
+    crate::tabshare::TYPED_EVENT,
+    crate::tabshare::KNOCK_EVENT,
 ];
 
 // --- persisted config (~/.lpm/peer.json, shared with peerclient.rs) -----------
@@ -737,6 +743,12 @@ pub(crate) fn send_to_device(app: &AppHandle, device_id: &str, frame: &str) -> b
     sent
 }
 
+/// Whether a paired machine is connected here now.
+pub(crate) fn paired_connected(app: &AppHandle) -> bool {
+    app.try_state::<PeerHub>()
+        .is_some_and(|hub| hub.inner.clients.lock().unwrap().values().any(|c| !c.guest))
+}
+
 fn broadcast(hub: &PeerHub, val: Value) {
     let payload = val.to_string();
     let clients = hub.inner.clients.lock().unwrap();
@@ -1117,6 +1129,7 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
     }
 
     hub.inner.clients.lock().unwrap().remove(&conn_id);
+    crate::tabshare::machine_left(&app); // what it shared here ends if no Mac comes back
     crate::agent_limits_share::drop_conn(conn_id); // stop sending it usage limits
     crate::gitwatchhost::drop_conn(conn_id); // stop watching folders for a gone follower
     crate::gitwatch::drop_conn(&app, conn_id); // and the projects its review panes watched
@@ -2083,6 +2096,7 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
                 Value::Null
             }))
         }
+        cmd if cmd.starts_with("peer_share") => crate::tabshare::answer_machine(app, cmd, args),
         _ => None,
     }
 }
@@ -2583,6 +2597,20 @@ mod tests {
     #[test]
     fn the_agent_session_is_forwarded_to_peers() {
         assert!(FORWARDED_EVENTS.contains(&"agent-session"));
+    }
+
+    // A Mac lets in the guests of the tabs it shared on a headless host, which
+    // it only hears of through these.
+    #[test]
+    fn a_mac_hears_who_asks_to_join_what_it_shared_here() {
+        assert!(HOST_FEATURES.contains(&crate::tabshare::TAB_SHARE_FEATURE));
+        for event in [
+            crate::tabshare::CHANGED_EVENT,
+            crate::tabshare::TYPED_EVENT,
+            crate::tabshare::KNOCK_EVENT,
+        ] {
+            assert!(FORWARDED_EVENTS.contains(&event), "{event}");
+        }
     }
 
     // Terminal output can fill a slow client's queue; an agent's status event

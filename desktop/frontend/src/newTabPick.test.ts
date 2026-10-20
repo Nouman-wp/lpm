@@ -12,7 +12,7 @@ beforeEach(() => window.localStorage.clear());
 
 describe("resolveNewTabPick", () => {
   it("keeps a pick the agents still offer", () => {
-    expect(resolveNewTabPick({ agent: "codex", model: "gpt-6.1-sol", effort: "ultra" })).toEqual({
+    expect(resolveNewTabPick("codex", { model: "gpt-6.1-sol", effort: "ultra" })).toEqual({
       agent: "codex",
       model: "gpt-6.1-sol",
       effort: "ultra",
@@ -20,21 +20,20 @@ describe("resolveNewTabPick", () => {
   });
 
   it("falls back to the defaults for what is no longer offered", () => {
-    expect(resolveNewTabPick({ agent: "codex", model: "gpt-5.4-nano", effort: "ultra" })).toEqual({
+    expect(resolveNewTabPick("codex", { model: "gpt-5.4-nano", effort: "ultra" })).toEqual({
       agent: "codex",
       model: "gpt-5.4-nano",
       effort: "",
     });
-    expect(resolveNewTabPick({ agent: "claude", model: "gpt-6.1-sol", effort: "high" })).toEqual({
+    expect(resolveNewTabPick("claude", { model: "gpt-6.1-sol", effort: "high" })).toEqual({
       agent: "claude",
       model: "",
       effort: "high",
     });
-    expect(resolveNewTabPick({ agent: "aider" })).toEqual({ agent: "claude", model: "", effort: "" });
   });
 
   it("gives an agent without models nothing to pin", () => {
-    expect(resolveNewTabPick({ agent: "gemini", model: "opus", effort: "high" })).toEqual({
+    expect(resolveNewTabPick("gemini", { model: "opus", effort: "high" })).toEqual({
       agent: "gemini",
       model: "",
       effort: "",
@@ -46,25 +45,20 @@ describe("the remembered picks", () => {
   it("come back as saved, each agent with its own", () => {
     const memory = loadNewTabMemory();
     saveNewTabMemory({
-      last: "terminal",
-      picks: {
-        ...memory.picks,
-        claude: { agent: "claude", model: "opus", effort: "xhigh" },
-        codex: { agent: "codex", model: "gpt-6-sol", effort: "high" },
-      },
+      ...memory,
+      claude: { agent: "claude", model: "opus", effort: "xhigh" },
+      codex: { agent: "codex", model: "gpt-6-sol", effort: "high" },
     });
     const loaded = loadNewTabMemory();
-    expect(loaded.last).toBe("terminal");
-    expect(loaded.picks.claude).toEqual({ agent: "claude", model: "opus", effort: "xhigh" });
-    expect(loaded.picks.codex).toEqual({ agent: "codex", model: "gpt-6-sol", effort: "high" });
-    expect(loaded.picks.gemini).toEqual({ agent: "gemini", model: "", effort: "" });
+    expect(loaded.claude).toEqual({ agent: "claude", model: "opus", effort: "xhigh" });
+    expect(loaded.codex).toEqual({ agent: "codex", model: "gpt-6-sol", effort: "high" });
+    expect(loaded.gemini).toEqual({ agent: "gemini", model: "", effort: "" });
   });
 
-  it("start on the default agent when nothing was saved or it can't be read", () => {
-    expect(loadNewTabMemory().last).toBe("claude");
-    expect(loadNewTabMemory().picks.codex).toEqual({ agent: "codex", model: "", effort: "" });
+  it("start on each agent's defaults when nothing was saved or it can't be read", () => {
+    expect(loadNewTabMemory().codex).toEqual({ agent: "codex", model: "", effort: "" });
     window.localStorage.setItem("lpm:new-tab:picks:v1", "{not json");
-    expect(loadNewTabMemory().last).toBe("claude");
+    expect(loadNewTabMemory().claude).toEqual({ agent: "claude", model: "", effort: "" });
   });
 
   it("drop what is no longer offered", () => {
@@ -73,9 +67,8 @@ describe("the remembered picks", () => {
       JSON.stringify({ last: "aider", picks: { codex: { model: "gpt-9", effort: "high" }, claude: "opus" } }),
     );
     const loaded = loadNewTabMemory();
-    expect(loaded.last).toBe("claude");
-    expect(loaded.picks.codex).toEqual({ agent: "codex", model: "", effort: "high" });
-    expect(loaded.picks.claude).toEqual({ agent: "claude", model: "", effort: "" });
+    expect(loaded.codex).toEqual({ agent: "codex", model: "", effort: "high" });
+    expect(loaded.claude).toEqual({ agent: "claude", model: "", effort: "" });
   });
 });
 

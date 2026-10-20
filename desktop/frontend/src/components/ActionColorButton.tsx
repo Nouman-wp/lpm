@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 import { Palette } from "lucide-react";
 import { XIcon } from "./icons";
 import { useEventListener } from "../hooks/useEventListener";
+import { useDismissOnEscape } from "../hooks/useDismissOnEscape";
 import { useOverlay } from "../store/overlay";
 import {
   ACTION_COLOR_NAMES,
@@ -82,18 +83,7 @@ export function ActionColorButton({ value, onChange }: ActionColorButtonProps) {
     open,
   );
 
-  // Capture-phase Escape so the popover closes before the host modal does.
-  useEventListener(
-    "keydown",
-    (e) => {
-      if (e.key !== "Escape") return;
-      e.stopPropagation();
-      setOpen(false);
-    },
-    document,
-    open,
-    true,
-  );
+  useDismissOnEscape(open, () => setOpen(false));
 
   const pick = (next: string) => {
     onChange(next);

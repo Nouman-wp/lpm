@@ -42,6 +42,8 @@ import { canonicalShortcut, parseShortcut } from "../shortcutParse";
 import { resolveHotkey, type HotkeyId } from "../hotkeys";
 import { useServicePorts } from "../hooks/useServicePorts";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
+import type { LaunchpadProject } from "../hooks/useLaunchpad";
+import type { RunActionOpts } from "../hooks/useProjectActions";
 import { nextId } from "../hooks/terminals/util";
 import { buildGeneratorRunCommand } from "../generatorRun";
 import { type PersistedHistoryEntry } from "../terminals";
@@ -76,6 +78,8 @@ function dropTerminalSession(id: string) {
 
 interface TerminalViewProps {
   projectName: string;
+  // What the user calls the project, for the + popup's prompt history.
+  projectLabel: string;
   projectRoot: string;
   services: { name: string; cwd?: string; exited?: boolean; exitCode?: number | null }[];
   terminalTheme: TerminalThemeName;
@@ -95,6 +99,8 @@ interface TerminalViewProps {
   // The project's actions: an agent picked from + opens through the project's
   // own button for it when there is one.
   actions?: ActionInfo[];
+  // A project action started from the + popup.
+  onRunAction: (action: ActionInfo, opts?: RunActionOpts) => void;
   ref?: React.Ref<TerminalViewHandle>;
 }
 
@@ -138,7 +144,7 @@ export interface TerminalViewHandle {
   openAutomationsTab(): Promise<void>;
 }
 
-export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, paneStatus, visible = true, onScreen = visible, keysActive = true, onResumeSession, actions, ref }: TerminalViewProps) {
+export function TerminalView({ projectName, projectLabel, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, paneStatus, visible = true, onScreen = visible, keysActive = true, onResumeSession, actions, onRunAction, ref }: TerminalViewProps) {
   const duplicateProject = useAppStore(
     (s) => s.projects.find((p) => p.name === projectName) ?? null,
   );
@@ -279,6 +285,17 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   const runCommand = useCallback(
     (command: string) => runCommandInPane(undefined, command),
     [runCommandInPane],
+  );
+  const newTabProject = useMemo<LaunchpadProject>(
+    () => ({ name: projectName, label: projectLabel, root: projectRoot, actions: actions ?? [] }),
+    [projectName, projectLabel, projectRoot, actions],
+  );
+  // Kept the same across renders, so the panes it reaches don't redraw.
+  const onRunActionRef = useRef(onRunAction);
+  onRunActionRef.current = onRunAction;
+  const runActionInPane = useCallback(
+    (paneId: string, action: ActionInfo, opts?: RunActionOpts) => onRunActionRef.current(action, { ...opts, paneId }),
+    [],
   );
 
   const servicesKey = services.map((s) => s.name).join(",");
@@ -1191,8 +1208,10 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onStopService={stopService}
             onRestartService={restartService}
             onAddTerminal={addTerminalToPane}
+            newTabProject={newTabProject}
             onLaunchAgent={launchAgentInPane}
             onRunCommand={runCommandInPane}
+            onRunAction={runActionInPane}
             newTabPaneId={newTab.newTabPaneId}
             onNewTabHandled={newTab.clearPaneRequest}
             onAddBrowser={addBrowserToPane}
@@ -1236,9 +1255,11 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
           <TerminalIcon />
           <p className="text-xs">No terminals yet</p>
           <NewTerminalButton
+            project={newTabProject}
             onNewTerminal={() => void createTerminal()}
             onRunCommand={runCommand}
             onOpenAgent={openAgent}
+            onRunAction={onRunAction}
             onResumeSession={onResumeSession}
             openRequested={newTab.emptyAsked}
             onOpenRequestHandled={newTab.clearEmptyRequest}

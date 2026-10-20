@@ -81,9 +81,10 @@ function tab(container: HTMLElement, name: string): HTMLButtonElement {
 describe("EmptyTerminalState", () => {
   beforeEach(() => window.localStorage.clear());
 
-  it("names the project by the label the user sees", () => {
+  it("says what the box does instead of asking a question", () => {
     const { container, root } = render();
-    expect(container.textContent).toContain("What's next in wt-one?");
+    expect(container.textContent).not.toContain("What's next");
+    expect(container.textContent).toContain("Open a terminal or start an agent");
     act(() => root.unmount());
   });
 
@@ -107,10 +108,10 @@ describe("EmptyTerminalState", () => {
     const tabs = container.querySelector('[role="radiogroup"][aria-label="Start in"]');
     expect([...(tabs?.querySelectorAll('[role="radio"]') ?? [])].map((t) => t.textContent)).toEqual([
       "Terminal",
-      "✻Claude",
-      "◈Codex",
-      "✦Gemini",
-      "▣OpenCode",
+      "Claude",
+      "Codex",
+      "Gemini",
+      "OpenCode",
     ]);
     expect(button(container, "Open Terminal")).toBeTruthy();
     act(() => tab(container, "Codex").click());
@@ -152,9 +153,10 @@ describe("EmptyTerminalState", () => {
     const tabs = container.querySelector('[role="radiogroup"][aria-label="Start in"]');
     expect([...(tabs?.querySelectorAll('[role="radio"]') ?? [])].map((t) => t.textContent)).toEqual([
       "Terminal",
-      "✻Ultracode",
-      "◈Codex",
+      "Ultracode",
+      "Codex",
     ]);
+    expect(tab(container, "Ultracode").querySelector("svg")?.dataset.agent).toBe("claude");
     act(() => tab(container, "Codex").click());
     act(() => button(container, "Start Codex").click());
     expect(onRunAction).toHaveBeenCalledWith(actions[1], { prompt: undefined });

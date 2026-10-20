@@ -8,7 +8,7 @@ use std::time::Duration;
 const ASK_AGAIN_AFTER: Duration = Duration::from_secs(20);
 // The host's list hears about a guest's keys at most this often.
 const TYPING_NOTE_EVERY_MS: i64 = 2_000;
-const TYPED_EVENT: &str = "peer-share-typed";
+pub(crate) const TYPED_EVENT: &str = "peer-share-typed";
 // More would only crowd a guest's header.
 const MAX_OTHERS: usize = 16;
 
@@ -57,7 +57,7 @@ impl Registry {
         true
     }
 
-    fn take_keyboards(&mut self, share: &str) -> bool {
+    pub(super) fn take_keyboards(&mut self, share: &str) -> bool {
         let Some(s) = self.share_mut(share) else {
             return false;
         };
@@ -84,7 +84,7 @@ impl Registry {
         true
     }
 
-    fn decline_ask(&mut self, share: &str, guest: &str) -> bool {
+    pub(super) fn decline_ask(&mut self, share: &str, guest: &str) -> bool {
         let Some(g) = self.guest_mut(share, guest) else {
             return false;
         };
@@ -139,28 +139,19 @@ pub async fn peer_share_set_guest_can_type(
     guest: String,
     can_type: bool,
 ) -> Value {
-    if registry().set_guest_can_type(&id, &guest, can_type) {
-        changed(&app);
-    }
-    listing(&app)
+    edit(&app, |reg| reg.set_guest_can_type(&id, &guest, can_type))
 }
 
 /// "Not now" to a guest who asked to type.
 #[tauri::command]
 pub async fn peer_share_decline_ask(app: AppHandle, id: String, guest: String) -> Value {
-    if registry().decline_ask(&id, &guest) {
-        changed(&app);
-    }
-    listing(&app)
+    edit(&app, |reg| reg.decline_ask(&id, &guest))
 }
 
 /// Nobody in the share may type any more.
 #[tauri::command]
 pub async fn peer_share_take_keyboards(app: AppHandle, id: String) -> Value {
-    if registry().take_keyboards(&id) {
-        changed(&app);
-    }
-    listing(&app)
+    edit(&app, |reg| reg.take_keyboards(&id))
 }
 
 /// A share's link as a QR code, for a phone's camera.
@@ -201,7 +192,7 @@ mod tests {
     #[test]
     fn one_guest_can_type_while_the_rest_watch() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude", 0);
+        let share = reg.start("web-1", "web", "claude", 0, false);
         let ana = guest(&mut reg, &share, "Ana");
         let ben = guest(&mut reg, &share, "Ben");
         let rx_ana = watch(&mut reg, 1, &ana);
@@ -216,7 +207,7 @@ mod tests {
     #[test]
     fn taking_the_keyboards_back_reaches_everyone() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude", 0);
+        let share = reg.start("web-1", "web", "claude", 0, false);
         let ana = guest(&mut reg, &share, "Ana");
         let ben = guest(&mut reg, &share, "Ben");
         reg.set_guest_can_type(&share, &ana.guest, true);
@@ -229,7 +220,7 @@ mod tests {
     #[test]
     fn asking_to_type_waits_for_an_answer() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude", 0);
+        let share = reg.start("web-1", "web", "claude", 0, false);
         let ana = guest(&mut reg, &share, "Ana");
         let rx = watch(&mut reg, 1, &ana);
         assert!(reg.ask_type(&ana));
@@ -247,7 +238,7 @@ mod tests {
     #[test]
     fn not_now_holds_off_the_next_ask() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude", 0);
+        let share = reg.start("web-1", "web", "claude", 0, false);
         let ana = guest(&mut reg, &share, "Ana");
         assert!(!reg.decline_ask(&share, &ana.guest), "she hasn't asked");
         assert!(reg.ask_type(&ana));
@@ -259,7 +250,7 @@ mod tests {
     #[test]
     fn a_guest_hears_who_else_is_watching() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude", 0);
+        let share = reg.start("web-1", "web", "claude", 0, false);
         let ana = guest(&mut reg, &share, "Ana");
         let ben = guest(&mut reg, &share, "Ben");
         guest(&mut reg, &share, "Leo");
@@ -274,7 +265,7 @@ mod tests {
     #[test]
     fn typing_reaches_the_host_list_at_most_every_two_seconds() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude", 0);
+        let share = reg.start("web-1", "web", "claude", 0, false);
         let ana = guest(&mut reg, &share, "Ana");
         assert!(reg.typed(&ana, 10_000));
         assert!(!reg.typed(&ana, 11_000));

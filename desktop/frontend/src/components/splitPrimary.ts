@@ -27,6 +27,29 @@ export function resolvePrimaryChild(
   return eligibleChildren(action)[0] ?? null;
 }
 
+// A split button is one when it has an item to run or a command of its own;
+// otherwise it is a menu that only opens.
+export function isSplitButton(action: ActionInfo, primaryChild: ActionInfo | null): boolean {
+  return !!primaryChild || !!action.cmd;
+}
+
+// A "last used" split button remembers a direct item run from its menu; the
+// key it now leads with, or null when it keeps what it had.
+export function noteChildRun(scope: string, action: ActionInfo, child: ActionInfo): string | null {
+  if (action.primary !== PRIMARY_LAST_USED) return null;
+  if (!child.name.startsWith(`${action.name}:`)) return null;
+  const rest = child.name.slice(action.name.length + 1);
+  if (rest.includes(":")) return null;
+  rememberChild(scope, action.name, rest);
+  return rest;
+}
+
+// Items without a color of their own launch with the group's accent, so a tab
+// spawned from a colored split button keeps the tint the button shows.
+export function inGroupColor(action: ActionInfo, child: ActionInfo): ActionInfo {
+  return child.color || !action.color ? child : { ...child, color: action.color };
+}
+
 export function primaryStorageKey(scope: string, actionName: string): string {
   return `lpm.action-primary.${scope}.${actionName}`;
 }

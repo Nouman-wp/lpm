@@ -15,8 +15,10 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::Instant;
 use tauri::{AppHandle, Emitter, Manager};
 
+mod machines;
 mod people;
-pub(crate) use people::{ask_type, typed};
+pub(crate) use machines::{answer_machine, machine_left, KNOCK_EVENT, TAB_SHARE_FEATURE};
+pub(crate) use people::{ask_type, typed, TYPED_EVENT};
 pub(crate) use people::{
     peer_share_decline_ask, peer_share_qr, peer_share_set_guest_can_type, peer_share_take_keyboards,
 };
@@ -78,6 +80,8 @@ struct Share {
     // Where the terminal's output stood when sharing began: guests get nothing
     // from before it.
     floor: u64,
+    // Shared from a paired machine, which answers for it here (machines.rs).
+    by_machine: bool,
 }
 
 struct Waiting {
@@ -118,6 +122,7 @@ pub(crate) struct JoinTicket {
 pub(crate) enum JoinRefusal {
     UnknownInvite,
     Busy,
+    NobodyToAnswer,
 }
 
 impl JoinRefusal {
@@ -125,6 +130,9 @@ impl JoinRefusal {
         match self {
             JoinRefusal::UnknownInvite => "This invite has ended. Ask for a new one.",
             JoinRefusal::Busy => "Others are already waiting to join this tab. Try again shortly.",
+            JoinRefusal::NobodyToAnswer => {
+                "No one is there to let you in right now. Try again later."
+            }
         }
     }
 }
@@ -142,10 +150,20 @@ impl Registry {
         self.shares.iter_mut().find(|s| s.id == id)
     }
 
-    fn start(&mut self, terminal: &str, project: &str, label: &str, floor: u64) -> String {
+    /// Share `terminal`, or update the share it already has. Shared here too, it
+    /// is answered for here from then on.
+    fn start(
+        &mut self,
+        terminal: &str,
+        project: &str,
+        label: &str,
+        floor: u64,
+        by_machine: bool,
+    ) -> String {
         if let Some(s) = self.shares.iter_mut().find(|s| s.terminal == terminal) {
             s.project = project.to_string();
             s.label = label.to_string();
+            s.by_machine &= by_machine;
             return s.id.clone();
         }
         let id = uuid::Uuid::new_v4().to_string();
@@ -158,6 +176,7 @@ impl Registry {
             secret: random_token(24),
             guests: Vec::new(),
             floor,
+            by_machine,
         });
         id
     }
@@ -340,17 +359,23 @@ impl Registry {
         true
     }
 
-    fn terminal_ended(&mut self, terminal: &str) -> bool {
+    /// Stop every share `ends` picks, telling its guests `reason`; true when
+    /// there was one.
+    fn stop_where(&mut self, ends: impl Fn(&Share) -> bool, reason: &str) -> bool {
         let ended: Vec<String> = self
             .shares
             .iter()
-            .filter(|s| s.terminal == terminal)
+            .filter(|s| ends(s))
             .map(|s| s.id.clone())
             .collect();
         for id in &ended {
-            self.stop(id, "closed");
+            self.stop(id, reason);
         }
         !ended.is_empty()
+    }
+
+    fn terminal_ended(&mut self, terminal: &str) -> bool {
+        self.stop_where(|s| s.terminal == terminal, "closed")
     }
 
     fn resized(&self, terminal: &str, cols: u16, rows: u16) {
@@ -478,8 +503,20 @@ pub(crate) fn begin_join(
     code: &str,
     via: Via,
 ) -> Result<JoinTicket, JoinRefusal> {
-    let ticket = registry().begin_join(secret, name, code, via)?;
+    let answerable = machines::someone_answers(app);
+    let (ticket, by_machine) = {
+        let mut reg = registry();
+        if !answerable && reg.by_secret(secret).is_some() {
+            return Err(JoinRefusal::NobodyToAnswer);
+        }
+        let ticket = reg.begin_join(secret, name, code, via)?;
+        let by_machine = reg.share(&ticket.share).is_some_and(|s| s.by_machine);
+        (ticket, by_machine)
+    };
     changed(app);
+    if by_machine {
+        let _ = app.emit(KNOCK_EVENT, ());
+    }
     Ok(ticket)
 }
 
@@ -644,46 +681,64 @@ pub async fn peer_share_start(
     project: String,
     label: String,
 ) -> Result<Value, String> {
-    if crate::peerclient::parse_prefixed(&terminal_id).is_some() {
+    start(&app, &terminal_id, &project, &label, false)
+}
+
+/// Share a terminal here. A paired machine may share one with nobody at this
+/// one, since it lets the guests in itself.
+fn start(
+    app: &AppHandle,
+    terminal_id: &str,
+    project: &str,
+    label: &str,
+    by_machine: bool,
+) -> Result<Value, String> {
+    if crate::peerclient::parse_prefixed(terminal_id).is_some() {
         return Err("Share this tab from the machine it runs on.".into());
     }
-    if !crate::pty::session_exists(&app.state::<crate::pty::PtyState>(), &terminal_id) {
+    if !crate::pty::session_exists(&app.state::<crate::pty::PtyState>(), terminal_id) {
         return Err("This tab isn't running.".into());
     }
-    if !crate::remote::pair_requests_supported() {
+    if !machines::someone_answers(app) {
         return Err("Sharing needs someone at this machine to let guests in.".into());
     }
-    let floor = app.state::<PeerHub>().ring_offset(&terminal_id);
-    let id = registry().start(&terminal_id, &project, &label, floor);
-    sync_listener(&app);
-    crate::sharerelay::open(&app, &id);
-    changed(&app);
-    Ok(listing(&app))
+    let floor = app.state::<PeerHub>().ring_offset(terminal_id);
+    let id = registry().start(terminal_id, project, label, floor, by_machine);
+    sync_listener(app);
+    crate::sharerelay::open(app, &id);
+    changed(app);
+    Ok(listing(app))
 }
 
 #[tauri::command]
 pub async fn peer_share_stop(app: AppHandle, id: String) -> Value {
-    if registry().stop(&id, "stopped") {
-        sync_listener(&app);
-        changed(&app);
+    stop(&app, &id)
+}
+
+fn stop(app: &AppHandle, id: &str) -> Value {
+    if registry().stop(id, "stopped") {
+        sync_listener(app);
+        changed(app);
     }
-    listing(&app)
+    listing(app)
+}
+
+/// Change the shares here with `change`, and answer with how they stand.
+fn edit(app: &AppHandle, change: impl FnOnce(&mut Registry) -> bool) -> Value {
+    if change(&mut registry()) {
+        changed(app);
+    }
+    listing(app)
 }
 
 #[tauri::command]
 pub async fn peer_share_set_can_type(app: AppHandle, id: String, can_type: bool) -> Value {
-    if registry().set_can_type(&id, can_type) {
-        changed(&app);
-    }
-    listing(&app)
+    edit(&app, |reg| reg.set_can_type(&id, can_type))
 }
 
 #[tauri::command]
 pub async fn peer_share_remove_guest(app: AppHandle, id: String, guest: String) -> Value {
-    if registry().remove_guest(&id, &guest, "removed") {
-        changed(&app);
-    }
-    listing(&app)
+    edit(&app, |reg| reg.remove_guest(&id, &guest, "removed"))
 }
 
 /// Answer someone asking to join. `can_type` lets them in able to type, or not,
@@ -695,10 +750,7 @@ pub async fn peer_share_respond(
     allow: bool,
     can_type: Option<bool>,
 ) -> Value {
-    if registry().respond(&request, allow, can_type) {
-        changed(&app);
-    }
-    listing(&app)
+    edit(&app, |reg| reg.respond(&request, allow, can_type))
 }
 
 #[cfg(test)]
@@ -725,7 +777,7 @@ mod tests {
     #[test]
     fn a_guest_reaches_only_the_shared_terminal() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude", 0);
+        let share = reg.start("web-1", "web", "claude", 0, false);
         let (session, _) = joined(&mut reg, &share);
         assert!(reg.may_watch(&session, "web-1"));
         assert!(!reg.may_watch(&session, "web-2"));
@@ -734,7 +786,7 @@ mod tests {
     #[test]
     fn typing_waits_for_the_host_to_allow_it() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude", 0);
+        let share = reg.start("web-1", "web", "claude", 0, false);
         let (session, _) = joined(&mut reg, &share);
         assert!(!reg.may_type(&session, "web-1"));
         reg.set_guest_can_type(&share, &session.guest, true);
@@ -747,7 +799,7 @@ mod tests {
     #[test]
     fn the_share_setting_is_only_for_people_let_in_later() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude", 0);
+        let share = reg.start("web-1", "web", "claude", 0, false);
         let (before, _) = joined(&mut reg, &share);
         reg.set_can_type(&share, true);
         assert!(!reg.may_type(&before, "web-1"));
@@ -762,7 +814,7 @@ mod tests {
     #[test]
     fn a_token_opens_only_its_own_guest() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude", 0);
+        let share = reg.start("web-1", "web", "claude", 0, false);
         let (a, token_a) = joined(&mut reg, &share);
         let (b, _) = joined(&mut reg, &share);
         assert_eq!(reg.check(&a.guest, &token_a), Some(a.clone()));
@@ -774,7 +826,7 @@ mod tests {
     #[test]
     fn stopping_ends_every_guest_and_the_invite() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude", 0);
+        let share = reg.start("web-1", "web", "claude", 0, false);
         let secret = secret_of(&reg, &share);
         let (session, token) = joined(&mut reg, &share);
         let (tx, rx) = mpsc::sync_channel(4);
@@ -798,7 +850,7 @@ mod tests {
     #[test]
     fn a_removed_guest_is_told_and_others_stay() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude", 0);
+        let share = reg.start("web-1", "web", "claude", 0, false);
         let (a, _) = joined(&mut reg, &share);
         let (b, _) = joined(&mut reg, &share);
         let (tx_a, rx_a) = mpsc::sync_channel(4);
@@ -829,7 +881,7 @@ mod tests {
     #[test]
     fn a_closed_terminal_ends_its_share() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude", 0);
+        let share = reg.start("web-1", "web", "claude", 0, false);
         let (session, _) = joined(&mut reg, &share);
         assert!(!reg.terminal_ended("web-2"));
         assert!(reg.terminal_ended("web-1"));
@@ -839,7 +891,7 @@ mod tests {
     #[test]
     fn an_unknown_invite_is_refused() {
         let mut reg = Registry::default();
-        reg.start("web-1", "web", "claude", 0);
+        reg.start("web-1", "web", "claude", 0, false);
         assert!(matches!(
             reg.begin_join("nope", "Sam", CODE, Via::Lpm),
             Err(JoinRefusal::UnknownInvite)
@@ -853,7 +905,7 @@ mod tests {
     #[test]
     fn only_a_few_can_wait_at_once() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude", 0);
+        let share = reg.start("web-1", "web", "claude", 0, false);
         let secret = secret_of(&reg, &share);
         let tickets: Vec<JoinTicket> = (0..MAX_WAITING)
             .map(|_| reg.begin_join(&secret, "Sam", CODE, Via::Lpm).ok().unwrap())
@@ -873,7 +925,7 @@ mod tests {
     #[test]
     fn stopping_turns_away_those_still_waiting() {
         let mut reg = Registry::default();
-        let share = reg.start("web-1", "web", "claude", 0);
+        let share = reg.start("web-1", "web", "claude", 0, false);
         let secret = secret_of(&reg, &share);
         let ticket = reg.begin_join(&secret, "Sam", CODE, Via::Lpm).ok().unwrap();
         reg.stop(&share, "stopped");
@@ -884,9 +936,9 @@ mod tests {
     #[test]
     fn sharing_a_shared_tab_again_keeps_its_invite() {
         let mut reg = Registry::default();
-        let first = reg.start("web-1", "web", "claude", 0);
+        let first = reg.start("web-1", "web", "claude", 0, false);
         let secret = secret_of(&reg, &first);
-        let again = reg.start("web-1", "web", "renamed", 0);
+        let again = reg.start("web-1", "web", "renamed", 0, false);
         assert_eq!(first, again);
         assert_eq!(secret_of(&reg, &again), secret);
         assert_eq!(reg.share(&again).unwrap().label, "renamed");
@@ -895,8 +947,8 @@ mod tests {
     #[test]
     fn a_resize_reaches_only_that_terminals_guests() {
         let mut reg = Registry::default();
-        let one = reg.start("web-1", "web", "a", 0);
-        let two = reg.start("web-2", "web", "b", 0);
+        let one = reg.start("web-1", "web", "a", 0, false);
+        let two = reg.start("web-2", "web", "b", 0, false);
         let (a, _) = joined(&mut reg, &one);
         let (b, _) = joined(&mut reg, &two);
         let (tx_a, rx_a) = mpsc::sync_channel(4);

@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 import { SmileIcon } from "./icons";
 import { EmojiPickerPanel } from "./EmojiPickerPanel";
 import { useEventListener } from "../hooks/useEventListener";
+import { useDismissOnEscape } from "../hooks/useDismissOnEscape";
 import { insertAtSelection } from "../insertAtSelection";
 
 const PANEL_GAP_PX = 8;
@@ -269,20 +270,5 @@ function useDismissOnOutsideClick(
     },
     document,
     open,
-  );
-}
-
-/** Capture-phase Escape so the picker closes before any parent modal does. */
-function useDismissOnEscape(open: boolean, onDismiss: () => void) {
-  useEventListener(
-    "keydown",
-    (e) => {
-      if (e.key !== "Escape") return;
-      e.stopPropagation();
-      onDismiss();
-    },
-    document,
-    open,
-    true,
   );
 }

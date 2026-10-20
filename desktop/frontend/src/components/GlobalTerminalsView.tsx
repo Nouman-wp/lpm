@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "../store/app";
 import { TerminalView, type TerminalViewHandle } from "./TerminalView";
 import { ActionView } from "./ActionView";
@@ -8,6 +8,7 @@ import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { useProjectActions } from "../hooks/useProjectActions";
+import type { LaunchpadProject } from "../hooks/useLaunchpad";
 import { useGlobalTerminalStatus } from "../hooks/useGlobalTerminalStatus";
 import { ActionInputsModal } from "./project-detail/ActionInputsModal";
 import { ActionTerminal } from "./project-detail/ActionTerminal";
@@ -28,6 +29,8 @@ interface GlobalTerminalsViewProps {
   visible?: boolean;
   sidebarCollapsed?: boolean;
 }
+
+const LABEL = "Terminals";
 
 export function GlobalTerminalsView({
   visible = true,
@@ -74,6 +77,10 @@ export function GlobalTerminalsView({
       .catch(() => { if (!cancelled) setActions([]); });
     return () => { cancelled = true; };
   }, [visible]);
+  const newTabProject = useMemo<LaunchpadProject>(
+    () => ({ name: GLOBAL_TERMINALS_KEY, label: LABEL, root: "", actions }),
+    [actions],
+  );
 
   const handleNewTerminal = useCallback(() => {
     terminalRef.current?.createTerminal();
@@ -118,7 +125,7 @@ export function GlobalTerminalsView({
   return (
     <div className="flex h-full flex-col">
       <Header
-        projectName="Terminals"
+        projectName={LABEL}
         showProjectName={true}
         sidebarCollapsed={sidebarCollapsed}
         rowRef={headerRowRef}
@@ -141,9 +148,11 @@ export function GlobalTerminalsView({
               </p>
             </div>
             <NewTerminalButton
+              project={newTabProject}
               onNewTerminal={handleNewTerminal}
               onRunCommand={runCommand}
               onOpenAgent={openAgent}
+              onRunAction={handleRunAction}
               openRequested={newTabAsked}
               onOpenRequestHandled={clearNewTabAsked}
               className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85"
@@ -167,6 +176,7 @@ export function GlobalTerminalsView({
         <TerminalView
           ref={terminalRef}
           projectName={GLOBAL_TERMINALS_KEY}
+          projectLabel={LABEL}
           projectRoot=""
           services={EMPTY_SERVICES}
           terminalTheme={terminalTheme}
@@ -178,6 +188,7 @@ export function GlobalTerminalsView({
           visible={visible && !showEmptyState}
           onScreen={visible}
           actions={actions}
+          onRunAction={handleRunAction}
         />
       </div>
 

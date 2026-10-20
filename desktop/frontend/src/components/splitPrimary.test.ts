@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   childKey,
   eligibleChildren,
+  inGroupColor,
+  isSplitButton,
+  noteChildRun,
   primaryStorageKey,
   resolvePrimaryChild,
   PRIMARY_LAST_USED,
@@ -84,5 +87,38 @@ describe("resolvePrimaryChild", () => {
 describe("primaryStorageKey", () => {
   it("namespaces by scope and action", () => {
     expect(primaryStorageKey("myproj", "Deploy")).toBe("lpm.action-primary.myproj.Deploy");
+  });
+});
+
+describe("isSplitButton", () => {
+  it("is a split with an item to run or a command of its own", () => {
+    expect(isSplitButton(parent(undefined, [staging]), staging)).toBe(true);
+    expect(isSplitButton(action({ name: "Deploy", cmd: "./deploy.sh", children: [staging] }), null)).toBe(true);
+  });
+
+  it("is a menu otherwise", () => {
+    expect(isSplitButton(parent(undefined, [staging]), null)).toBe(false);
+  });
+});
+
+describe("noteChildRun", () => {
+  it("leads a last-used split with a direct item run from its menu", () => {
+    expect(noteChildRun("web", parent(PRIMARY_LAST_USED, [staging, prod]), prod)).toBe("Prod");
+  });
+
+  it("keeps the lead for nested items, other groups and fixed primaries", () => {
+    const nested = action({ name: "Deploy:iOS:Release" });
+    expect(noteChildRun("web", parent(PRIMARY_LAST_USED, [staging]), nested)).toBeNull();
+    expect(noteChildRun("web", parent(PRIMARY_LAST_USED, [staging]), action({ name: "Other:Prod" }))).toBeNull();
+    expect(noteChildRun("web", parent("Staging", [staging, prod]), prod)).toBeNull();
+  });
+});
+
+describe("inGroupColor", () => {
+  it("gives an uncolored item the group's color and keeps an item's own", () => {
+    const group = action({ name: "Deploy", color: "cyan" });
+    expect(inGroupColor(group, staging).color).toBe("cyan");
+    expect(inGroupColor(group, { ...prod, color: "red" }).color).toBe("red");
+    expect(inGroupColor(parent(undefined, []), staging)).toBe(staging);
   });
 });

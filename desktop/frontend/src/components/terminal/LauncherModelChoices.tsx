@@ -1,5 +1,5 @@
-import { AI_CLI_OPTIONS, aiEfforts } from "../../types";
-import { levelBlurb, resolveNewTabPick, type NewTabPick } from "../../newTabPick";
+import { aiEfforts } from "../../types";
+import { levelBlurb, modelsOf, resolveNewTabPick, type NewTabPick } from "../../newTabPick";
 import { ChoicePill } from "./ChoicePill";
 
 const CAPTION = "mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]";
@@ -13,7 +13,7 @@ export function LauncherModelChoices({
   pick: NewTabPick;
   onChange: (pick: NewTabPick) => void;
 }) {
-  const models = AI_CLI_OPTIONS.find((o) => o.value === pick.agent)?.models ?? [];
+  const models = modelsOf(pick.agent);
   const levels = aiEfforts(pick.agent, pick.model);
   const blurb = levelBlurb(pick.agent, pick.effort);
 
@@ -25,7 +25,7 @@ export function LauncherModelChoices({
           <ChoicePill
             key={m.value || "default"}
             checked={pick.model === m.value}
-            onClick={() => onChange(resolveNewTabPick({ ...pick, model: m.value }))}
+            onClick={() => onChange(resolveNewTabPick(pick.agent, { ...pick, model: m.value }))}
           >
             {m.label}
           </ChoicePill>

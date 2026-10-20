@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import { useAnchoredPanel } from "../../hooks/useAnchoredPanel";
-import { useEventListener } from "../../hooks/useEventListener";
+import { useDismissOnEscape } from "../../hooks/useDismissOnEscape";
 import { levelName, modelName, newTabModelLabel, type NewTabPick } from "../../newTabPick";
 import { useOverlay } from "../../store/overlay";
 import { AI_CLI_OPTIONS } from "../../types";
@@ -29,16 +29,7 @@ export function LaunchpadModelMenu({
     flip: true,
   });
   useOverlay(open);
-  useEventListener(
-    "keydown",
-    (e) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      setOpen(false);
-    },
-    window,
-    open,
-  );
+  useDismissOnEscape(open, () => setOpen(false));
 
   const summary = newTabModelLabel(pick);
   if (!summary) return null;

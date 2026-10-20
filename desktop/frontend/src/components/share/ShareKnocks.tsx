@@ -1,9 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  PeerShareDeclineAsk,
-  PeerShareRespond,
-  PeerShareSetGuestCanType,
-} from "../../../bridge/commands";
 import { ShareKnockCard } from "./ShareKnockCard";
 import { ShareAskCard } from "./ShareAskCard";
 import { ShareKnockNote, type KnockNote } from "./ShareKnockNote";
@@ -15,6 +10,7 @@ import {
   type ShareGuest,
   type ShareWaiting,
 } from "../../store/tabShares";
+import { declineAsk, respondToJoin, setGuestCanType } from "../../share/shareCalls";
 
 // A Deny waits this long for Undo before the asker is turned away.
 const UNDO_MS = 5000;
@@ -40,7 +36,6 @@ export function ShareKnocks() {
   const hosted = useTabShares((s) => s.hosted);
   // That share's popover lists the same people, with the same buttons.
   const inPopover = useTabShares((s) => s.shareDialog?.terminalId);
-  const setHosted = useTabShares((s) => s.setHosted);
   const [later, setLater] = useState<string[]>([]);
   const [denying, setDenying] = useState<string[]>([]);
   const [note, setNote] = useState<KnockNote | null>(null);
@@ -71,8 +66,8 @@ export function ShareKnocks() {
     noteTimer.current = window.setTimeout(() => setNote(null), UNDO_MS);
   };
 
-  const apply = (call: Promise<HostedShare[]>) => {
-    void call.then(setHosted).catch(() => {});
+  const apply = (call: Promise<void>) => {
+    void call.catch(() => {});
   };
 
   const deny = (k: Extract<Knock, { kind: "join" }>) => {
@@ -85,7 +80,7 @@ export function ShareKnocks() {
       k.id,
       window.setTimeout(() => {
         settle();
-        apply(PeerShareRespond(k.id, false));
+        apply(respondToJoin(k.share, k.id, false));
       }, UNDO_MS),
     );
     show({
@@ -100,7 +95,7 @@ export function ShareKnocks() {
   };
 
   const letIn = (k: Extract<Knock, { kind: "join" }>, canType?: boolean) => {
-    apply(PeerShareRespond(k.id, true, canType));
+    apply(respondToJoin(k.share, k.id, true, canType));
     const types = canType ?? k.share.canType;
     show({
       text: types ? `${k.waiting.name} is in and can type` : `${k.waiting.name} is watching`,
@@ -109,12 +104,12 @@ export function ShareKnocks() {
   };
 
   const allowTyping = (k: Extract<Knock, { kind: "ask" }>) => {
-    apply(PeerShareSetGuestCanType(k.share.id, k.guest.id, true));
+    apply(setGuestCanType(k.share, k.guest.id, true));
     show({
       text: `${k.guest.name} can type now`,
       tone: "type",
       undo: () => {
-        apply(PeerShareSetGuestCanType(k.share.id, k.guest.id, false));
+        apply(setGuestCanType(k.share, k.guest.id, false));
         setNote(null);
       },
     });
@@ -148,7 +143,7 @@ export function ShareKnocks() {
           guest={first.guest}
           label={first.share.label}
           onAllow={() => allowTyping(first)}
-          onNotNow={() => apply(PeerShareDeclineAsk(first.share.id, first.guest.id))}
+          onNotNow={() => apply(declineAsk(first.share, first.guest.id))}
           onLater={() => setLater((ids) => [...ids, first.id])}
         />
       )}

@@ -36,7 +36,7 @@ const FAQS: QA[] = [
   {
     question: "Which tabs can I share?",
     answer:
-      "Any terminal tab: a plain shell, a long build, Claude Code, Codex or Gemini CLI. Tabs that show a project's services, like a dev server's output, can't be shared, and neither can a tab that runs on another computer you're connected to.",
+      "Any terminal tab: a plain shell, a long build, Claude Code, Codex or Gemini CLI, including one that runs on another computer you're connected to, like a Linux server. Requests to join it come to your screen. Tabs that show a project's services, like a dev server's output, can't be shared.",
   },
   {
     question: "Do we need to be on the same network?",
@@ -56,7 +56,7 @@ const FAQS: QA[] = [
   {
     question: "How do I stop sharing?",
     answer:
-      "Right-click the tab, choose Share tab and click Stop sharing: everyone's view ends right away. Remove ends one person's view, and quitting lpm ends every share. A guest can click Leave at any time. A short network drop doesn't end anything; the browser reconnects by itself.",
+      "Right-click the tab, choose Share tab and click Stop sharing: everyone's view ends right away. Remove ends one person's view, and quitting lpm ends every share. A tab you shared on a computer you're connected to ends a minute after your computer disconnects from it. A guest can click Leave at any time. A short network drop doesn't end anything; the browser reconnects by itself.",
   },
   {
     question: "Is it free?",

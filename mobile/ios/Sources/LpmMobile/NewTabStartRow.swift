@@ -11,11 +11,8 @@ struct NewTabStartRow: View {
     var body: some View {
         Button(action: onPick) {
             HStack(spacing: 12) {
-                Image(systemName: agent == nil ? "terminal" : "sparkle")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(tint)
+                icon
                     .frame(width: 28, height: 28)
-                    .background(tint.opacity(0.15), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                     .accessibilityHidden(true)
                 Text(label)
                     .foregroundStyle(Color.primary)
@@ -32,6 +29,15 @@ struct NewTabStartRow: View {
         .accessibilityAddTraits(picked ? .isSelected : [])
     }
 
-    /// The agent's colour, as the desktop tints it; a shell is plain.
-    private var tint: Color { agent.map { providerMeta($0).color } ?? .secondary }
+    /// The agent's own mark, as the desktop shows it; a shell, or an agent without
+    /// one, gets a symbol in the agent's colour.
+    @ViewBuilder private var icon: some View {
+        if let mark = agent.flatMap(AgentMark.init) {
+            mark.frame(width: 20, height: 20)
+        } else {
+            Image(systemName: agent == nil ? "terminal" : "sparkle")
+                .font(.system(size: 17))
+                .foregroundStyle(agent.map { providerMeta($0).color } ?? .secondary)
+        }
+    }
 }

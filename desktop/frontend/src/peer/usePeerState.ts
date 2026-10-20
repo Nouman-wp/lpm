@@ -70,6 +70,8 @@ export interface PeerClient {
   supportsHostJobs?: boolean;
   // ...and opens its web servers on this Mac's localhost (porttunnel.rs).
   supportsPortTunnel?: boolean;
+  // ...and lets this Mac share its tabs and let their guests in (tabshare/machines.rs).
+  supportsTabShare?: boolean;
   pinned?: boolean;
   lastSyncAt?: number;
   lastError?: string;

@@ -29,6 +29,9 @@ import {
 } from "./terminal/icons";
 import { AddTerminalButton } from "./terminal/AddTerminalButton";
 import type { RemoteAgentLaunch } from "../remoteAgentTabs";
+import type { LaunchpadProject } from "../hooks/useLaunchpad";
+import type { RunActionOpts } from "../hooks/useProjectActions";
+import type { ActionInfo } from "../types";
 import { PaneMenuButton } from "./terminal/PaneMenuButton";
 import { PaneToolbar } from "./terminal/PaneToolbar";
 import { usePaneToolbar } from "../hooks/usePaneToolbar";
@@ -170,10 +173,14 @@ export interface PaneViewProps {
   onStopService: (serviceName: string) => void;
   onRestartService: (serviceName: string) => void;
   onAddTerminal: (paneId: string) => void;
+  // The project the + popup starts things in.
+  newTabProject: LaunchpadProject;
   // An agent picked from the + popup, opened in this pane.
   onLaunchAgent: (paneId: string, launch: RemoteAgentLaunch) => void;
   // A command typed into the + popup, run in a new terminal in this pane.
   onRunCommand: (paneId: string, command: string) => void;
+  // A project action started from the + popup, in this pane.
+  onRunAction: (paneId: string, action: ActionInfo, opts?: RunActionOpts) => void;
   // The pane ⌘T asked to show its + popup, until it has.
   newTabPaneId: string | null;
   onNewTabHandled: () => void;
@@ -259,8 +266,10 @@ function PaneViewImpl(props: PaneViewProps) {
     onStopService,
     onRestartService,
     onAddTerminal,
+    newTabProject,
     onLaunchAgent,
     onRunCommand,
+    onRunAction,
     newTabPaneId,
     onNewTabHandled,
     onAddBrowser,
@@ -575,9 +584,11 @@ function PaneViewImpl(props: PaneViewProps) {
             })}
           </TabStrip>
           <AddTerminalButton
+            project={newTabProject}
             onAddTerminal={() => onAddTerminal(pane.id)}
             onRunCommand={(command) => onRunCommand(pane.id, command)}
             onOpenAgent={(launch) => onLaunchAgent(pane.id, launch)}
+            onRunAction={(action, opts) => onRunAction(pane.id, action, opts)}
             onResumeSession={onResumeSession}
             openRequested={newTabPaneId === pane.id}
             onOpenRequestHandled={onNewTabHandled}
@@ -599,7 +610,7 @@ function PaneViewImpl(props: PaneViewProps) {
               onReset={paneActions.reset}
             />
           )}
-          {composerTab && !projectPeer && (
+          {composerTab && (
             <PaneShareButton
               terminalId={composerTab.id}
               project={projectName}
@@ -856,7 +867,7 @@ function PaneViewImpl(props: PaneViewProps) {
             x={tabMenu.x}
             y={tabMenu.y}
             pinned={tab.pinned === true}
-            canShare={isTerminalTab(tab) && !projectPeer}
+            canShare={isTerminalTab(tab)}
             onShare={() =>
               useTabShares.getState().openShareDialog({
                 terminalId: tab.id,
