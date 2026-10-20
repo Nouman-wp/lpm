@@ -7,7 +7,7 @@ import { encodeInvite } from "../peer/invite";
 const mocks = vi.hoisted(() => ({
   store: { addProjectForPeer: vi.fn(), openSSHProject: vi.fn(), projects: [] as { name: string }[] },
   commands: {} as Record<string, ReturnType<typeof vi.fn>>,
-  handlers: new Map<string, (payload: unknown) => void>(),
+  handlers: new Map<string, Set<(payload: unknown) => void>>(),
 }));
 
 vi.mock("../store/app", () => ({
@@ -26,8 +26,10 @@ vi.mock("../../bridge/commands", () =>
 vi.mock("../../bridge/runtime", () => ({
   BrowserOpenURL: vi.fn(),
   EventsOn: (name: string, cb: (payload: unknown) => void) => {
-    mocks.handlers.set(name, cb);
-    return () => mocks.handlers.delete(name);
+    const set = mocks.handlers.get(name) ?? new Set();
+    set.add(cb);
+    mocks.handlers.set(name, set);
+    return () => set.delete(cb);
   },
 }));
 
@@ -51,7 +53,7 @@ async function flush() {
 }
 
 function emit(event: string, payload: unknown = undefined) {
-  act(() => mocks.handlers.get(event)?.(payload));
+  act(() => mocks.handlers.get(event)?.forEach((cb) => cb(payload)));
 }
 
 function peers(list: unknown[]) {
@@ -68,7 +70,7 @@ function button(text: string, exact = true): HTMLButtonElement {
 }
 
 function type(text: string) {
-  const input = container.querySelector("input")!;
+  const input = container.querySelector<HTMLInputElement>('input[placeholder^="Paste invite"]')!;
   const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
   act(() => {
     setValue.call(input, text);
@@ -101,9 +103,32 @@ describe("AnotherComputerScreen", () => {
     const text = container.textContent;
     expect(text).toContain("Allow control of this");
     expect(text).toContain("Built-in Tailscale");
-    expect(text).toContain("you connect to");
+    expect(text).toContain("Same network");
+    expect(text).toContain("Your computers");
     expect(text).toContain("Office PC");
-    expect(text).toContain("Config sync");
+    expect(text).not.toContain("Config sync");
+
+    act(() => button("Office PC").click());
+
+    expect(container.textContent).toContain("Open its projects here");
+    expect(container.textContent).toContain("Config sync");
+  });
+
+  it("lists a computer paired both ways once", async () => {
+    command("PeerState").mockResolvedValue({
+      host: { ...HOST, devices: [{ id: "d1", name: "Office PC", hostId: "office" }, { id: "d2", name: "Air" }] },
+      peers: [OFFICE],
+    });
+    emit("peer-state-changed");
+    await flush();
+
+    expect(container.textContent?.match(/Office PC/g)).toHaveLength(1);
+    expect(container.textContent).toContain("Both ways");
+    expect(container.textContent).toContain("Air");
+
+    act(() => button("Office PC").click());
+    act(() => button("Remove access").click());
+    expect(document.body.textContent).toContain("Remove access for Office PC");
   });
 
   it("leaves Linux hosts to the Server screen", async () => {
@@ -119,7 +144,7 @@ describe("AnotherComputerScreen", () => {
 
   it("goes on to adding a project on a computer added here once it's connected", async () => {
     command("PeerAdd").mockResolvedValue({ slug: STUDIO.slug });
-    await act(async () => button("Connect another", false).click());
+    await act(async () => button("Add a", false).click());
     peers([OFFICE, STUDIO]);
     type(INVITE);
     await act(async () => button("Connect").click());

@@ -1,15 +1,13 @@
 import { usePeerState } from "../peer/usePeerState";
 import { isLinuxHost } from "../peer/platform";
 import { MACHINE } from "../machineWords";
-import { HostSection } from "./connections/HostSection";
-import { MacsSection } from "./connections/MacsSection";
+import { ThisMachineCard } from "./connections/ThisMachineCard";
+import { MachinesSection } from "./connections/MachinesSection";
 import { LinuxHostsSection } from "./connections/LinuxHostsSection";
 import { SyncSection } from "./connections/SyncSection";
 
-// Two roles, one pane, and the whole pane is ordered by them: what this Mac lets
-// in, then what it reaches out to. The same machine can appear on both sides —
-// that's a two-way setup, not a duplicate — so each list says which direction it
-// is in its own heading.
+// This machine first — whether others may open it, and every way they reach it —
+// then every computer in one list, a row each whichever way they connect.
 //
 // Linux hosts get their own list: they're headless servers you keep work running
 // on, not machines someone is sitting at, and they're brought online differently.
@@ -24,21 +22,20 @@ export function ConnectionsPane({
   const { state, refresh } = usePeerState();
   const linuxHosts = state.peers.filter(isLinuxHost);
   const macs = state.peers.filter((p) => !isLinuxHost(p));
-  const synced = showLinuxHosts ? state.peers : macs;
 
   return (
     <div className="mt-2">
-      <p className="mb-6 text-[12px] leading-relaxed text-[var(--text-muted)]">
+      <p className="mb-5 text-[12px] leading-relaxed text-[var(--text-muted)]">
         Connect {MACHINE.thisMachine} to {MACHINE.anotherMachine}
         {showLinuxHosts && ", or to a Linux server,"} and work across both from one place.
         A connected machine's projects appear in your sidebar and open just like local ones.
       </p>
-      <HostSection
+      <ThisMachineCard
         host={state.host}
         refresh={refresh}
         peersOverTailscale={state.peers.some((p) => p.overTailscale)}
       />
-      <MacsSection
+      <MachinesSection
         macs={macs}
         peers={state.peers}
         host={state.host}
@@ -46,7 +43,7 @@ export function ConnectionsPane({
         cancelPairingOnLeave={cancelPairingOnLeave}
       />
       {showLinuxHosts && <LinuxHostsSection hosts={linuxHosts} refresh={refresh} />}
-      {synced.length > 0 && <SyncSection peers={synced} />}
+      {showLinuxHosts && linuxHosts.length > 0 && <SyncSection peers={linuxHosts} />}
     </div>
   );
 }

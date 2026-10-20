@@ -9,6 +9,9 @@ export interface PeerHostDevice {
   // "macos" / "linux" / "windows". Empty for a device paired before platforms
   // were reported.
   platform?: string;
+  // The device's own hostId, so a machine paired both ways lists once. Empty
+  // until that machine pairs or connects with a build that sends it.
+  hostId?: string;
 }
 
 export interface PeerHostPairing {
@@ -31,6 +34,8 @@ export interface PeerHostState {
   // Up only for the guests of a tab shared from here, with control off.
   guestsOnly: boolean;
   hostId: string;
+  // This machine's address on the local network, when it has one.
+  lanHost?: string | null;
   pairing: PeerHostPairing | null;
   devices: PeerHostDevice[];
   pairRequests: PeerPairRequest[];

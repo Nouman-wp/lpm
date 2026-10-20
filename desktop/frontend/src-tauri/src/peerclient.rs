@@ -715,7 +715,7 @@ impl PeerClientHub {
 
         let known = self.known_device(&[host.clone()], port, captured_fp.as_deref());
         if let Err(e) = ws.send(Message::text(
-            json!({ "t": "pairRequest", "name": local_name(),
+            json!({ "t": "pairRequest", "name": local_name(), "hostId": peer::local_host_id(),
                 "platform": peer::platform_id(), "replaces": known })
             .to_string(),
         )) {
@@ -2270,7 +2270,9 @@ fn connect_session(
         dialled
     };
     ws.send(Message::text(
-        json!({ "t": "auth", "deviceId": entry.device_id, "token": entry.token }).to_string(),
+        json!({ "t": "auth", "deviceId": entry.device_id, "token": entry.token,
+            "hostId": peer::local_host_id() })
+        .to_string(),
     ))
     .map_err(|e| e.to_string())?;
 
@@ -3060,7 +3062,7 @@ fn dial_pair(
         },
     };
     ws.send(Message::text(
-        json!({ "t": "pair", "code": code, "name": local_name(),
+        json!({ "t": "pair", "code": code, "name": local_name(), "hostId": peer::local_host_id(),
             "platform": peer::platform_id(), "replaces": replaces })
         .to_string(),
     ))

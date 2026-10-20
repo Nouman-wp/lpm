@@ -189,6 +189,8 @@ pub(crate) struct PeerDevice {
     pub created_at: i64,
     #[serde(default)]
     pub platform: String, // "macos" / "linux"; empty for devices paired before this was sent
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub host_id: String, // the device's own hostId, so a machine paired both ways lists once; empty until a build that sends it pairs or connects
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -1222,6 +1224,7 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Sessi
             let replaces = v.get("replaces").and_then(Value::as_str);
             match pair_device(hub, code, name, platform, replaces) {
                 Some((id, token, slug)) => {
+                    note_device_host_id(hub, &id, client_host_id(&v));
                     let _ = ws.send(Message::text(
                         json!({ "t": "paired", "deviceId": id, "token": token,
                             "slug": slug, "hostName": machine_name(), "hostId": hub.host_id(),
@@ -1247,7 +1250,9 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Sessi
                 .and_then(Value::as_str)
                 .unwrap_or_default();
             let replaces = v.get("replaces").and_then(Value::as_str);
-            handle_pair_request(ws, hub, app, name, platform, replaces).map(Session::Device)
+            let id = handle_pair_request(ws, hub, app, name, platform, replaces)?;
+            note_device_host_id(hub, &id, client_host_id(&v));
+            Some(Session::Device(id))
         }
         Some("shareJoin") => {
             guest::join(ws, app, &v);
@@ -1264,6 +1269,7 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Sessi
                 let _ = ws.send(Message::text(control_off_frame()));
                 None
             } else if paired {
+                note_device_host_id(hub, id, client_host_id(&v));
                 // hostPlatform rides every auth, not just pairing, so a peer
                 // paired before this existed learns it on its next connect.
                 let _ = ws.send(Message::text(
@@ -1344,6 +1350,7 @@ fn mint_device(
         slug_assigned: slug.clone(),
         created_at: crate::status::now_millis(),
         platform: platform.chars().take(16).collect(),
+        host_id: String::new(),
     };
     let id = device.id.clone();
     cfg.host.devices.push(device);
@@ -1351,6 +1358,33 @@ fn mint_device(
     drop(cfg);
     let _ = save_config(&snapshot);
     (id, token, slug)
+}
+
+fn client_host_id(v: &Value) -> &str {
+    v.get("hostId").and_then(Value::as_str).unwrap_or_default()
+}
+
+fn note_device_host_id(hub: &PeerHub, id: &str, host_id: &str) {
+    if host_id.is_empty() {
+        return;
+    }
+    let mut cfg = hub.inner.config.lock().unwrap();
+    let Some(device) = cfg.host.devices.iter_mut().find(|d| d.id == id) else {
+        return;
+    };
+    if device.host_id == host_id {
+        return;
+    }
+    device.host_id = host_id.chars().take(64).collect();
+    let snapshot = cfg.clone();
+    drop(cfg);
+    let _ = save_config(&snapshot);
+}
+
+/// This machine's stable peer identity, which it sends when it pairs with or
+/// signs in to another, so that one can tell it is the same machine it reaches.
+pub(crate) fn local_host_id() -> String {
+    load_config().host.host_id
 }
 
 fn pair_device(
@@ -2306,7 +2340,7 @@ fn host_state_value(hub: &PeerHub) -> Value {
     let devices: Vec<Value> = cfg
         .devices
         .iter()
-        .map(|d| json!({ "id": d.id, "name": d.name, "platform": d.platform }))
+        .map(|d| json!({ "id": d.id, "name": d.name, "platform": d.platform, "hostId": d.host_id }))
         .collect();
     let pair_requests: Vec<Value> = hub
         .inner
@@ -2325,6 +2359,7 @@ fn host_state_value(hub: &PeerHub) -> Value {
         "guestsOnly": plan.is_some_and(|p| !p.paired),
         "running": hub.inner.running.load(Ordering::Relaxed),
         "hostId": cfg.host_id,
+        "lanHost": crate::netif::lan_ip(),
         "pairing": pairing_value(&cfg),
         "devices": devices,
         "pairRequests": pair_requests,
@@ -2795,6 +2830,7 @@ mod tests {
                     slug_assigned: "abcd1234".into(),
                     created_at: 7,
                     platform: "macos".into(),
+                    host_id: String::new(),
                 }],
                 revoked: vec!["d0".into()],
             },

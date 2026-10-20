@@ -7,26 +7,31 @@ import { useMachineWords } from "../settings/useMachineWords";
 
 /** Settings people set once — the port and keeping this machine awake — and the
  *  security code lpm Link asks to compare, folded under one line so the card
- *  leads with what changes day to day. */
+ *  leads with what changes day to day. Without `onKeepAwake` it is the port alone. */
 export function ReachOptions({
   port,
   onPort,
-  keepAwake,
-  keepAwakeStatus,
+  keepAwake = false,
+  keepAwakeStatus = "unsupported",
   onKeepAwake,
-  identityCode,
+  identityCode = "",
+  settingsRow = "mobile.keepAwake",
+  open = false,
 }: {
   port: number;
   onPort: (port: number) => void;
-  keepAwake: boolean;
-  keepAwakeStatus: KeepAwakeStatus;
-  onKeepAwake: (on: boolean) => void;
-  identityCode: string;
+  keepAwake?: boolean;
+  keepAwakeStatus?: KeepAwakeStatus;
+  onKeepAwake?: (on: boolean) => void;
+  identityCode?: string;
+  settingsRow?: string;
+  /** Unfolds it, as when the port needs changing; folding it again stays up to the user. */
+  open?: boolean;
 }) {
   const words = useMachineWords();
   const [draft, setDraft] = useState(String(port));
   useEffect(() => setDraft(String(port)), [port]);
-  const supported = keepAwakeStatus !== "unsupported";
+  const supported = !!onKeepAwake && keepAwakeStatus !== "unsupported";
   const awake = keepAwakeStatus === "awake";
 
   const commit = () => {
@@ -36,7 +41,7 @@ export function ReachOptions({
   };
 
   return (
-    <details className="group" data-settings-row="mobile.keepAwake">
+    <details className="group" open={open || undefined} data-settings-row={settingsRow}>
       <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-2.5 text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)] [&::-webkit-details-marker]:hidden">
         <span className="flex-1">
           Port {port}
@@ -63,16 +68,18 @@ export function ReachOptions({
             className="w-20 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm tabular-nums text-[var(--text-primary)] outline-none focus:border-[var(--accent-cyan)]"
           />
         </WayInRow>
-        <WayInRow
-          icon={<Coffee size={16} />}
-          title={`Keep ${words.thisMachine} awake`}
-          subtitle={keepAwakeText(keepAwakeStatus, words.thisMachine)}
-          tone={awake ? "live" : keepAwakeStatus === "failed" ? "problem" : "idle"}
-        >
-          {supported && (
-            <Toggle enabled={keepAwake} onChange={onKeepAwake} ariaLabel={`Keep ${words.thisMachine} awake`} />
-          )}
-        </WayInRow>
+        {onKeepAwake && (
+          <WayInRow
+            icon={<Coffee size={16} />}
+            title={`Keep ${words.thisMachine} awake`}
+            subtitle={keepAwakeText(keepAwakeStatus, words.thisMachine)}
+            tone={awake ? "live" : keepAwakeStatus === "failed" ? "problem" : "idle"}
+          >
+            {supported && (
+              <Toggle enabled={keepAwake} onChange={onKeepAwake} ariaLabel={`Keep ${words.thisMachine} awake`} />
+            )}
+          </WayInRow>
+        )}
         {identityCode && (
           <WayInRow
             icon={<ShieldCheck size={16} />}

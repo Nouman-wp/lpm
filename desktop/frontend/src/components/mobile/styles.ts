@@ -29,3 +29,5 @@ export const SUBTITLE_COLOR: Record<TileTone, string> = {
   warn: "var(--accent-amber-text)",
   problem: "var(--accent-red-text)",
 };
+export const DANGER_BUTTON =
+  "shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[var(--accent-red-text)] transition-colors hover:bg-[color-mix(in_srgb,var(--accent-red)_10%,transparent)] disabled:opacity-60";

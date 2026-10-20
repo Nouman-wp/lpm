@@ -585,6 +585,14 @@ export const ROWS = {
     description: `Reach your other ${MACHINE.plural} from any network, without the Tailscale app`,
     keywords: ["tailscale", "tailnet", "vpn", "away", "anywhere", "remote", "peer", "mac", "linux"],
   },
+  "connections.port": {
+    kind: "row",
+    tab: "connections",
+    id: "connections.port",
+    label: "Port",
+    description: `The port other ${MACHINE.plural} connect to`,
+    keywords: ["port", "listen", "busy", "peer", "allow control", "network"],
+  },
   "connections.hostUpdates": {
     kind: "row",
     tab: "connections",
