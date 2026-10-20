@@ -128,6 +128,13 @@ const LESSONS = {
       "Share a Claude Code terminal tab in lpm with anyone: they follow it live in their browser, with nothing to install, view only, or type in it with you once you allow it.",
     uploadDate: "2026-10-19T09:00:00+00:00",
   },
+  "claude-code-codex-remote-server": {
+    id: "HeY6GDlCr90",
+    name: "Run Claude Code and Codex on a Remote Server from Your Mac",
+    description:
+      "Two ways to run your projects on a server with lpm: set it up as a Linux host that holds many projects and keeps Claude Code and Codex working while your Mac sleeps, or just SSH in to open one folder with nothing installed.",
+    uploadDate: "2026-10-20T09:00:00+00:00",
+  },
   "sixty-seconds": {
     id: "H46vW5DPbZk",
     name: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",

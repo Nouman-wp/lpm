@@ -116,7 +116,9 @@ function screenChecks(raw, clock) {
   for (const { s, text } of screen) {
     const low = text.toLowerCase();
     for (const t of terms) if (t.re.test(low)) note(`id:${t.text}`, "FAIL", `your ${t.why} ("${t.text}") is on screen`, s);
-    for (const m of low.match(/[a-z0-9._%+-]+@[a-z0-9-]+\.[a-z.]{2,}/g) || []) {
+    // The domain ends in letters: "root@dev-server" read beside "Connecting..."
+    // is an ssh target, not an address.
+    for (const m of low.match(/[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}/g) || []) {
       if (!/@example\./.test(m)) note(`mail:${m}`, "FAIL", `an email address (${m}) is on screen`, s);
     }
     for (const e of ERROR_TEXT) if (low.includes(e)) note(`err:${e}`, "FAIL", `error text on screen: "${e}"`, s);

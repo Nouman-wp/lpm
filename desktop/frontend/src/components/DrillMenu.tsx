@@ -22,16 +22,20 @@ export interface DrillScreen {
 
 export function DrillMenu({
   root,
+  initialStack,
   onClose,
   widthClassName = "w-72",
   showClose = true,
 }: {
   root: DrillScreen;
+  // Screens already drilled into when the menu opens, so a caller can open it
+  // part-way down while Back still leads to the root.
+  initialStack?: DrillScreen[];
   onClose: () => void;
   widthClassName?: string;
   showClose?: boolean;
 }) {
-  const [stack, setStack] = useState<DrillScreen[]>([]);
+  const [stack, setStack] = useState<DrillScreen[]>(initialStack ?? []);
   const api: DrillApi = {
     push: (screen) => setStack((s) => [...s, screen]),
     pop: () => setStack((s) => s.slice(0, -1)),

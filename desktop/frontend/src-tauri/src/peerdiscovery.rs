@@ -30,6 +30,7 @@ pub fn peer_discovery_start(app: AppHandle, hub: State<'_, crate::peer::PeerHub>
             .into_iter()
             .filter(|p| p.id != self_id)
             .filter(|p| cfg!(debug_assertions) || !p.dev)
+            .filter(|_| !crate::lesson::hides_nearby())
             .collect();
         let _ = app.emit("peer-discovery", &filtered);
     });

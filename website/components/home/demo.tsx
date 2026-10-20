@@ -177,6 +177,10 @@ const LESSON_CAPTION: Record<
     heading: "Share a terminal tab with anyone, right in their browser",
     blurb: "A short video: send an invite, let a teammate in from their browser, and let them type.",
   },
+  "claude-code-codex-remote-server": {
+    heading: "Run Claude Code and Codex on your own server",
+    blurb: "A short video: set up a Linux host for many projects, or just SSH in to open one folder.",
+  },
 };
 
 function DesktopOnlyPrompt({

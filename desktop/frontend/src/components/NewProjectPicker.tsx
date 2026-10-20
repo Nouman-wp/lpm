@@ -10,6 +10,8 @@ import type { IconListMenuItem } from "./ui/IconListMenu";
 
 export type NewProjectKind = "local" | "ssh" | "clone";
 
+const SERVER_WIDTH = "w-[400px]";
+
 export const NEW_PROJECT_SOURCES: IconListMenuItem<NewProjectKind>[] = [
   { key: "local", icon: <FolderIcon />, color: "#facc15", label: "Local Folder", desc: "A project on this machine — pick a folder on disk" },
   { key: "clone", icon: <CloudBranchIcon />, color: "#a78bfa", label: "Clone Repository", desc: "Clone from a Git repo URL into a local folder" },
@@ -29,19 +31,21 @@ export function NewProjectPicker() {
   const onClose = useAppStore((s) => s.closeAddProjectPicker);
   const onPick = useAppStore((s) => s.pickAddProjectKind);
   const target = useAppStore((s) => s.addProjectTarget);
+  const start = useAppStore((s) => s.addProjectStart);
 
-  const root = useMemo<DrillScreen>(() => {
+  const { root, linuxHostStack } = useMemo(() => {
     const generatorsScreen: DrillScreen = { title: "Templates", render: () => <GeneratorList /> };
-    const installScreen: DrillScreen = { title: "Install lpm", render: () => <InstallLpmScreen /> };
+    const installScreen: DrillScreen = { title: "Linux host", width: SERVER_WIDTH, render: () => <InstallLpmScreen /> };
     const serverScreen: DrillScreen = {
       title: "Server",
+      width: SERVER_WIDTH,
       render: (api) => (
         <ServerModeScreen onInstall={() => api.push(installScreen)} onSsh={() => onPick("ssh")} />
       ),
     };
     const sources = target ? remoteSources(target.alias) : NEW_PROJECT_SOURCES;
     const heading = target ? `Add a project on ${target.alias}` : "Add a project";
-    return {
+    const root: DrillScreen = {
       render: (api) => (
         <div className="px-2 pb-1 pt-3.5">
           <h3 className="px-4 text-[13px] font-medium text-[var(--text-primary)]">{heading}</h3>
@@ -74,7 +78,9 @@ export function NewProjectPicker() {
                 </div>
                 <div className="min-w-0 flex-1 pt-0.5">
                   <div className="text-[13px] font-medium text-[var(--text-primary)]">Server</div>
-                  <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-secondary)]">A machine you reach over SSH</div>
+                  <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-secondary)]">
+                    Set it up as a Linux host for many projects, or open one folder over SSH
+                  </div>
                 </div>
                 <span className="mt-2 flex shrink-0 text-[var(--text-muted)]">
                   <ChevronRightIcon />
@@ -102,13 +108,20 @@ export function NewProjectPicker() {
         </div>
       ),
     };
+    return { root, linuxHostStack: [serverScreen, installScreen] };
   }, [onPick, target]);
 
-  // Keyed by target so pairing a server from the Install lpm screen lands on
+  // Keyed by target so pairing a server from the Linux host screen lands on
   // that server's own root, not the screen the pairing started from.
   return (
     <Modal open={open} onClose={onClose} zIndexClassName="z-50">
-      <DrillMenu key={target?.slug ?? ""} root={root} onClose={onClose} widthClassName="w-[360px]" />
+      <DrillMenu
+        key={`${target?.slug ?? ""}:${start ?? ""}`}
+        root={root}
+        initialStack={start === "linux-host" && !target ? linuxHostStack : undefined}
+        onClose={onClose}
+        widthClassName="w-[360px]"
+      />
     </Modal>
   );
 }

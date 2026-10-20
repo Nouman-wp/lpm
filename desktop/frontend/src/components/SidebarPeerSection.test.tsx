@@ -6,6 +6,7 @@ import type { PeerStatus } from "../peer/peerStatus";
 import type { ProjectInfo } from "../types";
 
 const mocks = vi.hoisted(() => ({
+  hasPeerListing: vi.fn(() => false),
   clearSelection: vi.fn(),
   addProjectForPeer: vi.fn(),
   setAlias: vi.fn(() => Promise.resolve()),
@@ -34,6 +35,11 @@ vi.mock("../../bridge/commands", () => ({
   PeerUpdateMac: mocks.updateMac,
   PeerCancelMacUpdate: vi.fn(() => Promise.resolve(true)),
   GetVersion: vi.fn(() => Promise.resolve("1.43.0")),
+}));
+
+vi.mock("../peer/route", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../peer/route")>()),
+  hasPeerListing: mocks.hasPeerListing,
 }));
 
 import { SidebarPeerSection } from "./SidebarPeerSection";
@@ -113,6 +119,34 @@ describe("SidebarPeerSection rows", () => {
     });
     expect(container.querySelector("[data-testid=rows]")).toBeNull();
     expect(header.textContent).toContain("1");
+  });
+});
+
+describe("SidebarPeerSection empty", () => {
+  it("says a connected server has no projects yet, and adds the first one there", () => {
+    mocks.hasPeerListing.mockReturnValue(true);
+    render({ alias: "dev-server", linuxHost: true, projects: [] });
+
+    expect(container.textContent).toContain("No projects on dev-server yet.");
+    const add = [...container.querySelectorAll("button")].find((b) => b.textContent === "Add a project")!;
+    act(() => add.click());
+    expect(mocks.addProjectForPeer).toHaveBeenCalledWith("aabbccdd", "dev-server");
+  });
+
+  it("waits for the server's first answer before calling it empty", () => {
+    mocks.hasPeerListing.mockReturnValue(false);
+    render({ alias: "dev-server", linuxHost: true, projects: [] });
+
+    expect(container.textContent).not.toContain("No projects");
+  });
+
+  it("says nothing about an away server or one with projects", () => {
+    mocks.hasPeerListing.mockReturnValue(true);
+    render({ alias: "dev-server", linuxHost: true, projects: [], connected: false, status: OFF });
+    expect(container.textContent).not.toContain("No projects");
+
+    render({ alias: "dev-server", linuxHost: true });
+    expect(container.textContent).not.toContain("No projects");
   });
 });
 

@@ -25,6 +25,9 @@ pub fn list_ssh_hosts() -> Result<Vec<SshConfigHost>, String> {
     };
     let mut hosts = parse_ssh_config(&home.join(".ssh").join("config"), &home, 0)?;
     dedupe_hosts(&mut hosts);
+    if let Some(only) = crate::lesson::ssh_hosts() {
+        hosts.retain(|h| only.contains(&h.name));
+    }
     hosts.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(hosts)
 }

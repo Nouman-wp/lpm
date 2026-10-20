@@ -34,3 +34,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - Auto Git Pull in lpm: The Complete Guide — https://youtu.be/eUaxQqogl0I
 - Dynamic Action Labels in lpm: Buttons That Show Live Info — https://youtu.be/eZoi4xTNSlg
 - Share Your Claude Code Terminal with Anyone, Right in Their Browser — https://youtu.be/vflMFPmbf5s
+- Run Claude Code and Codex on a Remote Server from Your Mac — https://youtu.be/HeY6GDlCr90

@@ -169,6 +169,12 @@ async function listPeerProjects(slug: string): Promise<ProjectInfo[]> {
   return answer ?? cachedPeerList(slug);
 }
 
+// Whether a peer has answered list_projects at least once: until it has, an
+// empty list from it means "not known yet", not "no projects".
+export function hasPeerListing(slug: string): boolean {
+  return peerListCache.has(slug);
+}
+
 // What a peer that hasn't answered said last: its projects stay listed, but
 // statuses that old would show its agents frozen as they were, as if live.
 function cachedPeerList(slug: string): ProjectInfo[] {

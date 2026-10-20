@@ -68,10 +68,10 @@
     <string name="config_ssh_host">Host</string>
     <string name="config_ssh_user">User</string>
     <string name="config_ssh_port">Port</string>
-    <string name="config_ssh_connection_footer">Creates a project that runs on a remote host. Its services, actions, and terminals run over this connection.</string>
+    <string name="config_ssh_connection_footer">Opens one folder on a server as a project. Its terminals, services, and actions run over SSH, and nothing is installed on the server. Keeping several projects on this server? Set it up as a Linux host in lpm on your Mac instead.</string>
     <string name="config_ssh_identity">Identity file (optional)</string>
-    <string name="config_ssh_dir">Remote directory (optional)</string>
-    <string name="config_ssh_identity_footer">Leave the identity file blank to use your existing connection defaults. The remote directory is where the shell will start.</string>
+    <string name="config_ssh_dir">Project folder on the server (optional)</string>
+    <string name="config_ssh_identity_footer">Leave the identity file blank to use your existing connection defaults. Terminals open in the project folder, or the home folder if it\'s blank. For another folder on this server, add another SSH project.</string>
     <string name="config_project_name">Project name</string>
     <string name="config_name_footer">Used to label the project. Filled in from your choice above — edit it if you like.</string>
     <string name="config_choose">Choose…</string>

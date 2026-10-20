@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { GetVersion, PeerRemove } from "../../../bridge/commands";
 import type { PeerClient } from "../../peer/usePeerState";
+import { MACHINE } from "../../machineWords";
+import { useAppStore } from "../../store/app";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { Group, GroupHeader } from "./GroupedList";
 import { PeerRow } from "./PeerRow";
@@ -18,6 +20,7 @@ export function LinuxHostsSection({
   refresh: () => Promise<void>;
 }) {
   const [removePeer, setRemovePeer] = useState<PeerClient | null>(null);
+  const openSSHProject = useAppStore((s) => s.openSSHProject);
 
   // This Mac's version, to tell whether a host has fallen behind it.
   const [appVersion, setAppVersion] = useState("");
@@ -30,6 +33,10 @@ export function LinuxHostsSection({
   return (
     <section className="mt-8">
       <GroupHeader>Linux hosts you connect to</GroupHeader>
+      <p className="mb-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
+        A Linux host runs lpm itself, so one server holds as many projects as you like, and its agents keep running
+        while {MACHINE.thisMachine} sleeps.
+      </p>
       <Group>
         {hosts.map((p) => (
           <PeerRow
@@ -43,6 +50,17 @@ export function LinuxHostsSection({
         <AddLinuxHost refresh={refresh} />
       </Group>
       {hosts.length > 0 && <HostAutoUpdateRow />}
+      <p className="mt-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
+        Only need one folder, with nothing installed on the server?{" "}
+        <button
+          type="button"
+          onClick={openSSHProject}
+          className="font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:underline"
+        >
+          Add an SSH project
+        </button>{" "}
+        instead.
+      </p>
 
       <ConfirmDialog
         open={removePeer !== null}

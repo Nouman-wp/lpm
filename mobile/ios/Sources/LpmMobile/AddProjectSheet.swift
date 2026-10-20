@@ -215,18 +215,18 @@ struct AddProjectSheet: View {
             } header: {
                 Text("Connection")
             } footer: {
-                Text("Creates a project that runs on a remote host. Its services, actions, and terminals run over this connection.")
+                Text("Opens one folder on a server as a project. Its terminals, services, and actions run over SSH, and nothing is installed on the server. Keeping several projects on this server? Set it up as a Linux host in lpm on your Mac instead.")
             }
 
             Section {
                 TextField("Identity file (optional)", text: $draft.identityFile)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                TextField("Remote directory (optional)", text: $draft.remoteDir)
+                TextField("Project folder on the server (optional)", text: $draft.remoteDir)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
             } footer: {
-                Text("Leave the identity file blank to use your existing connection defaults. The remote directory is where the shell will start.")
+                Text("Leave the identity file blank to use your existing connection defaults. Terminals open in the project folder, or the home folder if it's blank. For another folder on this server, add another SSH project.")
             }
         }
     }

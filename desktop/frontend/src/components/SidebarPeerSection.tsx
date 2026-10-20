@@ -18,6 +18,8 @@ import { isMac } from "../platform";
 import { isPeerSectionCollapsed, setPeerSectionCollapsed } from "../peer/peerSectionCollapse";
 import { PeerReconnect, PeerRemotePair, PeerRemove, PeerSetAlias } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
+import { hasPeerListing } from "../peer/route";
+import { SidebarHostEmptyRow } from "./SidebarHostEmptyRow";
 import type { UpdateChannel } from "../store/settings";
 import type { ProjectInfo } from "../types";
 import { useMacUpdateLine } from "../peer/useMacUpdateLine";
@@ -135,6 +137,9 @@ export function SidebarPeerSection({
   };
 
   const rowCount = projects.length + strays.length;
+  // Said only once the machine has answered, so a list still on its way never
+  // reads as an empty one.
+  const empty = rowCount === 0 && status.tone === "live" && hasPeerListing(slug);
   // Folded away, the header is the only thing left to say the open project is in
   // here — the same job a collapsed folder's background does.
   const holdsSelection =
@@ -264,6 +269,7 @@ export function SidebarPeerSection({
     <div className="my-3 first:mt-0">
       {sortableId ? <SortableItem id={sortableId}>{header}</SortableItem> : header}
       {!collapsed && children}
+      {!collapsed && empty && <SidebarHostEmptyRow alias={alias} onAdd={() => addProjectForPeer(slug, alias)} />}
 
       {menu && (
         <PeerContextMenu

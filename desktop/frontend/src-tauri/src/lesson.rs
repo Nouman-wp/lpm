@@ -51,6 +51,26 @@ pub fn lan_address() -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
+/// Whether a recording leaves nearby Macs out of discovery: on the recording
+/// Mac's network they are the owner's own, listed under the owner's name.
+pub fn hides_nearby() -> bool {
+    socket().is_some() && std::env::var("LPM_LESSON_HIDE_NEARBY").is_ok_and(|v| v == "1")
+}
+
+/// The ~/.ssh/config hosts a recording offers when adding an SSH project, in
+/// place of all of the owner's (named after their own servers and clients).
+pub fn ssh_hosts() -> Option<Vec<String>> {
+    socket()?;
+    let names = std::env::var("LPM_LESSON_SSH_HOSTS").ok()?;
+    Some(
+        names
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect(),
+    )
+}
+
 pub fn start(app: AppHandle) {
     let Some(path) = socket() else { return };
     let _ = std::fs::remove_file(&path);

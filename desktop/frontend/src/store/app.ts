@@ -207,6 +207,9 @@ interface AppState {
   // flow — picker, clone modal, folder browser — reads this to route creation to
   // the peer instead of the local machine.
   addProjectTarget: { slug: string; alias: string } | null;
+  // Where the picker opens: "linux-host" goes straight to setting up a server
+  // as a Linux host (from the SSH project form's hint), null to its first screen.
+  addProjectStart: "linux-host" | null;
   remoteFolderPickerOpen: boolean;
   sshModalOpen: boolean;
   addingSSHProject: boolean;
@@ -259,6 +262,8 @@ interface AppState {
   ) => Promise<boolean>;
   addProject: () => void;
   addProjectForPeer: (slug: string, alias: string) => void;
+  setUpLinuxHost: () => void;
+  openSSHProject: () => void;
   closeAddProjectPicker: () => void;
   closeRemoteFolderPicker: () => void;
   createRemoteProjectFromFolder: (hostDir: string) => Promise<void>;
@@ -823,6 +828,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   removingNames: new Set<string>(),
   addProjectPickerOpen: false,
   addProjectTarget: null,
+  addProjectStart: null,
   remoteFolderPickerOpen: false,
   sshModalOpen: false,
   addingSSHProject: false,
@@ -1103,12 +1109,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  addProject: () => set({ addProjectTarget: null, addProjectPickerOpen: true }),
+  addProject: () => set({ addProjectTarget: null, addProjectStart: null, addProjectPickerOpen: true }),
 
   addProjectForPeer: (slug, alias) =>
-    set({ addProjectTarget: { slug, alias }, addProjectPickerOpen: true }),
+    set({ addProjectTarget: { slug, alias }, addProjectStart: null, addProjectPickerOpen: true }),
 
-  closeAddProjectPicker: () => set({ addProjectPickerOpen: false, addProjectTarget: null }),
+  setUpLinuxHost: () =>
+    set({ sshModalOpen: false, addProjectTarget: null, addProjectStart: "linux-host", addProjectPickerOpen: true }),
+
+  openSSHProject: () => set({ sshModalOpen: true }),
+
+  closeAddProjectPicker: () =>
+    set({ addProjectPickerOpen: false, addProjectTarget: null, addProjectStart: null }),
 
   closeRemoteFolderPicker: () =>
     set({ remoteFolderPickerOpen: false, addProjectTarget: null }),

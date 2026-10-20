@@ -14,6 +14,7 @@ import {
   faqJsonLd,
   jsonLdString,
   webPageJsonLd,
+  youtubeLessonJsonLd,
 } from "@/lib/structured-data";
 import AddHostDemo from "./_components/add-host-demo";
 import AfterConnect from "./_components/after-connect";
@@ -22,6 +23,7 @@ import Cta from "./_components/cta";
 import Faq, { FAQ_ITEMS } from "./_components/faq";
 import Hero from "./_components/hero";
 import HowItWorks from "./_components/how-it-works";
+import Lesson from "./_components/lesson";
 import Lifetimes from "./_components/lifetimes";
 import Problem from "./_components/problem";
 import QuickAnswer from "./_components/quick-answer";
@@ -88,6 +90,7 @@ const structuredData = [
     { name: "Run Claude Code on a remote server", path: LINUX_HOST_PATH },
   ]),
   faqJsonLd(FAQ_ITEMS),
+  youtubeLessonJsonLd("claude-code-codex-remote-server"),
 ];
 
 export default function RunOnRemoteServerPage() {
@@ -102,6 +105,7 @@ export default function RunOnRemoteServerPage() {
       <QuickAnswer />
       <Problem />
       <HowItWorks />
+      <Lesson />
       <AfterConnect />
       <Lifetimes />
       <Security />
