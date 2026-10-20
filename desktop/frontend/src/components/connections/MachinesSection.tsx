@@ -12,22 +12,21 @@ import { usePeerSync } from "../../peer/usePeerSync";
 import { machineEntries } from "../../peer/machineEntries";
 import { connectsOnlyToMacs, peerNoun } from "../../peer/platform";
 import { rowProps } from "../../settings-registry";
-import { Group, GroupHeader, Row } from "./GroupedList";
+import { Group, GroupHeader } from "./GroupedList";
 import { PeerMachineRow } from "./PeerMachineRow";
 import { DeviceMachineRow } from "./DeviceMachineRow";
 import { PairingInviteRow } from "./PairingInviteRow";
 import { ClipboardInviteRow } from "./ClipboardInviteRow";
 import { NearbyMacRow } from "./NearbyMacRow";
 import { AddRow } from "./AddRow";
-import { AddMacPanel } from "./AddMacPanel";
+import { AddMachineModal } from "./AddMachineModal";
 import { SyncPreviewModal } from "./SyncPreviewModal";
-import { SECONDARY_BUTTON } from "../mobile/styles";
 import { isMac } from "../../platform";
 import { MACHINE as M } from "../../machineWords";
 
 // Every computer in one list, one row each whichever way they connect: the ones
 // this one opens, the ones that open this one, and the ones that do both. New
-// ones join at the end — found nearby, from the clipboard, or with an invite.
+// ones join at the end — found nearby, from the clipboard, or from Add a Mac.
 export function MachinesSection({
   macs,
   peers,
@@ -51,8 +50,8 @@ export function MachinesSection({
   const entries = machineEntries(macs, host.devices);
   const pairing = !!host.pairing;
 
-  // An invite that pairs folds the add panel away; one that fails leaves it open
-  // with what was typed.
+  // A computer that pairs closes Add a Mac; one that fails leaves it open with
+  // what was typed.
   const closeOnPair = useCallback(async (attempt: Promise<string | null>) => {
     const paired = (await attempt) !== null;
     if (paired) setAddOpen(false);
@@ -83,8 +82,6 @@ export function MachinesSection({
     setOpen(null);
     setAddOpen(true);
   };
-  // With nothing in the list the add panel is the whole point, so it starts open.
-  const panelOpen = addOpen || entries.length === 0;
   const disconnectKeepsAccess =
     !!disconnecting && entries.some((e) => e.peer?.slug === disconnecting.slug && e.device);
 
@@ -148,45 +145,32 @@ export function MachinesSection({
           />
         ))}
 
-        {entries.length > 0 && (
-          <AddRow
-            title={isMac ? "Add a Mac" : "Add a computer"}
-            description="Paste the invite it created, or create one for it."
-            expanded={addOpen}
-            onClick={() => setAddOpen((v) => !v)}
-          />
+        {entries.length === 0 && !host.pairing && (
+          <p className="px-4 py-5 text-center text-[12px] text-[var(--text-muted)]">
+            Nothing connected yet. Add a {isMac ? "Mac" : "computer"} to open its projects here, or to let it open{" "}
+            {M.thisMachine}.
+          </p>
         )}
-        {panelOpen && (
-          <>
-            <AddMacPanel
-              busy={connect.adding}
-              onInvite={(raw) => closeOnPair(connect.connectInvite(raw))}
-              onManual={(address, port, code) => closeOnPair(connect.connectManual(address, port, code))}
-            />
-            {!pairing && (
-              <Row>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] text-[var(--text-primary)]">Let {M.anotherMachine} open this one</p>
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    Create a one-time invite to paste on {M.otherMachine}.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void startPairing()}
-                  disabled={pairingBusy}
-                  className={SECONDARY_BUTTON}
-                >
-                  {pairingBusy ? "Preparing…" : "Create invite"}
-                </button>
-              </Row>
-            )}
-          </>
-        )}
+
+        <AddRow
+          title={isMac ? "Add a Mac" : "Add a computer"}
+          description="Paste the invite it created, or create one for it."
+          onClick={() => setAddOpen(true)}
+        />
       </Group>
 
       {connect.error && <p className="mt-2 px-1 text-[11px] text-[var(--accent-red)]">{connect.error}</p>}
 
+      <AddMachineModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        connect={connect}
+        onPaired={closeOnPair}
+        pairing={host.pairing}
+        pairingBusy={pairingBusy}
+        onCreateInvite={() => void startPairing()}
+        onCancelInvite={() => void cancelPairing()}
+      />
       <ConfirmDialog
         open={disconnecting !== null}
         title={`Disconnect ${disconnecting ? peerNoun(disconnecting) : "Mac"}`}

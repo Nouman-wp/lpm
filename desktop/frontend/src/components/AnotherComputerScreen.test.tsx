@@ -62,7 +62,7 @@ function peers(list: unknown[]) {
 
 // Exact, so "Connect" doesn't match "Connect another computer".
 function button(text: string, exact = true): HTMLButtonElement {
-  const found = [...container.querySelectorAll("button")].find((b) =>
+  const found = [...document.body.querySelectorAll("button")].find((b) =>
     exact ? b.textContent?.trim() === text : b.textContent?.includes(text),
   );
   if (!found) throw new Error(`no button "${text}"`);
@@ -70,7 +70,7 @@ function button(text: string, exact = true): HTMLButtonElement {
 }
 
 function type(text: string) {
-  const input = container.querySelector<HTMLInputElement>('input[placeholder^="Paste invite"]')!;
+  const input = document.body.querySelector<HTMLInputElement>('input[placeholder^="Paste invite"]')!;
   const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
   act(() => {
     setValue.call(input, text);
@@ -145,10 +145,12 @@ describe("AnotherComputerScreen", () => {
   it("goes on to adding a project on a computer added here once it's connected", async () => {
     command("PeerAdd").mockResolvedValue({ slug: STUDIO.slug });
     await act(async () => button("Add a", false).click());
+    expect(document.body.textContent).toContain("Let it open this");
     peers([OFFICE, STUDIO]);
     type(INVITE);
     await act(async () => button("Connect").click());
     await flush();
+    expect(document.body.querySelector('input[placeholder^="Paste invite"]')).toBeNull();
     emit("peer-state-changed");
     await flush();
 

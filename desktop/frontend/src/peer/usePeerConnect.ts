@@ -19,6 +19,8 @@ export interface PendingPairRequest {
   sas: string;
 }
 
+export type PeerConnect = ReturnType<typeof usePeerConnect>;
+
 export interface ClipboardInvite {
   raw: string;
   invite: PeerInvite;
