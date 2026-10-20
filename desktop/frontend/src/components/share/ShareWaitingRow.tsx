@@ -1,3 +1,4 @@
+import { PersonAvatar } from "./PersonAvatar";
 import type { ShareWaiting } from "../../store/tabShares";
 
 export function ShareWaitingRow({
@@ -8,20 +9,19 @@ export function ShareWaitingRow({
   onRespond: (allow: boolean) => void;
 }) {
   return (
-    <div className="flex items-center gap-2.5 px-3 py-2">
-      <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-[var(--accent-yellow)]" />
-      <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-primary)]">
-        {waiting.name}
-        <span className="ml-1.5 text-[11px] text-[var(--text-muted)]">wants to join</span>
-      </span>
-      {waiting.code && (
-        <span
-          title="They see these emoji too"
-          className="shrink-0 rounded-md bg-[var(--bg-secondary)] px-1.5 py-0.5 text-xs"
-        >
-          {waiting.code}
-        </span>
-      )}
+    <div className="flex items-center gap-3 bg-[var(--accent-yellow)]/5 px-3 py-2.5">
+      <PersonAvatar name={waiting.name} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13px] font-medium text-[var(--text-primary)]">
+          {waiting.name}
+          <span className="ml-1.5 text-[11px] font-normal text-[var(--text-muted)]">wants to join</span>
+        </div>
+        {waiting.code && (
+          <div title="They see these emoji too" className="mt-0.5 text-sm tracking-wider">
+            {waiting.code}
+          </div>
+        )}
+      </div>
       <button
         type="button"
         onClick={() => onRespond(false)}

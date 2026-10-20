@@ -28,14 +28,19 @@ export function DefaultDirectoryRow() {
 
   return (
     <>
-      <SettingsRow {...rowProps("general.defaultDir")}>
-        <div className="flex min-w-0 items-center gap-2">
-          <span
-            className="min-w-0 max-w-[180px] truncate font-mono text-xs text-[var(--text-muted)]"
-            title={directory || undefined}
+      <SettingsRow
+        {...rowProps("general.defaultDir")}
+        below={
+          <p
+            className={`mt-1 break-all font-mono text-[11px] ${
+              directory ? "text-[var(--text-secondary)]" : "text-[var(--text-muted)]"
+            }`}
           >
             {directory || "Not set"}
-          </span>
+          </p>
+        }
+      >
+        <div className="flex items-center gap-2">
           {directory && (
             <button
               onClick={() => void update({ defaultProjectDirectory: undefined })}
@@ -45,7 +50,7 @@ export function DefaultDirectoryRow() {
             </button>
           )}
           <button onClick={() => void choose()} className={BTN_SECONDARY}>
-            Choose
+            {directory ? "Change…" : "Choose…"}
           </button>
         </div>
       </SettingsRow>

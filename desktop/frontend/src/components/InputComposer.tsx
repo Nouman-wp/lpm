@@ -110,6 +110,8 @@ interface InputComposerProps {
   aiCwd?: string;
   // When set, a memory button writes an lpm-memory invocation into the prompt.
   memory?: InputComposerMemorySource;
+  // Host controls placed inside the box above the field.
+  header?: ReactNode;
   // Host controls placed on the composer's own footer row, after the built-in
   // buttons, so the box keeps a single row instead of stacking a second one.
   footer?: ReactNode;
@@ -145,6 +147,7 @@ export function InputComposer({
   history,
   aiCwd,
   memory,
+  header,
   footer,
   disabled,
 }: InputComposerProps) {
@@ -772,39 +775,42 @@ export function InputComposer({
       >
         {dragOver && <TerminalDropOverlay compact label="Drop files to add" />}
 
-        <div
-          ref={editorRef}
-          contentEditable={editable}
-          suppressContentEditableWarning
-          role="textbox"
-          aria-multiline="true"
-          aria-label={placeholder}
-          spellCheck={false}
-          autoCorrect="off"
-          autoCapitalize="off"
-          onInput={(e) => {
-            const editor = editorRef.current;
-            if (editor && !(e.nativeEvent as InputEvent).isComposing) normalizeComposer(editor);
-            edits.noteEdit(e.nativeEvent as InputEvent);
-            syncState();
-          }}
-          onCompositionEnd={() => {
-            const editor = editorRef.current;
-            if (editor && normalizeComposer(editor)) syncState();
-          }}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          onCopy={(e) => handleCopyCut(e, false)}
-          onCut={(e) => handleCopyCut(e, true)}
-          onClick={handleClick}
-          className="block max-h-[200px] min-h-[60px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-3 py-2.5 text-[13px] leading-snug text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
-        />
+        {header}
+        <div className="relative">
+          <div
+            ref={editorRef}
+            contentEditable={editable}
+            suppressContentEditableWarning
+            role="textbox"
+            aria-multiline="true"
+            aria-label={placeholder}
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
+            onInput={(e) => {
+              const editor = editorRef.current;
+              if (editor && !(e.nativeEvent as InputEvent).isComposing) normalizeComposer(editor);
+              edits.noteEdit(e.nativeEvent as InputEvent);
+              syncState();
+            }}
+            onCompositionEnd={() => {
+              const editor = editorRef.current;
+              if (editor && normalizeComposer(editor)) syncState();
+            }}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            onCopy={(e) => handleCopyCut(e, false)}
+            onCut={(e) => handleCopyCut(e, true)}
+            onClick={handleClick}
+            className="block max-h-[200px] min-h-[60px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-3 py-2.5 text-[13px] leading-snug text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
+          />
 
-        {blank && placeholder && (
-          <div className="pointer-events-none absolute left-3 top-2.5 whitespace-pre-line text-[13px] leading-snug text-[var(--text-muted)]">
-            {placeholder}
-          </div>
-        )}
+          {blank && placeholder && (
+            <div className="pointer-events-none absolute left-3 top-2.5 whitespace-pre-line text-[13px] leading-snug text-[var(--text-muted)]">
+              {placeholder}
+            </div>
+          )}
+        </div>
 
         <div className="flex items-center justify-start gap-1 px-2 pb-2">
           {DICTATION_AVAILABLE && <ComposerMicButton into={editorRef} disabled={disabled} />}

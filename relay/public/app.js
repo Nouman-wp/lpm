@@ -1,9 +1,12 @@
 import { readInvite } from "./invite.js";
 import { connect, ChannelClosed } from "./channel.js";
 import { createTerminal } from "./terminal.js";
+import { showShare, showStatus } from "./header.js";
+import { greet, panel, show } from "./panel.js";
+import { createAsk } from "./ask.js";
 
 // Joining a shared tab from a browser. The host lets each person in by hand, after
-// checking the four digits shown here match the ones on their screen; once in, the
+// checking the four emoji shown here match the ones on their screen; once in, the
 // guest sees the tab live and types in it only while the host allows it.
 
 // Close codes the relay uses (relay/src/room.ts).
@@ -46,6 +49,7 @@ const seat = {
 };
 
 let channel = null;
+let joining = null;
 let view = null;
 let finished = false;
 let retries = 0;
@@ -53,26 +57,12 @@ let terminalId = "";
 let canType = false;
 let hostName = "";
 let label = "";
+let project = "";
 let end = null;
 let resyncing = false;
 let reqId = 0;
 
-function show(id) {
-  $("panel").hidden = id !== "panel";
-  $("live").hidden = id !== "live";
-}
-
-function panel({ title, text = "", check = "", form = false, again = false }) {
-  show("panel");
-  $("panel-title").textContent = title;
-  $("panel-text").textContent = text;
-  $("check").hidden = !check;
-  $("check-code").textContent = check;
-  $("join-form").hidden = !form;
-  $("again").hidden = !again;
-  $("leave").hidden = true;
-  if (form) $("name").focus();
-}
+const ask = createAsk($("locked"), () => channel?.send({ t: "shareAskType" }));
 
 function notice(text) {
   $("notice").hidden = !text;
@@ -98,6 +88,7 @@ function refusal(code) {
 
 function askName() {
   panel({
+    greet: !!(invite.hostName || invite.label),
     title: "Join a shared tab",
     text: "Someone shared a terminal tab with you from lpm. Say who you are, and they'll let you in.",
     form: true,
@@ -107,15 +98,21 @@ function askName() {
 
 async function join(name) {
   storage.set(localStorage, "lpm-guest-name", name);
-  panel({ title: "Connecting…" });
+  const attempt = { ch: null };
+  const current = () => joining === attempt;
+  joining = attempt;
+  panel({ title: "Connecting…", step: 2, cancel: true });
   let admitted = null;
   const ch = await connect(invite, {
     onFrame(f) {
+      if (!current()) return;
       if (f.t === "shareJoinPending") {
         panel({
-          title: `Waiting for ${f.hostName || "them"} to let you in`,
-          text: "They'll see your request on their screen.",
-          check: f.match === "emoji" ? ch.codes.emoji : ch.codes.digits,
+          title: `Waiting for ${f.hostName || invite.hostName || "them"}`,
+          text: "Your request is on their screen, next to these four.",
+          step: 2,
+          code: f.match === "emoji" ? ch.codes.emoji.split(" ") : [...ch.codes.digits],
+          cancel: true,
         });
       } else if (f.t === "shareJoined") {
         admitted = { guestId: f.guestId, token: f.token };
@@ -124,6 +121,8 @@ async function join(name) {
       }
     },
     onClose() {
+      if (!current()) return;
+      joining = null;
       if (admitted) {
         seat.save(admitted);
         enter(admitted);
@@ -132,12 +131,24 @@ async function join(name) {
       }
     },
   }).catch((e) => {
-    finish("Couldn't ask to join", refusal(e instanceof ChannelClosed ? e.code : 0));
+    if (current()) {
+      joining = null;
+      finish("Couldn't ask to join", refusal(e instanceof ChannelClosed ? e.code : 0));
+    }
     return null;
   });
   if (!ch) return;
-  panel({ title: "Asking to join…" });
+  if (!current()) return ch.close();
+  attempt.ch = ch;
+  panel({ title: "Asking to join…", step: 2, cancel: true });
   ch.send({ t: "shareJoin", secret: invite.secret, name });
+}
+
+// Hanging up takes the request off their screen; nothing is kept.
+function cancelJoin() {
+  joining?.ch?.close();
+  joining = null;
+  askName();
 }
 
 // --- the shared tab --------------------------------------------------------------
@@ -156,14 +167,14 @@ function type(data) {
   channel.send({ t: "invoke", reqId: ++reqId, cmd: "write_terminal", args: { id: terminalId, data } });
 }
 
-// While the host keeps the tab view only, the composer stays in place, inert, so
-// the terminal above doesn't move when typing is switched on.
+// While the host keeps the tab view only, the composer stays in place, inert
+// under the row that asks to type, so the terminal above doesn't move when typing
+// is switched on.
 function setCanType(value) {
   canType = value;
   view?.setCanType(value);
+  $("keys").inert = !value;
   $("box").inert = !value;
-  $("locked").hidden = value;
-  $("locked").firstElementChild.textContent = `${hostName || "The host"} hasn't let you type`;
   syncComposer();
 }
 
@@ -173,6 +184,19 @@ function syncComposer() {
   prompt.style.height = "auto";
   prompt.style.height = `${prompt.scrollHeight}px`;
   $("send").disabled = !canType || !prompt.value.trim();
+}
+
+// A `ready` share or a `shareInfo`. Older hosts leave out all but `canType`, and
+// what's missing keeps its last value.
+function applyShare(info) {
+  const text = (value, fallback) => (typeof value === "string" ? value : fallback);
+  label = text(info.label, label);
+  project = text(info.project, project);
+  const others = Array.isArray(info.others) ? info.others.filter((n) => typeof n === "string" && n) : [];
+  showShare({ hostName, label, project, canType: !!info.canType, others });
+  ask.update({ canType: !!info.canType, asked: !!info.asked, askType: info.askType === true, hostName });
+  setCanType(!!info.canType);
+  document.title = `${label || "Shared tab"} · lpm`;
 }
 
 function subscribe() {
@@ -201,14 +225,12 @@ function onLive(f) {
       retries = 0;
       hostName = f.hostName || "";
       terminalId = f.share?.terminalId ?? "";
-      label = f.share?.label ?? "";
-      $("title").textContent = [label, hostName && `from ${hostName}`].filter(Boolean).join(" ");
-      document.title = `${label || "Shared tab"} · lpm`;
       show("live");
-      $("leave").hidden = false;
       notice("");
+      showStatus(hostName ? `Live from ${hostName}` : "Live", true);
       ensureView();
-      setCanType(!!f.share?.canType);
+      ask.reset();
+      applyShare(f.share ?? {});
       subscribe();
       break;
     }
@@ -230,7 +252,7 @@ function onLive(f) {
       if (f.id === terminalId) view.term.write("\r\n\x1b[90m[This tab's session ended]\x1b[0m\r\n");
       break;
     case "shareInfo":
-      setCanType(!!f.canType);
+      applyShare(f);
       break;
     case "shareEnded":
       finish(ENDED[f.reason] ?? "This shared tab ended.");
@@ -249,7 +271,7 @@ function onLive(f) {
 
 async function enter(admitted) {
   if (finished) return;
-  if (!view) panel({ title: "Opening the tab…" });
+  if ($("live").hidden) panel({ title: "Opening the tab…", step: 3 });
   const ch = await connect(invite, {
     onFrame: onLive,
     onClose(code) {
@@ -272,12 +294,14 @@ function reconnect(admitted, code) {
   if (code === ROOM_ENDED) return finish(ENDED.stopped);
   const wait = Math.min(MAX_RETRY_MS, 1000 * 2 ** retries);
   retries += 1;
-  const text =
-    code === HOST_OFFLINE
-      ? `${hostName || "Their lpm"} is offline. Waiting for it to come back…`
-      : "Reconnecting…";
-  if (view) notice(text);
-  else panel({ title: text });
+  const offline = code === HOST_OFFLINE;
+  if (!$("live").hidden) {
+    showStatus(offline ? `Offline, waiting for ${hostName || "their lpm"}…` : "Reconnecting…", false);
+  } else if (offline) {
+    panel({ title: `${hostName || "Their lpm"} is offline. Waiting for it to come back…` });
+  } else {
+    panel({ title: "Reconnecting…" });
+  }
   setTimeout(() => enter(admitted), wait);
 }
 
@@ -288,6 +312,8 @@ $("join-form").addEventListener("submit", (e) => {
   const name = $("name").value.trim();
   if (name) join(name);
 });
+
+$("cancel").addEventListener("click", cancelJoin);
 
 $("again").addEventListener("click", () => {
   finished = false;
@@ -333,6 +359,7 @@ if (!invite) {
     text: "This tab can only be joined from lpm on their network. Ask them to update lpm and share it again to join from a browser.",
   });
 } else {
+  greet(invite);
   const saved = seat.load();
   if (saved) enter(saved);
   else askName();

@@ -336,15 +336,16 @@ use peer::{
 };
 use sharelink::take_share_join_link;
 use tabshare::{
-    peer_share_remove_guest, peer_share_respond, peer_share_set_can_type, peer_share_start,
-    peer_share_stop, peer_shares,
+    peer_share_decline_ask, peer_share_qr, peer_share_remove_guest, peer_share_respond,
+    peer_share_set_can_type, peer_share_set_guest_can_type, peer_share_start, peer_share_stop,
+    peer_share_take_keyboards, peer_shares,
 };
 use peerclient::{
     peer_add, peer_add_ssh_host, peer_invoke, peer_joined_shares, peer_pair_cancel,
-    peer_pair_request, peer_reconnect, peer_share_join, peer_share_join_cancel, peer_share_leave,
-    peer_remote_pair, peer_remove, peer_set_alias, peer_set_auto_sync, peer_set_enabled,
-    peer_sync_run, peer_sync_status, peer_term_attach, peer_term_detach, peer_uninstall_host,
-    peer_update_host,
+    peer_pair_request, peer_reconnect, peer_remote_pair, peer_remove, peer_set_alias,
+    peer_set_auto_sync, peer_set_enabled, peer_share_ask_type, peer_share_join,
+    peer_share_join_cancel, peer_share_leave, peer_sync_run, peer_sync_status, peer_term_attach,
+    peer_term_detach, peer_uninstall_host, peer_update_host,
 };
 use peerdiscovery::{peer_discovery_start, peer_discovery_stop};
 use peermacupdate::{peer_cancel_mac_update, peer_update_mac};

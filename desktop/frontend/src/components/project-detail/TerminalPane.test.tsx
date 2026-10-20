@@ -10,6 +10,7 @@ import type { TerminalViewHandle } from "../TerminalView";
 
 vi.mock("../../zoneActions", () => ({ setZoneCollapsed: vi.fn() }));
 vi.mock("../TerminalView", () => ({ TerminalView: () => <div data-testid="terminal" /> }));
+vi.mock("./EmptyTerminalState", () => ({ EmptyTerminalState: () => null }));
 vi.mock("../../hooks/useGitStatus", () => ({ useGitStatus: () => ({ status: null }) }));
 vi.mock("../../hooks/useBranchPullRequest", () => ({ useBranchPullRequest: () => null }));
 vi.mock("../BranchSwitcher", () => ({ BranchSwitcher: () => null }));
@@ -50,7 +51,9 @@ function PaneWithRowMenu() {
         onRunAction={() => {}}
         onFooterContextMenu={onFooterContextMenu}
         onNewTerminal={() => {}}
-        onEditConfig={() => {}}
+        sessionHistory={[]}
+        hiddenSessions={new Set()}
+        onResumeRow={() => {}}
         newTabAsked={false}
         onNewTabHandled={() => {}}
       />

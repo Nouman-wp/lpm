@@ -15,6 +15,9 @@ const MAX_COLS: u64 = 2000;
 const MAX_ROWS: u64 = 1000;
 const MAX_TEXT: usize = 120;
 const MAX_TERMINAL_ID: usize = 256;
+const MAX_OTHERS: usize = 16;
+// Four emoji and the spaces between them.
+const MAX_CODE: usize = 16;
 
 static JOIN_GEN: AtomicU64 = AtomicU64::new(0);
 
@@ -44,6 +47,16 @@ pub(crate) struct JoinedShare {
     pub label: String,
     pub project: String,
     pub can_type: bool,
+    // Asked the host to type, with no answer yet. This and the next two are the
+    // host's to say again on every connect, so peer.json leaves them out.
+    #[serde(skip)]
+    pub asked: bool,
+    // The host takes `shareAskType`.
+    #[serde(skip)]
+    pub ask_type: bool,
+    // Who else is watching, as the host last said.
+    #[serde(skip)]
+    pub others: Vec<String>,
     // Why the host ended it ("stopped", "removed", "closed", …); empty while live.
     pub ended: String,
     pub joined_at: i64,
@@ -77,21 +90,31 @@ pub(super) fn reported_size(v: &Value) -> Option<(u16, u16)> {
 
 /// Text from a host this machine never paired with, as it is kept in peer.json.
 fn host_text(s: &str) -> String {
-    s.chars()
-        .filter(|c| !c.is_control())
-        .take(MAX_TEXT)
-        .collect()
+    crate::tabshare::printable(s, MAX_TEXT)
+}
+
+/// What an edit to a joined tab changed: nothing, only what peer.json leaves
+/// out, or what it keeps.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Change {
+    None,
+    Live,
+    Kept,
 }
 
 /// What the host's `ready` and `shareInfo` frames say about the tab, applied to
 /// the stored entry so the sidebar keeps naming it while it's unreachable.
-fn apply_info(j: &mut JoinedShare, info: &Value) -> bool {
-    let before = (
-        j.terminal_id.clone(),
-        j.label.clone(),
-        j.project.clone(),
-        j.can_type,
-    );
+fn apply_info(j: &mut JoinedShare, info: &Value) -> Change {
+    let kept = |j: &JoinedShare| {
+        (
+            j.terminal_id.clone(),
+            j.label.clone(),
+            j.project.clone(),
+            j.can_type,
+        )
+    };
+    let live = |j: &JoinedShare| (j.asked, j.ask_type, j.others.clone());
+    let (kept_before, live_before) = (kept(j), live(j));
     let text = |k: &str| info.get(k).and_then(Value::as_str).map(host_text);
     if let Some(t) = info
         .get("terminalId")
@@ -109,13 +132,28 @@ fn apply_info(j: &mut JoinedShare, info: &Value) -> bool {
     if let Some(c) = info.get("canType").and_then(Value::as_bool) {
         j.can_type = c;
     }
-    before
-        != (
-            j.terminal_id.clone(),
-            j.label.clone(),
-            j.project.clone(),
-            j.can_type,
-        )
+    if let Some(a) = info.get("asked").and_then(Value::as_bool) {
+        j.asked = a;
+    }
+    if let Some(a) = info.get("askType").and_then(Value::as_bool) {
+        j.ask_type = a;
+    }
+    if let Some(others) = info.get("others").and_then(Value::as_array) {
+        j.others = others
+            .iter()
+            .filter_map(Value::as_str)
+            .map(host_text)
+            .filter(|n| !n.is_empty())
+            .take(MAX_OTHERS)
+            .collect();
+    }
+    if kept(j) != kept_before {
+        Change::Kept
+    } else if live(j) != live_before {
+        Change::Live
+    } else {
+        Change::None
+    }
 }
 
 impl PeerClientHub {
@@ -141,20 +179,23 @@ impl PeerClientHub {
             .any(|j| j.slug == slug)
     }
 
-    fn edit_joined(&self, slug: &str, edit: impl FnOnce(&mut JoinedShare) -> bool) {
+    fn edit_joined(&self, slug: &str, edit: impl FnOnce(&mut JoinedShare) -> Change) {
         let mut cfg = self.inner.config.lock().unwrap();
-        let changed = cfg
+        let change = cfg
             .joined
             .iter_mut()
             .find(|j| j.slug == slug)
-            .is_some_and(edit);
-        if !changed {
-            return;
+            .map_or(Change::None, edit);
+        if change == Change::Kept {
+            let snapshot = cfg.clone();
+            drop(cfg);
+            let _ = peer::save_config(&snapshot);
+        } else {
+            drop(cfg);
         }
-        let snapshot = cfg.clone();
-        drop(cfg);
-        let _ = peer::save_config(&snapshot);
-        self.emit_joined_changed();
+        if change != Change::None {
+            self.emit_joined_changed();
+        }
     }
 
     pub(super) fn note_share_info(&self, slug: &str, info: &Value) {
@@ -169,10 +210,10 @@ impl PeerClientHub {
         }
         self.edit_joined(slug, |j| {
             if !j.ended.is_empty() {
-                return false;
+                return Change::None;
             }
             j.ended = host_text(reason);
-            true
+            Change::Kept
         });
         if let Some(conn) = self.inner.conns.lock().unwrap().get(slug) {
             conn.enabled.store(false, Ordering::SeqCst);
@@ -224,6 +265,9 @@ impl PeerClientHub {
                     "label": j.label,
                     "project": j.project,
                     "canType": j.can_type,
+                    "asked": j.asked,
+                    "askType": j.ask_type,
+                    "others": j.others,
                     "connected": connected,
                     "ended": j.ended,
                     "lastError": last_error,
@@ -316,7 +360,12 @@ impl PeerClientHub {
             match s("t").as_str() {
                 "shareJoinPending" => {
                     if let Some(app) = self.app() {
-                        let _ = app.emit(JOIN_PENDING_EVENT, json!({ "hostName": s("hostName") }));
+                        let code = crate::tabshare::printable(&s("code"), MAX_CODE);
+                        let _ = app.emit(
+                            JOIN_PENDING_EVENT,
+                            json!({ "hostName": host_text(&s("hostName")),
+                                "label": host_text(&s("label")), "code": code }),
+                        );
                     }
                 }
                 "shareJoined" => {
@@ -388,6 +437,18 @@ pub fn peer_joined_shares(hub: State<'_, PeerClientHub>) -> Value {
     hub.joined_rows()
 }
 
+/// Ask the host of a joined tab to let this machine type in it.
+#[tauri::command]
+pub fn peer_share_ask_type(hub: State<'_, PeerClientHub>, slug: String) -> Result<(), String> {
+    if !hub.is_joined(&slug) {
+        return Err("This shared tab is no longer here.".into());
+    }
+    if !hub.send_to(&slug, json!({ "t": "shareAskType" }).to_string()) {
+        return Err("Not connected to the host right now.".into());
+    }
+    Ok(())
+}
+
 /// Leave a shared tab, or put away one the host ended. The host is told first,
 /// so it stops listing this machine among the tab's guests.
 #[tauri::command]
@@ -420,18 +481,45 @@ mod tests {
     #[test]
     fn host_info_fills_in_the_stored_tab() {
         let mut j = JoinedShare::default();
-        let changed = apply_info(
+        let change = apply_info(
             &mut j,
             &json!({ "terminalId": "web-1", "label": "claude", "project": "web", "canType": true }),
         );
-        assert!(changed);
+        assert_eq!(change, Change::Kept);
         assert_eq!(
             (j.terminal_id.as_str(), j.label.as_str(), j.can_type),
             ("web-1", "claude", true)
         );
-        assert!(!apply_info(&mut j, &json!({ "canType": true })));
-        assert!(apply_info(&mut j, &json!({ "canType": false })));
+        assert_eq!(
+            apply_info(&mut j, &json!({ "canType": true })),
+            Change::None
+        );
+        assert_eq!(
+            apply_info(&mut j, &json!({ "canType": false })),
+            Change::Kept
+        );
         assert!(!j.can_type);
+    }
+
+    #[test]
+    fn host_info_says_who_else_is_watching() {
+        let mut j = JoinedShare::default();
+        let others: Vec<String> = (0..40).map(|i| format!("Guest {i}")).collect();
+        assert_eq!(
+            apply_info(
+                &mut j,
+                &json!({ "asked": true, "askType": true, "others": others }),
+            ),
+            Change::Live,
+            "peer.json isn't rewritten for who is watching"
+        );
+        assert!(j.asked && j.ask_type);
+        assert_eq!(j.others.len(), MAX_OTHERS);
+        assert_eq!(
+            apply_info(&mut j, &json!({ "others": ["Ben\u{1b}[2J", 7] })),
+            Change::Live
+        );
+        assert_eq!(j.others, ["Ben[2J"]);
     }
 
     // A hostile sharer can claim any size; xterm.js allocates every cell of it.

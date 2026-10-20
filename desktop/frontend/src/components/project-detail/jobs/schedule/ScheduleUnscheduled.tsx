@@ -6,7 +6,7 @@ import {
   TONE_DOT_CLASS,
   type JobInfo,
 } from "../../../../jobsFormat";
-import { relativeTime } from "../../../../relativeTime";
+import { relativeAgo } from "../../../../relativeTime";
 import { jobName } from "../../../../scheduleBoard";
 
 type BoardJob = JobInfo & { project?: string };
@@ -32,11 +32,6 @@ const SCOPE = "shrink-0 truncate text-[11px] text-[var(--text-muted)]";
 const META =
   "mt-0.5 flex items-center gap-1.5 text-[11px] tabular-nums text-[var(--text-muted)]";
 const META_LINE = "mt-0.5 block truncate text-[11px] tabular-nums text-[var(--text-muted)]";
-
-function ageLabel(atSecs: number): string {
-  const age = relativeTime(atSecs);
-  return age === "now" ? "just now" : `${age} ago`;
-}
 
 export function ScheduleUnscheduled({
   jobs,
@@ -81,7 +76,7 @@ export function ScheduleUnscheduled({
                   )}
                   <span className="min-w-0 truncate">
                     {job.lastResult && job.lastRunAt
-                      ? `${jobResultLabel(job.lastResult)}, ${ageLabel(job.lastRunAt)}`
+                      ? `${jobResultLabel(job.lastResult)}, ${relativeAgo(job.lastRunAt)}`
                       : "Never run"}
                   </span>
                 </span>

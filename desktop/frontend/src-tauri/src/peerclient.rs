@@ -27,7 +27,8 @@ mod phone;
 mod share;
 pub(crate) use phone::PhoneChannelError;
 pub(crate) use share::{
-    peer_joined_shares, peer_share_join, peer_share_join_cancel, peer_share_leave, JoinedShare,
+    peer_joined_shares, peer_share_ask_type, peer_share_join, peer_share_join_cancel,
+    peer_share_leave, JoinedShare,
 };
 
 const POLL: Duration = Duration::from_millis(25);

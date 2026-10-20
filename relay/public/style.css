@@ -9,6 +9,11 @@
   --term-bg: #0d1117;
   --term-fg: #e6edf3;
   --warn: #9a5b00;
+  --live: #16a34a;
+  --live-text: #15803d;
+  --progress: #0891b2;
+  --avatar-bg: #ccfbf1;
+  --avatar-fg: #115e59;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
   color-scheme: light dark;
 }
@@ -23,6 +28,11 @@
     --accent: #e8eaed;
     --on-accent: #0b0d10;
     --warn: #f0b45a;
+    --live: #4ade80;
+    --live-text: #86efac;
+    --progress: #22d3ee;
+    --avatar-bg: #134e4a;
+    --avatar-fg: #99f6e4;
   }
 }
 
@@ -42,6 +52,11 @@ body {
   display: flex;
   flex-direction: column;
   height: 100dvh;
+}
+
+p,
+h1 {
+  margin: 0;
 }
 
 [hidden] {
@@ -65,35 +80,15 @@ button:disabled {
   cursor: default;
 }
 
-button.quiet {
-  background: transparent;
-  color: var(--muted);
-  padding: 6px 12px;
-}
-
-.bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  height: 44px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--border);
+.icon {
   flex-shrink: 0;
-}
-
-.brand {
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-.title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  color: var(--muted);
-  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 main {
@@ -103,298 +98,222 @@ main {
   flex-direction: column;
 }
 
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--avatar-bg);
+  color: var(--avatar-fg);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.avatar.large {
+  width: 64px;
+  height: 64px;
+  font-size: 24px;
+}
+
+/* Before and after the tab itself: a column the height of the window, with the
+   bar over joining at the top and its way out at the bottom. */
 .panel {
-  max-width: 460px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
   width: 100%;
-  margin: auto;
-  padding: 32px 16px;
+  max-width: 440px;
+  margin: 0 auto;
+  padding: calc(24px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-right))
+    calc(28px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 20px;
+}
+
+.brand-row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.brand {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.steps {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+}
+
+.steps span {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  transition: background-color 300ms;
+}
+
+.steps .done {
+  background: var(--progress);
+}
+
+.body {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 28px;
   text-align: center;
 }
 
-.eyebrow {
-  margin: 0 0 12px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--muted);
+.greet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
 }
 
-.panel h1 {
-  margin: 0;
+.greet-from {
+  font-size: 15px;
+  color: color-mix(in srgb, var(--text) 72%, var(--bg));
+}
+
+.greet h1,
+.heading h1 {
   font-size: 28px;
   line-height: 1.2;
   letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.heading h1 {
+  font-size: 24px;
+}
+
+.greet-project {
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .lead {
-  margin: 12px 0 0;
-  color: var(--muted);
+  margin-top: 8px;
+  font-size: 15px;
   line-height: 1.5;
+  color: var(--muted);
+  text-wrap: pretty;
 }
 
 .check {
-  margin: 28px auto 0;
-  width: fit-content;
-  max-width: 100%;
-  padding: 10px 16px;
-  border-radius: 14px;
-  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
 }
 
-.check-code {
-  margin: 0;
-  font-size: 20px;
-  line-height: 1.3;
-  letter-spacing: 0.12em;
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tiles span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 110px;
+  border-radius: 20px;
+  background: var(--panel);
+  font-size: 52px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .check-text {
-  margin: 4px 0 0;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--muted);
 }
 
 .join {
-  margin-top: 24px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   text-align: left;
 }
 
 .join label {
   font-size: 13px;
-  color: var(--muted);
+  font-weight: 500;
+  color: color-mix(in srgb, var(--text) 72%, var(--bg));
 }
 
+/* At 17px, iOS doesn't zoom into it on focus. */
 .join input {
-  font: inherit;
-  font-size: 16px;
-  padding: 12px 14px;
-  border-radius: 12px;
+  height: 52px;
+  padding: 0 16px;
   border: 1px solid var(--border);
+  border-radius: 14px;
   background: var(--panel);
   color: var(--text);
+  font: inherit;
+  font-size: 17px;
 }
 
-#again {
-  margin-top: 24px;
-}
-
-.fine {
-  margin: 32px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
-.live {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.frame {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  background: var(--term-bg);
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-}
-
-#term {
-  width: fit-content;
-}
-
-/* Under the terminal, in its colors whatever the page's light or dark, as the
-   desktop app's composer is. */
-.live {
-  --warn: #f0b45a;
-  --composer-fg: var(--term-fg);
-  --composer-fg-muted: color-mix(in srgb, var(--term-fg) 65%, var(--term-bg));
-  --composer-surface: color-mix(in srgb, var(--term-fg) 7%, var(--term-bg));
-  --composer-hover-bg: color-mix(in srgb, var(--term-fg) 8%, transparent);
-  --composer-border: color-mix(in srgb, var(--term-fg) 18%, transparent);
-  --composer-border-focus: color-mix(in srgb, var(--term-fg) 40%, transparent);
-  --composer-inert-bg: color-mix(in srgb, var(--term-fg) 12%, transparent);
-  --send: #60a5fa;
-}
-
-.dock {
-  flex-shrink: 0;
-  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
-  background: var(--term-bg);
-  border-top: 1px solid var(--composer-border);
-}
-
-.notice {
-  max-width: var(--term-width, none);
-  margin: 0 auto 8px;
-  font-size: 13px;
-  color: var(--warn);
-}
-
-.composer {
-  position: relative;
-  max-width: var(--term-width, none);
-  margin: 0 auto;
-}
-
-.box {
-  border: 1px solid var(--composer-border);
-  border-radius: 12px;
-  background: var(--composer-surface);
-  transition:
-    border-color 150ms,
-    opacity 150ms;
-}
-
-.box:focus-within {
-  border-color: var(--composer-border-focus);
-}
-
-.box[inert] {
-  opacity: 0.4;
-}
-
-.composer textarea {
-  display: block;
-  width: 100%;
-  max-height: 200px;
-  resize: none;
-  border: 0;
+.join input:focus {
   outline: none;
-  padding: 6px 14px;
-  background: transparent;
-  color: var(--composer-fg);
-  font:
-    15px/1.5 ui-monospace,
-    "SF Mono",
-    Menlo,
-    Consolas,
-    "Liberation Mono",
-    monospace;
+  border-color: color-mix(in srgb, var(--text) 45%, var(--border));
 }
 
-.composer textarea::placeholder {
-  color: var(--composer-fg-muted);
-  opacity: 1;
-}
-
-.tools {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 8px 4px;
-}
-
-.keys {
-  display: flex;
-  gap: 4px;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.composer button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.big {
   flex-shrink: 0;
-  height: 28px;
-  border-radius: 8px;
-  font-size: 12px;
+  height: 52px;
+  padding: 0 20px;
+  border-radius: 14px;
+  font-size: 16px;
+}
+
+.join .big {
+  margin-top: 6px;
+}
+
+.big.secondary {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
   font-weight: 500;
 }
 
-.composer svg {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.keys button {
-  min-width: 28px;
-  padding: 0 8px;
-  background: transparent;
-  color: var(--composer-fg-muted);
-  transition:
-    background-color 150ms,
-    color 150ms;
-}
-
-.keys svg {
-  stroke-width: 2;
-}
-
-.keys button:active {
-  background: var(--composer-hover-bg);
-  color: var(--composer-fg);
-}
-
-.send {
-  padding: 0 8px 0 10px;
-  background: var(--send);
-  color: var(--term-bg);
-  box-shadow: 0 2px 12px -2px color-mix(in srgb, var(--send) 60%, transparent);
-  transition:
-    background-color 150ms,
-    box-shadow 150ms;
-}
-
-.send svg {
-  transform: rotate(45deg);
-}
-
-.send:disabled {
-  opacity: 1;
-  background: var(--composer-inert-bg);
-  color: var(--composer-fg-muted);
-  box-shadow: none;
-}
-
-@media (hover: hover) {
-  .keys button:hover {
-    background: var(--composer-hover-bg);
-    color: var(--composer-fg);
-  }
-
-  .send:not(:disabled):hover {
-    background: color-mix(in srgb, var(--send) 90%, black);
-  }
-}
-
-/* iOS zooms into a field whose text is under 16px when it takes focus. */
-@media (pointer: coarse) {
-  .composer textarea {
-    font-size: 16px;
-  }
-}
-
-.locked {
-  position: absolute;
-  inset: 0;
-  margin: 0;
+.fine {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
+  align-items: flex-start;
+  gap: 8px;
+  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
 }
 
-.locked span {
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--term-bg) 90%, transparent);
-  color: color-mix(in srgb, var(--term-fg) 80%, var(--term-bg));
-  font-size: 12px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.4);
+.fine .icon {
+  margin-top: 1px;
+}
+
+.keep {
+  white-space: nowrap;
 }

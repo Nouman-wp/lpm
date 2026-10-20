@@ -1,29 +1,21 @@
 import type { MouseEvent } from "react";
 
-// One row of the composer's model menu or its level flyout. The `cursor` state
-// is the menu's own highlight, driven by hover or the arrow keys, and is
-// separate from `checked`, which marks what the terminal is running.
+// One model row of the composer's model menu. `cursor` is the model the level
+// row below belongs to, moved by a click or the arrow keys; `checked` marks
+// what the terminal is running.
 export function ComposerModelMenuRow({
   id,
   label,
-  prefix,
   checked,
   cursor,
-  dim,
-  disabled,
   onMouseDown,
-  onMouseEnter,
   onClick,
 }: {
   id: string;
   label: string;
-  prefix?: string;
   checked: boolean;
   cursor: boolean;
-  dim?: boolean;
-  disabled?: boolean;
   onMouseDown: (e: MouseEvent) => void;
-  onMouseEnter: () => void;
   onClick: () => void;
 }) {
   return (
@@ -32,21 +24,16 @@ export function ComposerModelMenuRow({
       type="button"
       role="menuitemradio"
       aria-checked={checked}
-      aria-disabled={disabled || undefined}
-      disabled={disabled}
       onMouseDown={onMouseDown}
-      onMouseEnter={onMouseEnter}
       onClick={onClick}
       className={`mx-1 flex w-[calc(100%-8px)] items-center gap-2 rounded-md px-2 py-[5px] text-left text-[12.5px] leading-4 transition-colors duration-75 ${
-        cursor ? (dim ? "bg-[var(--bg-hover)]" : "bg-[var(--bg-active)]") : ""
+        cursor ? "bg-[var(--bg-active)]" : "hover:bg-[var(--bg-hover)]"
       } ${
-        disabled
-          ? "cursor-default text-[var(--text-muted)] opacity-40"
-          : checked
-            ? "font-medium text-[var(--text-primary)]"
-            : cursor
-              ? "text-[var(--text-primary)]"
-              : "text-[var(--text-secondary)]"
+        checked
+          ? "font-medium text-[var(--text-primary)]"
+          : cursor
+            ? "text-[var(--text-primary)]"
+            : "text-[var(--text-secondary)]"
       }`}
     >
       {/* A radio mark, not a tick: the row is one choice among alternatives,
@@ -60,10 +47,7 @@ export function ComposerModelMenuRow({
             : "border-[var(--text-muted)] opacity-60"
         }`}
       />
-      <span className="min-w-0 flex-1 truncate">
-        {prefix && <span className="text-[var(--text-muted)] opacity-60">{prefix} </span>}
-        {label}
-      </span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
     </button>
   );
 }

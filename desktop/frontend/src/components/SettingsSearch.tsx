@@ -48,7 +48,7 @@ export function SettingsSearch({
   };
 
   return (
-    <div className="mb-3">
+    <div className="mb-3" data-settings-search>
       <div className="relative">
         <Search
           size={14}

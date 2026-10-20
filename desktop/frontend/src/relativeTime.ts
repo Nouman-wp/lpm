@@ -10,6 +10,13 @@ export function relativeTime(unix: number): string {
   return `${Math.floor(s / 31536000)}y`;
 }
 
+// relativeTime as a phrase: "just now", "5m ago".
+export function relativeAgo(unix: number): string {
+  const t = relativeTime(unix);
+  if (!t) return "";
+  return t === "now" ? "just now" : `${t} ago`;
+}
+
 const STAMP = new Intl.DateTimeFormat(undefined, {
   month: "short",
   day: "numeric",

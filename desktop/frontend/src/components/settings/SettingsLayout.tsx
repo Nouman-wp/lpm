@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useEventListener } from "../../hooks/useEventListener";
+import { useSettingsEscape } from "../../hooks/useSettingsEscape";
 import {
   buildSearchEntries,
   matchSettings,
@@ -11,6 +12,7 @@ import {
 import type { SettingsMachine } from "../../settingsMachine";
 import { shortcutRequirementHint } from "../../shortcutRecord";
 import { useAppStore, type SettingsTab, type View } from "../../store/app";
+import { settingsReturnLabel, useSettingsReturn } from "../../store/settingsReturn";
 import { useSettingsStore } from "../../store/settings";
 import { applyTheme } from "../../theme";
 import { NAV_ICONS } from "./navIcons";
@@ -49,6 +51,8 @@ export function SettingsLayout({
   const activeTab = useAppStore((s) => s.settingsTab);
   const setActiveTab = useAppStore((s) => s.setSettingsTab);
   const setUsageOpen = useAppStore((s) => s.setUsageOpen);
+  const setView = useAppStore((s) => s.setView);
+  const returnView = useSettingsReturn((s) => s.from);
   const [query, setQuery] = useState("");
   const [pendingRevealId, setPendingRevealId] = useState<string | null>(null);
 
@@ -100,10 +104,14 @@ export function SettingsLayout({
   }, [pendingRevealId]);
 
   useEventListener("change", () => applyTheme("system"), darkModeQuery, localTheme === "system");
+  const leave = () => setView(returnView);
+  useSettingsEscape(leave);
 
   return (
-    <div className="-mx-6 flex flex-1 overflow-hidden">
+    <div className="-mx-6 -mb-6 flex flex-1 overflow-hidden">
       <SettingsNav
+        backLabel={settingsReturnLabel(returnView)}
+        onBack={leave}
         picker={picker}
         groups={navGroups}
         activeTab={tab}
@@ -116,7 +124,7 @@ export function SettingsLayout({
       />
 
       <div className="flex-1 overflow-y-auto">
-        <div key={tab} className="settings-pane-in mx-auto max-w-xl px-8 pt-8 pb-10">
+        <div key={tab} className="settings-pane-in mx-auto max-w-2xl px-10 pt-8 pb-10">
           <SettingsPageHeader
             icon={NAV_ICONS[tab]}
             title={TAB_TITLES[tab]}

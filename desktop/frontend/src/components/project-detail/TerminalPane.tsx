@@ -3,6 +3,9 @@ import { TerminalView, type TerminalViewHandle } from "../TerminalView";
 import { TerminalFooter } from "../TerminalFooter";
 import { EmptyTerminalState } from "./EmptyTerminalState";
 import type { PaneStatus } from "../../hooks/usePaneStatus";
+import type { RunActionOpts } from "../../hooks/useProjectActions";
+import type { SessionRow } from "../../agentSessions";
+import type { PersistedHistoryEntry } from "../../terminals";
 import type { TerminalThemeName } from "../../terminal-themes";
 import type { RowItem } from "../../actionsLayoutModel";
 import type { ActionInfo, ActionsLayout, ServiceInfo, ZoneInfo } from "../../types";
@@ -36,13 +39,16 @@ interface TerminalPaneProps {
   onTerminalCountChange: (n: number) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
-  onRunAction: (action: ActionInfo) => void;
+  onRunAction: (action: ActionInfo, opts?: RunActionOpts) => void;
   onActionContextMenu?: (e: MouseEvent, action: ActionInfo) => void;
   onZoneContextMenu?: (e: MouseEvent, zone: ZoneInfo) => void;
   onFooterContextMenu?: (e: MouseEvent<HTMLDivElement>) => void;
   onNewTerminal: () => void;
-  onEditConfig: () => void;
   onResumeSession?: () => void;
+  // The empty state's recent conversations, and how one of them resumes.
+  sessionHistory: PersistedHistoryEntry[];
+  hiddenSessions: ReadonlySet<string>;
+  onResumeRow: (row: SessionRow) => void;
   actions?: ActionInfo[];
   // ⌘T asked the empty state for the "Pick agent and model on +" popup.
   newTabAsked: boolean;
@@ -74,8 +80,10 @@ export function TerminalPane({
   onZoneContextMenu,
   onFooterContextMenu,
   onNewTerminal,
-  onEditConfig,
   onResumeSession,
+  sessionHistory,
+  hiddenSessions,
+  onResumeRow,
   actions,
   newTabAsked,
   onNewTabHandled,
@@ -106,11 +114,17 @@ export function TerminalPane({
       </div>
       {showEmptyState && (
         <EmptyTerminalState
+          projectName={projectName}
           projectLabel={projectLabel}
+          projectRoot={projectRoot}
+          actions={actions ?? []}
+          sessionHistory={sessionHistory}
+          hiddenSessions={hiddenSessions}
+          onResumeRow={onResumeRow}
           onNewTerminal={onNewTerminal}
           onRunCommand={(command) => terminalRef.current?.runCommand(command)}
           onOpenAgent={(launch) => terminalRef.current?.openAgent(launch)}
-          onEditConfig={onEditConfig}
+          onRunAction={onRunAction}
           onResumeSession={onResumeSession}
           newTabAsked={newTabAsked}
           onNewTabHandled={onNewTabHandled}

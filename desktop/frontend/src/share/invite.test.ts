@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeShareInvite, looksLikeShareInvite, shareLink } from "./invite";
+import { decodeShareInvite, looksLikeShareInvite, shareLink, shortShareLink } from "./invite";
 import { decodeInvite } from "../peer/invite";
 
 function encode(payload: unknown): string {
@@ -16,7 +16,25 @@ describe("share invite", () => {
       port: 8766,
       secret: "c2VjcmV0",
       fp: "ab".repeat(32),
+      hostName: "",
+      label: "",
+      project: "",
     });
+  });
+
+  it("reads the names it greets with, printable and short", () => {
+    const invite = decodeShareInvite(
+      encode({ ...FULL, n: "Maya's MacBook Pro", l: "claude\u001b[2J", j: "x".repeat(100) }),
+    );
+    expect(invite?.hostName).toBe("Maya's MacBook Pro");
+    expect(invite?.label).toBe("claude[2J");
+    expect(invite?.project).toHaveLength(64);
+    expect(decodeShareInvite(encode({ ...FULL, n: 7 }))?.hostName).toBe("");
+  });
+
+  it("shortens a link to its site and last few characters", () => {
+    expect(shortShareLink("https://lpm.cx/join#eyJ2IjoxLCJoIjpbx7Kq")).toBe("lpm.cx/join#…x7Kq");
+    expect(shortShareLink("https://lpm.cx/join")).toBe("lpm.cx/join");
   });
 
   it("tolerates whitespace from a paste", () => {

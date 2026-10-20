@@ -54,6 +54,7 @@ import { usePeerAutoSyncToasts } from "./peer/usePeerAutoSyncToasts";
 import { usePeerFileSaveNotices } from "./peer/usePeerFileSaveNotices";
 import { usePeerState } from "./peer/usePeerState";
 import { useSettingsMachine } from "./components/settings/useSettingsMachine";
+import { isSettingsView, useTrackSettingsReturn } from "./store/settingsReturn";
 import { peerStatus } from "./peer/peerStatus";
 import { isPeerName, peerSlugOf } from "./peer/markers";
 import { publishPeerSnapshot } from "./peer/retainedSessions";
@@ -134,13 +135,9 @@ export default function App() {
   const isFleetView = view === "fleet";
   const isStatsView = view === "stats";
   const isScheduledView = view === "scheduled";
-  const isSettingsView =
-    view !== "projects" &&
-    view !== "terminals" &&
-    view !== "fleet" &&
-    view !== "stats" &&
-    view !== "scheduled" &&
-    view !== "shared";
+  // Settings and the pages it opens take the project sidebar's place.
+  const settingsShown = isSettingsView(view);
+  useTrackSettingsReturn(view);
   const isMobileSettings = view === "settings" && settingsTab === "mobile";
   const selectedProject = projects.find((p) => p.name === selected) || null;
 
@@ -196,7 +193,7 @@ export default function App() {
 
   useKeyboardShortcut({ key: "b", meta: true }, () => {
     setSidebarCollapsed((v) => !v);
-  });
+  }, !settingsShown);
 
   useKeyboardShortcut(PROJECT_JUMP_SHORTCUTS, (_e, matched) => {
     const project = projects[Number(matched.key) - 1];
@@ -276,7 +273,7 @@ export default function App() {
           groups={groups}
           sidebarOrder={sidebarOrder}
           selected={view === "projects" ? selected : null}
-          collapsed={sidebarCollapsed}
+          collapsed={sidebarCollapsed || settingsShown}
           onCollapsedChange={setSidebarCollapsed}
           onSelect={handleSelect}
           onOpenProjectView={openProjectDetailView}
@@ -319,14 +316,18 @@ export default function App() {
           showUsage={usageOpen}
           showMobile={isMobileSettings}
           showScheduled={isScheduledView}
-          showSettings={isSettingsView}
+          showSettings={settingsShown}
           duplicatingNames={duplicatingNames}
           pendingDuplicates={pendingDuplicates}
           removingNames={removingNames}
         />
-        <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
+        <main
+          className={`flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6 ${
+            settingsShown && view !== "settings" ? "pt-5 native-chrome:pt-0" : ""
+          }`}
+        >
           <MainTopBar
-            sidebarCollapsed={sidebarCollapsed}
+            sidebarCollapsed={sidebarCollapsed && !settingsShown}
             isFullscreen={isFullscreen}
             onExpand={() => setSidebarCollapsed(false)}
           />

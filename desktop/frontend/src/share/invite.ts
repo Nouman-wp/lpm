@@ -11,7 +11,14 @@ export interface ShareInvite {
   port: number;
   secret: string;
   fp: string;
+  // What the invite says it opens, to greet with before joining; "" from an
+  // older lpm, which didn't say.
+  hostName: string;
+  label: string;
+  project: string;
 }
+
+const MAX_SHOWN = 64;
 
 export const SHARE_INVITE_PREFIX = "lpm-share:";
 
@@ -60,5 +67,17 @@ export function decodeShareInvite(input: unknown): ShareInvite | null {
   const secret = typeof o.s === "string" ? o.s : "";
   const fp = typeof o.f === "string" ? o.f : "";
   if (hosts.length === 0 || port === null || !secret || !fp) return null;
-  return { hosts, port, secret, fp };
+  return { hosts, port, secret, fp, hostName: shown(o.n), label: shown(o.l), project: shown(o.j) };
+}
+
+function shown(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return Array.from(value.replace(/\p{Cc}/gu, "")).slice(0, MAX_SHOWN).join("").trim();
+}
+
+// The link as the share popover shows it: short enough to read, the end kept
+// so two links can be told apart.
+export function shortShareLink(link: string): string {
+  const [base, payload = ""] = link.replace(/^https?:\/\//, "").split("#");
+  return payload ? `${base}#…${payload.slice(-4)}` : base;
 }

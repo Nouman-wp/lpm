@@ -4,7 +4,7 @@ import {
   TONE_DOT_CLASS,
   type JobInfo,
 } from "../../../../jobsFormat";
-import { relativeTime } from "../../../../relativeTime";
+import { relativeAgo } from "../../../../relativeTime";
 import { formatClock, jobName, type RecentRun } from "../../../../scheduleBoard";
 
 type BoardJob = JobInfo & { project?: string };
@@ -42,11 +42,6 @@ function stamp(atSecs: number, now: number): string {
   return `${WEEKDAY.format(new Date(atSecs * 1000))} ${clock}`;
 }
 
-function ageLabel(atSecs: number): string {
-  const age = relativeTime(atSecs);
-  return age === "now" ? "just now" : `${age} ago`;
-}
-
 export function ScheduleRecent({ runs, now, onOpen }: ScheduleRecentProps) {
   return (
     <aside className={PANEL}>
@@ -67,7 +62,7 @@ export function ScheduleRecent({ runs, now, onOpen }: ScheduleRecentProps) {
               key={run.key}
               type="button"
               onClick={() => onOpen(job)}
-              title={`${jobName(job)} — ${outcome}, ${ageLabel(run.at)}`}
+              title={`${jobName(job)} — ${outcome}, ${relativeAgo(run.at)}`}
               className={`${ROW} ${
                 unread > 0
                   ? "bg-[color-mix(in_srgb,var(--accent-blue)_8%,var(--bg-primary))]"
@@ -106,7 +101,7 @@ export function ScheduleRecent({ runs, now, onOpen }: ScheduleRecentProps) {
                   {unread > 0 ? `${unread > 9 ? "9+" : unread} new` : outcome}
                 </span>
                 <span className="shrink-0 whitespace-nowrap text-[var(--text-muted)]">
-                  · {ageLabel(run.at)}
+                  · {relativeAgo(run.at)}
                 </span>
               </span>
             </button>

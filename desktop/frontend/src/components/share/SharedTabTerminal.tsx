@@ -12,12 +12,15 @@ import { useTerminalTheme } from "../../hooks/useTerminalTheme";
 import { getTerminalThemeColors } from "../../terminal-themes";
 import { nextFontSize, type FitState } from "../../share/fitFont";
 import { deliverInput, type DeliveryTarget } from "../terminal/deliverInput";
+import { bufferToPlainText } from "../terminal/consoleActions";
 
 export interface SharedTabTerminalHandle {
   // The composer's send: false when it can't be delivered (typing is off, the
   // tab ended, or a send is still going), so the draft is kept.
   submitInput: (input: string | string[]) => boolean;
   focus: () => void;
+  // Everything the terminal holds, scrollback included, as plain text.
+  text: () => string;
 }
 
 // A tab someone shared with this machine. It always renders at the host's
@@ -179,6 +182,7 @@ export function SharedTabTerminal({
         return canTypeRef.current && delivery ? deliverInput(delivery, terminalId, input) : false;
       },
       focus: () => termRef.current?.focus(),
+      text: () => (termRef.current ? bufferToPlainText(termRef.current) : ""),
     }),
     [terminalId],
   );

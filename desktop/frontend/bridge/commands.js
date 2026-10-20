@@ -1205,14 +1205,29 @@ export function PeerShareSetCanType(id, canType) {
 export function PeerShareRemoveGuest(id, guest) {
   return invoke("peer_share_remove_guest", { id, guest });
 }
-export function PeerShareRespond(request, allow) {
-  return invoke("peer_share_respond", { request, allow });
+export function PeerShareSetGuestCanType(id, guest, canType) {
+  return invoke("peer_share_set_guest_can_type", { id, guest, canType });
+}
+export function PeerShareTakeKeyboards(id) {
+  return invoke("peer_share_take_keyboards", { id });
+}
+export function PeerShareDeclineAsk(id, guest) {
+  return invoke("peer_share_decline_ask", { id, guest });
+}
+export function PeerShareQr(link) {
+  return invoke("peer_share_qr", { link });
+}
+export function PeerShareRespond(request, allow, canType) {
+  return invoke("peer_share_respond", { request, allow, canType });
 }
 export function PeerShareJoin(hosts, port, secret, fp) {
   return invoke("peer_share_join", { hosts, port, secret, fp });
 }
 export function PeerShareJoinCancel() {
   return invoke("peer_share_join_cancel");
+}
+export function PeerShareAskType(slug) {
+  return invoke("peer_share_ask_type", { slug });
 }
 export function PeerJoinedShares() {
   return invoke("peer_joined_shares");

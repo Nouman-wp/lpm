@@ -8,13 +8,25 @@ interface LauncherRowProps {
   // The second line is a command, shown as one.
   mono?: boolean;
   active: boolean;
+  // Off where ↵ doesn't open the row under the cursor.
+  enterHint?: boolean;
   trailing?: ReactNode;
   onPoint: () => void;
   onChoose: () => void;
 }
 
 // One place the + popup opens; ↵ opens the one the cursor rests on.
-export function LauncherRow({ label, leading, sub, mono, active, trailing, onPoint, onChoose }: LauncherRowProps) {
+export function LauncherRow({
+  label,
+  leading,
+  sub,
+  mono,
+  active,
+  enterHint = true,
+  trailing,
+  onPoint,
+  onChoose,
+}: LauncherRowProps) {
   return (
     <div
       onPointerMove={onPoint}
@@ -50,7 +62,7 @@ export function LauncherRow({ label, leading, sub, mono, active, trailing, onPoi
         </span>
       </button>
       {trailing}
-      {active && (
+      {active && enterHint && (
         <kbd
           aria-hidden
           className="grid h-5 min-w-5 shrink-0 place-items-center rounded border border-[var(--border)] px-1 font-sans text-[11px] text-[var(--text-secondary)]"

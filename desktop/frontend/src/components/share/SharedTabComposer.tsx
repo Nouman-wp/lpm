@@ -2,6 +2,7 @@ import type { RefObject } from "react";
 import { TerminalComposer } from "../TerminalComposer";
 import { ComposerReopenBar } from "../ComposerReopenBar";
 import { useComposerStore } from "../../store/composer";
+import { AskToType } from "./AskToType";
 import type { SharedTabTerminalHandle } from "./SharedTabTerminal";
 
 const noop = () => {};
@@ -9,19 +10,25 @@ const noop = () => {};
 // The prompt box under a shared tab: the one a local agent tab has, opened and
 // closed with it, sending text only. While the host keeps the tab view only it
 // stays in place, inert, so the terminal above doesn't move when typing is
-// switched on.
+// switched on, with a way to ask for it on top.
 export function SharedTabComposer({
+  slug,
   terminalId,
   label,
   hostName,
   canType,
+  asked,
+  askable,
   fontSize,
   terminal,
 }: {
+  slug: string;
   terminalId: string;
   label: string;
   hostName: string;
   canType: boolean;
+  asked: boolean;
+  askable: boolean;
   fontSize: number;
   terminal: RefObject<SharedTabTerminalHandle | null>;
 }) {
@@ -54,10 +61,8 @@ export function SharedTabComposer({
         />
       </div>
       {!canType && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="rounded-full bg-[var(--bg-primary)]/90 px-3 py-1 text-xs text-[var(--text-secondary)] shadow">
-            {hostName} hasn't let you type
-          </span>
+        <div className="absolute inset-0 flex items-center justify-center px-3">
+          <AskToType slug={slug} hostName={hostName} asked={asked} askable={askable} />
         </div>
       )}
     </div>

@@ -30,6 +30,8 @@ export function ContextMenuShell({
   const ref = useOutsideClick<HTMLDivElement>(onClose);
   useEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+      // Marks the key as spent, so a page that also leaves on Escape stays put.
+      e.preventDefault();
       onClose();
       return;
     }

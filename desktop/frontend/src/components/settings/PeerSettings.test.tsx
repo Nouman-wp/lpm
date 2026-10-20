@@ -51,7 +51,7 @@ const toggle = (label: string) =>
 const buttonNamed = (name: string) =>
   [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === name);
 const navTabs = () =>
-  [...document.querySelectorAll("nav button")].map((b) => b.textContent?.trim());
+  [...document.querySelectorAll("nav button:not([data-settings-back])")].map((b) => b.textContent?.trim());
 
 beforeEach(() => {
   mocks.settingsGet.mockReset();

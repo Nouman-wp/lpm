@@ -869,7 +869,6 @@ export function ProjectDetail({
           actions={project.actions}
           newTabAsked={newTabAsked}
           onNewTabHandled={clearNewTabAsked}
-          onEditConfig={() => switchDetailView("config")}
           themeStyle={themeStyle}
           terminalRef={terminalRef}
           projectName={project.name}
@@ -890,6 +889,9 @@ export function ProjectDetail({
           onZoneContextMenu={handleZoneContextMenu}
           onFooterContextMenu={rowMenu.onFooterContextMenu}
           onResumeSession={handleOpenHistory}
+          sessionHistory={historyEntries}
+          hiddenSessions={hiddenSessions}
+          onResumeRow={handleResumeSession}
         />
 
         {detailView === "config" && (

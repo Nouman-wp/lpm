@@ -52,6 +52,15 @@ fn match_code(hash: &[u8]) -> String {
         .join(" ")
 }
 
+/// Four emoji for one lpm guest's request to join, which has no handshake of its
+/// own to derive them from: the host hands them to the asker over the pinned
+/// connection, and asks which ones they see.
+pub(crate) fn spoken_code() -> String {
+    let mut hash = [0u8; 3];
+    getrandom::fill(&mut hash).expect("csprng");
+    match_code(&hash)
+}
+
 pub(crate) struct Accepted {
     pub session: Session,
     pub reply: Vec<u8>,

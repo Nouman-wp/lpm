@@ -1,0 +1,350 @@
+.live {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* On a narrow screen the other people take a line of their own. */
+.live-bar {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 10px
+    calc(16px + env(safe-area-inset-left));
+  border-bottom: 1px solid var(--border);
+}
+
+.who {
+  flex: 1;
+  min-width: 0;
+}
+
+.who-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.project {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 1px;
+  font-size: 12px;
+  color: var(--warn);
+}
+
+.status::before {
+  content: "";
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status.connected {
+  color: var(--live-text);
+}
+
+.status.connected::before {
+  background: var(--live);
+}
+
+.status span,
+.others span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.others {
+  order: 1;
+  flex-basis: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 40px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.access {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.access.on {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
+}
+
+.leave {
+  flex-shrink: 0;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+@media (min-width: 640px) {
+  .others {
+    order: 0;
+    flex-basis: auto;
+    max-width: 40%;
+    padding-left: 0;
+  }
+}
+
+.frame {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--term-bg);
+  display: flex;
+  align-items: flex-start;
+}
+
+/* Auto margins center it, but unlike justify-content they never push a terminal
+   wider than the screen past its left edge, where it couldn't be scrolled to. */
+#term {
+  width: fit-content;
+  margin-inline: auto;
+}
+
+/* Under the terminal, in its colors whatever the page's light or dark, as the
+   desktop app's composer is. */
+.dock {
+  --warn: #f0b45a;
+  --composer-fg: var(--term-fg);
+  --composer-fg-muted: color-mix(in srgb, var(--term-fg) 65%, var(--term-bg));
+  --composer-surface: color-mix(in srgb, var(--term-fg) 7%, var(--term-bg));
+  --composer-key: color-mix(in srgb, var(--term-fg) 12%, var(--term-bg));
+  --composer-key-active: color-mix(in srgb, var(--term-fg) 20%, var(--term-bg));
+  --composer-border: color-mix(in srgb, var(--term-fg) 18%, transparent);
+  --composer-border-focus: color-mix(in srgb, var(--term-fg) 40%, transparent);
+  --composer-inert-bg: color-mix(in srgb, var(--term-fg) 12%, transparent);
+  --send: #60a5fa;
+  --ask: #0e7490;
+  flex-shrink: 0;
+  padding: 10px calc(12px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom))
+    calc(12px + env(safe-area-inset-left));
+  background: var(--term-bg);
+  border-top: 1px solid var(--composer-border);
+}
+
+.notice {
+  max-width: var(--term-width, none);
+  margin: 0 auto 8px;
+  font-size: 13px;
+  color: var(--warn);
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: var(--term-width, none);
+  margin: 0 auto;
+}
+
+.composer button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.composer svg {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Keys a phone's keyboard doesn't have, just above it. */
+.keys {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  transition: opacity 150ms;
+}
+
+.keys[inert] {
+  opacity: 0.45;
+}
+
+.keys button {
+  flex: 1 0 auto;
+  min-width: 44px;
+  max-width: 96px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: var(--composer-key);
+  color: var(--composer-fg);
+  transition: background-color 150ms;
+}
+
+.keys button:active {
+  background: var(--composer-key-active);
+}
+
+.entry {
+  position: relative;
+}
+
+.box {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-height: 52px;
+  padding: 7px;
+  border: 1px solid var(--composer-border);
+  border-radius: 14px;
+  background: var(--composer-surface);
+  transition: border-color 150ms;
+}
+
+.box:focus-within {
+  border-color: var(--composer-border-focus);
+}
+
+.composer textarea {
+  flex: 1;
+  align-self: center;
+  min-width: 0;
+  max-height: 200px;
+  resize: none;
+  border: 0;
+  outline: none;
+  padding: 4px 0 4px 7px;
+  background: transparent;
+  color: var(--composer-fg);
+  font:
+    15px/1.5 ui-monospace,
+    "SF Mono",
+    Menlo,
+    Consolas,
+    "Liberation Mono",
+    monospace;
+}
+
+.composer textarea::placeholder {
+  color: var(--composer-fg-muted);
+  opacity: 1;
+}
+
+/* iOS zooms into a field whose text is under 16px when it takes focus. */
+@media (pointer: coarse) {
+  .composer textarea {
+    font-size: 16px;
+  }
+}
+
+.send {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--send);
+  color: var(--term-bg);
+  box-shadow: 0 2px 12px -2px color-mix(in srgb, var(--send) 60%, transparent);
+  transition:
+    background-color 150ms,
+    box-shadow 150ms;
+}
+
+.send svg {
+  transform: rotate(45deg);
+}
+
+.send:disabled {
+  opacity: 1;
+  background: var(--composer-inert-bg);
+  color: var(--composer-fg-muted);
+  box-shadow: none;
+}
+
+/* Over the inert composer, its size, so nothing moves when typing is allowed. */
+.locked {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 7px 0 14px;
+  border: 1px solid var(--composer-border);
+  border-radius: 14px;
+  background: var(--composer-surface);
+  color: var(--composer-fg-muted);
+  font-size: 13px;
+}
+
+.locked-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.locked .ask {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: var(--ask);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.locked .ask:disabled {
+  opacity: 1;
+  background: var(--composer-inert-bg);
+  color: var(--composer-fg-muted);
+}
+
+@media (hover: hover) {
+  .keys button:hover {
+    background: var(--composer-key-active);
+  }
+
+  .send:not(:disabled):hover {
+    background: color-mix(in srgb, var(--send) 90%, black);
+  }
+
+  .locked .ask:not(:disabled):hover {
+    background: color-mix(in srgb, var(--ask) 88%, white);
+  }
+}

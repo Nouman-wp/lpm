@@ -14,15 +14,8 @@ import { useOverlay } from "../../store/overlay";
 import { useSettingsStore } from "../../store/settings";
 import { chordLabel } from "../../keys";
 import { AI_CLI_OPTIONS, type AICLI } from "../../types";
-import {
-  loadNewTabMemory,
-  newTabModelLabel,
-  saveNewTabMemory,
-  type NewTabDestination,
-  type NewTabMemory,
-  type NewTabPick,
-} from "../../newTabPick";
-import type { RemoteAgentLaunch } from "../../remoteAgentTabs";
+import { newTabModelLabel, type NewTabDestination } from "../../newTabPick";
+import { useNewTabMemory, type NewTabTargets } from "../../hooks/useNewTabMemory";
 import { HistoryIcon, TerminalIcon } from "../icons";
 import { AgentGlyph } from "./AgentGlyph";
 import { LauncherModelChip } from "./LauncherModelChip";
@@ -36,7 +29,7 @@ const CAPTION =
 
 type Destination = NewTabDestination | "resume";
 
-export interface NewTabPopupProps {
+export interface NewTabPopupProps extends NewTabTargets {
   anchorRef: RefObject<HTMLElement | null>;
   // Bumped when it was opened on purpose (a click, ⌘T, right-click, ↓), so the
   // prompt takes the keyboard; 0 while it only shows on hover.
@@ -45,10 +38,6 @@ export interface NewTabPopupProps {
   // Clicking or typing inside: leaving it no longer closes it.
   onPin: () => void;
   onClose: () => void;
-  onNewTerminal: () => void;
-  // What was typed, run in a new terminal.
-  onRunCommand: (command: string) => void;
-  onOpenAgent: (launch: RemoteAgentLaunch) => void;
   onResumeSession?: () => void;
 }
 
@@ -75,7 +64,7 @@ export function NewTabPopup({
   onResumeSession,
 }: NewTabPopupProps) {
   const [style, setStyle] = useState<CSSProperties | null>(null);
-  const [memory, setMemory] = useState<NewTabMemory>(loadNewTabMemory);
+  const { memory, changePick, launch } = useNewTabMemory({ onNewTerminal, onRunCommand, onOpenAgent });
   const [cursor, setCursor] = useState<Destination>(memory.last);
   const [expanded, setExpanded] = useState<AICLI | null>(null);
   const [text, setText] = useState("");
@@ -123,20 +112,10 @@ export function NewTabPopup({
     ...(onResumeSession ? (["resume"] as const) : []),
   ];
 
-  const changePick = (pick: NewTabPick) => {
-    const next = { ...memory, picks: { ...memory.picks, [pick.agent]: pick } };
-    setMemory(next);
-    saveNewTabMemory(next);
-  };
-
   const choose = (destination: Destination) => {
-    if (destination !== "resume") saveNewTabMemory({ ...memory, last: destination });
     onClose();
     if (destination === "resume") onResumeSession?.();
-    else if (destination !== "terminal") {
-      onOpenAgent({ ...memory.picks[destination], prompt: command || undefined });
-    } else if (command) onRunCommand(command);
-    else onNewTerminal();
+    else launch(destination, command);
   };
 
   const toggleExpanded = (agent: AICLI) => {

@@ -1,13 +1,13 @@
 // A guest's connection: someone a tab was shared with (tabshare.rs).
 //
 // It shares the listener, the TLS identity and the terminal rings with paired
-// machines, and nothing else. Its loop answers four frames, each checked against
+// machines, and nothing else. Its loop answers five frames, each checked against
 // the share on every use, so stopping a share or removing a guest takes effect
 // on the next frame rather than the next connection. It is never handed an
 // event, and never reaches the generic command proxy.
 use super::guestlink::{drain, GuestLink, Incoming};
 use super::*;
-use crate::tabshare::{self, GuestSession};
+use crate::tabshare::{self, Answer, GuestSession, Via};
 
 const REFUSED: &str = "Only the shared tab is open to you.";
 const VIEW_ONLY: &str = "The host hasn't let you type in this tab.";
@@ -85,18 +85,26 @@ pub(super) fn join<L: GuestLink>(link: &mut L, app: &AppHandle, v: &Value) {
     }
     let secret = v.get("secret").and_then(Value::as_str).unwrap_or_default();
     let name = v.get("name").and_then(Value::as_str).unwrap_or_default();
-    let ticket = match tabshare::begin_join(app, secret, name, link.match_code()) {
+    // A browser derives its four emoji from the handshake; lpm is handed four
+    // made for this request, over a connection pinned to this machine.
+    let (code, via) = match link.match_code() {
+        Some(code) => (code.to_string(), Via::Browser),
+        None => (crate::sharenoise::spoken_code(), Via::Lpm),
+    };
+    let ticket = match tabshare::begin_join(app, secret, name, &code, via) {
         Ok(ticket) => ticket,
         Err(refusal) => {
             let _ = link.send_text(error_frame(refusal.message()));
             return;
         }
     };
-    let mut pending = json!({ "t": "shareJoinPending", "hostName": machine_name() });
+    let mut pending =
+        json!({ "t": "shareJoinPending", "hostName": machine_name(), "label": ticket.label });
     // Unless told this machine shows emoji, a browser shows the four digits lpm
     // 0.7.26 did.
-    if link.match_code().is_some() {
-        pending["match"] = json!("emoji");
+    match via {
+        Via::Browser => pending["match"] = json!("emoji"),
+        Via::Lpm => pending["code"] = json!(code),
     }
     let _ = send(link, pending);
     if let Some(win) = app.get_webview_window("main") {
@@ -107,8 +115,8 @@ pub(super) fn join<L: GuestLink>(link: &mut L, app: &AppHandle, v: &Value) {
     let deadline = Instant::now() + PAIR_APPROVE_WINDOW;
     let decision = loop {
         match ticket.decision.try_recv() {
-            Ok(allow) => break Some(allow),
-            Err(TryRecvError::Disconnected) => break Some(false),
+            Ok(answer) => break Some(answer),
+            Err(TryRecvError::Disconnected) => break Some(Answer::Deny),
             Err(TryRecvError::Empty) => {}
         }
         if Instant::now() >= deadline {
@@ -120,14 +128,18 @@ pub(super) fn join<L: GuestLink>(link: &mut L, app: &AppHandle, v: &Value) {
     };
     tabshare::abandon_join(app, &ticket.id);
     let reply = match decision {
-        Some(true) => match tabshare::admit(app, &ticket.share, name) {
-            Some((guest, token)) => json!({ "t": "shareJoined", "guestId": guest, "token": token,
-                "hostName": machine_name() }),
-            None => {
-                json!({ "t": "error", "error": tabshare::JoinRefusal::UnknownInvite.message() })
+        Some(Answer::LetIn { can_type }) => {
+            match tabshare::admit(app, &ticket.share, name, via, can_type) {
+                Some((guest, token)) => {
+                    json!({ "t": "shareJoined", "guestId": guest, "token": token,
+                "hostName": machine_name() })
+                }
+                None => {
+                    json!({ "t": "error", "error": tabshare::JoinRefusal::UnknownInvite.message() })
+                }
             }
-        },
-        Some(false) => json!({ "t": "error", "error": "The host didn't let you in." }),
+        }
+        Some(Answer::Deny) => json!({ "t": "error", "error": "The host didn't let you in." }),
         None => json!({ "t": "error", "error": "The host didn't answer in time." }),
     };
     let _ = send(link, reply);
@@ -248,7 +260,9 @@ fn handle<L: GuestLink>(
                 "write_terminal" if tabshare::may_type(session, id) => {
                     answer_soon(ECHO_WITHIN);
                     let data = args.get("data").and_then(Value::as_str).unwrap_or_default();
-                    pty::remote_write(app, id, data).map(|_| Value::Null)
+                    let written = pty::remote_write(app, id, data).map(|_| Value::Null);
+                    tabshare::typed(app, session);
+                    written
                 }
                 "write_terminal" if tabshare::may_watch(session, id) => Err(VIEW_ONLY.to_string()),
                 "terminal_exists" if tabshare::may_watch(session, id) => Ok(Value::Bool(
@@ -262,6 +276,7 @@ fn handle<L: GuestLink>(
             };
             link.send_text(frame)?;
         }
+        "shareAskType" => tabshare::ask_type(app, session),
         "forget" => {
             tabshare::leave(app, session);
             return Err(());

@@ -68,6 +68,7 @@ import { canForkSession } from "../forkSession";
 import { actionTextColor } from "../actionColors";
 import { SendLaterTabMark } from "./SendLaterTabMark";
 import { SharedTabMark } from "./share/SharedTabMark";
+import { PaneShareButton } from "./share/PaneShareButton";
 import { useTabShares } from "../store/tabShares";
 import { chordLabel } from "../keys";
 import { isMac } from "../platform";
@@ -598,6 +599,13 @@ function PaneViewImpl(props: PaneViewProps) {
               onReset={paneActions.reset}
             />
           )}
+          {composerTab && !projectPeer && (
+            <PaneShareButton
+              terminalId={composerTab.id}
+              project={projectName}
+              label={terminalDisplayLabel(composerTab)}
+            />
+          )}
           <Tooltip
             content={
               <>
@@ -854,6 +862,7 @@ function PaneViewImpl(props: PaneViewProps) {
                 terminalId: tab.id,
                 project: projectName,
                 label: terminalDisplayLabel(tab),
+                anchor: { left: tabMenu.x, top: tabMenu.y, right: tabMenu.x, bottom: tabMenu.y },
               })
             }
             canFork={forkable}

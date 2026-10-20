@@ -6,23 +6,24 @@ const NAV_KEYS = new Set(["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Ho
 
 interface Options {
   open: boolean;
-  /** Values of the column the cursor is in, in row order. */
-  list: string[];
-  /** The cursor's value within that column. */
-  current: string;
-  /** Whether the other column has anything to move into. */
-  hasOtherColumn: boolean;
-  /** Which side of the list the level flyout opens on, so the arrow that leads
-   *  into it is the one pointing at it. */
-  flyoutSide: "left" | "right";
+  /** Every model, in row order. */
+  models: string[];
+  /** The levels the cursor's model takes, in row order. */
+  levels: string[];
+  model: string;
+  effort: string;
   /** Set true by the first key that moves the cursor. Enter only commits after
    *  that: a menu opened with the mouse and left alone must not take an Enter
    *  the user meant for the prompt they were writing. */
   used: RefObject<boolean>;
-  move: (value: string) => void;
-  toOtherColumn: (forward: boolean) => void;
+  moveModel: (value: string) => void;
+  moveLevel: (value: string) => void;
   commit: () => void;
   close: () => void;
+}
+
+function clampedAt<T>(list: T[], index: number): T | undefined {
+  return list[Math.max(0, Math.min(list.length - 1, index))];
 }
 
 /**
@@ -31,16 +32,17 @@ interface Options {
  * caret every control in that row is built to leave alone, so the menu never
  * takes focus. Capture means the editor's own handlers don't see the keys the
  * menu owns — and, just as deliberately, do see every key it doesn't.
+ * ↑↓ move between models, ←→ between the levels of the one under the cursor.
  */
 export function useAgentModelMenuKeys({
   open,
-  list,
-  current,
-  hasOtherColumn,
-  flyoutSide,
+  models,
+  levels,
+  model,
+  effort,
   used,
-  move,
-  toOtherColumn,
+  moveModel,
+  moveLevel,
   commit,
   close,
 }: Options): void {
@@ -65,30 +67,31 @@ export function useAgentModelMenuKeys({
         e.stopPropagation();
         used.current = true;
       };
-      const step = (to: number) => {
+      const toModel = (index: number) => {
         take();
-        if (list.length > 0) move(list[Math.max(0, Math.min(list.length - 1, to))]);
+        const next = clampedAt(models, index);
+        if (next !== undefined) moveModel(next);
       };
-      const at = list.indexOf(current);
-      const into = flyoutSide === "right" ? "ArrowRight" : "ArrowLeft";
-      const back = flyoutSide === "right" ? "ArrowLeft" : "ArrowRight";
+      const toLevel = (index: number) => {
+        take();
+        const next = clampedAt(levels, index);
+        if (next !== undefined) moveLevel(next);
+      };
+      const modelAt = models.indexOf(model);
+      const levelAt = levels.indexOf(effort);
       switch (e.key) {
         case "ArrowDown":
-          return step(at + 1);
+          return toModel(modelAt + 1);
         case "ArrowUp":
-          return step(at < 0 ? 0 : at - 1);
+          return toModel(modelAt < 0 ? 0 : modelAt - 1);
         case "Home":
-          return step(0);
+          return toModel(0);
         case "End":
-          return step(list.length - 1);
-        case into:
-          take();
-          if (hasOtherColumn) toOtherColumn(true);
-          return;
-        case back:
-          take();
-          toOtherColumn(false);
-          return;
+          return toModel(models.length - 1);
+        case "ArrowRight":
+          return toLevel(levelAt < 0 ? 0 : levelAt + 1);
+        case "ArrowLeft":
+          return toLevel(levelAt < 0 ? levels.length - 1 : levelAt - 1);
         case "Enter":
           if (!used.current) {
             // Opened with the mouse and never navigated: this Enter is the
@@ -105,5 +108,5 @@ export function useAgentModelMenuKeys({
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [open, list, current, hasOtherColumn, flyoutSide, used, move, toOtherColumn, commit, close]);
+  }, [open, models, levels, model, effort, used, moveModel, moveLevel, commit, close]);
 }

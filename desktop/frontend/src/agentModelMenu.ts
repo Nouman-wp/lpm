@@ -35,11 +35,33 @@ export function effortBlurb(cli: SwitchableCLI, effort: string): string {
   return table[effort] ?? "";
 }
 
-/** Which half of the menu the cursor is in, and what it points at. */
+// The level row's labels, short enough for every level of a CLI to share one
+// line.
+const SHORT_LEVELS: Record<string, string> = {
+  medium: "Med",
+  xhigh: "XHigh",
+};
+
+export function shortEffortLabel(effort: string, label: string): string {
+  return SHORT_LEVELS[effort] ?? label;
+}
+
+/** What the menu's cursor points at: a model, and a level for it ("" = none). */
 export interface MenuCursor {
-  column: "model" | "effort";
   model: string;
   effort: string;
+}
+
+/** What committing the cursor sends, or null when it is what already runs. A
+ *  level on the running model is a level change alone — re-sending "/model"
+ *  would be noise in Claude's transcript, and Codex re-picks its current row on
+ *  its own. */
+export function menuCommit(cursor: MenuCursor, pick: ModelPick): Partial<ModelPick> | null {
+  if (!cursor.model) return null;
+  const running = cursor.model === pick.model;
+  if (!cursor.effort) return running ? null : { model: cursor.model };
+  if (running) return cursor.effort === pick.effort ? null : { effort: cursor.effort };
+  return { model: cursor.model, effort: cursor.effort };
 }
 
 // Plain-English statement of what committing the cursor will send. The two CLIs
@@ -48,14 +70,13 @@ export interface MenuCursor {
 // pass and so resets it to that model's default. Saying so before the click is
 // the only way the difference is ever visible.
 export function menuEffect(cli: SwitchableCLI, cursor: MenuCursor, pick: ModelPick): string {
+  const want = menuCommit(cursor, pick);
+  if (!want) return "";
   const model = modelLabel(cli, cursor.model);
-  const running = Boolean(pick.model) && cursor.model === pick.model;
-  if (cursor.column !== "model") {
-    if (!cursor.effort) return "";
-    const level = effortLabel(cli, cursor.model, cursor.effort);
-    return running ? `Set level to ${level}, staying on ${model}` : `Switch to ${model} at ${level}`;
+  if (want.effort) {
+    const level = effortLabel(cli, cursor.model, want.effort);
+    return want.model ? `Switch to ${model} at ${level}` : `Set level to ${level}, staying on ${model}`;
   }
-  if (running) return "Already running — pick a level to change it";
   if (cli === "codex") return `Switch to ${model} at its default level`;
   // Claude keeps the level across a model switch, but only when the new model
   // takes it: Haiku has no Ultracode, and Claude clamps without saying to what.

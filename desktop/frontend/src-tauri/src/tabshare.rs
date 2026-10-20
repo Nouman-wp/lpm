@@ -12,20 +12,58 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::sync::{Mutex, MutexGuard, OnceLock};
+use std::time::Instant;
 use tauri::{AppHandle, Emitter, Manager};
 
+mod people;
+pub(crate) use people::{ask_type, typed};
+pub(crate) use people::{
+    peer_share_decline_ask, peer_share_qr, peer_share_set_guest_can_type, peer_share_take_keyboards,
+};
+
 pub(crate) const CHANGED_EVENT: &str = "peer-share-changed";
-const JOIN_REQUEST_EVENT: &str = "peer-share-join-request";
-const JOIN_RESOLVED_EVENT: &str = "peer-share-join-resolved";
 pub(crate) const INVITE_PREFIX: &str = "lpm-share:";
 // Asking to join costs the host a dialog, so a leaked invite can't queue many.
 const MAX_WAITING: usize = 3;
+// What the invite shows before anyone is let in is kept short, so the link is.
+const MAX_SHOWN: usize = 64;
+
+/// Where a guest joined from.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Via {
+    Lpm,
+    Browser,
+}
+
+impl Via {
+    fn as_str(self) -> &'static str {
+        match self {
+            Via::Lpm => "lpm",
+            Via::Browser => "browser",
+        }
+    }
+}
+
+/// What the host answered someone asking to join.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Answer {
+    Deny,
+    LetIn { can_type: bool },
+}
 
 struct Guest {
     id: String,
     name: String,
     token_sha256: String,
     joined_at: i64,
+    via: Via,
+    can_type: bool,
+    // Asked to type, and the host hasn't answered yet.
+    asked: bool,
+    // When the host last said not now, so a guest can't ask on every key.
+    declined_at: Option<Instant>,
+    // When the host's list last heard this guest type (people.rs).
+    typed_at: i64,
 }
 
 struct Share {
@@ -33,6 +71,7 @@ struct Share {
     terminal: String,
     project: String,
     label: String,
+    // What someone let in may do until the host changes it for them.
     can_type: bool,
     secret: String,
     guests: Vec<Guest>,
@@ -45,9 +84,10 @@ struct Waiting {
     id: String,
     share: String,
     name: String,
-    // Four digits the guest sees too, when it came through the relay.
-    code: Option<String>,
-    decision: SyncSender<bool>,
+    // Four emoji the guest sees too.
+    code: String,
+    via: Via,
+    decision: SyncSender<Answer>,
 }
 
 struct Viewer {
@@ -71,7 +111,8 @@ pub(crate) struct GuestSession {
 pub(crate) struct JoinTicket {
     pub id: String,
     pub share: String,
-    pub decision: Receiver<bool>,
+    pub label: String,
+    pub decision: Receiver<Answer>,
 }
 
 pub(crate) enum JoinRefusal {
@@ -134,11 +175,12 @@ impl Registry {
         &mut self,
         secret: &str,
         name: &str,
-        code: Option<&str>,
+        code: &str,
+        via: Via,
     ) -> Result<JoinTicket, JoinRefusal> {
-        let share = self
+        let (share, label) = self
             .by_secret(secret)
-            .map(|s| s.id.clone())
+            .map(|s| (s.id.clone(), s.label.clone()))
             .ok_or(JoinRefusal::UnknownInvite)?;
         if self.waiting.iter().filter(|w| w.share == share).count() >= MAX_WAITING {
             return Err(JoinRefusal::Busy);
@@ -149,22 +191,34 @@ impl Registry {
             id: id.clone(),
             share: share.clone(),
             name: clean_name(name),
-            code: code.map(str::to_string),
+            code: code.to_string(),
+            via,
             decision: tx,
         });
         Ok(JoinTicket {
             id,
             share,
+            label,
             decision: rx,
         })
     }
 
-    fn resolve(&mut self, id: &str, allow: bool) -> bool {
+    /// Let in or turn away someone asking to join. Let in, they may type as
+    /// `can_type` says, or else as the share lets new people.
+    fn respond(&mut self, id: &str, allow: bool, can_type: Option<bool>) -> bool {
         let Some(pos) = self.waiting.iter().position(|w| w.id == id) else {
             return false;
         };
         let w = self.waiting.remove(pos);
-        let _ = w.decision.try_send(allow);
+        let answer = if allow {
+            let default = self.share(&w.share).is_some_and(|s| s.can_type);
+            Answer::LetIn {
+                can_type: can_type.unwrap_or(default),
+            }
+        } else {
+            Answer::Deny
+        };
+        let _ = w.decision.try_send(answer);
         true
     }
 
@@ -174,7 +228,13 @@ impl Registry {
         self.waiting.len() != before
     }
 
-    fn admit(&mut self, share: &str, name: &str) -> Option<(String, String)> {
+    fn admit(
+        &mut self,
+        share: &str,
+        name: &str,
+        via: Via,
+        can_type: bool,
+    ) -> Option<(String, String)> {
         let s = self.share_mut(share)?;
         let token = random_token(32);
         let id = uuid::Uuid::new_v4().to_string();
@@ -183,6 +243,11 @@ impl Registry {
             name: clean_name(name),
             token_sha256: peer::sha256_hex(token.as_bytes()),
             joined_at: crate::status::now_millis(),
+            via,
+            can_type,
+            asked: false,
+            declined_at: None,
+            typed_at: 0,
         });
         Some((id, token))
     }
@@ -203,9 +268,13 @@ impl Registry {
         })
     }
 
+    fn live_guest(&self, session: &GuestSession) -> Option<(&Share, &Guest)> {
+        let s = self.share(&session.share)?;
+        Some((s, s.guests.iter().find(|g| g.id == session.guest)?))
+    }
+
     fn live(&self, session: &GuestSession) -> Option<&Share> {
-        self.share(&session.share)
-            .filter(|s| s.guests.iter().any(|g| g.id == session.guest))
+        self.live_guest(session).map(|(s, _)| s)
     }
 
     fn may_watch(&self, session: &GuestSession, terminal: &str) -> bool {
@@ -213,16 +282,24 @@ impl Registry {
     }
 
     fn may_type(&self, session: &GuestSession, terminal: &str) -> bool {
-        self.live(session)
-            .is_some_and(|s| s.terminal == terminal && s.can_type)
+        self.live_guest(session)
+            .is_some_and(|(s, g)| s.terminal == terminal && g.can_type)
     }
 
-    fn tell_guests(&self, share: &str, frame: &str, only: Option<&str>) {
+    /// Send each connected guest of `share` (or only `only`) its `frame`.
+    fn tell_guests(
+        &self,
+        share: &str,
+        only: Option<&str>,
+        frame: impl Fn(&Share, &Guest) -> String,
+    ) {
         let Some(s) = self.share(share) else { return };
         for v in self.viewers.values() {
-            let theirs = s.guests.iter().any(|g| g.id == v.guest);
-            if theirs && only.is_none_or(|g| g == v.guest) {
-                let _ = v.tx.try_send(frame.to_string());
+            if only.is_some_and(|g| g != v.guest) {
+                continue;
+            }
+            if let Some(g) = s.guests.iter().find(|g| g.id == v.guest) {
+                let _ = v.tx.try_send(frame(s, g));
             }
         }
     }
@@ -231,32 +308,35 @@ impl Registry {
         if self.share(share).is_none() {
             return false;
         }
-        self.tell_guests(share, &ended_frame(reason), None);
+        self.tell_guests(share, None, |_, _| ended_frame(reason));
         self.shares.retain(|s| s.id != share);
         for w in self.waiting.iter().filter(|w| w.share == share) {
-            let _ = w.decision.try_send(false);
+            let _ = w.decision.try_send(Answer::Deny);
         }
         self.waiting.retain(|w| w.share != share);
         true
     }
 
     fn remove_guest(&mut self, share: &str, guest: &str, reason: &str) -> bool {
-        self.tell_guests(share, &ended_frame(reason), Some(guest));
+        self.tell_guests(share, Some(guest), |_, _| ended_frame(reason));
         let Some(s) = self.share_mut(share) else {
             return false;
         };
         let before = s.guests.len();
         s.guests.retain(|g| g.id != guest);
-        s.guests.len() != before
+        let removed = s.guests.len() != before;
+        if removed {
+            self.tell_info(share, None);
+        }
+        removed
     }
 
+    /// What people let in from now on may do; those already in keep theirs.
     fn set_can_type(&mut self, share: &str, can_type: bool) -> bool {
         let Some(s) = self.share_mut(share) else {
             return false;
         };
         s.can_type = can_type;
-        let frame = info_frame(s);
-        self.tell_guests(share, &frame, None);
         true
     }
 
@@ -276,7 +356,7 @@ impl Registry {
     fn resized(&self, terminal: &str, cols: u16, rows: u16) {
         let frame = json!({ "t": "size", "id": terminal, "cols": cols, "rows": rows }).to_string();
         for s in self.shares.iter().filter(|s| s.terminal == terminal) {
-            self.tell_guests(&s.id, &frame, None);
+            self.tell_guests(&s.id, None, |_, _| frame.clone());
         }
     }
 
@@ -289,16 +369,19 @@ impl Registry {
                     .guests
                     .iter()
                     .map(|g| {
-                        let connected = self.viewers.values().any(|v| v.guest == g.id);
                         json!({ "id": g.id, "name": g.name, "joinedAt": g.joined_at,
-                            "connected": connected })
+                            "connected": self.connected(&g.id), "canType": g.can_type,
+                            "via": g.via.as_str(), "asked": g.asked, "typedAt": g.typed_at })
                     })
                     .collect();
                 let waiting: Vec<Value> = self
                     .waiting
                     .iter()
                     .filter(|w| w.share == s.id)
-                    .map(|w| json!({ "id": w.id, "name": w.name, "code": w.code }))
+                    .map(|w| {
+                        json!({ "id": w.id, "name": w.name, "code": w.code,
+                            "via": w.via.as_str() })
+                    })
                     .collect();
                 json!({
                     "id": s.id,
@@ -317,18 +400,14 @@ impl Registry {
     }
 }
 
-fn info_frame(s: &Share) -> String {
-    json!({ "t": "shareInfo", "canType": s.can_type, "label": s.label, "project": s.project })
-        .to_string()
+/// `s` without control characters, cut to `max` characters: text that came from
+/// someone else, made safe to show and to keep.
+pub(crate) fn printable(s: &str, max: usize) -> String {
+    s.chars().filter(|c| !c.is_control()).take(max).collect()
 }
 
 fn clean_name(name: &str) -> String {
-    let name: String = name
-        .trim()
-        .chars()
-        .filter(|c| !c.is_control())
-        .take(64)
-        .collect();
+    let name = printable(name.trim(), 64);
     if name.is_empty() {
         "Someone".to_string()
     } else {
@@ -385,34 +464,21 @@ pub(crate) fn is_shared(share: &str) -> bool {
 /// What the guest's `ready` says about the tab it was let into.
 pub(crate) fn describe(session: &GuestSession) -> Option<Value> {
     let reg = registry();
-    let s = reg.live(session)?;
-    Some(
-        json!({ "id": s.id, "terminalId": s.terminal, "project": s.project,
-        "label": s.label, "canType": s.can_type }),
-    )
+    let (s, g) = reg.live_guest(session)?;
+    let mut share = reg.info(s, g);
+    share["id"] = json!(s.id);
+    share["terminalId"] = json!(s.terminal);
+    Some(share)
 }
 
 pub(crate) fn begin_join(
     app: &AppHandle,
     secret: &str,
     name: &str,
-    code: Option<&str>,
+    code: &str,
+    via: Via,
 ) -> Result<JoinTicket, JoinRefusal> {
-    let (ticket, label) = {
-        let mut reg = registry();
-        let ticket = reg.begin_join(secret, name, code)?;
-        let label = reg
-            .share(&ticket.share)
-            .map(|s| s.label.clone())
-            .unwrap_or_default();
-        (ticket, label)
-    };
-    let name = clean_name(name);
-    let _ = app.emit(
-        JOIN_REQUEST_EVENT,
-        json!({ "id": ticket.id, "shareId": ticket.share, "name": name, "label": label,
-            "code": code }),
-    );
+    let ticket = registry().begin_join(secret, name, code, via)?;
     changed(app);
     Ok(ticket)
 }
@@ -420,13 +486,18 @@ pub(crate) fn begin_join(
 /// The asker hung up or ran out of time before anyone answered.
 pub(crate) fn abandon_join(app: &AppHandle, id: &str) {
     if registry().drop_waiting(id) {
-        let _ = app.emit(JOIN_RESOLVED_EVENT, json!({ "id": id }));
         changed(app);
     }
 }
 
-pub(crate) fn admit(app: &AppHandle, share: &str, name: &str) -> Option<(String, String)> {
-    let admitted = registry().admit(share, name);
+pub(crate) fn admit(
+    app: &AppHandle,
+    share: &str,
+    name: &str,
+    via: Via,
+    can_type: bool,
+) -> Option<(String, String)> {
+    let admitted = registry().admit(share, name, via, can_type);
     changed(app);
     admitted
 }
@@ -437,20 +508,35 @@ pub(crate) fn connect_viewer(
     session: &GuestSession,
     tx: SyncSender<String>,
 ) {
-    registry().viewers.insert(
-        conn,
-        Viewer {
-            guest: session.guest.clone(),
-            tx,
-        },
-    );
+    {
+        let mut reg = registry();
+        reg.viewers.insert(
+            conn,
+            Viewer {
+                guest: session.guest.clone(),
+                tx,
+            },
+        );
+        reg.tell_info(&session.share, None);
+    }
     changed(app);
 }
 
 pub(crate) fn disconnect_viewer(app: &AppHandle, conn: u64) {
-    if registry().viewers.remove(&conn).is_some() {
-        changed(app);
+    let mut reg = registry();
+    let Some(viewer) = reg.viewers.remove(&conn) else {
+        return;
+    };
+    let share = reg
+        .shares
+        .iter()
+        .find(|s| s.guests.iter().any(|g| g.id == viewer.guest))
+        .map(|s| s.id.clone());
+    if let Some(share) = share {
+        reg.tell_info(&share, None);
     }
+    drop(reg);
+    changed(app);
 }
 
 pub(crate) fn leave(app: &AppHandle, session: &GuestSession) {
@@ -483,8 +569,16 @@ fn sync_listener(app: &AppHandle) {
     peer::set_sharing(app, sharing);
 }
 
+/// What an invite shows before anyone is let in: whose machine, which tab.
+struct Shown<'a> {
+    host: &'a str,
+    label: &'a str,
+    project: &'a str,
+}
+
 /// `lpm-share:` + unpadded base64url of `{v:1, h:hosts, p:port, s:secret, f:fp}`,
-/// plus `u:relay, r:room, k:key` while browsers can join through the relay.
+/// plus `n:host name, l:label, j:project` for the page to greet with, and
+/// `u:relay, r:room, k:key` while browsers can join through the relay.
 /// Must stay byte-identical to `decodeShareInvite` in src/share/invite.ts and the
 /// browser page in relay/public/invite.js.
 fn encode_invite(
@@ -492,10 +586,17 @@ fn encode_invite(
     port: u16,
     secret: &str,
     fp: &str,
+    shown: &Shown,
     relay: Option<&crate::sharerelay::Room>,
 ) -> String {
     use base64::Engine as _;
     let mut payload = json!({ "v": 1, "h": hosts, "p": port, "s": secret, "f": fp });
+    for (key, text) in [("n", shown.host), ("l", shown.label), ("j", shown.project)] {
+        let text = printable(text, MAX_SHOWN);
+        if !text.is_empty() {
+            payload[key] = json!(text);
+        }
+    }
     if let Some(room) = relay {
         payload["u"] = json!(room.relay);
         payload["r"] = json!(room.room);
@@ -506,6 +607,9 @@ fn encode_invite(
 }
 
 fn listing(app: &AppHandle) -> Value {
+    if registry().shares.is_empty() {
+        return Value::Array(Vec::new());
+    }
     let (hosts, port) = {
         let hub = app.state::<PeerHub>();
         let cfg = hub.config_arc();
@@ -516,9 +620,15 @@ fn listing(app: &AppHandle) -> Value {
         )
     };
     let fp = crate::remotetls::fingerprint();
+    let host = peer::machine_name();
     registry().listing(|s| {
         let relay = crate::sharerelay::room(&s.id);
-        encode_invite(&hosts, port, &s.secret, &fp, relay.as_ref())
+        let shown = Shown {
+            host: &host,
+            label: &s.label,
+            project: &s.project,
+        };
+        encode_invite(&hosts, port, &s.secret, &fp, &shown, relay.as_ref())
     })
 }
 
@@ -576,10 +686,16 @@ pub async fn peer_share_remove_guest(app: AppHandle, id: String, guest: String) 
     listing(&app)
 }
 
+/// Answer someone asking to join. `can_type` lets them in able to type, or not,
+/// whatever new people may do; without it they get that.
 #[tauri::command]
-pub async fn peer_share_respond(app: AppHandle, request: String, allow: bool) -> Value {
-    if registry().resolve(&request, allow) {
-        let _ = app.emit(JOIN_RESOLVED_EVENT, json!({ "id": request }));
+pub async fn peer_share_respond(
+    app: AppHandle,
+    request: String,
+    allow: bool,
+    can_type: Option<bool>,
+) -> Value {
+    if registry().respond(&request, allow, can_type) {
         changed(&app);
     }
     listing(&app)
@@ -589,8 +705,10 @@ pub async fn peer_share_respond(app: AppHandle, request: String, allow: bool) ->
 mod tests {
     use super::*;
 
+    const CODE: &str = "🐶 🐱 🦁 🐎";
+
     fn joined(reg: &mut Registry, share: &str) -> (GuestSession, String) {
-        let (guest, token) = reg.admit(share, "Alex's Mac").unwrap();
+        let (guest, token) = reg.admit(share, "Alex's Mac", Via::Lpm, false).unwrap();
         (
             GuestSession {
                 guest,
@@ -619,11 +737,26 @@ mod tests {
         let share = reg.start("web-1", "web", "claude", 0);
         let (session, _) = joined(&mut reg, &share);
         assert!(!reg.may_type(&session, "web-1"));
-        reg.set_can_type(&share, true);
+        reg.set_guest_can_type(&share, &session.guest, true);
         assert!(reg.may_type(&session, "web-1"));
         assert!(!reg.may_type(&session, "web-2"));
-        reg.set_can_type(&share, false);
+        reg.set_guest_can_type(&share, &session.guest, false);
         assert!(!reg.may_type(&session, "web-1"));
+    }
+
+    #[test]
+    fn the_share_setting_is_only_for_people_let_in_later() {
+        let mut reg = Registry::default();
+        let share = reg.start("web-1", "web", "claude", 0);
+        let (before, _) = joined(&mut reg, &share);
+        reg.set_can_type(&share, true);
+        assert!(!reg.may_type(&before, "web-1"));
+        let (guest, _) = reg.admit(&share, "Ana", Via::Browser, true).unwrap();
+        let after = GuestSession {
+            guest,
+            share: share.clone(),
+        };
+        assert!(reg.may_type(&after, "web-1"));
     }
 
     #[test]
@@ -657,7 +790,7 @@ mod tests {
         assert!(!reg.may_watch(&session, "web-1"));
         assert_eq!(reg.check(&session.guest, &token), None);
         assert!(matches!(
-            reg.begin_join(&secret, "Sam", None),
+            reg.begin_join(&secret, "Sam", CODE, Via::Lpm),
             Err(JoinRefusal::UnknownInvite)
         ));
     }
@@ -686,7 +819,9 @@ mod tests {
         );
         assert!(reg.remove_guest(&share, &a.guest, "removed"));
         assert!(rx_a.try_recv().unwrap().contains("removed"));
-        assert!(rx_b.try_recv().is_err());
+        let seen_by_b: Value = serde_json::from_str(&rx_b.try_recv().unwrap()).unwrap();
+        assert_eq!(seen_by_b["t"], "shareInfo");
+        assert_eq!(seen_by_b["others"], json!([]));
         assert!(!reg.may_watch(&a, "web-1"));
         assert!(reg.may_watch(&b, "web-1"));
     }
@@ -706,11 +841,11 @@ mod tests {
         let mut reg = Registry::default();
         reg.start("web-1", "web", "claude", 0);
         assert!(matches!(
-            reg.begin_join("nope", "Sam", None),
+            reg.begin_join("nope", "Sam", CODE, Via::Lpm),
             Err(JoinRefusal::UnknownInvite)
         ));
         assert!(matches!(
-            reg.begin_join("", "Sam", None),
+            reg.begin_join("", "Sam", CODE, Via::Lpm),
             Err(JoinRefusal::UnknownInvite)
         ));
     }
@@ -721,15 +856,18 @@ mod tests {
         let share = reg.start("web-1", "web", "claude", 0);
         let secret = secret_of(&reg, &share);
         let tickets: Vec<JoinTicket> = (0..MAX_WAITING)
-            .map(|_| reg.begin_join(&secret, "Sam", None).ok().unwrap())
+            .map(|_| reg.begin_join(&secret, "Sam", CODE, Via::Lpm).ok().unwrap())
             .collect();
         assert!(matches!(
-            reg.begin_join(&secret, "Sam", None),
+            reg.begin_join(&secret, "Sam", CODE, Via::Lpm),
             Err(JoinRefusal::Busy)
         ));
-        assert!(reg.resolve(&tickets[0].id, true));
-        assert_eq!(tickets[0].decision.try_recv(), Ok(true));
-        assert!(reg.begin_join(&secret, "Sam", None).is_ok());
+        assert!(reg.respond(&tickets[0].id, true, Some(true)));
+        assert_eq!(
+            tickets[0].decision.try_recv(),
+            Ok(Answer::LetIn { can_type: true })
+        );
+        assert!(reg.begin_join(&secret, "Sam", CODE, Via::Lpm).is_ok());
     }
 
     #[test]
@@ -737,9 +875,9 @@ mod tests {
         let mut reg = Registry::default();
         let share = reg.start("web-1", "web", "claude", 0);
         let secret = secret_of(&reg, &share);
-        let ticket = reg.begin_join(&secret, "Sam", None).ok().unwrap();
+        let ticket = reg.begin_join(&secret, "Sam", CODE, Via::Lpm).ok().unwrap();
         reg.stop(&share, "stopped");
-        assert_eq!(ticket.decision.try_recv(), Ok(false));
+        assert_eq!(ticket.decision.try_recv(), Ok(Answer::Deny));
         assert!(reg.waiting.is_empty());
     }
 
@@ -802,9 +940,26 @@ mod tests {
             serde_json::from_slice(&json).unwrap()
         };
         let hosts = ["10.0.0.2".to_string()];
+        let unnamed = Shown {
+            host: "",
+            label: "",
+            project: "",
+        };
         assert_eq!(
-            decode(encode_invite(&hosts, 8766, "sekret", "ab12", None)),
+            decode(encode_invite(
+                &hosts, 8766, "sekret", "ab12", &unnamed, None
+            )),
             json!({ "v": 1, "h": ["10.0.0.2"], "p": 8766, "s": "sekret", "f": "ab12" })
+        );
+        let named = Shown {
+            host: "Maya's MacBook Pro",
+            label: "claude\u{1b}[2J",
+            project: "web",
+        };
+        assert_eq!(
+            decode(encode_invite(&hosts, 8766, "sekret", "ab12", &named, None)),
+            json!({ "v": 1, "h": ["10.0.0.2"], "p": 8766, "s": "sekret", "f": "ab12",
+                "n": "Maya's MacBook Pro", "l": "claude[2J", "j": "web" })
         );
         let room = crate::sharerelay::Room {
             relay: "https://lpm-share-relay.lpm-share-relay.workers.dev".into(),
@@ -812,7 +967,14 @@ mod tests {
             key: "key1".into(),
         };
         assert_eq!(
-            decode(encode_invite(&hosts, 8766, "sekret", "ab12", Some(&room))),
+            decode(encode_invite(
+                &hosts,
+                8766,
+                "sekret",
+                "ab12",
+                &unnamed,
+                Some(&room)
+            )),
             json!({ "v": 1, "h": ["10.0.0.2"], "p": 8766, "s": "sekret", "f": "ab12",
                 "u": "https://lpm-share-relay.lpm-share-relay.workers.dev", "r": "room1", "k": "key1" })
         );

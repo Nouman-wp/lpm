@@ -1,11 +1,14 @@
 import type { ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronRight } from "lucide-react";
+import { isMac } from "../../platform";
 import type { SettingsNavGroup, SettingsSearchEntry } from "../../settings-registry";
 import type { SettingsTab, View } from "../../store/app";
 import { SettingsSearch } from "../SettingsSearch";
 import { NAV_ICONS } from "./navIcons";
 
 export function SettingsNav({
+  backLabel,
+  onBack,
   picker,
   groups,
   activeTab,
@@ -16,6 +19,9 @@ export function SettingsNav({
   onSelectTab,
   onNavigate,
 }: {
+  /// Where leaving Settings goes back to.
+  backLabel: string;
+  onBack: () => void;
   /// Which machine's settings show, when there is more than one to choose.
   picker: ReactNode;
   groups: SettingsNavGroup[];
@@ -28,7 +34,22 @@ export function SettingsNav({
   onNavigate: (view: View) => void;
 }) {
   return (
-    <nav className="flex w-52 shrink-0 flex-col overflow-y-auto border-r border-[var(--border)] bg-[var(--bg-sidebar)] px-3 pt-6">
+    <nav className="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-[var(--border)] bg-[var(--bg-sidebar)] px-3">
+      {/* Settings stand in for the project sidebar, so this column starts at
+          the window's edge and keeps the sidebar's room for the traffic lights. */}
+      <div className="app-drag h-11 shrink-0 native-chrome:h-3" />
+      <button
+        type="button"
+        data-settings-back
+        onClick={onBack}
+        className="group mb-4 flex w-full items-center gap-2 rounded-lg px-2.5 py-[6px] text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+      >
+        <ArrowLeft size={15} strokeWidth={1.75} className="shrink-0" />
+        <span className="flex-1 truncate">{backLabel}</span>
+        <kbd className="shrink-0 rounded border border-[var(--border)] px-1 font-sans text-[10px] leading-4 text-[var(--text-muted)]">
+          {isMac ? "esc" : "Esc"}
+        </kbd>
+      </button>
       <h1 className="mb-3 px-2 text-lg font-semibold tracking-tight text-[var(--text-primary)]">Settings</h1>
       {picker}
       <SettingsSearch

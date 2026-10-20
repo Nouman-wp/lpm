@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { effortBlurb, menuEffect, type MenuCursor } from "./agentModelMenu";
+import { effortBlurb, menuCommit, menuEffect, shortEffortLabel, type MenuCursor } from "./agentModelMenu";
 
 const cursor = (over: Partial<MenuCursor> = {}): MenuCursor => ({
-  column: "model",
   model: "opus",
   effort: "",
   ...over,
@@ -30,7 +29,7 @@ describe("effortBlurb", () => {
 });
 
 describe("menuEffect", () => {
-  // The columns can't show this on their own: a bare model pick leaves Claude's
+  // The rows can't show this on their own: a bare model pick leaves Claude's
   // level alone but resets Codex's, because Codex's picker confirms one every pass.
   it("spells out what a bare model pick does to the level, per CLI", () => {
     expect(menuEffect("claude", cursor(), { model: "sonnet", effort: "high" })).toBe(
@@ -42,14 +41,14 @@ describe("menuEffect", () => {
   });
 
   it("reads a level pick on the running model as a level change", () => {
-    const c = cursor({ column: "effort", model: "opus", effort: "xhigh" });
+    const c = cursor({ effort: "xhigh" });
     expect(menuEffect("claude", c, { model: "opus", effort: "low" })).toBe(
       "Set level to Extra High, staying on Opus",
     );
   });
 
   it("reads a level pick on another model as a move to that model", () => {
-    const c = cursor({ column: "effort", model: "fable", effort: "ultracode" });
+    const c = cursor({ model: "fable", effort: "ultracode" });
     expect(menuEffect("claude", c, { model: "opus", effort: "low" })).toBe(
       "Switch to Fable at Ultracode",
     );
@@ -57,14 +56,13 @@ describe("menuEffect", () => {
 
   // With no known model, "staying on" would be a claim lpm can't make.
   it("never claims to stay on a model it doesn't know", () => {
-    const c = cursor({ column: "effort", model: "opus", effort: "high" });
+    const c = cursor({ effort: "high" });
     expect(menuEffect("claude", c, { model: "", effort: "" })).toBe("Switch to Opus at High");
   });
 
-  it("calls the running model's own row what it is, not a switch", () => {
-    expect(menuEffect("claude", cursor(), { model: "opus", effort: "high" })).toBe(
-      "Already running — pick a level to change it",
-    );
+  it("says nothing when the cursor is what already runs", () => {
+    expect(menuEffect("claude", cursor(), { model: "opus", effort: "high" })).toBe("");
+    expect(menuEffect("claude", cursor({ effort: "high" }), { model: "opus", effort: "high" })).toBe("");
   });
 
   // Claude keeps the level across a model switch only when the new model takes
@@ -78,8 +76,37 @@ describe("menuEffect", () => {
       "Switch to Haiku, leaving the level alone",
     );
   });
+});
 
-  it("says nothing when the level column has no row highlighted", () => {
-    expect(menuEffect("claude", cursor({ column: "effort", effort: "" }), { model: "", effort: "" })).toBe("");
+describe("menuCommit", () => {
+  it("sends a level alone when the cursor stays on the running model", () => {
+    expect(menuCommit(cursor({ effort: "max" }), { model: "opus", effort: "high" })).toEqual({ effort: "max" });
+  });
+
+  it("sends the model with its level when the cursor is on another model", () => {
+    expect(menuCommit(cursor({ model: "sonnet", effort: "high" }), { model: "opus", effort: "high" })).toEqual({
+      model: "sonnet",
+      effort: "high",
+    });
+  });
+
+  it("sends a bare model when no level is picked for it", () => {
+    expect(menuCommit(cursor({ model: "haiku" }), { model: "opus", effort: "ultracode" })).toEqual({
+      model: "haiku",
+    });
+  });
+
+  it("sends nothing for what already runs, or with no model under the cursor", () => {
+    expect(menuCommit(cursor({ effort: "high" }), { model: "opus", effort: "high" })).toBeNull();
+    expect(menuCommit(cursor(), { model: "opus", effort: "" })).toBeNull();
+    expect(menuCommit(cursor({ model: "" }), { model: "", effort: "" })).toBeNull();
+  });
+});
+
+describe("shortEffortLabel", () => {
+  it("shortens only the labels too long for the level row", () => {
+    expect(shortEffortLabel("medium", "Medium")).toBe("Med");
+    expect(shortEffortLabel("xhigh", "Extra High")).toBe("XHigh");
+    expect(shortEffortLabel("ultracode", "Ultracode")).toBe("Ultracode");
   });
 });

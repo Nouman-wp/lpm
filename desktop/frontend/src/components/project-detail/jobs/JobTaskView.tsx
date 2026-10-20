@@ -27,7 +27,7 @@ import {
   TrashIcon,
 } from "../../icons";
 import { ComposerSendButton } from "../../ComposerSendButton";
-import { relativeTime } from "../../../relativeTime";
+import { relativeAgo } from "../../../relativeTime";
 import { useNow } from "../../../hooks/useNow";
 import { RowSelect } from "./RowSelect";
 import { InputComposer } from "../../InputComposer";
@@ -52,11 +52,6 @@ import {
   type JobHistoryEntry,
   type JobInfo,
 } from "../../../jobsFormat";
-
-function ago(at: number): string {
-  const t = relativeTime(at);
-  return t === "now" ? "just now" : `${t} ago`;
-}
 
 interface JobTaskViewProps {
   project: string;
@@ -232,7 +227,7 @@ export function JobTaskView({
 
   const root = thread?.root;
   const meta = root
-    ? [project, jobResultLabel(root.result), ago(root.at)].filter(Boolean).join(" · ")
+    ? [project, jobResultLabel(root.result), relativeAgo(root.at)].filter(Boolean).join(" · ")
     : project;
 
   return (
@@ -508,7 +503,7 @@ function EntryHeader({
           }
           className="text-[11px] tabular-nums text-[var(--text-muted)]"
         >
-          {[stats, entry.compacted ? "Condensed" : "", ago(entry.at)]
+          {[stats, entry.compacted ? "Condensed" : "", relativeAgo(entry.at)]
             .filter(Boolean)
             .join(" · ")}
         </span>
@@ -572,7 +567,7 @@ function EntryHeader({
         title={new Date(entry.at * 1000).toLocaleString()}
         className="shrink-0 text-[11px] tabular-nums text-[var(--text-muted)]"
       >
-        {ago(entry.at)}
+        {relativeAgo(entry.at)}
       </span>
     </div>
   );

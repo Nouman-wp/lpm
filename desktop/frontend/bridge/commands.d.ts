@@ -392,9 +392,14 @@ export function PeerShareStart(terminalId: string, project: string, label: strin
 export function PeerShareStop(id: string): Promise<any>;
 export function PeerShareSetCanType(id: string, canType: boolean): Promise<any>;
 export function PeerShareRemoveGuest(id: string, guest: string): Promise<any>;
-export function PeerShareRespond(request: string, allow: boolean): Promise<any>;
+export function PeerShareSetGuestCanType(id: string, guest: string, canType: boolean): Promise<any>;
+export function PeerShareTakeKeyboards(id: string): Promise<any>;
+export function PeerShareDeclineAsk(id: string, guest: string): Promise<any>;
+export function PeerShareQr(link: string): Promise<string | null>;
+export function PeerShareRespond(request: string, allow: boolean, canType?: boolean): Promise<any>;
 export function PeerShareJoin(hosts: string[], port: number, secret: string, fp: string): Promise<any>;
 export function PeerShareJoinCancel(): Promise<void>;
+export function PeerShareAskType(slug: string): Promise<void>;
 export function PeerJoinedShares(): Promise<any>;
 export function PeerShareLeave(slug: string): Promise<any>;
 export function PeerTermDetach(prefixedId: string): Promise<void>;

@@ -2,11 +2,15 @@ import type { Terminal } from "@xterm/xterm";
 import { toast } from "sonner";
 import { SaveTextFile, SetClipboardText } from "../../../bridge/commands";
 
+// Lines the terminal only wrapped to fit are joined back into one.
 export function bufferToPlainText(term: Terminal): string {
   const buf = term.buffer.active;
   const lines: string[] = [];
   for (let i = 0; i < buf.length; i++) {
-    lines.push(buf.getLine(i)?.translateToString(true) ?? "");
+    const line = buf.getLine(i);
+    const text = line?.translateToString(true) ?? "";
+    if (line?.isWrapped && lines.length > 0) lines[lines.length - 1] += text;
+    else lines.push(text);
   }
   while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
   return lines.join("\n");
