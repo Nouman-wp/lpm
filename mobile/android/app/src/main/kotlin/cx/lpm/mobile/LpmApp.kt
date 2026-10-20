@@ -45,6 +45,7 @@ import cx.lpm.mobile.feature.projects.ProjectsSlots
 import cx.lpm.mobile.feature.projects.duplicate.DuplicateProjectSheet
 import cx.lpm.mobile.feature.projects.menu.ProjectMenuToolbar
 import cx.lpm.mobile.feature.projects.projectsEntries
+import cx.lpm.mobile.feature.projects.ui.SessionAlertsHost
 import cx.lpm.mobile.feature.settings.settingsEntries
 import cx.lpm.mobile.feature.terminal.TerminalSlots
 import cx.lpm.mobile.feature.terminal.settings.TerminalSettingsSheet
@@ -79,6 +80,13 @@ fun LpmApp(
     }
     if (state.macs.isEmpty()) {
         RootStack(root = PairingKey, modifier = modifier) { pairingEntries(it, pairingIssueCard) }
+        // A Mac that removed this phone leaves it here, saying so.
+        val alerts by session.alerts.alerts.collectAsStateWithLifecycle()
+        SessionAlertsHost(
+            alerts = alerts,
+            onDismissError = session.alerts::dismissError,
+            onDismissNotice = session.alerts::dismissNotice
+        )
     } else {
         // Warm the terminal WebView once a terminal is a tap away, not during launch:
         // creating the first WebView costs the main thread a second or more.

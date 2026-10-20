@@ -242,7 +242,8 @@ export function HostSection({
           <>
             Stop letting{" "}
             <span className="font-medium text-[var(--text-primary)]">{revokeDevice?.name}</span>{" "}
-            control {M.thisMachine}? It will need a new invite to reconnect.
+            control {M.thisMachine}? {M.ThisMachine} is removed there too, and it will need a new
+            invite to reconnect.
           </>
         }
         onCancel={() => setRevokeDevice(null)}

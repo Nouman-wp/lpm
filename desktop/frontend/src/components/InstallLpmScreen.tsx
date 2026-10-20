@@ -31,7 +31,7 @@ export function InstallLpmScreen() {
     try {
       const { slug } = (await PeerAddSshHost(target, "", true)) as { slug: string };
       const peer = ((await PeerState()) as PeerStateShape).peers.find((p) => p.slug === slug);
-      if (mounted.current) addProjectForPeer(slug, peer?.alias || target.host);
+      if (mounted.current) addProjectForPeer(slug, peer?.alias || target.host, true);
     } catch (err) {
       setError(String(err));
     } finally {

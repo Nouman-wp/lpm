@@ -45,14 +45,14 @@ Automations are tasks the app runs on a schedule: a shell command, a project act
 - `lpm automations add <id> [-p proj | --projects a,b | --every-project | --no-project] <schedule> <run> [options]` — create one. Flags cover every field; see the reference.
 - `lpm automations edit <id> [-p proj | --global] [flags]` — change only the fields given.
 - `lpm automations remove <id> [-p proj | --global]` — delete it and its run history; only when the user asks.
-- `lpm automations run <id> [-p proj]` — start a run now, fire-and-forget. It can edit code, make copies, and cost money; run one only when the user asks.
-- `lpm automations stop <id> [-p proj]` — stop the current run.
-- `lpm automations disable <id>` / `enable <id>` (aliases `pause` / `resume`) — pause or resume the schedule. Resuming never fires the runs missed while paused.
-- `lpm automations history <id> [-n N] [--json]` — past runs with their outputs, newest first; each run's `at` timestamp identifies it.
-- `lpm automations output <id>` — live output of the run in progress.
-- `lpm automations reply <id> "message" [--at TIMESTAMP] [--agent X] [--model X] [--effort X]` — continue an AI automation's conversation (the newest by default), fire-and-forget; then read `output` or `history`.
+- `lpm automations run <id> [-p proj | --global]` — start a run now, fire-and-forget. It can edit code, make copies, and cost money; run one only when the user asks.
+- `lpm automations stop <id> [-p proj | --global]` — stop the current run.
+- `lpm automations disable <id>` / `enable <id>` `[-p proj | --global]` (aliases `pause` / `resume`) — pause or resume the schedule. Resuming never fires the runs missed while paused.
+- `lpm automations history <id> [-p proj | --global] [-n N] [--json]` — past runs with their outputs, newest first; each run's `at` timestamp identifies it.
+- `lpm automations output <id> [-p proj | --global]` — live output of the run in progress.
+- `lpm automations reply <id> "message" [-p proj | --global] [--at TIMESTAMP] [--agent X] [--model X] [--effort X]` — continue an AI automation's conversation (the newest by default), fire-and-forget; then read `output` or `history`.
 
-An automation in `global.yml` that runs in several projects runs once per project; target one with `-p <project>`. One with no project can only be shown, opened, edited, or removed (with `--global`); start it from the app.
+An automation in `global.yml` that runs in several projects runs once per project, with its own runs, history, and paused state in each. `-p <project>` acts in one of them; `--global` acts in all of them, like the app's Automations page, so `run --global` starts a run in each. One with no project needs `--global` for every command. With `--global`, `--json` replies carry `global: true` and `projects` instead of `project`, each history entry and live output names its `project`, and `reply` continues the newest conversation across them (or the one holding `--at`).
 
 ### Token rules
 

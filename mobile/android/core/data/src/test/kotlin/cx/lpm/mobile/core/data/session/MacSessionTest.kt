@@ -3,8 +3,6 @@ package cx.lpm.mobile.core.data.session
 import cx.lpm.mobile.core.data.client.CertPinning
 import cx.lpm.mobile.core.data.client.LpmClient
 import cx.lpm.mobile.core.data.client.startProject
-import cx.lpm.mobile.core.data.link.ConnectionIssue
-import cx.lpm.mobile.core.data.link.IssueAction
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
 import cx.lpm.mobile.core.data.testing.SessionHarness
 import cx.lpm.mobile.core.demo.DemoServer
@@ -185,22 +183,35 @@ class MacSessionTest {
     }
 
     @Test
-    fun `a machine that removed this phone offers pairing on the machine itself`() = runTest {
+    fun `a Mac that removed this phone goes from it too`() = runTest {
         val h = SessionHarness(this)
         val socket = h.connectReady()
+        val id = h.session.state.value.activeMacId!!
+        h.credentials.savePin("ab", id)
+        val opened = h.transport.sockets.size
         socket.receive("""{"t":"error","error":"revoked"}""")
         settle()
-        assertTrue(h.session.state.value.needsRepair)
-        assertEquals(
-            LpmClient.State.Failed(LpmClient.REVOKED_ERROR),
-            h.session.state.value.connection
-        )
 
-        h.session.perform(IssueAction.PairAgain, ConnectionIssue.RemovedOnMac)
-        val link = h.session.link.state.value
-        assertTrue(h.session.state.value.addingMac)
-        assertEquals(RepairReason.Removed, link.repairReason)
-        assertEquals(h.session.state.value.activeMacId, link.repairMacId)
+        assertTrue(h.session.state.value.macs.isEmpty())
+        assertNull(h.credentials.load(id))
+        assertEquals(emptyList<Any>(), h.macStore.loadRecords())
+        assertEquals(
+            "“Studio Mac” removed this phone. Pair it there to use it here again.",
+            h.session.alerts.alerts.value.notice
+        )
+        // The Mac let go already, so nothing is sent back to it.
+        assertEquals(opened, h.transport.sockets.size)
+        assertTrue(h.env.unpair.pending().isEmpty())
+    }
+
+    @Test
+    fun `a Mac that only stopped recognizing this phone stays, offering to pair again`() = runTest {
+        val h = SessionHarness(this)
+        val socket = h.connectReady()
+        socket.receive("""{"t":"error","error":"unauthorized"}""")
+        settle()
+        assertTrue(h.session.state.value.needsRepair)
+        assertEquals(1, h.session.state.value.macs.size)
     }
 
     @Test

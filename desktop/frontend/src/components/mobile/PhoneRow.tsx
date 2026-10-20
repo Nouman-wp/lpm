@@ -59,8 +59,8 @@ export function PhoneRow({
             <p className="text-sm font-medium text-[var(--text-primary)]">Revoke {name}?</p>
             <p className="text-[11px] leading-relaxed text-[var(--text-muted)]">
               {device.connected
-                ? "It's connected right now. It disconnects at once and needs a new pairing to come back."
-                : "It needs a new pairing to connect again."}
+                ? `It's connected right now. It disconnects at once, drops ${words.thisMachine} too, and needs a new pairing to come back.`
+                : `It drops ${words.thisMachine} too the next time it connects, and needs a new pairing to connect again.`}
             </p>
           </div>
           <button onClick={() => setConfirming(false)} className={QUIET_BUTTON}>

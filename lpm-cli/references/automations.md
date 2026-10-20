@@ -31,7 +31,7 @@ Every step gets `LPM_JOB_ID`, `LPM_PROJECT_NAME`, `LPM_RUN_ROOT` (where the run 
 | Every project | `--every-project` | `global.yml` |
 | No project, in the home directory | `--no-project` | `global.yml` |
 
-Automations in `global.yml` never run in duplicates. `show`, `edit`, and `remove` find an automation by `-p <project>` (or the current project); one with no project needs `--global`.
+Automations in `global.yml` never run in duplicates. Every command finds an automation by `-p <project>` (or the current project); one with no project needs `--global`. On `run`, `stop`, `enable`, `disable`, `history`, `output`, and `reply`, `--global` acts in every project the automation runs in.
 
 These commands rewrite the YAML file the automation lives in, the same way the lpm phone app does. Comments in that file are not kept.
 

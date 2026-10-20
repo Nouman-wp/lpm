@@ -39,6 +39,9 @@ describe("adding a server", () => {
     expect(useAppStore.getState().addProjectStart).toBeNull();
     expect(useAppStore.getState().addProjectTarget).toEqual({ slug: "aabbccdd", alias: "dev-server" });
 
+    useAppStore.getState().addProjectForPeer("aabbccdd", "dev-server", true);
+    expect(useAppStore.getState().addProjectTarget).toEqual({ slug: "aabbccdd", alias: "dev-server", connected: true });
+
     useAppStore.setState({ addProjectStart: "linux-host" });
     useAppStore.getState().closeAddProjectPicker();
     expect(useAppStore.getState().addProjectStart).toBeNull();

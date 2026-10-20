@@ -56,7 +56,7 @@ describe("InstallLpmScreen", () => {
     await connect();
 
     expect(mocks.addSshHost).toHaveBeenCalledWith({ host: "10.0.0.5", user: "deploy", port: 0, key: "" }, "", true);
-    expect(mocks.addProjectForPeer).toHaveBeenCalledWith("peer-1", "build-box");
+    expect(mocks.addProjectForPeer).toHaveBeenCalledWith("peer-1", "build-box", true);
   });
 
   it("does not connect until the field holds a server", async () => {

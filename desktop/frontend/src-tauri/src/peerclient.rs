@@ -24,8 +24,11 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tungstenite::{Error as WsError, Message, WebSocket};
 
 mod phone;
+mod removal;
 mod share;
 pub(crate) use phone::PhoneChannelError;
+pub(crate) use removal::PendingForget;
+use removal::Tell;
 pub(crate) use share::{
     peer_joined_shares, peer_share_ask_type, peer_share_join, peer_share_join_cancel,
     peer_share_leave, JoinedShare,
@@ -1690,6 +1693,7 @@ pub fn start(hub: PeerClientHub, app: AppHandle) {
     // the server until the machine reboots.
     crate::peertunnel::reap_orphaned_forwards();
     *hub.inner.app.lock().unwrap() = Some(app);
+    removal::start(hub.clone());
     let peers = hub.inner.config.lock().unwrap().peers.clone();
     for p in peers {
         if p.enabled {
@@ -1746,6 +1750,11 @@ fn run_conn(hub: PeerClientHub, conn: Arc<PeerConn>, generation: u64) {
         match connect_session(&hub, &conn, generation, &entry) {
             Ok(()) => backoff = BACKOFF_MIN, // clean end after a live session
             Err(e) => {
+                // The machine removed this one: it goes from the list here too.
+                if e == peer::REVOKED && !hub.is_joined(&conn.slug) {
+                    hub.drop_revoked_peer(&conn.slug);
+                    return;
+                }
                 // A host that no longer knows a guest won't again: it restarted,
                 // or let it go while this machine was away.
                 if e == "unauthorized" && hub.is_joined(&conn.slug) {
@@ -2400,6 +2409,9 @@ fn connect_session(
                 }
                 if msg.is_text() {
                     if let Ok(txt) = msg.to_text() {
+                        if is_revoked(txt) {
+                            return Err(peer::REVOKED.to_string());
+                        }
                         handle_frame(conn, app.as_ref(), txt);
                     }
                 }
@@ -2412,6 +2424,16 @@ fn connect_session(
         }
     }
     Ok(())
+}
+
+/// The host's word, mid-session, that it removed this machine.
+fn is_revoked(txt: &str) -> bool {
+    txt.len() < 64
+        && txt.contains(peer::REVOKED)
+        && serde_json::from_str::<Value>(txt).is_ok_and(|v| {
+            v.get("t").and_then(Value::as_str) == Some("error")
+                && v.get("error").and_then(Value::as_str) == Some(peer::REVOKED)
+        })
 }
 
 /// What an `exit` frame becomes here, in order. `gone` means the host has no such
@@ -2744,7 +2766,8 @@ pub async fn peer_uninstall_host(
     })
     .await
     .map_err(|e| e.to_string())??;
-    peer_remove(hub, slug).await
+    hub.drop_peer(&slug, "peer removed", Tell::Nothing)?;
+    Ok(hub.peers_state())
 }
 
 /// Add a Linux host: reach it over SSH, install lpm if it isn't there, and pair
@@ -2999,19 +3022,14 @@ fn dial_pair(
 #[tauri::command]
 pub async fn peer_remove(hub: State<'_, PeerClientHub>, slug: String) -> Result<Value, String> {
     // Tell the machine first, so it stops listing and trusting this Mac; a
-    // moment lets the frame leave before the connection is torn down.
-    if hub.send_to(&slug, json!({ "t": "forget" }).to_string()) {
+    // moment lets the frame leave before the connection is torn down. One that
+    // can't hear it now is told once it can be reached (removal.rs).
+    let told = hub.send_to(&slug, json!({ "t": "forget" }).to_string());
+    if told {
         let _ = tauri::async_runtime::spawn_blocking(|| std::thread::sleep(FORGET_GRACE)).await;
     }
-    hub.stop_conn(&slug, "peer removed");
-    {
-        let mut cfg = hub.inner.config.lock().unwrap();
-        cfg.peers.retain(|p| p.slug != slug);
-        let snapshot = cfg.clone();
-        drop(cfg);
-        peer::save_config(&snapshot)?;
-    }
-    emit_state_changed(&hub);
+    let tell = if told { Tell::Verify } else { Tell::Now };
+    hub.drop_peer(&slug, "peer removed", tell)?;
     Ok(hub.peers_state())
 }
 

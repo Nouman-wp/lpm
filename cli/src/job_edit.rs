@@ -4,6 +4,7 @@ use crate::control;
 use crate::error::{resolve_or_infer, RunError};
 use crate::job::{ensure_ok, humanize_until, request_value, value_array, value_text};
 use crate::job_fields::JobFields;
+use crate::job_runtime::project_row;
 use crate::statussock::{hex_encode, quote_arg};
 use crate::util::{now_millis, print_json};
 use clap::Args;
@@ -287,23 +288,8 @@ pub(crate) fn locate(ctx: &Ctx, at: &Locate) -> Result<Definition, RunError> {
         return Ok(def);
     }
     let project = resolve_or_infer(ctx, at.project.as_deref())?;
-    let rows = value_array(request_value(
-        ctx,
-        &format!("list_jobs {}", quote_arg(&project)),
-    )?)?;
-    let Some(row) = rows.iter().find(|row| value_text(row, "id") == at.job_id) else {
-        let ids: Vec<&str> = rows.iter().map(|row| value_text(row, "id")).collect();
-        let known = if ids.is_empty() {
-            "it has none".to_string()
-        } else {
-            format!("it has: {}", ids.join(", "))
-        };
-        return Err(RunError::NotFound(format!(
-            "no automation {} in {project}; {known}\nan automation with no project needs --global",
-            at.job_id
-        )));
-    };
-    let source = value_text(row, "source").to_string();
+    let row = project_row(ctx, &project, &at.job_id)?;
+    let source = value_text(&row, "source").to_string();
     Ok(Definition {
         project: if source == GLOBAL {
             String::new()

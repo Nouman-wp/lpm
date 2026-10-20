@@ -13,6 +13,7 @@ enum Keychain {
     private static let service = "cx.lpm.mobile"
     private static let legacyAccount = "device-credential"
     private static let phoneIdAccount = "phone-id"
+    private static let pendingUnpairsAccount = "pending-unpairs"
     private static let phoneIdDefaultsKey = "lpm.phoneId"
 
     private static func account(for localId: UUID) -> String {
@@ -79,6 +80,17 @@ enum Keychain {
         deleteCredential(account: pinAccount(for: localId))
     }
 
+    // MARK: Macs still to be told they were removed (MacUnpair)
+
+    static func loadPendingUnpairs() -> Data? {
+        loadData(account: pendingUnpairsAccount)
+    }
+
+    static func savePendingUnpairs(_ data: Data?) {
+        guard let data else { return deleteCredential(account: pendingUnpairsAccount) }
+        saveData(data, account: pendingUnpairsAccount)
+    }
+
     // MARK: phone id
 
     private static var cachedPhoneId: String?
@@ -143,6 +155,10 @@ enum Keychain {
         guard let data = try? JSONSerialization.data(withJSONObject: ["deviceId": deviceId, "token": token]) else {
             return
         }
+        saveData(data, account: account)
+    }
+
+    private static func saveData(_ data: Data, account: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -162,6 +178,16 @@ enum Keychain {
     }
 
     private static func loadCredential(account: String) -> LpmClient.Credential? {
+        guard let data = loadData(account: account),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+              let id = obj["deviceId"], let token = obj["token"]
+        else {
+            return nil
+        }
+        return LpmClient.Credential(deviceId: id, token: token)
+    }
+
+    private static func loadData(account: String) -> Data? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -170,14 +196,8 @@ enum Keychain {
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
         var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data,
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: String],
-              let id = obj["deviceId"], let token = obj["token"]
-        else {
-            return nil
-        }
-        return LpmClient.Credential(deviceId: id, token: token)
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess else { return nil }
+        return result as? Data
     }
 
     private static func deleteCredential(account: String) {

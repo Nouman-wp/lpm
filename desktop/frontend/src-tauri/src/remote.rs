@@ -1201,6 +1201,7 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
     // life; read silence is the only signal a phone left without a RST.
     let mut last_read = Instant::now();
     let mut last_ping: Option<Instant> = None;
+    let phone_id = hub.device_phone_id(&device_id);
 
     'main: loop {
         // A revoke in the other instance has to reach a phone that is connected
@@ -1209,9 +1210,14 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
         // gives up rather than wait on a save, since the drain is right behind it.
         hub.refresh_live_devices();
         // Retire on server restart or when this device is revoked.
-        if hub.inner.generation.load(Ordering::SeqCst) != generation
-            || !hub.device_exists(&device_id)
-        {
+        if hub.inner.generation.load(Ordering::SeqCst) != generation {
+            break;
+        }
+        if !hub.device_exists(&device_id) {
+            // Removed here, the phone drops this machine from its list too.
+            if hub.inner.config.lock().unwrap().phone_revoked(&phone_id) {
+                let _ = ws.write(Message::text(revoked_frame()));
+            }
             break;
         }
         // Flush any queued output/broadcasts to the socket.
@@ -1483,9 +1489,7 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
                 ));
                 FirstFrame::Done(Some(AuthOutcome::Resumed(id.to_string())))
             } else {
-                let _ = ws.send(Message::text(
-                    json!({ "t": "error", "error": "unauthorized" }).to_string(),
-                ));
+                let _ = ws.send(Message::text(auth_refusal(hub, id, &phone_id_of(&v))));
                 FirstFrame::Done(None)
             }
         }
@@ -1860,6 +1864,20 @@ fn pair_device(
         Ok(None) => Err(PairFailure::Rejected),
         Err(_) => Err(PairFailure::Unavailable),
     }
+}
+
+/// Why `auth` failed: `revoked` when this machine removed the phone, so it drops
+/// the machine from its own list; `unauthorized` for any other missing record.
+fn auth_refusal(hub: &RemoteHub, id: &str, phone_id: &str) -> String {
+    if !hub.device_exists(id) && hub.inner.config.lock().unwrap().phone_revoked(phone_id) {
+        revoked_frame()
+    } else {
+        json!({ "t": "error", "error": "unauthorized" }).to_string()
+    }
+}
+
+fn revoked_frame() -> String {
+    json!({ "t": "error", "error": "revoked" }).to_string()
 }
 
 fn check_device(hub: &RemoteHub, id: &str, token: &str) -> bool {
@@ -6909,6 +6927,37 @@ mod tests {
         hub.update_config(|c| arm(c, "EEEE-FFFF"));
         pair_device(&hub, "EEEE-FFFF", "phone", None, "phone-1").expect("paired here");
         assert!(!hub.phone_revoked("phone-1"));
+    }
+
+    fn refusal(hub: &RemoteHub, id: &str, phone_id: &str) -> String {
+        let v: Value = serde_json::from_str(&auth_refusal(hub, id, phone_id)).unwrap();
+        v["error"].as_str().unwrap_or_default().to_string()
+    }
+
+    // Removed here, the phone hears so on its next sign-in and drops this Mac
+    // from its own list, instead of offering to pair a Mac that turned it away.
+    #[test]
+    fn a_phone_removed_here_hears_it_was_revoked() {
+        let _cfg = TestConfig::new();
+        let hub = loaded_hub();
+        hub.update_config(|c| arm(c, "AAAA-BBBB"));
+        let (id, _) = pair_device(&hub, "AAAA-BBBB", "phone", None, "phone-1").expect("pair");
+        revoke_device(&hub, &id, true).expect("revoke");
+        assert_eq!(refusal(&hub, &id, "phone-1"), "revoked");
+        // Only a phone this Mac removed: a phone that sent no id, or another one
+        // holding a dead credential, is still just not recognized.
+        assert_eq!(refusal(&hub, &id, ""), "unauthorized");
+        assert_eq!(refusal(&hub, "other", "phone-2"), "unauthorized");
+    }
+
+    #[test]
+    fn a_phone_that_removed_this_mac_is_only_unrecognized() {
+        let _cfg = TestConfig::new();
+        let hub = loaded_hub();
+        hub.update_config(|c| arm(c, "AAAA-BBBB"));
+        let (id, token) = pair_device(&hub, "AAAA-BBBB", "phone", None, "phone-1").expect("pair");
+        assert!(unpair_device(&hub, &id, &token).expect("unpair"));
+        assert_eq!(refusal(&hub, &id, "phone-1"), "unauthorized");
     }
 
     // A phone dropping this Mac from its own list isn't barred from coming back.

@@ -15,7 +15,8 @@ export function AddMacPanel({
   onManual,
 }: {
   busy: boolean;
-  onInvite: (raw: string) => void;
+  // Resolves false when the connection failed, which keeps the invite in the field.
+  onInvite: (raw: string) => Promise<boolean> | void;
   onManual: (address: string, port: number, code: string) => Promise<boolean>;
 }) {
   const [manualOpen, setManualOpen] = useState(false);

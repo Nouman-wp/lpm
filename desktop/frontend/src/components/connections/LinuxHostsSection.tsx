@@ -73,7 +73,8 @@ export function LinuxHostsSection({
             <span className="font-medium text-[var(--text-primary)]">
               {removePeer?.alias || removePeer?.host}
             </span>
-            ? Its projects will no longer appear here. Anything running on it keeps running.
+            ? Its projects will no longer appear here, and {MACHINE.thisMachine} is removed there
+            too. Anything running on it keeps running.
           </>
         }
         onCancel={() => setRemovePeer(null)}

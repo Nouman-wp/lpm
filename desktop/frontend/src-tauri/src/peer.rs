@@ -202,6 +202,7 @@ pub(crate) struct HostConfig {
     pub pairing_code: String, // non-empty while an unused pairing code is outstanding
     pub host_id: String, // this Mac's stable peer identity, advertised over mDNS; minted on first load
     pub devices: Vec<PeerDevice>,
+    pub revoked: Vec<String>, // ids of devices removed here, newest last, so one that comes back is told
 }
 
 pub(crate) const LOOPBACK: &str = "127.0.0.1";
@@ -238,7 +239,22 @@ impl Default for HostConfig {
             pairing_code: String::new(),
             host_id: String::new(),
             devices: Vec::new(),
+            revoked: Vec::new(),
         }
+    }
+}
+
+/// How many removed devices a machine remembers; the oldest is forgotten first.
+const REVOKED_DEVICES_MAX: usize = 64;
+
+impl HostConfig {
+    fn revoke(&mut self, id: &str) {
+        if id.is_empty() || self.revoked.iter().any(|r| r == id) {
+            return;
+        }
+        self.revoked.push(id.to_string());
+        let over = self.revoked.len().saturating_sub(REVOKED_DEVICES_MAX);
+        self.revoked.drain(..over);
     }
 }
 
@@ -283,6 +299,8 @@ pub(crate) struct PeerConfig {
     pub peers: Vec<PeerEntry>,
     // Tabs other people shared with this machine (peerclient/share.rs).
     pub joined: Vec<crate::peerclient::JoinedShare>,
+    // Machines removed here that haven't heard so yet (peerclient/removal.rs).
+    pub forgets: Vec<crate::peerclient::PendingForget>,
 }
 
 pub(crate) type SharedConfig = Arc<Mutex<PeerConfig>>;
@@ -296,12 +314,12 @@ pub(crate) fn effective_port(p: u16) -> u16 {
 }
 
 #[cfg(test)]
-static TEST_CONFIG_PATH: Mutex<Option<std::path::PathBuf>> = Mutex::new(None);
+pub(crate) static TEST_CONFIG_PATH: Mutex<Option<std::path::PathBuf>> = Mutex::new(None);
 
 // Serializes tests that share the single TEST_CONFIG_PATH slot (cargo runs tests
 // in parallel; save_config writes go to whichever path is currently installed).
 #[cfg(test)]
-static TEST_CFG_GUARD: Mutex<()> = Mutex::new(());
+pub(crate) static TEST_CFG_GUARD: Mutex<()> = Mutex::new(());
 
 fn config_path() -> std::path::PathBuf {
     #[cfg(test)]
@@ -488,6 +506,19 @@ impl PeerHub {
             .devices
             .iter()
             .any(|d| d.id == id)
+    }
+
+    fn device_revoked(&self, id: &str) -> bool {
+        !id.is_empty()
+            && self
+                .inner
+                .config
+                .lock()
+                .unwrap()
+                .host
+                .revoked
+                .iter()
+                .any(|r| r == id)
     }
 
     fn device_name(&self, id: &str) -> String {
@@ -1072,9 +1103,15 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
     let mut quick = false;
 
     'main: loop {
-        if hub.inner.generation.load(Ordering::SeqCst) != generation
-            || !hub.device_exists(&device_id)
-        {
+        if hub.inner.generation.load(Ordering::SeqCst) != generation {
+            break;
+        }
+        if !hub.device_exists(&device_id) {
+            // Removed here: the machine drops this one from its list too, rather
+            // than reconnecting to be turned away.
+            if hub.device_revoked(&device_id) {
+                let _ = ws.write(Message::text(revoked_frame()));
+            }
             break;
         }
         loop {
@@ -1238,9 +1275,7 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Sessi
             } else if let Some(session) = guest::authenticate(ws, id, token) {
                 Some(Session::Guest(session))
             } else {
-                let _ = ws.send(Message::text(
-                    json!({ "t": "error", "error": "unauthorized" }).to_string(),
-                ));
+                let _ = ws.send(Message::text(auth_refusal(hub, id)));
                 None
             }
         }
@@ -1252,6 +1287,23 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Sessi
 /// guests may connect.
 fn control_off_frame() -> String {
     json!({ "t": "error", "error": "Allow control is turned off there." }).to_string()
+}
+
+/// What a machine removed here hears, live or when it next connects.
+pub(crate) const REVOKED: &str = "revoked";
+
+fn revoked_frame() -> String {
+    json!({ "t": "error", "error": REVOKED }).to_string()
+}
+
+/// Why `auth` failed: `revoked` when this machine removed the device, so the
+/// other one drops it from its own list; `unauthorized` for any other.
+fn auth_refusal(hub: &PeerHub, id: &str) -> String {
+    if hub.device_revoked(id) {
+        revoked_frame()
+    } else {
+        json!({ "t": "error", "error": "unauthorized" }).to_string()
+    }
 }
 
 fn normalize_code(s: &str) -> String {
@@ -1660,7 +1712,7 @@ fn handle_msg(
         // The Mac disconnected this one from its side: its access goes with it,
         // rather than staying listed here and authorized.
         "forget" => {
-            let _ = revoke_device(app, hub, device_id);
+            let _ = revoke_device(app, hub, device_id, false);
             return Err(());
         }
         // A paired Mac updating lpm here. The updater is on the invoke denylist,
@@ -2411,26 +2463,37 @@ pub async fn peer_host_revoke_device(
     hub: State<'_, PeerHub>,
     id: String,
 ) -> Result<Value, String> {
-    revoke_device(&app, &hub, &id)?;
+    revoke_device(&app, &hub, &id, true)?;
     Ok(host_state_value(&hub))
 }
 
-fn revoke_device(app: &AppHandle, hub: &PeerHub, id: &str) -> Result<(), String> {
+/// `block` when the removal is this machine's decision rather than the other
+/// one's own: that machine is then told, live or when it next connects, and
+/// drops this one from its list too.
+fn revoke_device(app: &AppHandle, hub: &PeerHub, id: &str, block: bool) -> Result<(), String> {
+    remove_device(hub, id, block)?;
+    let _ = app.emit("peer-state-changed", ());
+    Ok(())
+}
+
+fn remove_device(hub: &PeerHub, id: &str, block: bool) -> Result<(), String> {
     {
         let mut cfg = hub.inner.config.lock().unwrap();
         cfg.host.devices.retain(|d| d.id != id);
+        if block {
+            cfg.host.revoke(id);
+        }
         let snapshot = cfg.clone();
         drop(cfg);
         save_config(&snapshot)?;
     }
     // Drop any live connection for the revoked device (the poll loop also self-
-    // exits on its next tick via device_exists).
+    // exits on its next tick via device_exists, telling the machine first).
     hub.inner
         .clients
         .lock()
         .unwrap()
         .retain(|_, c| c.device_id != id);
-    let _ = app.emit("peer-state-changed", ());
     Ok(())
 }
 
@@ -2728,6 +2791,7 @@ mod tests {
                     created_at: 7,
                     platform: "macos".into(),
                 }],
+                revoked: vec!["d0".into()],
             },
             peers: vec![PeerEntry {
                 slug: "beefcafe".into(),
@@ -2752,6 +2816,16 @@ mod tests {
                 },
             }],
             joined: Vec::new(),
+            forgets: vec![crate::peerclient::PendingForget {
+                peer: PeerEntry {
+                    device_id: "old".into(),
+                    token: "gone".into(),
+                    ..Default::default()
+                },
+                since: 5,
+                next_try: 6,
+                attempts: 2,
+            }],
         };
         let s = serde_json::to_string(&cfg).unwrap();
         let back: PeerConfig = serde_json::from_str(&s).unwrap();
@@ -2772,6 +2846,11 @@ mod tests {
         assert_eq!(back.peers[0].tls_fp.as_deref(), Some("deadbeef"));
         assert!(back.peers[0].enabled);
         assert!(back.peers[0].auto_sync);
+        // A removal is told to its machine across restarts, and one this machine
+        // made is still answered as such.
+        assert_eq!(back.host.revoked, ["d0"]);
+        assert_eq!(back.forgets[0].peer.token, "gone");
+        assert_eq!(back.forgets[0].attempts, 2);
     }
 
     // Old peer.json (or a hand-written one) without the peer `enabled` field must
@@ -3297,6 +3376,57 @@ mod tests {
         assert_eq!(hub.inner.pair_requests.lock().unwrap().len(), 1);
         hub.remove_pair_request(&id);
         assert!(hub.inner.pair_requests.lock().unwrap().is_empty());
+    }
+
+    fn with_test_config(name: &str, test: impl FnOnce(&PeerHub)) {
+        let _guard = TEST_CFG_GUARD.lock().unwrap_or_else(|e| e.into_inner());
+        let tmp = std::env::temp_dir().join(format!("lpm-peer-{name}-{}.json", std::process::id()));
+        *TEST_CONFIG_PATH.lock().unwrap() = Some(tmp.clone());
+        test(&PeerHub::default());
+        *TEST_CONFIG_PATH.lock().unwrap() = None;
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    fn refusal(hub: &PeerHub, id: &str) -> String {
+        let v: Value = serde_json::from_str(&auth_refusal(hub, id)).unwrap();
+        v["error"].as_str().unwrap_or_default().to_string()
+    }
+
+    // Removed in Settings here, the other machine is told so when it next signs
+    // in, and drops this one from its own list.
+    #[test]
+    fn a_machine_removed_here_hears_it_was_revoked() {
+        with_test_config("revoked", |hub| {
+            let (id, _, _) = mint_device(hub, "Laptop", "macos", None);
+            remove_device(hub, &id, true).unwrap();
+            assert!(!hub.device_exists(&id));
+            assert_eq!(refusal(hub, &id), REVOKED);
+            assert_eq!(load_config().host.revoked, [id]);
+        });
+    }
+
+    // A machine that let go of this one itself (`forget`) has nothing to drop.
+    #[test]
+    fn a_machine_that_removed_itself_hears_only_unauthorized() {
+        with_test_config("forgot", |hub| {
+            let (id, _, _) = mint_device(hub, "Laptop", "macos", None);
+            remove_device(hub, &id, false).unwrap();
+            assert!(!hub.device_exists(&id));
+            assert_eq!(refusal(hub, &id), "unauthorized");
+            assert_eq!(refusal(hub, ""), "unauthorized");
+        });
+    }
+
+    #[test]
+    fn only_the_latest_removals_are_remembered() {
+        let mut host = HostConfig::default();
+        for i in 0..REVOKED_DEVICES_MAX + 3 {
+            host.revoke(&format!("d{i}"));
+        }
+        host.revoke("d10");
+        host.revoke("");
+        assert_eq!(host.revoked.len(), REVOKED_DEVICES_MAX);
+        assert_eq!(host.revoked.first().map(String::as_str), Some("d3"));
     }
 
     // Anyone on the network can ask, and each request is a dialog here.

@@ -17,8 +17,9 @@ import {
   type RemoteAction,
   type RemoteFailure,
 } from "../remoteStatus";
-import { canReachAway, type KeepAwakeStatus } from "../mobile/reachStatus";
-import { anyOverTailscale, type PhoneDevice } from "../mobile/phoneStatus";
+import { canReachAway } from "../mobile/reachStatus";
+import { DEFAULT_REMOTE_STATE, type RemoteStateShape } from "../mobile/usePhoneServer";
+import { anyOverTailscale } from "../mobile/phoneStatus";
 import { useMachineWords } from "./settings/useMachineWords";
 import { useSettingsTarget } from "./settings/settingsTarget";
 
@@ -26,46 +27,12 @@ import { useSettingsTarget } from "./settings/settingsTarget";
 // state is read again this often while shown.
 const POLL_MS = 3000;
 
-interface RemoteStateShape {
-  enabled: boolean;
-  port: number;
-  tailscale: boolean;
-  keepAwake: boolean;
-  keepAwakeStatus: KeepAwakeStatus;
-  running: boolean;
-  host: string | null;
-  tailscaleHost: string | null;
-  identityRotated: boolean;
-  identityCode: string;
-  hasPendingCode: boolean;
-  bindError: string | null;
-  configError: string | null;
-  devices: PhoneDevice[];
-}
-
-const DEFAULT_STATE: RemoteStateShape = {
-  enabled: false,
-  port: 8765,
-  tailscale: true,
-  keepAwake: false,
-  keepAwakeStatus: "off",
-  running: false,
-  host: null,
-  tailscaleHost: null,
-  identityRotated: false,
-  identityCode: "",
-  hasPendingCode: false,
-  bindError: null,
-  configError: null,
-  devices: [],
-};
-
 export function MobileSettingsPane() {
   const words = useMachineWords();
   const { machine, commands } = useSettingsTarget();
   const { mobile } = commands;
   const local = machine.kind === "local";
-  const [state, setState] = useState<RemoteStateShape>(DEFAULT_STATE);
+  const [state, setState] = useState<RemoteStateShape>(DEFAULT_REMOTE_STATE);
   const [pairing, setPairing] = useState<Pairing | null>(null);
   const [pairingBusy, setPairingBusy] = useState(false);
   const [failure, setFailure] = useState<RemoteFailure | null>(null);
@@ -87,7 +54,7 @@ export function MobileSettingsPane() {
     const seen = reports.current;
     const shown = pairingShown.current;
     try {
-      const fresh = { ...DEFAULT_STATE, ...((await mobile.state()) as RemoteStateShape) };
+      const fresh = { ...DEFAULT_REMOTE_STATE, ...((await mobile.state()) as RemoteStateShape) };
       setState((prev) => mergeRefreshedState(prev, fresh, reports.current !== seen));
       const ids = new Set(fresh.devices.map((d) => d.id));
       const known = knownDevices.current;
@@ -151,7 +118,7 @@ export function MobileSettingsPane() {
       setFailure(null);
       try {
         const s = (await command()) as RemoteStateShape;
-        setState((prev) => mergeCommandState(prev, { ...DEFAULT_STATE, ...s }));
+        setState((prev) => mergeCommandState(prev, { ...DEFAULT_REMOTE_STATE, ...s }));
       } catch (err) {
         await reportFailure(action, err);
       }

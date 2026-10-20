@@ -434,6 +434,7 @@ final class AppModel {
         activeMacId = MacStore.loadActiveId() ?? macs.first?.localId
         pruneWidgets()
         restoreSnapshot()
+        MacUnpair.retryPending()
         guard let cred = activeCredential() else { return }
         connectBest(credential: cred)
     }
@@ -809,6 +810,7 @@ final class AppModel {
     }
 
     func reconnectIfNeeded() {
+        MacUnpair.retryPending()
         visitSession?.reconnectIfNeeded()
         guard !link.identityRejected else { return }
         // Even a `.ready` state can be stale after backgrounding (half-open
@@ -1002,14 +1004,24 @@ final class AppModel {
         macs.first { $0.localId != activeMacId && $0.via?.macId != activeMacId }
     }
 
+    /// The active Mac removed this phone on its side, so it goes from here too.
+    /// Nothing is sent back: the Mac already let go. Through another Mac, it was
+    /// the machine opened that way that did, and only it goes.
+    private func dropMacThatRemovedThisPhone(_ c: LpmClient) {
+        guard c === client, let record = activeRecord else { return }
+        let owner = visitHost ?? self
+        owner.removeMac(record.localId, tellMac: false)
+        owner.notice = "“\(record.displayName)” removed this \(ThisDevice.noun). Pair it there to use it here again."
+    }
+
     /// Remove a saved Mac: delete its record + Keychain credential and its saved
     /// project list. Removing the active one drops its connection and switches to
     /// another saved Mac if one remains — otherwise back to the pairing screen.
-    func removeMac(_ id: UUID) {
+    func removeMac(_ id: UUID, tellMac: Bool = true) {
         if demoMode { exitDemo(); return }
         // The Mac forgets this phone too. A machine opened through another Mac
         // connects with that Mac's credential, so removing it sends nothing.
-        if let record = macs.first(where: { $0.localId == id }), record.via == nil,
+        if tellMac, let record = macs.first(where: { $0.localId == id }), record.via == nil,
            let credential = Keychain.load(for: id) {
             MacUnpair.send(hosts: record.hosts, port: Int(record.port), credential: credential,
                            pin: Keychain.loadPin(for: id))
@@ -2578,6 +2590,9 @@ final class AppModel {
                 guard case .failed(let reason) = s else { return false }
                 return reason == LpmClient.unauthorizedError || reason == LpmClient.revokedError
             }()
+            if case .failed(LpmClient.revokedError) = s, c === self.client {
+                DispatchQueue.main.async { self.dropMacThatRemovedThisPhone(c) }
+            }
             self.connection = s
             self.repickHostIfStale(s, from: c)
             self.startRecoveryIfStale(s, from: c)

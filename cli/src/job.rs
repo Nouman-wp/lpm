@@ -2,6 +2,7 @@ use crate::config::Ctx;
 use crate::control;
 use crate::job_edit;
 use crate::job_open;
+use crate::job_runtime::{self, Target};
 use crate::error::{resolve_or_infer, RunError};
 use crate::statussock::quote_arg;
 use crate::style::Style;
@@ -28,41 +29,36 @@ pub enum Command {
     },
     #[command(about = "Run an automation immediately")]
     Run {
-        job_id: String,
-        #[arg(long, short = 'p')]
-        project: Option<String>,
+        #[command(flatten)]
+        target: Target,
         #[arg(long)]
         json: bool,
     },
     #[command(about = "Stop an automation's current run")]
     Stop {
-        job_id: String,
-        #[arg(long, short = 'p')]
-        project: Option<String>,
+        #[command(flatten)]
+        target: Target,
         #[arg(long)]
         json: bool,
     },
     #[command(about = "Enable a scheduled automation", alias = "resume")]
     Enable {
-        job_id: String,
-        #[arg(long, short = 'p')]
-        project: Option<String>,
+        #[command(flatten)]
+        target: Target,
         #[arg(long)]
         json: bool,
     },
     #[command(about = "Disable a scheduled automation", alias = "pause")]
     Disable {
-        job_id: String,
-        #[arg(long, short = 'p')]
-        project: Option<String>,
+        #[command(flatten)]
+        target: Target,
         #[arg(long)]
         json: bool,
     },
     #[command(about = "Show an automation's run and conversation history")]
     History {
-        job_id: String,
-        #[arg(long, short = 'p')]
-        project: Option<String>,
+        #[command(flatten)]
+        target: Target,
         #[arg(long, short = 'n', help = "Show only the newest N runs")]
         limit: Option<usize>,
         #[arg(long)]
@@ -70,9 +66,8 @@ pub enum Command {
     },
     #[command(about = "Print an automation's current live output")]
     Output {
-        job_id: String,
-        #[arg(long, short = 'p')]
-        project: Option<String>,
+        #[command(flatten)]
+        target: Target,
         #[arg(long)]
         json: bool,
     },
@@ -92,10 +87,9 @@ pub enum Command {
     Remove(job_edit::RemoveArgs),
     #[command(about = "Continue an AI automation conversation")]
     Reply {
-        job_id: String,
+        #[command(flatten)]
+        target: Target,
         message: String,
-        #[arg(long, short = 'p')]
-        project: Option<String>,
         #[arg(
             long,
             help = "History entry timestamp to continue; defaults to the newest conversation"
@@ -115,56 +109,41 @@ pub enum Command {
 pub fn run(ctx: &Ctx, command: Command) -> Result<(), RunError> {
     match command {
         Command::List { project, all, json } => list(ctx, project.as_deref(), all, json),
-        Command::Run {
-            job_id,
-            project,
-            json,
-        } => run_job(ctx, &job_id, project.as_deref(), json),
-        Command::Stop {
-            job_id,
-            project,
-            json,
-        } => stop_job(ctx, &job_id, project.as_deref(), json),
-        Command::Enable {
-            job_id,
-            project,
-            json,
-        } => set_enabled(ctx, &job_id, project.as_deref(), true, json),
-        Command::Disable {
-            job_id,
-            project,
-            json,
-        } => set_enabled(ctx, &job_id, project.as_deref(), false, json),
+        Command::Run { target, json } => {
+            job_runtime::mutate(ctx, "run_job", "running", &target, "", json)
+        }
+        Command::Stop { target, json } => {
+            job_runtime::mutate(ctx, "stop_job", "stopping", &target, "", json)
+        }
+        Command::Enable { target, json } => {
+            job_runtime::mutate(ctx, "set_job_enabled", "enabled", &target, "true", json)
+        }
+        Command::Disable { target, json } => {
+            job_runtime::mutate(ctx, "set_job_enabled", "disabled", &target, "false", json)
+        }
         Command::History {
-            job_id,
-            project,
+            target,
             limit,
             json,
-        } => history(ctx, &job_id, project.as_deref(), limit, json),
-        Command::Output {
-            job_id,
-            project,
-            json,
-        } => output(ctx, &job_id, project.as_deref(), json),
+        } => job_runtime::history(ctx, &target, limit, json),
+        Command::Output { target, json } => job_runtime::output(ctx, &target, json),
         Command::Show(args) => job_edit::show(ctx, args),
         Command::Open(args) => job_open::open(ctx, args),
         Command::Add(args) => job_edit::add(ctx, *args),
         Command::Edit(args) => job_edit::edit(ctx, *args),
         Command::Remove(args) => job_edit::remove(ctx, args),
         Command::Reply {
-            job_id,
+            target,
             message,
-            project,
             at,
             agent,
             model,
             effort,
             json,
-        } => reply(
+        } => job_runtime::reply(
             ctx,
-            &job_id,
+            &target,
             &message,
-            project.as_deref(),
             at,
             agent.as_deref(),
             model.as_deref(),
@@ -180,17 +159,13 @@ pub(crate) fn request_value(ctx: &Ctx, line: &str) -> Result<Value, RunError> {
         .map_err(|e| RunError::Internal(format!("unexpected reply from app: {e}: {reply}")))
 }
 
-fn project_name(ctx: &Ctx, project: Option<&str>) -> Result<String, RunError> {
-    resolve_or_infer(ctx, project)
-}
-
 fn list(ctx: &Ctx, project: Option<&str>, all: bool, as_json: bool) -> Result<(), RunError> {
     control::require_app(ctx)?;
     let (scope, mut jobs) = if all {
         let rows = request_value(ctx, "list_all_jobs")?;
         (None, value_array(rows)?)
     } else {
-        let project = project_name(ctx, project)?;
+        let project = resolve_or_infer(ctx, project)?;
         let rows = request_value(ctx, &format!("list_jobs {}", quote_arg(&project)))?;
         let mut jobs = value_array(rows)?;
         for job in &mut jobs {
@@ -220,172 +195,6 @@ fn list(ctx: &Ctx, project: Option<&str>, all: bool, as_json: bool) -> Result<()
     Ok(())
 }
 
-fn run_job(ctx: &Ctx, job_id: &str, project: Option<&str>, as_json: bool) -> Result<(), RunError> {
-    mutate(ctx, "run_job", "running", job_id, project, None, as_json)
-}
-
-fn stop_job(ctx: &Ctx, job_id: &str, project: Option<&str>, as_json: bool) -> Result<(), RunError> {
-    mutate(ctx, "stop_job", "stopping", job_id, project, None, as_json)
-}
-
-fn set_enabled(
-    ctx: &Ctx,
-    job_id: &str,
-    project: Option<&str>,
-    enabled: bool,
-    as_json: bool,
-) -> Result<(), RunError> {
-    mutate(
-        ctx,
-        "set_job_enabled",
-        if enabled { "enabled" } else { "disabled" },
-        job_id,
-        project,
-        Some(enabled),
-        as_json,
-    )
-}
-
-fn mutate(
-    ctx: &Ctx,
-    verb: &str,
-    action: &str,
-    job_id: &str,
-    project: Option<&str>,
-    enabled: Option<bool>,
-    as_json: bool,
-) -> Result<(), RunError> {
-    control::require_app(ctx)?;
-    let project = project_name(ctx, project)?;
-    let mut line = format!("{verb} {} {}", quote_arg(&project), quote_arg(job_id));
-    if let Some(enabled) = enabled {
-        line.push_str(if enabled { " true" } else { " false" });
-    }
-    ensure_ok(request_value(ctx, &line)?)?;
-    if as_json {
-        print_json(&json!({
-            "ok": true,
-            "project": project,
-            "automation": job_id,
-            "action": action,
-        }));
-    } else {
-        println!("{action} automation {job_id} in {project}");
-        if verb == "run_job" {
-            eprintln!("note: fire-and-forget — watch it with `lpm automations list -p {project}`");
-        }
-    }
-    Ok(())
-}
-
-fn history(
-    ctx: &Ctx,
-    job_id: &str,
-    project: Option<&str>,
-    limit: Option<usize>,
-    as_json: bool,
-) -> Result<(), RunError> {
-    control::require_app(ctx)?;
-    let project = project_name(ctx, project)?;
-    let mut entries = load_history(ctx, &project, job_id)?;
-    if let Some(limit) = limit {
-        entries.drain(..entries.len().saturating_sub(limit));
-    }
-    if as_json {
-        print_json(&json!({ "project": project, "automation": job_id, "history": entries }));
-    } else if entries.is_empty() {
-        println!("no runs for automation {job_id} in {project}");
-    } else {
-        let style = Style {
-            on: std::io::stdout().is_terminal(),
-        };
-        print!("{}", render_history(&style, &entries, now_millis()));
-    }
-    Ok(())
-}
-
-fn output(ctx: &Ctx, job_id: &str, project: Option<&str>, as_json: bool) -> Result<(), RunError> {
-    control::require_app(ctx)?;
-    let project = project_name(ctx, project)?;
-    let live = request_value(
-        ctx,
-        &format!(
-            "job_live_output {} {}",
-            quote_arg(&project),
-            quote_arg(job_id)
-        ),
-    )?;
-    if as_json {
-        print_json(&json!({ "project": project, "automation": job_id, "live": live }));
-    } else if let Some(text) = live.get("text").and_then(Value::as_str) {
-        if text.is_empty() {
-            println!("automation {job_id} has not produced output yet");
-        } else {
-            println!("{text}");
-        }
-    } else {
-        println!("automation {job_id} is not currently producing live output");
-    }
-    Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-fn reply(
-    ctx: &Ctx,
-    job_id: &str,
-    message: &str,
-    project: Option<&str>,
-    at: Option<u64>,
-    agent: Option<&str>,
-    model: Option<&str>,
-    effort: Option<&str>,
-    as_json: bool,
-) -> Result<(), RunError> {
-    control::require_app(ctx)?;
-    let project = project_name(ctx, project)?;
-    let at = match at {
-        Some(at) => at,
-        None => newest_history_at(&load_history(ctx, &project, job_id)?).ok_or_else(|| {
-            RunError::NotFound(format!(
-                "automation {job_id} has no conversation to continue — run it first"
-            ))
-        })?,
-    };
-    let mut line = format!(
-        "send_job_followup {} {} {at} --message-hex={}",
-        quote_arg(&project),
-        quote_arg(job_id),
-        hex_encode(message)
-    );
-    for (key, value) in [("agent", agent), ("model", model), ("effort", effort)] {
-        if let Some(value) = value.filter(|value| !value.is_empty()) {
-            line.push_str(&format!(" --{key}={}", quote_arg(value)));
-        }
-    }
-    ensure_ok(request_value(ctx, &line)?)?;
-    if as_json {
-        print_json(&json!({
-            "ok": true,
-            "project": project,
-            "automation": job_id,
-            "at": at,
-        }));
-    } else {
-        println!("sent reply to automation {job_id} in {project}");
-        eprintln!(
-            "note: fire-and-forget — watch it with `lpm automations output {job_id} -p {project}`"
-        );
-    }
-    Ok(())
-}
-
-fn load_history(ctx: &Ctx, project: &str, job_id: &str) -> Result<Vec<Value>, RunError> {
-    value_array(request_value(
-        ctx,
-        &format!("job_history {} {}", quote_arg(project), quote_arg(job_id)),
-    )?)
-}
-
 pub(crate) fn value_array(value: Value) -> Result<Vec<Value>, RunError> {
     value
         .as_array()
@@ -404,20 +213,6 @@ pub(crate) fn ensure_ok(value: Value) -> Result<(), RunError> {
             .unwrap_or("automation command failed")
             .to_string(),
     ))
-}
-
-fn newest_history_at(entries: &[Value]) -> Option<u64> {
-    entries
-        .iter()
-        .filter_map(|entry| entry.get("at")?.as_u64())
-        .max()
-}
-
-fn hex_encode(text: &str) -> String {
-    text.as_bytes()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
 }
 
 pub(crate) fn value_text<'a>(value: &'a Value, key: &str) -> &'a str {
@@ -511,12 +306,15 @@ fn render_table(style: &Style, jobs: &[Value], now_secs: i64) -> String {
     output
 }
 
-fn render_history(style: &Style, entries: &[Value], now_ms: i64) -> String {
+pub(crate) fn render_history(style: &Style, entries: &[Value], now_ms: i64) -> String {
     let mut output = String::new();
     for entry in entries.iter().rev() {
         let at = entry.get("at").and_then(Value::as_i64).unwrap_or_default();
         let result = value_text(entry, "result");
         let mut meta = vec![relative(at * 1000, now_ms)];
+        if let Some(project) = entry.get("project").and_then(Value::as_str) {
+            meta.push(project.to_string());
+        }
         if let Some(duration) = entry.get("durationSecs").and_then(Value::as_u64) {
             meta.push(format!("{duration}s"));
         }
@@ -707,17 +505,6 @@ mod tests {
         assert!(output.contains("Dependency updates"));
         assert!(output.contains("enabled"));
         assert!(output.contains("bad schedule"));
-    }
-
-    #[test]
-    fn newest_history_timestamp_and_message_hex_are_stable() {
-        let entries = vec![
-            json!({ "at": 10 }),
-            json!({ "at": 30 }),
-            json!({ "at": 20 }),
-        ];
-        assert_eq!(newest_history_at(&entries), Some(30));
-        assert_eq!(hex_encode("don't"), "646f6e2774");
     }
 
     #[test]

@@ -62,7 +62,7 @@ class TestSession(test: TestScope, stores: Set<SessionStore.Factory> = emptySet(
         clients = clients,
         device = device,
         tailnet = tailscale,
-        unpair = MacUnpair(scope, transport, tailscale) { credentials.phoneId },
+        unpair = MacUnpair(scope, transport, tailscale, credentials, clock),
         storeFactories = setOf(
             SessionStore.Factory(::ProjectsStore),
             SessionStore.Factory(::TerminalsStore)

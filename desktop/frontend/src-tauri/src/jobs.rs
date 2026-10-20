@@ -769,6 +769,10 @@ fn resolve_standalone_jobs() -> Vec<(String, Result<JobResolved, String>)> {
         .collect()
 }
 
+pub(crate) fn is_standalone_job(job_id: &str) -> bool {
+    resolve_standalone_jobs().iter().any(|(id, _)| id == job_id)
+}
+
 fn home_dir() -> String {
     dirs::home_dir()
         .unwrap_or_default()

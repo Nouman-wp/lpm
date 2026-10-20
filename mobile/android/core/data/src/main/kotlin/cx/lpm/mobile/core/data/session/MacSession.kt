@@ -103,6 +103,7 @@ class MacSession internal constructor(
             )
         }
         upkeep.restoreSnapshot()
+        env.unpair.retryPending()
         activeCredential()?.let(::connectBest)
     }
 
@@ -229,6 +230,7 @@ class MacSession internal constructor(
     fun suspendRecoveryDiscovery() = recovery.suspendDiscovery()
 
     fun reconnectIfNeeded() {
+        if (!isVisit) env.unpair.retryPending()
         visitSession.value?.reconnectIfNeeded()
         if (link.state.value.identityRejected) return
         // Even `Ready` can be stale after backgrounding (a half-open socket):

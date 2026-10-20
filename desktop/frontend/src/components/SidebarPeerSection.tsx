@@ -23,6 +23,7 @@ import { SidebarHostEmptyRow } from "./SidebarHostEmptyRow";
 import type { UpdateChannel } from "../store/settings";
 import type { ProjectInfo } from "../types";
 import { useMacUpdateLine } from "../peer/useMacUpdateLine";
+import { MACHINE } from "../machineWords";
 
 // A machine's name is the one thing the header has to get across, and the width
 // it has is never generous. Both shapes a name comes in have a part that can go:
@@ -302,7 +303,7 @@ export function SidebarPeerSection({
           <>
             Disconnect from{" "}
             <span className="font-medium text-[var(--text-primary)]">{alias}</span>? Its projects
-            will no longer appear here.
+            will no longer appear here, and {MACHINE.thisMachine} is removed there too.
           </>
         }
         onCancel={() => setConfirmOpen(false)}

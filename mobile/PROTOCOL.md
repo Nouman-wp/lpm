@@ -261,6 +261,14 @@ revoked, or the app's data was reset. Retrying the same credential can never
 succeed, so the phone stops reconnecting and offers to pair again (sending
 `replaces` with the dead `deviceId`, above) rather than looping.
 
+`{ "t": "error", "error": "revoked" }` instead means the Mac removed **this
+phone** (Revoke in desktop Settings or `lpm mobile revoke`, remembered by
+`phoneId`). The Mac sends it at `auth`, and to a phone connected at that
+moment just before it closes the socket. The phone removes the Mac from its own
+list, as if the user had removed it there, but sends no `unpair`, and says once
+that the Mac removed it. A removed Mac that a phone opened through another Mac
+goes alone; a direct one takes the machines opened through it with it.
+
 **Relay** (instead of `auth`, to open one of the Mac's
 [machines](#machines-this-mac-connects-to) without pairing with it):
 ```json
@@ -305,9 +313,11 @@ save the removal (`remote.json` unreadable or held by another writer) answers
 
 The phone sends it on a short-lived connection of its own, on the pinned
 certificate only, and drops its own credential either way: removal never waits
-for the Mac, so a Mac that is off or unreachable — or predates `unpair`, closing
-the connection without a reply — keeps the record until it is revoked there by
-hand. A machine opened [through another Mac](#machines-this-mac-connects-to)
+for the Mac. A Mac that is off or unreachable, that answers `unpair unavailable`,
+or that predates `unpair` and closes without a reply, stays in the phone's
+pending list. That list is kept with the credentials (the iOS Keychain, sealed
+on Android). The phone tries again at launch and each time it comes to the
+foreground, for 30 days. `unpaired` or an `unauthorized` reply settles it. A machine opened [through another Mac](#machines-this-mac-connects-to)
 holds no credential of its own, so removing it sends nothing.
 
 ## Requests (phone → desktop) and their replies

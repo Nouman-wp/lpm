@@ -7,6 +7,7 @@ import cx.lpm.mobile.core.data.client.requestMachines
 import cx.lpm.mobile.core.data.client.requestProjects
 import cx.lpm.mobile.core.data.client.requestSidebar
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 /** The session's own client callbacks (iOS `wireConnection`). */
 internal class ConnectionWiring(private val s: MacSession) {
@@ -72,6 +73,9 @@ internal class ConnectionWiring(private val s: MacSession) {
         val needsRepair = state == LpmClient.State.Failed(LpmClient.UNAUTHORIZED_ERROR) ||
             state == LpmClient.State.Failed(LpmClient.REVOKED_ERROR)
         s.mutableState.update { it.copy(identityMismatch = mismatch, needsRepair = needsRepair) }
+        if (state == LpmClient.State.Failed(LpmClient.REVOKED_ERROR) && c === s.client) {
+            s.scope.launch { if (c === s.client) s.savedMacs.dropMacThatRemovedThisPhone() }
+        }
         s.setConnection(state)
         s.upkeep.repickHostIfStale(state, c)
         s.recovery.startIfStale(state, c)

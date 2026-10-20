@@ -1,17 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
-import {
-  PeerAdd,
-  PeerRemove,
-  PeerPairRequest,
-  PeerPairCancel,
-  PeerDiscoveryStart,
-  PeerDiscoveryStop,
-  ReadClipboardText,
-} from "../../../bridge/commands";
-import { EventsOn } from "../../../bridge/runtime";
-import type { PeerClient, PeerHostState, DiscoveredPeer } from "../../peer/usePeerState";
-import { decodeInvite, type PeerInvite } from "../../peer/invite";
+import { PeerRemove } from "../../../bridge/commands";
+import type { PeerClient, PeerHostState } from "../../peer/usePeerState";
+import { usePeerConnect } from "../../peer/usePeerConnect";
 import { connectsOnlyToMacs, peerNoun } from "../../peer/platform";
 import { Group, GroupHeader } from "./GroupedList";
 import { PeerRow } from "./PeerRow";
@@ -20,14 +11,7 @@ import { AddMacPanel } from "./AddMacPanel";
 import { ClipboardInviteRow } from "./ClipboardInviteRow";
 import { NearbyMacRow } from "./NearbyMacRow";
 import { isMac } from "../../platform";
-
-// The Mac we're currently asking to pair with, plus the code to compare once the
-// other Mac responds.
-interface PendingRequest {
-  id: string;
-  name: string;
-  sas: string;
-}
+import { MACHINE } from "../../machineWords";
 
 export function MacsSection({
   macs,
@@ -40,130 +24,17 @@ export function MacsSection({
   host: PeerHostState;
   refresh: () => Promise<void>;
 }) {
-  const [adding, setAdding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [removePeer, setRemovePeer] = useState<PeerClient | null>(null);
-  const [discovered, setDiscovered] = useState<DiscoveredPeer[]>([]);
-  const [request, setRequest] = useState<PendingRequest | null>(null);
-  const [clipboard, setClipboard] = useState<{ raw: string; invite: PeerInvite } | null>(null);
-  const dismissedRef = useRef<string | null>(null);
+  const pairing = usePeerConnect({ peers, host, refresh });
 
-  const add = useCallback(
-    async (hosts: string[], p: number, c: string, fp?: string) => {
-      setAdding(true);
-      setError(null);
-      try {
-        // Empty alias → the host auto-names the peer after the remote Mac.
-        await PeerAdd(hosts, p, c, "", fp);
-        await refresh();
-        setAddOpen(false);
-        return true;
-      } catch (err) {
-        setError(String(err));
-        return false;
-      } finally {
-        setAdding(false);
-      }
-    },
-    [refresh],
-  );
-
-  const connectFromInvite = useCallback(
-    (raw: string) => {
-      const invite = decodeInvite(raw);
-      if (!invite) {
-        setError("That isn't a complete invite.");
-        return;
-      }
-      return add(invite.hosts, invite.port, invite.code, invite.fp);
-    },
-    [add],
-  );
-
-  // --- LAN discovery --------------------------------------------------------
-  useEffect(() => {
-    void PeerDiscoveryStart();
-    const off = EventsOn("peer-discovery", (list: DiscoveredPeer[]) => {
-      setDiscovered(Array.isArray(list) ? list : []);
-    });
-    return () => {
-      if (typeof off === "function") off();
-      void PeerDiscoveryStop();
-    };
+  // An invite that pairs folds the add panel away; one that fails leaves it open
+  // with what was typed.
+  const closeOnPair = useCallback(async (attempt: Promise<string | null>) => {
+    const paired = (await attempt) !== null;
+    if (paired) setAddOpen(false);
+    return paired;
   }, []);
-
-  // Pairing-request progress: the SAS to compare arrives here; failure surfaces
-  // inline. Success flows through peer-state-changed (the paired Mac appears in
-  // the list and its discovery row hides), which also clears the waiting row.
-  useEffect(() => {
-    const offPending = EventsOn("peer-pair-pending", (p: { sas: string }) => {
-      setRequest((cur) => (cur ? { ...cur, sas: p?.sas ?? "" } : cur));
-    });
-    const offFailed = EventsOn("peer-pair-failed", (p: { error: string }) => {
-      setError(p?.error || "Pairing failed.");
-      setRequest(null);
-    });
-    return () => {
-      if (typeof offPending === "function") offPending();
-      if (typeof offFailed === "function") offFailed();
-    };
-  }, []);
-
-  const pairedHostIds = new Set(peers.map((p) => p.hostId).filter(Boolean));
-  const nearby = discovered.filter((m) => !pairedHostIds.has(m.id));
-
-  // Drop the waiting row once its Mac becomes a peer.
-  useEffect(() => {
-    if (request && pairedHostIds.has(request.id)) setRequest(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [peers]);
-
-  const connectNearby = useCallback(
-    async (m: DiscoveredPeer) => {
-      setError(null);
-      setRequest({ id: m.id, name: m.name, sas: "" });
-      try {
-        await PeerPairRequest(m.hosts, m.port);
-        setRequest(null);
-        await refresh();
-      } catch {
-        // peer-pair-failed already surfaced the message and cleared the row.
-      }
-    },
-    [refresh],
-  );
-
-  const cancelRequest = useCallback(() => {
-    void PeerPairCancel();
-    setRequest(null);
-  }, []);
-
-  // --- clipboard invite auto-detect -----------------------------------------
-  const checkClipboard = useCallback(async () => {
-    try {
-      const raw = ((await ReadClipboardText()) as string) ?? "";
-      const trimmed = raw.trim();
-      const invite = decodeInvite(trimmed);
-      if (!invite) return void setClipboard(null);
-      if (trimmed === dismissedRef.current) return void setClipboard(null);
-      // Our own invite, just copied to the clipboard.
-      if (host.pairing && invite.code === host.pairing.code) return void setClipboard(null);
-      // Already connected to this Mac.
-      const dup = peers.some((p) => invite.hosts.includes(p.host) && p.port === invite.port);
-      if (dup) return void setClipboard(null);
-      setClipboard({ raw: trimmed, invite });
-    } catch {
-      /* clipboard unavailable — leave any prior offer as-is */
-    }
-  }, [host.pairing, peers]);
-
-  useEffect(() => {
-    void checkClipboard();
-    const onFocus = () => void checkClipboard();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [checkClipboard]);
 
   // With nothing connected there is no list to keep tidy, and the field is the
   // whole point of the section — so it starts open and only folds away once
@@ -179,31 +50,24 @@ export function MacsSection({
           <PeerRow key={p.slug} peer={p} onRemove={setRemovePeer} refresh={refresh} />
         ))}
 
-        {clipboard && (
+        {pairing.clipboard && (
           <ClipboardInviteRow
-            invite={clipboard.invite}
-            busy={adding}
-            onConnect={() => {
-              const raw = clipboard.raw;
-              setClipboard(null);
-              connectFromInvite(raw);
-            }}
-            onDismiss={() => {
-              dismissedRef.current = clipboard.raw;
-              setClipboard(null);
-            }}
+            invite={pairing.clipboard.invite}
+            busy={pairing.adding}
+            onConnect={() => void closeOnPair(pairing.connectClipboard())}
+            onDismiss={pairing.dismissClipboard}
           />
         )}
 
-        {nearby.map((m) => (
+        {pairing.nearby.map((m) => (
           <NearbyMacRow
             key={m.id}
             mac={m}
-            waiting={request?.id === m.id}
-            sas={request?.id === m.id ? request.sas : ""}
-            disabled={request !== null}
-            onConnect={() => void connectNearby(m)}
-            onCancel={cancelRequest}
+            waiting={pairing.request?.id === m.id}
+            sas={pairing.request?.id === m.id ? pairing.request.sas : ""}
+            disabled={pairing.request !== null}
+            onConnect={() => void pairing.connectNearby(m)}
+            onCancel={pairing.cancelRequest}
           />
         ))}
 
@@ -217,14 +81,14 @@ export function MacsSection({
         )}
         {panelOpen && (
           <AddMacPanel
-            busy={adding}
-            onInvite={connectFromInvite}
-            onManual={(address, port, code) => add([address], port, code)}
+            busy={pairing.adding}
+            onInvite={(raw) => closeOnPair(pairing.connectInvite(raw))}
+            onManual={(address, port, code) => closeOnPair(pairing.connectManual(address, port, code))}
           />
         )}
       </Group>
 
-      {error && <p className="mt-2 px-1 text-[11px] text-[var(--accent-red)]">{error}</p>}
+      {pairing.error && <p className="mt-2 px-1 text-[11px] text-[var(--accent-red)]">{pairing.error}</p>}
 
       <ConfirmDialog
         open={removePeer !== null}
@@ -237,7 +101,7 @@ export function MacsSection({
             <span className="font-medium text-[var(--text-primary)]">
               {removePeer?.alias || removePeer?.host}
             </span>
-            ? Its projects will no longer appear here.
+            ? Its projects will no longer appear here, and {MACHINE.thisMachine} is removed there too.
           </>
         }
         onCancel={() => setRemovePeer(null)}

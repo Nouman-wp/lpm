@@ -29,6 +29,7 @@ struct ContentView: View {
         Group {
             if model.macs.isEmpty {
                 NavigationStack { PairingView() }
+                    .modifier(SessionAlerts())
             } else {
                 NavigationStack(path: $path) { ProjectsView() }
             }

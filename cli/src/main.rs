@@ -15,6 +15,7 @@ mod hook;
 mod job;
 mod job_edit;
 mod job_open;
+mod job_runtime;
 mod job_fields;
 mod list;
 mod logs;

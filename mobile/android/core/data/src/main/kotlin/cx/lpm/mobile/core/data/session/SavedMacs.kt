@@ -68,17 +68,32 @@ internal class SavedMacs(private val s: MacSession) {
     }
 
     /**
+     * The active Mac removed this phone on its side, so it goes from here too.
+     * Nothing is sent back: the Mac already let go. Through another Mac, it was the
+     * machine opened that way that did, and only it goes.
+     */
+    fun dropMacThatRemovedThisPhone() {
+        val record = s.state.value.activeRecord ?: return
+        val owner = s.visits.host ?: s
+        owner.savedMacs.removeMac(record.localId, tellMac = false)
+        owner.alerts.showNotice(
+            "“${record.displayName}” removed this ${s.env.device.noun}. " +
+                "Pair it there to use it here again."
+        )
+    }
+
+    /**
      * Remove a saved Mac with its credential and saved list. Removing the active one
      * switches to another saved Mac if one remains — otherwise back to pairing.
      */
-    fun removeMac(id: String) {
+    fun removeMac(id: String, tellMac: Boolean = true) {
         if (s.state.value.demoMode) return s.exitDemo()
         val macs = s.state.value.macs
         // The Mac forgets this phone too. A machine opened through another Mac
         // connects with that Mac's credential, so removing it sends nothing.
         val record = macs.firstOrNull { it.localId == id }
         val credential = credentials.load(id)
-        if (record != null && record.via == null && credential != null) {
+        if (tellMac && record != null && record.via == null && credential != null) {
             s.env.unpair.send(record.hosts, record.port, credential, credentials.loadPin(id))
         }
         s.endVisit()

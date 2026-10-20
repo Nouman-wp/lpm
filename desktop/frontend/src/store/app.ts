@@ -205,8 +205,9 @@ interface AppState {
   addProjectPickerOpen: boolean;
   // Non-null when the add-project flow targets a remote Mac (peer). The whole
   // flow — picker, clone modal, folder browser — reads this to route creation to
-  // the peer instead of the local machine.
-  addProjectTarget: { slug: string; alias: string } | null;
+  // the peer instead of the local machine. `connected` when the flow itself just
+  // paired it, so the picker can say so.
+  addProjectTarget: { slug: string; alias: string; connected?: boolean } | null;
   // Where the picker opens: "linux-host" goes straight to setting up a server
   // as a Linux host (from the SSH project form's hint), null to its first screen.
   addProjectStart: "linux-host" | null;
@@ -261,7 +262,7 @@ interface AppState {
     projectName: string,
   ) => Promise<boolean>;
   addProject: () => void;
-  addProjectForPeer: (slug: string, alias: string) => void;
+  addProjectForPeer: (slug: string, alias: string, connected?: boolean) => void;
   setUpLinuxHost: () => void;
   openSSHProject: () => void;
   closeAddProjectPicker: () => void;
@@ -1111,8 +1112,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   addProject: () => set({ addProjectTarget: null, addProjectStart: null, addProjectPickerOpen: true }),
 
-  addProjectForPeer: (slug, alias) =>
-    set({ addProjectTarget: { slug, alias }, addProjectStart: null, addProjectPickerOpen: true }),
+  addProjectForPeer: (slug, alias, connected) =>
+    set({ addProjectTarget: { slug, alias, connected }, addProjectStart: null, addProjectPickerOpen: true }),
 
   setUpLinuxHost: () =>
     set({ sshModalOpen: false, addProjectTarget: null, addProjectStart: "linux-host", addProjectPickerOpen: true }),

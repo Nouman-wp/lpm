@@ -1,16 +1,19 @@
 import { useMemo } from "react";
+import { Smartphone } from "lucide-react";
 import { useAppStore } from "../store/app";
-import { ChevronRightIcon, CloudBranchIcon, FolderIcon, ServerIcon } from "./icons";
+import { CheckIcon, ChevronRightIcon, CloudBranchIcon, FolderIcon, ServerIcon } from "./icons";
 import { Modal } from "./ui/Modal";
 import { DrillMenu, type DrillScreen } from "./DrillMenu";
-import { GeneratorList } from "./GeneratorList";
 import { ServerModeScreen } from "./ServerModeScreen";
 import { InstallLpmScreen } from "./InstallLpmScreen";
+import { AnotherComputerScreen } from "./AnotherComputerScreen";
+import { PhoneScreen } from "./mobile/PhoneScreen";
+import { LaptopIcon } from "./connections/LaptopIcon";
 import type { IconListMenuItem } from "./ui/IconListMenu";
 
 export type NewProjectKind = "local" | "ssh" | "clone";
 
-const SERVER_WIDTH = "w-[400px]";
+const WIDE_SCREEN = "w-[400px]";
 
 export const NEW_PROJECT_SOURCES: IconListMenuItem<NewProjectKind>[] = [
   { key: "local", icon: <FolderIcon />, color: "#facc15", label: "Local Folder", desc: "A project on this machine — pick a folder on disk" },
@@ -18,7 +21,7 @@ export const NEW_PROJECT_SOURCES: IconListMenuItem<NewProjectKind>[] = [
 ];
 
 // On a remote Mac only folder + clone make sense, and the copy points at that
-// Mac. Servers and templates are hidden.
+// Mac. Servers and other computers are hidden.
 function remoteSources(alias: string): IconListMenuItem<NewProjectKind>[] {
   return [
     { key: "local", icon: <FolderIcon />, color: "#facc15", label: "Local Folder", desc: `A folder already on ${alias}` },
@@ -34,11 +37,20 @@ export function NewProjectPicker() {
   const start = useAppStore((s) => s.addProjectStart);
 
   const { root, linuxHostStack } = useMemo(() => {
-    const generatorsScreen: DrillScreen = { title: "Templates", render: () => <GeneratorList /> };
-    const installScreen: DrillScreen = { title: "Linux host", width: SERVER_WIDTH, render: () => <InstallLpmScreen /> };
+    const installScreen: DrillScreen = { title: "Linux host", width: WIDE_SCREEN, render: () => <InstallLpmScreen /> };
+    const computerScreen: DrillScreen = {
+      title: "Another computer",
+      width: WIDE_SCREEN,
+      render: () => <AnotherComputerScreen />,
+    };
+    const phoneScreen: DrillScreen = {
+      title: "Phone",
+      width: WIDE_SCREEN,
+      render: (api) => <PhoneScreen drill={api} width={WIDE_SCREEN} />,
+    };
     const serverScreen: DrillScreen = {
       title: "Server",
-      width: SERVER_WIDTH,
+      width: WIDE_SCREEN,
       render: (api) => (
         <ServerModeScreen onInstall={() => api.push(installScreen)} onSsh={() => onPick("ssh")} />
       ),
@@ -49,6 +61,16 @@ export function NewProjectPicker() {
       render: (api) => (
         <div className="px-2 pb-1 pt-3.5">
           <h3 className="px-4 text-[13px] font-medium text-[var(--text-primary)]">{heading}</h3>
+          {target?.connected && (
+            <p className="mx-4 mt-2.5 flex items-start gap-2 rounded-lg bg-[color-mix(in_srgb,var(--accent-green)_8%,transparent)] px-3 py-2 text-[11.5px] leading-relaxed text-[var(--accent-green-text)]">
+              <span className="mt-[3px] flex shrink-0">
+                <CheckIcon />
+              </span>
+              <span>
+                Connected. <span className="text-[var(--text-secondary)]">Its projects now show in your sidebar.</span>
+              </span>
+            </p>
+          )}
           <div className="mt-3 flex flex-col">
             {sources.map((s) => (
               <button
@@ -89,15 +111,36 @@ export function NewProjectPicker() {
             )}
             {!target && (
               <button
-                onClick={() => api.push(generatorsScreen)}
+                onClick={() => api.push(computerScreen)}
                 className="group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[var(--bg-hover)]"
               >
-                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-hover)] text-[19px] leading-none transition-colors group-hover:bg-[var(--bg-active)]">
-                  ✨
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-hover)] text-[#4ade80] transition-colors group-hover:bg-[var(--bg-active)]">
+                  <LaptopIcon size={22} />
                 </div>
                 <div className="min-w-0 flex-1 pt-0.5">
-                  <div className="text-[13px] font-medium text-[var(--text-primary)]">From template</div>
-                  <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-secondary)]">Create a new project from a template</div>
+                  <div className="text-[13px] font-medium text-[var(--text-primary)]">Another computer</div>
+                  <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-secondary)]">
+                    A Mac or PC running lpm — open its projects here
+                  </div>
+                </div>
+                <span className="mt-2 flex shrink-0 text-[var(--text-muted)]">
+                  <ChevronRightIcon />
+                </span>
+              </button>
+            )}
+            {!target && (
+              <button
+                onClick={() => api.push(phoneScreen)}
+                className="group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[var(--bg-hover)]"
+              >
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-hover)] text-[#60a5fa] transition-colors group-hover:bg-[var(--bg-active)]">
+                  <Smartphone size={22} strokeWidth={1.5} />
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <div className="text-[13px] font-medium text-[var(--text-primary)]">Phone</div>
+                  <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-secondary)]">
+                    Control your projects from lpm Link on iPhone or iPad
+                  </div>
                 </div>
                 <span className="mt-2 flex shrink-0 text-[var(--text-muted)]">
                   <ChevronRightIcon />

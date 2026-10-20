@@ -47,7 +47,7 @@ function FilledFolder({ size = 13 }: { size?: number }) {
   );
 }
 
-export type NewProjectKind = "local" | "ssh" | "clone" | "template";
+export type NewProjectKind = "local" | "ssh" | "clone";
 
 export type NewProjectInput = {
   kind: NewProjectKind;
@@ -62,26 +62,7 @@ type Props = {
   onCreate: (input: NewProjectInput) => void;
 };
 
-type Phase = "pick" | "local" | "server" | "ssh" | "clone" | "template";
-
-type Template = {
-  id: string;
-  icon: string;
-  label: string;
-  desc: string;
-  project: string;
-};
-
-// The app ships one built-in template; anything else is one you add yourself.
-const TEMPLATES: Template[] = [
-  {
-    id: "nextjs",
-    icon: "▲",
-    label: "Next.js",
-    desc: "App Router, TypeScript, and Tailwind CSS",
-    project: "nextjs-app",
-  },
-];
+type Phase = "pick" | "local" | "server" | "ssh" | "clone";
 
 const DEST_FOLDERS = ["~/Projects", "~/Code", "~/dev", "~/work"];
 
@@ -296,11 +277,6 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
     reset();
   };
 
-  const handlePickTemplate = (template: Template) => {
-    onCreate({ kind: "template", name: template.project });
-    reset();
-  };
-
   return (
     <div className="absolute inset-0 z-[60] flex items-center justify-center p-4">
       <button
@@ -349,26 +325,6 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                 tourTarget="source-server"
                 drills
               />
-              <button
-                type="button"
-                onClick={() => setPhase("template")}
-                className={`group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[#2a2a2a] ${FOCUS_RING}`}
-              >
-                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#2a2a2a] text-[19px] leading-none transition-colors group-hover:bg-[#333333]">
-                  ✨
-                </div>
-                <div className="min-w-0 flex-1 pt-0.5">
-                  <div className="text-[13px] font-medium text-[#e5e5e5]">
-                    From template
-                  </div>
-                  <div className="mt-0.5 text-[11px] leading-relaxed text-[#b3b3b3]">
-                    Create a new project from a template
-                  </div>
-                </div>
-                <span className="mt-2 flex shrink-0 text-[#919191]">
-                  <ChevronRight size={14} strokeWidth={1.5} />
-                </span>
-              </button>
             </div>
           </div>
         </div>
@@ -546,62 +502,6 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
         </DialogPanel>
       )}
 
-      {phase === "template" && (
-        <div
-          role="dialog"
-          aria-label="New from template"
-          className="relative w-[420px] max-w-[calc(100%-2rem)] overflow-hidden rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] py-1.5 shadow-2xl"
-        >
-          <MenuCloseButton onClick={handleClose} />
-          <button
-            type="button"
-            onClick={() => setPhase("pick")}
-            className={`mx-2 mb-1 flex items-center gap-1 rounded-lg py-1 pl-1 pr-2.5 text-left transition-colors hover:bg-[#2a2a2a] ${FOCUS_RING}`}
-          >
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center text-[#b3b3b3]">
-              <ChevronLeft size={14} strokeWidth={1.5} />
-            </span>
-            <span className="min-w-0 truncate text-[12.5px] font-medium text-[#e5e5e5]">
-              New from template
-            </span>
-          </button>
-          <div className="flex flex-col px-2 pb-1">
-            {TEMPLATES.map((template) => (
-              <button
-                key={template.id}
-                type="button"
-                onClick={() => handlePickTemplate(template)}
-                className={`group flex items-center gap-3 rounded-xl px-4 py-2.5 text-left transition-all hover:bg-[#2a2a2a] ${FOCUS_RING}`}
-              >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#242424] text-[15px] leading-none transition-colors group-hover:bg-[#333333]">
-                  {template.icon}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-medium text-[#e5e5e5]">
-                    {template.label}
-                  </span>
-                  <span className="mt-0.5 block truncate text-[11px] text-[#b3b3b3]">
-                    {template.desc}
-                  </span>
-                </span>
-              </button>
-            ))}
-            <div
-              aria-disabled="true"
-              title="Custom templates are created in the app"
-              className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-[#919191]"
-            >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center text-[15px] leading-none">
-                ＋
-              </span>
-              <span className="min-w-0 flex-1 truncate text-[13px]">
-                Add custom…
-              </span>
-              <span className="shrink-0 text-[11px]">In the app</span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

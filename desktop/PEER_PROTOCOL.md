@@ -142,9 +142,22 @@ First client frame within 20s, or the host closes the socket.
 - **Resume** (already paired): client → `{ "t": "auth", "deviceId", "token" }`
   host → `{ "t": "ready", "hostName", "hostPlatform", "hostHeadless", "hostVersion", "phoneServerId", "features": ["configSync", "configSync2"] }`
 - On failure either returns `{ "t": "error", "error" }` and the host closes.
+  `error` is `revoked` when the host removed this device itself (Remove access,
+  remembered in `host.revoked`, newest 64): the client drops the host's entry
+  from its own list rather than retrying, and shows that the machine removed it.
+  Any other missing record is `unauthorized`, and the client keeps the entry.
+- **Revoked** (host → client, live): a host that removes a connected device sends
+  it the same `{ "t": "error", "error": "revoked" }` before closing, with the same
+  effect. An older client reconnects and is told at `auth`.
 - **Forget** (authed): client → `{ "t": "forget" }` when the client disconnects
   the host on its side. The host drops the client's record and closes, so it
-  stops listing and trusting it. An older host ignores it.
+  stops listing and trusting it. An older host ignores it. A host the client
+  can't reach at that moment is kept in `peer.json` under `forgets` (out of every
+  list) and told later: the client signs in with the removed entry's credential
+  and sends `forget`, retrying from 1 minute up to every 30 minutes, for 30 days.
+  One told over the live connection is checked once more 30 s later. `ready`
+  (then `forget`), `unauthorized` or `revoked` settles it; anything else is
+  retried.
 
 `platform` / `hostPlatform` are `std::env::consts::OS` spelling (`macos`, `linux`,
 `windows`). Both are absent from a build that predates them, which reads as

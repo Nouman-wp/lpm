@@ -82,7 +82,7 @@ class SessionHarness(test: TestScope) {
         clients = clients,
         device = ThisDevice("Test Phone"),
         tailnet = NoTailnet,
-        unpair = MacUnpair(scope, transport, NoTailnet) { credentials.phoneId },
+        unpair = MacUnpair(scope, transport, NoTailnet, credentials, clock),
         storeFactories = setOf(
             SessionStore.Factory(::ProjectsStore),
             SessionStore.Factory(::TerminalsStore),

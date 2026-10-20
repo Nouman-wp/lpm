@@ -26,8 +26,9 @@ import kotlinx.serialization.json.put
 
 /**
  * The iOS Keychain items: each Mac's device credential (`device-credential.<localId>`)
- * and certificate pin (`cert-pin.<localId>`), the phone's push key (`push-key`) and
- * this install's id (`phone-id`).
+ * and certificate pin (`cert-pin.<localId>`), the phone's push key (`push-key`),
+ * this install's id (`phone-id`) and the Macs still to be told they were removed
+ * (`pending-unpairs`).
  * Values are sealed by [SecretCipher] and kept in their own DataStore. [load] once at
  * startup; reads are then synchronous and safe from any thread (the TLS pin check
  * reads a pin off the main thread), writes reach disk asynchronously.
@@ -85,6 +86,11 @@ class CredentialStore @Inject constructor(
 
     fun deletePin(localId: String) = write(pinAccount(localId), null)
 
+    /** Macs removed from this phone that haven't heard yet ([MacUnpair]), as JSON. */
+    fun loadPendingUnpairs(): String? = secrets[PENDING_UNPAIRS]
+
+    fun savePendingUnpairs(json: String?) = write(PENDING_UNPAIRS, json)
+
     /** The push key, or null before one was made (a push can't be for this phone then). */
     fun loadPushKey(): ByteArray? =
         secrets[PUSH_KEY]?.let(::decodeBase64)?.takeIf { it.size == PUSH_KEY_BYTES }
@@ -127,6 +133,7 @@ class CredentialStore @Inject constructor(
     companion object {
         const val PUSH_KEY = "push-key"
         const val PHONE_ID = "phone-id"
+        const val PENDING_UNPAIRS = "pending-unpairs"
         private const val PUSH_KEY_BYTES = 32
 
         fun credentialAccount(localId: String): String = "device-credential.$localId"

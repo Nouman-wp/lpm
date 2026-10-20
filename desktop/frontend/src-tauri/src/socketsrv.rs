@@ -39,6 +39,7 @@
 // and UI events) and reply OK / ERROR: <msg>. std::thread (no tokio), matching
 // the pty/session house style.
 use crate::ipc::{UnixListener, UnixStream};
+use crate::jobsocket::job_ref;
 use crate::status::{now_millis, StatusEntry, StatusStore};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -847,12 +848,12 @@ fn cmd_list_jobs(args: &[String]) -> String {
 /// fire-and-forget on a worker thread; a job that finds work while no window is
 /// open parks its task like the scheduler would.
 fn cmd_run_job(args: &[String], app: &AppHandle) -> String {
-    let (positional, _) = parse_options(args);
-    if positional.len() < 2 {
+    let (positional, options) = parse_options(args);
+    let Some(job) = job_ref(&positional, &options) else {
         return serde_json::json!({ "ok": false, "error": "usage: run_job <project> <job_id>" })
             .to_string();
-    }
-    match crate::jobs::run_job_now(app.clone(), positional[0].clone(), positional[1].clone()) {
+    };
+    match crate::jobs::run_job_now(app.clone(), job.project.into(), job.id.into()) {
         Ok(()) => serde_json::json!({ "ok": true }).to_string(),
         Err(e) => serde_json::json!({ "ok": false, "error": e }).to_string(),
     }
@@ -873,10 +874,14 @@ fn job_result(r: Result<(), String>) -> String {
 }
 
 pub(crate) fn ensure_job_exists(project: &str, job_id: &str) -> Result<(), String> {
-    if crate::jobs::list_jobs(project.to_string())?
-        .iter()
-        .any(|job| job.get("id").and_then(serde_json::Value::as_str) == Some(job_id))
-    {
+    let exists = if project.is_empty() {
+        crate::jobs::is_standalone_job(job_id)
+    } else {
+        crate::jobs::list_jobs(project.to_string())?
+            .iter()
+            .any(|job| job.get("id").and_then(serde_json::Value::as_str) == Some(job_id))
+    };
+    if exists {
         Ok(())
     } else {
         Err("That automation doesn't exist.".into())
@@ -884,57 +889,57 @@ pub(crate) fn ensure_job_exists(project: &str, job_id: &str) -> Result<(), Strin
 }
 
 fn cmd_stop_job(args: &[String]) -> String {
-    let (positional, _) = parse_options(args);
-    if positional.len() < 2 {
+    let (positional, options) = parse_options(args);
+    let Some(job) = job_ref(&positional, &options) else {
         return serde_json::json!({ "ok": false, "error": "usage: stop_job <project> <job_id>" })
             .to_string();
-    }
+    };
     job_result(
-        ensure_job_exists(&positional[0], &positional[1])
-            .and_then(|_| crate::jobs::stop_job_run(positional[0].clone(), positional[1].clone())),
+        ensure_job_exists(job.project, job.id)
+            .and_then(|_| crate::jobs::stop_job_run(job.project.into(), job.id.into())),
     )
 }
 
 fn cmd_set_job_enabled(args: &[String]) -> String {
-    let (positional, _) = parse_options(args);
-    if positional.len() < 3 {
+    let (positional, options) = parse_options(args);
+    let Some(job) = job_ref(&positional, &options).filter(|job| !job.rest.is_empty()) else {
         return serde_json::json!({ "ok": false, "error": "usage: set_job_enabled <project> <job_id> <true|false>" })
             .to_string();
-    }
-    let Ok(enabled) = positional[2].parse::<bool>() else {
+    };
+    let Ok(enabled) = job.rest[0].parse::<bool>() else {
         return serde_json::json!({ "ok": false, "error": "enabled must be true or false" })
             .to_string();
     };
     job_result(
-        ensure_job_exists(&positional[0], &positional[1]).and_then(|_| {
-            crate::jobs::set_job_enabled(positional[0].clone(), positional[1].clone(), enabled)
+        ensure_job_exists(job.project, job.id).and_then(|_| {
+            crate::jobs::set_job_enabled(job.project.into(), job.id.into(), enabled)
         }),
     )
 }
 
 fn cmd_job_history(args: &[String]) -> String {
-    let (positional, _) = parse_options(args);
-    if positional.len() < 2 {
+    let (positional, options) = parse_options(args);
+    let Some(job) = job_ref(&positional, &options) else {
         return "ERROR: usage: job_history <project> <job_id>".into();
-    }
-    if let Err(error) = ensure_job_exists(&positional[0], &positional[1]) {
+    };
+    if let Err(error) = ensure_job_exists(job.project, job.id) {
         return format!("ERROR: {error}");
     }
-    match crate::jobs::job_history(positional[0].clone(), positional[1].clone()) {
+    match crate::jobs::job_history(job.project.into(), job.id.into()) {
         Ok(history) => serde_json::to_string(&history).unwrap_or_else(|e| format!("ERROR: {e}")),
         Err(e) => format!("ERROR: {e}"),
     }
 }
 
 fn cmd_job_live_output(args: &[String]) -> String {
-    let (positional, _) = parse_options(args);
-    if positional.len() < 2 {
+    let (positional, options) = parse_options(args);
+    let Some(job) = job_ref(&positional, &options) else {
         return "ERROR: usage: job_live_output <project> <job_id>".into();
-    }
-    if let Err(error) = ensure_job_exists(&positional[0], &positional[1]) {
+    };
+    if let Err(error) = ensure_job_exists(job.project, job.id) {
         return format!("ERROR: {error}");
     }
-    match crate::jobs::job_live_output(positional[0].clone(), positional[1].clone()) {
+    match crate::jobs::job_live_output(job.project.into(), job.id.into()) {
         Ok(live) => serde_json::to_string(&live).unwrap_or_else(|e| format!("ERROR: {e}")),
         Err(e) => format!("ERROR: {e}"),
     }
@@ -942,11 +947,11 @@ fn cmd_job_live_output(args: &[String]) -> String {
 
 fn cmd_send_job_followup(args: &[String], app: &AppHandle) -> String {
     let (positional, options) = parse_options(args);
-    if positional.len() < 3 {
+    let Some(job) = job_ref(&positional, &options).filter(|job| !job.rest.is_empty()) else {
         return serde_json::json!({ "ok": false, "error": "usage: send_job_followup <project> <job_id> <at> <message> [--agent=X] [--model=X] [--effort=X]" })
             .to_string();
-    }
-    let Ok(at) = positional[2].parse::<u64>() else {
+    };
+    let Ok(at) = job.rest[0].parse::<u64>() else {
         return serde_json::json!({ "ok": false, "error": "at must be a unix timestamp" })
             .to_string();
     };
@@ -958,15 +963,15 @@ fn cmd_send_job_followup(args: &[String], app: &AppHandle) -> String {
             return serde_json::json!({ "ok": false, "error": "message-hex is invalid" })
                 .to_string()
         }
-        None => positional.get(3).cloned().unwrap_or_default(),
+        None => job.rest.get(1).cloned().unwrap_or_default(),
     };
-    if let Err(error) = ensure_job_exists(&positional[0], &positional[1]) {
+    if let Err(error) = ensure_job_exists(job.project, job.id) {
         return serde_json::json!({ "ok": false, "error": error }).to_string();
     }
     job_result(crate::jobs::send_job_followup(
         app.clone(),
-        positional[0].clone(),
-        positional[1].clone(),
+        job.project.into(),
+        job.id.into(),
         at,
         message,
         options.get("agent").cloned().unwrap_or_default(),

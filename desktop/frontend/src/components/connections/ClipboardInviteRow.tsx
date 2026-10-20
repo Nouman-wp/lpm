@@ -30,9 +30,7 @@ export function ClipboardInviteRow({
         <LaptopIcon size={16} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-[var(--text-primary)]">
-          Invite found in your clipboard
-        </p>
+        <p className="text-sm font-medium text-[var(--text-primary)]">Invite found in your clipboard</p>
         <p className="truncate text-[11px] text-[var(--text-muted)]">
           Connect to {invite.hosts[0]}:{invite.port}?
         </p>

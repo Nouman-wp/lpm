@@ -172,8 +172,9 @@ object DataModule {
         @ApplicationScope scope: CoroutineScope,
         transport: SocketTransport,
         tailnet: ResolvedTailnet,
-        credentials: CredentialStore
-    ): MacUnpair = MacUnpair(scope, transport, tailnet.router) { credentials.phoneId }
+        credentials: CredentialStore,
+        clock: Clock
+    ): MacUnpair = MacUnpair(scope, transport, tailnet.router, credentials, clock)
 
     @Provides
     @Singleton
