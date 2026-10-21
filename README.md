@@ -55,6 +55,9 @@ On your iPhone, get [lpm Link](https://apps.apple.com/us/app/lpm-link/id67883969
   <br><br>
   <strong>Split terminals</strong> — arrange services and agents side-by-side<br><br>
   <img src="website/public/screenrecording/split-window.gif" alt="Splitting terminals in lpm" width="700">
+  <br><br>
+  <strong>Control it from your iPhone</strong> — pair <a href="https://apps.apple.com/us/app/lpm-link/id6788396977">lpm Link</a>, then start services and talk to agents on your Mac<br><br>
+  <img src="website/public/screenrecording/lpm-link.gif" alt="Pairing lpm Link on an iPhone and controlling a project on the Mac" width="700">
 </p>
 
 ## Why lpm?
