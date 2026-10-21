@@ -1,8 +1,8 @@
 # lpm — Switch between projects and terminals in seconds
 
 <p align="center">
-  <i>One click to start, stop, or duplicate your dev projects.
-  Run Claude Code, Codex, and other AI agents in parallel on the same codebase — no conflicts, no context switching.</i>
+  <i>Start, stop, and duplicate your dev projects in one click.
+  Run Claude Code, Codex, and other AI agents side by side on the same codebase.</i>
 </p>
 
 <p align="center">
@@ -13,25 +13,27 @@
 ---
 
 <p align="center">
-  <a href="https://lpm.cx"><strong>Download lpm for macOS</strong></a>
+  <a href="https://lpm.cx"><strong>Download lpm</strong></a> for macOS, Windows, and Linux
 </p>
 
-A native macOS desktop app for managing your dev projects. Start, stop, duplicate, and switch between projects with a single click — with a built-in terminal optimized for AI coding agents like Claude Code and Codex.
+lpm is a free desktop app that runs your dev servers and AI coding agents in one window, so you stop juggling terminals.
 
-- Start and stop your entire project with a single click
-- Build fast with AI coding agents
-- The best terminal for AI agents like Claude Code and Codex
-- Duplicate your project instantly to build features in parallel —  
-  run multiple agents on the same codebase without conflicts
-- A single workspace for all your services, terminals, and agents
-- Switch between projects without losing context or running processes
-- Keep long-running tasks alive across sessions
+- Start every service in a project with one click
+- Run Claude Code, Codex, and other agents in the built-in terminal
+- Give each agent its own copy of the project, so agents don't get in each other's way
+- See which agent needs you
+- Switch projects without stopping what's running
+- Check on your agents from your iPhone with lpm Link
 
 ## Install
 
-Download lpm from [lpm.cx](https://lpm.cx), open the `.dmg`, and drag lpm to Applications.
+Download lpm from [lpm.cx](https://lpm.cx):
 
-Supports macOS (Apple Silicon & Intel).
+- **macOS** (Apple Silicon and Intel): open the `.dmg` and drag lpm to Applications
+- **Windows 11** (x64, beta): run the installer. Needs [Git for Windows](https://gitforwindows.org)
+- **Linux** (x86-64, beta): `.deb`, `.rpm`, or AppImage. Needs Ubuntu 22.04 or newer, or another distro with glibc 2.35+
+
+On your iPhone, get [lpm Link](https://apps.apple.com/us/app/lpm-link/id6788396977) from the App Store.
 
 ## See it in action
 
@@ -57,21 +59,26 @@ Supports macOS (Apple Silicon & Intel).
 
 ## Why lpm?
 
-- **Native macOS app** — GUI with live terminal, config editor, notes, and theme support
-- **No Docker required** — runs your services natively
-- **Auto-detects project setup** — Rails, Next.js, Go, Django, Flask, Docker Compose
-- **Profiles** for running service subsets
-- **Actions** — one-shot commands like tests, migrations, and deploys, runnable from the Actions button
-- **Works with any stack** — if it runs in a terminal, lpm can manage it
+- **Finds your services for you**: Node, Python, Ruby, Go, Rust, PHP, Java, .NET, Docker Compose, and more
+- **No Docker required**: your services run natively
+- **Actions**: one-click buttons for tests, migrations, and deploys
+- **Profiles**: start only the services you need
+- **Works with any stack**: if it runs in a terminal, lpm can run it
 
-## AI Agent Skills
+## AI agent skills
 
-lpm ships two agent skills: **`lpm-config`** writes and edits project config, and **`lpm-cli`** drives the `lpm` command-line tool to control running projects (start/stop, logs, status, duplicate). Install them via [skills.sh](https://skills.sh):
+Let your AI agent set up and control lpm for you:
 
 ```bash
 npx skills add gug007/lpm
 ```
 
-Then just tell your agent "set up lpm for this project" and it will analyze your codebase, discover services, and write the config.
+Then tell your agent "set up lpm for this project".
 
-See [lpm-config/README.md](lpm-config/README.md) and [lpm-cli/README.md](lpm-cli/README.md) for details.
+- [`lpm-config`](lpm-config) writes and edits project config
+- [`lpm-cli`](lpm-cli) starts and stops projects, reads logs, and makes copies (uses the `lpm` command, which you install from the app's Settings)
+- [`lpm-memory`](lpm-memory) saves work notes, so another agent can pick up where the last one left off
+
+## License
+
+[MIT](LICENSE)
