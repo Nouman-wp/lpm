@@ -7,8 +7,12 @@ export const contentType = OG_CONTENT_TYPE;
 
 export default function Image() {
   return ogImage({
-    headline: ["Git worktrees for Claude Code,", "Codex, and any coding agent."],
+    headline: [
+      "Git worktrees for Claude Code,",
+      "Codex, and any coding agent.",
+    ],
     subline:
       "What a worktree does not carry, what the agents create natively, and when a standalone copy is the better boundary.",
+    eyebrow: "Parallel agents in lpm",
   });
 }

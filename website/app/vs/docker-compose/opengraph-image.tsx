@@ -10,6 +10,7 @@ export default function Image() {
     headline: ["A Docker Compose alternative", "for fast local dev on macOS."],
     subline:
       "Run the stack natively with a pane per service, and keep compose for the containers that earn it.",
-    platform: "macOS · Desktop App",
+    eyebrow: "lpm vs Docker Compose",
+    platform: "Free · native on macOS",
   });
 }

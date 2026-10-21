@@ -10,5 +10,6 @@ export default function Image() {
     headline: "Configuration Reference",
     subline:
       "Everything you can put in a project config — services, actions, terminals, profiles, and global settings.",
+    eyebrow: "Docs",
   });
 }

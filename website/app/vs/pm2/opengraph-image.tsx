@@ -7,8 +7,9 @@ export const contentType = OG_CONTENT_TYPE;
 
 export default function Image() {
   return ogImage({
-    headline: ["A PM2 alternative for local dev", "— and what to keep PM2 for."],
+    headline: ["A PM2 alternative for local dev,", "and what to keep PM2 for."],
     subline:
       "A live pane per service you can read and search, plus the six things PM2 does that lpm does not.",
+    eyebrow: "lpm vs PM2",
   });
 }

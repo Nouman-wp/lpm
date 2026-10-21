@@ -7,9 +7,10 @@ export const contentType = OG_CONTENT_TYPE;
 
 export default function Image() {
   return ogImage({
-    headline: ["The Mac terminal app", "for developers running real stacks."],
+    headline: ["The Mac terminal app for", "developers running real stacks."],
     subline:
       "Replace scattered terminal tabs with a project-aware workspace — per-service logs, instant project switching, native Apple Silicon speed.",
-    platform: "macOS · Desktop App",
+    eyebrow: "Terminal built for your developer workflow",
+    platform: "Free · native on macOS",
   });
 }

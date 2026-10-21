@@ -8,11 +8,12 @@ export const contentType = OG_CONTENT_TYPE;
 export default function Image() {
   return ogImage({
     headline: [
-      "An Overmind alternative for Mac",
-      "— your Procfile as live panes.",
+      "An Overmind alternative for Mac:",
+      "your Procfile as live panes.",
     ],
     subline:
       "Restart any one process with no tmux installed, and the Procfile imported line by line when you add the folder.",
-    platform: "macOS · Desktop App",
+    eyebrow: "lpm vs Overmind",
+    platform: "Free · native on macOS",
   });
 }

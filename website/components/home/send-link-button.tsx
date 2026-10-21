@@ -9,7 +9,11 @@ const DOWNLOAD_URL = `${SITE_URL}/#download`;
 // lpm installs on a computer, so a phone's useful move is getting this page
 // there: the share sheet reaches AirDrop and Messages, and browsers without
 // one copy the link instead.
-export function SendLinkButton() {
+export function SendLinkButton({
+  align = "center",
+}: {
+  align?: "center" | "start";
+}) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
 
   const send = async () => {
@@ -28,7 +32,9 @@ export function SendLinkButton() {
   };
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div
+      className={`flex flex-col gap-2 ${align === "start" ? "items-start" : "items-center"}`}
+    >
       <button
         type="button"
         onClick={send}

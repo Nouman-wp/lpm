@@ -24,6 +24,7 @@ import { resolveUtilityTabAction } from "./utility-tab";
 import { ServiceLabelBar, StreamingOutput } from "./terminal-pane";
 import { DemoActionModal } from "./action-modal";
 import { DemoAddActionModal, type NewActionInput } from "./add-action-modal";
+import { EmojiMark } from "./emoji-mark";
 import { agentDriveKey } from "./agent-drive";
 import {
   AgentTerminal,
@@ -1255,7 +1256,9 @@ function FooterActionButton({
       className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-[rgba(204,204,204,0.18)] bg-[var(--action-tint,#262626)] px-2.5 py-1 text-[11px] font-medium text-[#b3b3b3] hover:bg-[var(--action-tint-strong,rgba(255,255,255,0.1))] hover:text-[#cccccc] ${PRESS} ${FOCUS_RING}`}
     >
       {action.emoji && (
-        <span className="text-[11px] leading-none">{action.emoji}</span>
+        <span className="inline-flex text-[11px] leading-none">
+          <EmojiMark emoji={action.emoji} size={12} />
+        </span>
       )}
       <span>{action.label}</span>
     </button>

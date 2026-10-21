@@ -10,5 +10,6 @@ export default function Image() {
     headline: ["Review code changes,", "without leaving the terminal."],
     subline:
       "A full file-by-file diff review built into your workspace — beside your running services and the AI agents editing your code.",
+    eyebrow: "Built-in diff review",
   });
 }

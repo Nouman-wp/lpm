@@ -1,28 +1,35 @@
+import { Check, X } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 
-type Outcome = {
-  title: string;
-  body: string;
+type Change = {
+  before: string;
+  after: string;
 };
 
-const OUTCOMES: Outcome[] = [
+const CHANGES: Change[] = [
   {
-    title: "Your app ships without a bundled browser runtime",
-    body: "lpm uses the webview already provided by macOS instead of packaging Electron and a separate Chromium runtime. Your terminals, services, and project controls still live in one desktop app.",
+    before:
+      "Ten terminal commands to bring up the API, worker, database and frontend",
+    after: "Open the project and press Start. Every service is live in one window",
   },
   {
-    title: "Your stack boots in one click, not ten terminal commands",
-    body: "Open a project in the sidebar and hit Start. API, worker, database, frontend — all live, all visible, all in one native window.",
+    before: "Switching repos means stopping servers and losing scrollback",
+    after:
+      "The first project keeps running in the background, logs and history intact",
   },
   {
-    title: "Switching projects stops wiping your context",
-    body: "Jump to another repo and your first project keeps running in the background. Come back and it's still there — logs intact, servers up, terminal history preserved.",
+    before: "Guessing which iTerm2 tab has the migration running",
+    after: "Every running service has its own labeled pane",
   },
   {
-    title: "You stop losing services in a sea of tabs",
-    body: "Every running service has its own pane with a clear label. No guessing which iTerm2 tab has the migration running.",
+    before: "Electron-based terminals bundle their own Chromium runtime",
+    after:
+      "lpm uses the webview macOS already provides, native on Apple Silicon and Intel",
   },
 ];
+
+const LABEL =
+  "px-5 py-3 text-[11px] font-semibold uppercase tracking-widest";
 
 export default function Benefits() {
   return (
@@ -31,31 +38,50 @@ export default function Benefits() {
         <SectionHeader
           eyebrow="Why developers switch"
           title="What changes when you stop fighting your terminal"
-          description="Four outcomes you'll feel in the first hour."
+          description="The first hour, before and after."
         />
-        <ol className="space-y-10">
-          {OUTCOMES.map(({ title, body }, i) => (
-            <li
-              key={title}
-              className="grid grid-cols-[auto_1fr] gap-x-6 sm:gap-x-8 items-start"
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.02]">
+          <div
+            aria-hidden="true"
+            className="hidden grid-cols-2 border-b border-gray-200 bg-gray-50 sm:grid dark:border-gray-800 dark:bg-white/[0.03]"
+          >
+            <div className={`${LABEL} text-gray-500 dark:text-gray-400`}>
+              Before lpm
+            </div>
+            <div
+              className={`${LABEL} border-l border-gray-200 text-gray-900 dark:border-gray-800 dark:text-gray-100`}
             >
-              <span
-                aria-hidden="true"
-                className="text-4xl sm:text-5xl font-bold tabular-nums text-gray-200 dark:text-gray-800 leading-none select-none"
-              >
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <div className="border-l border-gray-200 dark:border-gray-800 pl-6">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                  {title}
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
-                  {body}
+              With lpm
+            </div>
+          </div>
+          <ul className="divide-y divide-gray-100 dark:divide-gray-800/70">
+            {CHANGES.map(({ before, after }) => (
+              <li key={after} className="grid sm:grid-cols-2">
+                <p className="flex gap-3 px-5 pt-4 pb-2 text-sm leading-relaxed text-gray-500 sm:py-4 dark:text-gray-400">
+                  <X
+                    className="mt-0.5 h-4 w-4 shrink-0 text-gray-300 dark:text-gray-600"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    <span className="sr-only">Before lpm: </span>
+                    {before}
+                  </span>
                 </p>
-              </div>
-            </li>
-          ))}
-        </ol>
+                <p className="flex gap-3 px-5 pt-2 pb-4 text-sm font-medium leading-relaxed text-gray-900 sm:border-l sm:border-gray-200 sm:py-4 dark:text-gray-100 sm:dark:border-gray-800">
+                  <Check
+                    className="mt-0.5 h-4 w-4 shrink-0 text-gray-900 dark:text-gray-100"
+                    strokeWidth={2.5}
+                    aria-hidden="true"
+                  />
+                  <span>
+                    <span className="sr-only">With lpm: </span>
+                    {after}
+                  </span>
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </section>
   );

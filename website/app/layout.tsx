@@ -4,6 +4,8 @@ import Script from "next/script";
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
+import { ReleaseProvider } from "@/components/release-context";
+import { getReleaseInfo } from "@/lib/release-info";
 import {
   RELEASES_URL,
   REPO_URL,
@@ -164,7 +166,10 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const softwareVersion = await fetchLatestVersion();
+  const [softwareVersion, releaseInfo] = await Promise.all([
+    fetchLatestVersion(),
+    getReleaseInfo(),
+  ]);
 
   return (
     <html
@@ -190,11 +195,13 @@ export default async function RootLayout({
         >
           Skip to content
         </a>
-        <Nav />
-        <main id="main" className="flex-1">
-          {children}
-        </main>
-        <Footer />
+        <ReleaseProvider value={releaseInfo}>
+          <Nav />
+          <main id="main" className="flex-1">
+            {children}
+          </main>
+          <Footer />
+        </ReleaseProvider>
         {/* /join holds a shared tab's invite in its address, so nobody else's
             script runs there. */}
         <Script id="ga-init" strategy="afterInteractive">

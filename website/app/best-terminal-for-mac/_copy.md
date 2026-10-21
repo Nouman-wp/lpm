@@ -109,16 +109,15 @@ Eight sections, rendered in this order:
 ### Benefits — "What changes when your terminal knows your Mac"
 - **eyebrow:** `WHY DEVELOPERS SWITCH`
 - **H2 title:** `What changes when you stop fighting your terminal`
-- **subtitle:** Four outcomes you'll feel in the first hour.
-- **Numbered outcomes:**
+- **subtitle:** The first hour, before and after.
+- **Before lpm / With lpm table:**
 
-  1. **Your MacBook stays cool and quiet.** No Electron runtime means no hot laps. Your M-series chip runs your services, not a Chromium shell. Battery life you used to lose to Hyper comes back.
-
-  2. **Your stack boots in one click, not ten `cd`s.** Open a project in the sidebar and hit Start. API, worker, database, frontend — all live, all visible, all in one native window.
-
-  3. **Switching projects stops wiping your context.** Jump to another repo and your first project keeps running in the background. Come back and it's still there — logs intact, servers up, terminal history preserved.
-
-  4. **You stop losing services in a sea of tabs.** Every running service has its own pane with a clear label. No guessing which iTerm2 tab has the migration running.
+  | Before lpm | With lpm |
+  | --- | --- |
+  | Ten terminal commands to bring up the API, worker, database and frontend | Open the project and press Start. Every service is live in one window |
+  | Switching repos means stopping servers and losing scrollback | The first project keeps running in the background, logs and history intact |
+  | Guessing which iTerm2 tab has the migration running | Every running service has its own labeled pane |
+  | Electron-based terminals bundle their own Chromium runtime | lpm uses the webview macOS already provides, native on Apple Silicon and Intel |
 
 ### Workflows — "Real Mac developer workflows"
 - **eyebrow:** `IN PRACTICE`

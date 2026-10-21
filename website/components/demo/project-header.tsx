@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { DemoAction, DemoProject } from "./projects";
 import { actionButtonStyle } from "./action-colors";
 import { CreateActionButton } from "./create-action-button";
+import { EmojiMark } from "./emoji-mark";
 import { OpenInDropdown } from "./open-in-dropdown";
 import { StartControl } from "./start-control";
 import { FOCUS_RING, PRESS } from "./ui";
@@ -97,7 +98,7 @@ function HeaderActionButton({
 }) {
   const utility = !action.agent;
   if (utility && mode === "hidden") return null;
-  const emoji = action.emoji && (!utility || mode === "emoji");
+  const emoji = (!utility || mode === "emoji") && action.emoji;
   const label = !utility || mode === "label" || !action.emoji;
   return (
     <button
@@ -109,7 +110,11 @@ function HeaderActionButton({
       style={actionButtonStyle(action.color)}
       className={`inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#2e2e2e] bg-[var(--action-tint,#242424)] px-3.5 text-xs font-medium text-[#b3b3b3] hover:bg-[var(--action-tint-strong,rgba(255,255,255,0.1))] hover:text-[#e5e5e5] ${PRESS} ${FOCUS_RING}`}
     >
-      {emoji && <span className="text-[13px] leading-none">{action.emoji}</span>}
+      {emoji && (
+        <span className="inline-flex text-[13px] leading-none">
+          <EmojiMark emoji={emoji} />
+        </span>
+      )}
       {label && <span>{action.label}</span>}
     </button>
   );

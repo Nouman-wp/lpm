@@ -10,5 +10,6 @@ export default function Image() {
     headline: ["Run Claude Code", "in parallel."],
     subline:
       "Tabs, project copies or Git worktrees — with live status for every Claude Code and Codex session and every diff one shortcut away.",
+    eyebrow: "Parallel coding agents",
   });
 }

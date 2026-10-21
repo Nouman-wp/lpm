@@ -18,8 +18,7 @@ import { MOBILE_PATH } from "@/lib/links";
 import type { YouTubeLessonId } from "@/lib/youtube-lessons";
 
 // Set by .demo-stage in globals.css: capped where a 1040px stage keeps the
-// app's 3:2 proportions, and shorter from lg up, where the step list takes a
-// column beside the frame.
+// app's 3:2 proportions.
 const DEMO_HEIGHT_DESKTOP = "var(--demo-stage-h)";
 
 // Same recipe as the macOS windows in before-after-window.tsx: the edge comes
@@ -276,7 +275,7 @@ function DemoStage({
   }, []);
 
   return (
-    <div ref={ref} className="demo-stage mx-auto max-w-[1040px] lg:max-w-none">
+    <div ref={ref} className="demo-stage mx-auto max-w-[1040px]">
       {isDesktop !== true && (
         <div className={isDesktop === null ? "md:hidden" : undefined}>
           <DesktopOnlyPrompt lesson={lesson} posterPriority={posterPriority} />
@@ -290,39 +289,35 @@ function DemoStage({
           >
             Skip the interactive demo
           </a>
-          <div className="lg:grid lg:grid-cols-[272px_minmax(0,1fr)] lg:items-start lg:gap-6">
-            <DemoSteps
-              steps={script.steps}
-              tour={tour}
-              onRun={runStep}
-              onRestart={restart}
+          <DemoSteps
+            steps={script.steps}
+            tour={tour}
+            onRun={runStep}
+            onRestart={restart}
+          />
+          {isDesktop && inView && idle ? (
+            <DemoApp
+              key={demoRun}
+              heightCss={DEMO_HEIGHT_DESKTOP}
+              heightCssSm={DEMO_HEIGHT_DESKTOP}
+              tourRef={tourRef}
+              onTour={setTour}
+              tour={script}
             />
-            <div className="min-w-0">
-              {isDesktop && inView && idle ? (
-                <DemoApp
-                  key={demoRun}
-                  heightCss={DEMO_HEIGHT_DESKTOP}
-                  heightCssSm={DEMO_HEIGHT_DESKTOP}
-                  tourRef={tourRef}
-                  onTour={setTour}
-                  tour={script}
-                />
-              ) : (
-                <DemoPlaceholder />
-              )}
-              <p
-                id="demo-next"
-                tabIndex={-1}
-                className="mt-4 text-center text-[13px] text-gray-500 dark:text-gray-400"
-              >
-                Done poking around?{" "}
-                <DownloadLink className="underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 hover:decoration-current dark:decoration-gray-600 dark:hover:text-white">
-                  Get lpm
-                </DownloadLink>{" "}
-                and point it at your own projects.
-              </p>
-            </div>
-          </div>
+          ) : (
+            <DemoPlaceholder />
+          )}
+          <p
+            id="demo-next"
+            tabIndex={-1}
+            className="mt-4 text-center text-[13px] text-gray-500 dark:text-gray-400"
+          >
+            Done poking around?{" "}
+            <DownloadLink className="underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 hover:decoration-current dark:decoration-gray-600 dark:hover:text-white">
+              Get lpm
+            </DownloadLink>{" "}
+            and point it at your own projects.
+          </p>
         </div>
       )}
     </div>
@@ -355,7 +350,7 @@ export function DemoSection({
       aria-labelledby={headingId}
       className="scroll-mt-20 pb-16 sm:pb-20"
     >
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:max-w-7xl">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <DemoCaption
           heading={heading}
           blurb={blurb}

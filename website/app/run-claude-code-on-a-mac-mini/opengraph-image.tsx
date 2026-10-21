@@ -10,5 +10,6 @@ export default function Image() {
     headline: ["Claude Code and Codex,", "running on your Mac mini."],
     subline:
       "Start them from your laptop. Close the lid, and they keep working. Come back to each session marked Done.",
+    eyebrow: "Claude Code and Codex, on the Mac that stays home",
   });
 }

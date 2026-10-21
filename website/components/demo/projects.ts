@@ -169,7 +169,7 @@ const runId = (clock: string) => `${YMD}-${clock.replace(/:/g, "")}`;
 
 export const CLAUDE_ACTION: DemoAction = {
   name: "claude",
-  label: "Claude Code",
+  label: "Claude",
   emoji: "✻",
   cmd: "claude",
   display: "header",
@@ -187,7 +187,7 @@ export const CODEX_ACTION: DemoAction = {
   display: "header",
   type: "terminal",
   agent: "codex",
-  color: "#a78bfa",
+  color: "#22d3ee",
   output: [],
 };
 

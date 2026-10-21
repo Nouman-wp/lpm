@@ -7,9 +7,14 @@ export const contentType = OG_CONTENT_TYPE;
 
 export default function Image() {
   return ogImage({
-    headline: ["The Mac SSH client and terminal", "that makes remote dev feel local."],
+    headline: [
+      "The Mac SSH client and",
+      "terminal that makes",
+      "remote dev feel local.",
+    ],
     subline:
       "Import your SSH hosts, forward remote ports to localhost, and run remote services beside your local stack in one native window.",
-    platform: "macOS · Desktop App",
+    eyebrow: "SSH terminal for Mac developers",
+    platform: "Free · native on macOS",
   });
 }

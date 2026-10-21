@@ -7,9 +7,14 @@ export const contentType = OG_CONTENT_TYPE;
 
 export default function Image() {
   return ogImage({
-    headline: ["Foreman vs Overmind for a", "Rails Procfile — and a third option."],
+    headline: [
+      "Foreman vs Overmind for",
+      "a Rails Procfile, and",
+      "a third option.",
+    ],
     subline:
       "One interleaved stream, one tmux-backed runner, one Mac app. What each does with the same three lines.",
-    platform: "macOS · Desktop App",
+    eyebrow: "Procfile dev on macOS",
+    platform: "Free · native on macOS",
   });
 }

@@ -10,5 +10,6 @@ export default function Image() {
     headline: ["Claude Code & Codex", "tokens, cost & limits."],
     subline:
       "Tokens by project and session, live 5-hour and weekly meters with pace, and a prompt sent when your limit resets. Free and open source.",
+    eyebrow: "Free, open-source desktop app",
   });
 }

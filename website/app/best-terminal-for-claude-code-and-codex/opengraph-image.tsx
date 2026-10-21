@@ -8,10 +8,12 @@ export const contentType = OG_CONTENT_TYPE;
 export default function Image() {
   return ogImage({
     headline: [
-      "The best terminal for Claude Code and Codex",
+      "The best terminal for",
+      "Claude Code and Codex.",
       "Built for parallel agents.",
     ],
     subline:
       "Run Claude Code and Codex side by side on the same codebase — start your dev stack in one click and keep every agent in view.",
+    eyebrow: "Native desktop terminal for AI agents",
   });
 }

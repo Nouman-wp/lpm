@@ -16,6 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { AgentStatus } from "./agent-terminal";
+import { EmojiMark } from "./emoji-mark";
 import { IconBtn } from "./icon-btn";
 import { PANE_ACTION_META, type UtilityTabKind } from "./pane-action-meta";
 import type { PaneActionId } from "./pane-actions";
@@ -188,7 +189,9 @@ export function PaneHeader({
                   ) : tab.type === "files" ? (
                     <Folder className="h-3.5 w-3.5" />
                   ) : tab.emoji ? (
-                    <span className="text-[12px] leading-none">{tab.emoji}</span>
+                    <span className="inline-flex text-[12px] leading-none">
+                      <EmojiMark emoji={tab.emoji} />
+                    </span>
                   ) : (
                     <TerminalIcon className="h-3.5 w-3.5" />
                   )}

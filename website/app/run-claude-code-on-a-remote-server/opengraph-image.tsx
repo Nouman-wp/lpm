@@ -10,5 +10,6 @@ export default function Image() {
     headline: ["Run Claude Code and Codex", "on a Linux server."],
     subline:
       "Type user@host. lpm installs and pairs itself over SSH — then the server's projects, terminals and agents keep running with your lid closed.",
+    eyebrow: "Linux hosts, from the desktop app",
   });
 }

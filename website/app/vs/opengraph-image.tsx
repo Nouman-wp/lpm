@@ -7,9 +7,14 @@ export const contentType = OG_CONTENT_TYPE;
 
 export default function Image() {
   return ogImage({
-    headline: ["tmux, iTerm2, PM2, Docker Compose:", "seven ways to run a Mac dev stack."],
+    headline: [
+      "tmux, iTerm2, PM2,",
+      "Docker Compose: seven ways",
+      "to run a Mac dev stack.",
+    ],
     subline:
       "Seven tools and lpm in one table, an honest verdict on each, and the row that goes against lpm.",
-    platform: "macOS · Desktop App",
+    eyebrow: "Mac dev stacks · seven tools",
+    platform: "Free · native on macOS",
   });
 }

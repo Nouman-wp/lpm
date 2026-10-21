@@ -10,5 +10,6 @@ export default function Image() {
     headline: ["Start projects in one click.", "Run AI agents in parallel."],
     subline:
       "A free desktop app for managing local dev projects — run Claude Code, Codex, and more side by side on the same codebase.",
+    eyebrow: "Free desktop app for Claude Code, Codex & other AI agents",
   });
 }

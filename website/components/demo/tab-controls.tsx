@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { EmojiMark } from "./emoji-mark";
 import { NO_AUTOFILL } from "./no-autofill";
 import { MenuButton } from "./menu-button";
 import { MENU_PANEL_CLASS, MenuLayer } from "./menu-layer";
@@ -282,7 +283,7 @@ export function EmojiPickerField({
         aria-label="Pick an icon"
         className={`absolute left-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg border border-[#2e2e2e] bg-[#242424] text-[15px] text-[#b3b3b3] hover:bg-[#2a2a2a] ${PRESS} ${FOCUS_RING}`}
       >
-        {emoji || <TerminalIcon className="h-4 w-4" />}
+        {emoji ? <EmojiMark emoji={emoji} size={16} /> : <TerminalIcon className="h-4 w-4" />}
       </button>
       {children}
       {picking && (
@@ -297,7 +298,7 @@ export function EmojiPickerField({
                   emoji === em ? "bg-[#2a2a2a]" : ""
                 }`}
               >
-                {em}
+                <EmojiMark emoji={em} size={18} />
               </button>
             ))}
           </div>

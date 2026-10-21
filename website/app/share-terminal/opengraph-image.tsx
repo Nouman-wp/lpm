@@ -10,5 +10,6 @@ export default function Image() {
     headline: ["Share your terminal live,", "in any browser."],
     subline:
       "Send a link to one terminal tab. They watch as it happens, with nothing to install, and type only when you let them.",
+    eyebrow: "Live tab sharing",
   });
 }

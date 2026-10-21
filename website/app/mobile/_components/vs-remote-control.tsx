@@ -2,35 +2,52 @@ import { SectionHeader } from "@/components/section-header";
 
 type Row = {
   label: string;
-  body: string;
+  remoteControl: string;
+  lpmLink: string;
 };
 
+// The Remote Control column follows code.claude.com/docs/en/remote-control.
 const ROWS: Row[] = [
   {
-    label: "Any agent, not one",
-    body: "Claude Code, Codex, Gemini CLI, or whatever else you run in an lpm terminal all open on your phone the same way, and Claude Code, Codex, Gemini CLI and Cursor CLI also send status and push alerts.",
+    label: "Agents",
+    remoteControl: "Claude Code",
+    lpmLink:
+      "Claude Code, Codex, Gemini CLI, or any CLI you run in lpm, with status and alerts for Claude Code, Codex, Gemini CLI and Cursor CLI",
   },
   {
-    label: "The real session, not a transcript",
-    body: "You get the actual terminal from your Mac, opened with its recent scrollback already on screen, and you type into that same session — including the prompts and full-screen views an agent draws.",
+    label: "On screen",
+    remoteControl: "The conversation, in the Claude app or at claude.ai/code",
+    lpmLink:
+      "The real terminal, with its scrollback and the full-screen views agents draw",
   },
   {
-    label: "Review and ship, not just prompt",
-    body: "Read the diff file by file, commit the files you pick with an AI-written message, pull, push, and — where the GitHub CLI is set up — open the pull request from the phone.",
+    label: "Git",
+    remoteControl: "A diff pane of your changes",
+    lpmLink:
+      "Read the diff file by file, commit with an AI-written message, pull, push and open a PR",
   },
   {
-    label: "The project, not only the agent",
-    body: "Start and stop services, start a project under a different profile, run saved actions, and duplicate a project to fan work out — the workspace around the agent comes with it.",
+    label: "The project",
+    remoteControl: "The session, with your local tools and MCP servers",
+    lpmLink:
+      "Start and stop services, switch profiles, run saved actions, duplicate the project",
   },
   {
-    label: "Every machine, not one session",
-    body: "An Activity list across all your projects, scheduled automations, plan-limit meters, and several Macs or Linux servers, switched from one menu.",
+    label: "Across machines",
+    remoteControl: "Claude Code sessions on machines running Remote Control",
+    lpmLink:
+      "An Activity list across projects and agents, automations, plan-limit meters, several Macs and Linux servers",
   },
   {
-    label: "Straight to your Mac",
-    body: "Pair by scanning a QR code from lpm on your Mac. Terminal output and keystrokes travel directly between the two devices, and there is no account to create.",
+    label: "Connection",
+    remoteControl:
+      "Through the Anthropic API, on a Pro, Max, Team or Enterprise plan",
+    lpmLink: "Straight to your computer, paired by QR code, no account",
   },
 ];
+
+const COLUMNS = "sm:grid-cols-[9rem_minmax(0,1fr)_minmax(0,1.25fr)]";
+const HEAD = "px-5 py-3 text-xs font-semibold sm:px-6";
 
 export default function VsRemoteControl() {
   return (
@@ -41,21 +58,44 @@ export default function VsRemoteControl() {
           title="Already driving Claude Code from your phone?"
           description="Claude Code ships its own remote control, and it is a good way to keep one agent moving. The lpm companion draws a wider circle around the same idea."
         />
-        <dl className="rounded-2xl border border-gray-200 dark:border-gray-800 divide-y divide-gray-200 dark:divide-gray-800 overflow-hidden bg-white dark:bg-transparent">
-          {ROWS.map(({ label, body }) => (
-            <div
-              key={label}
-              className="grid grid-cols-1 sm:grid-cols-[13rem_1fr] gap-1 sm:gap-6 px-5 py-4 sm:px-6"
-            >
-              <dt className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                {label}
-              </dt>
-              <dd className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
-                {body}
-              </dd>
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-transparent">
+          <div
+            aria-hidden="true"
+            className={`hidden border-b border-gray-200 bg-gray-50 sm:grid dark:border-gray-800 dark:bg-white/[0.03] ${COLUMNS}`}
+          >
+            <div />
+            <div className={`${HEAD} text-gray-500 dark:text-gray-400`}>
+              Claude Code remote control
             </div>
-          ))}
-        </dl>
+            <div className={`${HEAD} text-gray-900 dark:text-gray-100`}>
+              lpm Link
+            </div>
+          </div>
+          <dl className="divide-y divide-gray-200 dark:divide-gray-800">
+            {ROWS.map(({ label, remoteControl, lpmLink }) => (
+              <div
+                key={label}
+                className={`grid gap-1 px-5 py-4 sm:gap-0 sm:px-0 sm:py-0 ${COLUMNS}`}
+              >
+                <dt className="text-sm font-semibold text-gray-900 sm:px-6 sm:py-4 dark:text-gray-100">
+                  {label}
+                </dt>
+                <dd className="text-sm leading-relaxed text-gray-500 sm:px-6 sm:py-4 dark:text-gray-400">
+                  <span className="text-xs font-medium text-gray-400 sm:sr-only dark:text-gray-500">
+                    Claude Code remote control:{" "}
+                  </span>
+                  {remoteControl}
+                </dd>
+                <dd className="text-sm leading-relaxed text-gray-900 sm:bg-gray-50/70 sm:px-6 sm:py-4 dark:text-gray-100 sm:dark:bg-white/[0.03]">
+                  <span className="text-xs font-medium text-gray-400 sm:sr-only dark:text-gray-500">
+                    lpm Link:{" "}
+                  </span>
+                  {lpmLink}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       </div>
     </section>
   );

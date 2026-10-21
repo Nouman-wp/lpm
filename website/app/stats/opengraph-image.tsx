@@ -8,5 +8,6 @@ export default function Image() {
   return ogImage({
     headline: ["Download Stats"],
     subline: "Live download counts for lpm across all GitHub releases.",
+    eyebrow: "Open source",
   });
 }

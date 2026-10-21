@@ -10,5 +10,6 @@ export default function Image() {
     headline: ["What lpm does,", "on one page."],
     subline:
       "Dev servers, Claude Code and Codex terminals, parallel copies, Git review, automations, and control from your iPhone.",
+    eyebrow: "Feature guide",
   });
 }

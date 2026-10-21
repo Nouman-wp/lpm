@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { DownloadLink } from "@/components/download-link";
 import { HeroDownload } from "@/components/home/hero-download";
 import { usePlatform } from "@/lib/use-platform";
+import { ResendRequest } from "./resend-request";
 
 // A link from lpm's Share tab dialog: lpm.cx/join#<invite>. The invite stays in
 // the fragment, which the browser never sends to this site, and goes on to the
@@ -87,8 +89,15 @@ export function JoinSharedTab() {
           <>
             <h1 className={HEADING}>This link isn&apos;t complete.</h1>
             <p className={LEAD}>
-              Part of it is missing. Ask the person sharing the tab to send the
-              link again, and copy all of it.
+              Part of the invite is missing, so it can&apos;t open. The person
+              sharing the tab has the full link.
+            </p>
+            <ResendRequest />
+            <p className="mt-10 text-sm text-gray-500 dark:text-gray-400">
+              Want to share your own terminal?{" "}
+              <DownloadLink className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 transition-colors hover:decoration-current dark:text-gray-100 dark:decoration-gray-600">
+                Get lpm
+              </DownloadLink>
             </p>
           </>
         ) : (
@@ -125,7 +134,7 @@ export function JoinSharedTab() {
             )}
           </>
         )}
-        {!onPhone && (
+        {!onPhone && invite !== "" && (
           <div className="mt-16 border-t border-gray-200 pt-10 dark:border-gray-800">
             <p className="text-sm text-gray-600 dark:text-gray-400">
               {webLink

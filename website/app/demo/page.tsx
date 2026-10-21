@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { EmptyDemo } from "./_components/empty-demo";
+import { DemoWorkspace } from "./_components/demo-workspace";
 
 const TITLE = "Interactive Demo";
 const DESCRIPTION =
-  "Try lpm in your browser: an empty workspace where you add a project, start its services, and open Claude Code and Codex from the toolbar.";
+  "Try lpm in your browser: start with sample projects that already run dev servers and agents, or with an empty workspace where you add a project and open Claude Code and Codex.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -34,11 +34,11 @@ export default function DemoPage() {
           Try lpm in your browser
         </h1>
         <p className="mt-2 text-pretty text-sm leading-relaxed text-gray-600 sm:text-[15px] dark:text-gray-400">
-          An empty workspace, like a fresh install. Add a folder, clone a repo,
-          or connect an SSH host, then start it and open an agent.
+          Start with sample projects that already have services and agents,
+          or with an empty workspace, like a fresh install.
         </p>
       </div>
-      <EmptyDemo />
+      <DemoWorkspace />
     </section>
   );
 }

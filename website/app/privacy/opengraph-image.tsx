@@ -8,5 +8,6 @@ export default function Image() {
   return ogImage({
     headline: ["Privacy Policy"],
     subline: "How lpm handles your data.",
+    eyebrow: "Legal",
   });
 }

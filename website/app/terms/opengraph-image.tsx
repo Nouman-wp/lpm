@@ -8,5 +8,6 @@ export default function Image() {
   return ogImage({
     headline: ["Terms of Service"],
     subline: "The terms that apply when you use lpm.",
+    eyebrow: "Legal",
   });
 }

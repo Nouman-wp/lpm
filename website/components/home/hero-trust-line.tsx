@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Check, ShieldAlert, ShieldCheck } from "lucide-react";
 import type { DesktopOs } from "@/lib/downloads";
 import { REPO_URL } from "@/lib/links";
@@ -25,7 +26,12 @@ export function HeroTrustLine({ os, downloads }: Props) {
             Free and MIT-licensed
           </a>,
           os && (
-            <a key="signing" href="#download-safety" className={ITEM}>
+            <Link
+              key="signing"
+              href="/#download-safety"
+              prefetch={false}
+              className={ITEM}
+            >
               {os === "macos" ? (
                 <>
                   <ShieldCheck className={ICON} aria-hidden />
@@ -37,7 +43,7 @@ export function HeroTrustLine({ os, downloads }: Props) {
                   Beta, not code-signed yet
                 </>
               )}
-            </a>
+            </Link>
           ),
           downloads && <span key="downloads">{downloads} downloads</span>,
         ]}

@@ -23,7 +23,6 @@ import Cta from "./_components/cta";
 import Faq from "./_components/faq";
 import Features from "./_components/features";
 import Hero from "./_components/hero";
-import HowItWorks from "./_components/how-it-works";
 import Lesson from "./_components/lesson";
 import MoreOnPhone from "./_components/more-on-phone";
 import Notifications from "./_components/notifications";
@@ -118,7 +117,6 @@ export default function MobilePage() {
       <Control />
       <MoreOnPhone />
       <Notifications />
-      <HowItWorks />
       <Lesson />
       <Security />
       <Faq />

@@ -3,34 +3,64 @@ import { ImageResponse } from "next/og";
 export const OG_SIZE = { width: 1200, height: 630 };
 export const OG_CONTENT_TYPE = "image/png";
 
+const PADDING = 80;
+const IMAGE_COLUMN = 400;
+// The bundled face averages about 0.48em per character; the margin covers lines
+// heavy with wide letters, so a headline line is sized to fit rather than left
+// to wrap mid-phrase.
+const CHAR_WIDTH = 0.52;
+
 type OgImageInput = {
+  // Each entry is one line; a line is never wrapped, so the size follows the
+  // longest one.
   headline: string | string[];
+  // Two lines at most.
   subline: string;
+  eyebrow?: string;
   platform?: string;
+  // A product screen beside the text, as a data URL.
+  image?: string;
 };
 
 export function ogImage({
   headline,
   subline,
-  platform = "Desktop App",
+  eyebrow = "Desktop app for AI coding agents",
+  platform = "Free · macOS, Windows, Linux",
+  image,
 }: OgImageInput): ImageResponse {
-  const headlineLines = Array.isArray(headline) ? headline : [headline];
+  const lines = Array.isArray(headline) ? headline : [headline];
+  const textWidth = OG_SIZE.width - PADDING * 2 - (image ? IMAGE_COLUMN : 0);
+  const longest = Math.max(...lines.map((line) => line.length));
+  // A third line leaves the subline too little room at full size.
+  const largest = lines.length > 2 ? 76 : 84;
+  const fontSize = Math.max(
+    56,
+    Math.min(largest, Math.floor(textWidth / (longest * CHAR_WIDTH))),
+  );
 
   return new ImageResponse(
-    (
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        position: "relative",
+        background:
+          "linear-gradient(135deg, #0a0a0a 0%, #111111 60%, #1a1a1a 100%)",
+        color: "#ffffff",
+        fontFamily:
+          "ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif",
+      }}
+    >
       <div
         style={{
-          width: "100%",
+          width: textWidth + PADDING * 2,
           height: "100%",
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          padding: "80px",
-          background:
-            "linear-gradient(135deg, #0a0a0a 0%, #111111 60%, #1a1a1a 100%)",
-          color: "#ffffff",
-          fontFamily:
-            "ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif",
+          padding: `72px ${PADDING}px`,
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -61,7 +91,7 @@ export function ogImage({
               textTransform: "uppercase",
             }}
           >
-            Project & Terminal Switcher
+            {eyebrow}
           </div>
         </div>
 
@@ -70,7 +100,7 @@ export function ogImage({
             style={{
               display: "flex",
               flexDirection: "column",
-              fontSize: 84,
+              fontSize,
               fontWeight: 800,
               lineHeight: 1.05,
               letterSpacing: -2,
@@ -80,16 +110,18 @@ export function ogImage({
               color: "transparent",
             }}
           >
-            {headlineLines.map((line) => (
-              <div key={line}>{line}</div>
+            {lines.map((line) => (
+              <div key={line} style={{ whiteSpace: "nowrap" }}>
+                {line}
+              </div>
             ))}
           </div>
           <div
             style={{
-              fontSize: 28,
+              fontSize: 26,
               color: "#9ca3af",
               lineHeight: 1.4,
-              maxWidth: 980,
+              maxWidth: textWidth,
             }}
           >
             {subline}
@@ -100,7 +132,7 @@ export function ogImage({
           style={{
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
+            gap: 28,
             fontSize: 22,
             color: "#6b7280",
           }}
@@ -119,7 +151,32 @@ export function ogImage({
           <div>{platform}</div>
         </div>
       </div>
-    ),
-    OG_SIZE
+
+      {image && (
+        <div
+          style={{
+            position: "absolute",
+            right: 90,
+            top: 64,
+            width: 300,
+            display: "flex",
+            padding: 11,
+            borderRadius: 52,
+            background: "#050505",
+            boxShadow: "0 0 0 1px #2c2c2e, 0 40px 80px rgba(0,0,0,0.6)",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={image}
+            width={278}
+            height={604}
+            alt=""
+            style={{ borderRadius: 42 }}
+          />
+        </div>
+      )}
+    </div>,
+    OG_SIZE,
   );
 }

@@ -6,8 +6,9 @@ export type LessonStep = {
   blurb: string;
   body: ReactNode;
   lesson: YouTubeLessonId;
-  // A frame from the lesson itself: the YouTube thumbnails are all the same
-  // title card, so they can't tell the lessons apart at row size.
+  // A frame from the lesson itself, for its row and the player's poster: the
+  // YouTube thumbnails are all the same title card, so they can't tell the
+  // lessons apart and show no app.
   thumbnail: string;
   seconds: number;
 };

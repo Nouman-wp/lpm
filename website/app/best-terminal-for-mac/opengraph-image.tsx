@@ -10,6 +10,7 @@ export default function Image() {
     headline: ["The best terminal app for Mac,", "built for Apple Silicon."],
     subline:
       "A native macOS app that runs your whole dev stack in one window — live output per service, visual project switching, no Electron.",
-    platform: "macOS · Desktop App",
+    eyebrow: "The native terminal for macOS",
+    platform: "Free · native on macOS",
   });
 }

@@ -1,27 +1,34 @@
 "use client";
 
+import { useRelease } from "@/components/release-context";
 import type { DownloadSource } from "@/lib/analytics";
-import { detectedOs, primaryDownload, usePlatform } from "@/lib/use-platform";
-import { DownloadDetails } from "./download-details";
+import {
+  detectedOs,
+  isDownloadPlatform,
+  primaryDownload,
+  usePlatform,
+} from "@/lib/use-platform";
+import { DownloadSplitButton } from "./download-split-button";
+import { HeroTrustLine } from "./hero-trust-line";
 import { NoDownloadCard } from "./no-download-card";
-import { PrimaryDownload } from "./primary-download";
 
-// Detection only exists after hydration. The Apple Silicon pill is both the
+// Detection only exists after hydration. The Apple Silicon button is both the
 // server markup and the most-likely detected branch, so the swap after
 // detection almost never changes the box; the min-height only has to absorb
-// the rarer branches (the Intel, Windows and Linux swaps, the no-download card).
+// the no-download card phones and tablets get.
 const SHELL =
-  "flex w-full flex-col items-center justify-center gap-3 min-h-[172px] sm:min-h-[124px]";
+  "flex w-full flex-col items-center justify-center gap-4 min-h-[144px] sm:min-h-[97px]";
 
 type Props = {
   source?: DownloadSource;
-  // Mac-targeted pages keep the Mac download for every visitor; Windows and
-  // Linux visitors get a link to their builds instead of a swapped button.
+  // Mac-targeted pages keep the Mac download on the button for every visitor;
+  // Windows and Linux builds stay in its menu.
   macFocus?: boolean;
 };
 
 export function HeroDownload({ source = "hero", macFocus = false }: Props) {
   const platform = usePlatform();
+  const { release, downloads } = useRelease();
 
   if (
     platform === "ipad" ||
@@ -41,18 +48,14 @@ export function HeroDownload({ source = "hero", macFocus = false }: Props) {
 
   return (
     <div className={SHELL}>
-      <PrimaryDownload
-        entry={primary}
-        source={source}
-        className="px-7 py-3.5 text-[17px] sm:px-8 sm:py-4"
-      />
-      <DownloadDetails
+      <DownloadSplitButton
         primary={primary}
+        detected={isDownloadPlatform(platform) ? platform : null}
+        release={release}
         source={source}
-        linkClassName="text-xs font-medium"
-        rowGap="gap-3"
-        otherSystems={!macFocus || offMac}
+        className="px-6 py-3.5 text-[15px] sm:px-7 sm:text-[16px]"
       />
+      <HeroTrustLine os={primary.os} downloads={downloads} />
     </div>
   );
 }

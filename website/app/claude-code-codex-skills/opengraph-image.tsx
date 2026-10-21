@@ -7,8 +7,12 @@ export const contentType = OG_CONTENT_TYPE;
 
 export default function Image() {
   return ogImage({
-    headline: ["Create Claude Code and Codex skills", "Without hand-writing SKILL.md."],
+    headline: [
+      "Claude Code and Codex skills,",
+      "without hand-writing SKILL.md.",
+    ],
     subline:
       "One dialog to create and edit agent skills — AI drafts the fields, and every skill shows its context cost.",
+    eyebrow: "Built into the lpm desktop app",
   });
 }

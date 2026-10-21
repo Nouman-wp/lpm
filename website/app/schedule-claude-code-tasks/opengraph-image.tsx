@@ -10,5 +10,6 @@ export default function Image() {
     headline: ["Schedule Claude Code", "and Codex runs."],
     subline:
       "Nightly, weekday or interval runs in your project, a fresh copy or a Git worktree, with answers you can read and reply to.",
+    eyebrow: "Automations in lpm",
   });
 }

@@ -8,6 +8,7 @@ export default function Image() {
   return ogImage({
     headline: ["Try lpm", "in your browser"],
     subline:
-      "An empty workspace: add a project, start it, and open Claude Code and Codex.",
+      "Sample projects with services and agents, or an empty workspace like a fresh install.",
+    eyebrow: "Interactive demo",
   });
 }

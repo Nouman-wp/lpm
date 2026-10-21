@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
-import { LESSON_STEPS } from "@/components/home/lesson-data";
+import { formatLength, LESSON_STEPS } from "@/components/home/lesson-data";
 import { LessonRow } from "@/components/home/lesson-row";
 import { YouTubeVideo } from "@/components/youtube-video";
 import { youtubeLesson, youtubeWatchUrl } from "@/lib/youtube-lessons";
@@ -32,6 +32,11 @@ export function LessonPlayer() {
         <YouTubeVideo
           key={step.lesson}
           lesson={step.lesson}
+          poster={{
+            src: step.thumbnail,
+            label: `Lesson ${selected + 1} · ${formatLength(step.seconds)}`,
+            title: step.title,
+          }}
           autoPlay={picked}
           sizes="(min-width: 1024px) 700px, (min-width: 640px) 90vw, 100vw"
           className="rounded-xl shadow-2xl shadow-gray-300/60 ring-1 ring-black/5 dark:shadow-black/40 dark:ring-white/10"

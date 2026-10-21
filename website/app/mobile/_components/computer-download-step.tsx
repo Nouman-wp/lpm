@@ -3,6 +3,7 @@
 import { ArrowDown, ArrowRight } from "lucide-react";
 import { DownloadLink } from "@/components/download-link";
 import { OsIcon } from "@/components/home/os-icon";
+import { SendLinkButton } from "@/components/home/send-link-button";
 import { trackDownload } from "@/lib/analytics";
 import { OS_NAMES } from "@/lib/downloads";
 import { primaryDownload, usePlatform } from "@/lib/use-platform";
@@ -10,15 +11,15 @@ import { primaryDownload, usePlatform } from "@/lib/use-platform";
 const LINK =
   "inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-gray-700 underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 dark:text-gray-300 dark:decoration-gray-600 dark:hover:text-white";
 
-// A phone can't install the desktop app, so there the step links to the
-// download section to open later on the computer.
+// A phone or tablet can't install the desktop app, so there the step sends the
+// download link to the computer; an ARM Linux machine is already a computer
+// and gets the other builds.
 export default function ComputerDownloadStep() {
   const platform = usePlatform();
-  if (
-    platform === "ipad" ||
-    platform === "unsupported" ||
-    platform === "linux-arm"
-  ) {
+  if (platform === "ipad" || platform === "unsupported") {
+    return <SendLinkButton align="start" />;
+  }
+  if (platform === "linux-arm") {
     return (
       <DownloadLink className={LINK}>
         Get lpm for your computer

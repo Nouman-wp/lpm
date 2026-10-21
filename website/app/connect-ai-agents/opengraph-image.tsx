@@ -7,8 +7,12 @@ export const contentType = OG_CONTENT_TYPE;
 
 export default function Image() {
   return ogImage({
-    headline: ["Claude Code skills and Codex tools", "for your dev environment."],
+    headline: [
+      "Claude Code skills and Codex",
+      "tools for your dev environment.",
+    ],
     subline:
-      "One click gives Claude Code, Codex, Gemini CLI, and OpenCode a CLI to start, stop, and restart services, read logs, and fan out into parallel copies.",
+      "One click gives Claude Code, Codex, Gemini CLI and OpenCode a CLI to start and stop services, read logs and fan out into parallel copies.",
+    eyebrow: "Agent skills and CLI",
   });
 }
