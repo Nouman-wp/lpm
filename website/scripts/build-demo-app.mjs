@@ -18,5 +18,6 @@ const npm = (args) =>
     shell: process.platform === "win32",
   });
 
-if (!existsSync(join(frontendDir, "node_modules"))) npm(["ci"]);
+// --include=dev: Vercel builds with NODE_ENV=production, which skips vite.
+if (!existsSync(join(frontendDir, "node_modules"))) npm(["ci", "--include=dev"]);
 npm(["run", "build:demo"]);
