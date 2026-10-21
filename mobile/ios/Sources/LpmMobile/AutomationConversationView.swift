@@ -32,7 +32,9 @@ struct AutomationConversationView: View {
                     AutomationMessage(entry: entry, isRoot: entry.at == rootAt,
                                       sourceID: "\(key):\(entry.at)",
                                       title: job?.displayName ?? "Automation",
-                                      subtitle: project)
+                                      subtitle: project,
+                                      project: project,
+                                      jobId: jobId)
                 }
                 if let pendingMessage {
                     AutomationPendingMessage(message: pendingMessage,
@@ -69,7 +71,9 @@ struct AutomationConversationView: View {
                     onSend: sendFollowup,
                     terminalTools: false,
                     disabled: isSending,
-                    placeholder: isSending ? "Automation is running…" : "Reply to this run"
+                    placeholder: isSending ? "Automation is running…"
+                        : entries.contains(where: \.waiting) ? "Answer above, or reply in your own words"
+                        : "Reply to this run"
                 )
             }
         }
@@ -149,13 +153,16 @@ private struct AutomationMessage: View {
     let sourceID: String
     let title: String
     let subtitle: String
+    let project: String
+    let jobId: String
 
     private var quiet: Bool { !isRoot && entry.result == "completed" }
     private var isReading: Bool { model.speech.isActive && model.speech.sourceID == sourceID }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if !entry.question.isEmpty {
+            // An answer to a question shows on the question itself.
+            if !entry.question.isEmpty, entry.answerTo.isEmpty {
                 HStack {
                     Spacer(minLength: 48)
                     Text(entry.question)
@@ -184,6 +191,9 @@ private struct AutomationMessage: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel(isReading ? "Stop reading" : "Read aloud")
                 }
+            }
+            ForEach(entry.asks) { ask in
+                AutomationAskCard(ask: ask, project: project, jobId: jobId)
             }
             if quiet { AutomationMessageMeta(entry: entry) }
         }
@@ -225,7 +235,7 @@ private struct AutomationMessageMeta: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            Circle().fill(automationResultColor(entry.result)).frame(width: 7, height: 7)
+            Circle().fill(automationEntryColor(entry)).frame(width: 7, height: 7)
             Text(automationEntryLabel(entry))
             if let duration = entry.durationSecs { Text(automationDurationText(duration)) }
             if let cost = entry.costUsd { Text(cost.formatted(.currency(code: "USD"))) }

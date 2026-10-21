@@ -336,7 +336,9 @@ holds no credential of its own, so removing it sends nothing.
 | `{ "t": "setJobEnabled", "project": "<name>", "jobId": "<id>", "enabled": bool }` | `{ "t": "setJobEnabled", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` |
 | `{ "t": "markJobSeen", "project": "<name>", "jobId": "<id>", "at": N? }` | `{ "t": "markJobSeen", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` — mark this automation's runs read up to `at`, the entry the phone opened, leaving anything newer unread; omit `at` to read all of it. The watermark only moves forward, so opening an older run can't un-read newer ones. Read state is per project/job pair and shared with the desktop, so a job spanning several projects needs one call per entry in `targets`. Pushes `jobs-changed` |
 | `{ "t": "markAllJobsSeen" }` | `{ "t": "markAllJobsSeen", "ok": true }` / `{ "ok": false, "error": "…" }` — mark every automation read. Pushes `jobs-changed` |
-| `{ "t": "sendJobFollowup", "project": "<name>", "jobId": "<id>", "at": N, "message": "…", "agent": "…", "model": "…", "effort": "…" }` | `{ "t": "sendJobFollowup", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` — continues the conversation containing history entry `at`; empty agent/model/effort use the automation's settings |
+| `{ "t": "sendJobFollowup", "project": "<name>", "jobId": "<id>", "at": N, "message": "…", "agent": "…", "model": "…", "effort": "…" }` | `{ "t": "sendJobFollowup", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` — continues the conversation containing history entry `at`; empty agent/model/effort use the automation's settings. A conversation waiting on a question (an entry with an open `JobAsk`) takes the message as the answer, in the user's own words |
+| `{ "t": "answerJobQuestion", "project": "<name>", "jobId": "<id>", "askId": "<ask id>", "answers": { "<question id>": true\|false\|["<label>"…]\|"<text>" } }` | `{ "t": "answerJobQuestion", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` — answers the question the automation is waiting on (`JobInfo.ask`; `project` is `ask.project`). One answer per question id: a bool for `confirm`, the picked option labels for `choice` (with `other`, a label may be the user's own words), text for `text` and any type the phone doesn't know. Optional questions may be left out. The first answer from any device wins; a later one fails with a message saying so. An agent run resumes with the answer; a command run that was waiting carries on. Pushes `jobs-changed` |
+| `{ "t": "dismissJobQuestion", "project": "<name>", "jobId": "<id>", "askId": "<ask id>" }` | `{ "t": "dismissJobQuestion", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` — drops the question unanswered: an agent run stays where it stopped, a waiting command hears that no answer is coming. Pushes `jobs-changed` |
 | `{ "t": "jobConfig", "project": "<name>", "jobId": "<id>", "source": "project"\|"repo"\|"global" }` | `{ "t": "jobConfig", "project": "<name>", "jobId": "<id>", "ok": true, "job": { …raw YAML body… } }` / `{ "ok": false, "error": "…" }` — the stored job body (`label`/`emoji`/`schedule`/`check`/`duplicate`/`run`/`projects`) read from `source`'s layer file, so the phone editor can seed an edit. Mirrors the desktop's readJobPayloadFrom |
 | `{ "t": "saveJob", "id": "<id>", "source": "project"\|"repo"\|"global", "project": "<name>", "job": { …body… } }` | `{ "t": "saveJob", "ok": true, "id": "<id>" }` / `{ "ok": false, "id": "<id>", "error": "…" }` — write `job` to `jobs.<id>` in `source`'s layer file (create if new, overwrite if it exists). A new job's `id` is a fresh slug the phone derives from the label, uniquified against every visible job id so it never shadows another job's saved history; editing reuses the job's own id. An empty `id` is rejected. `job` is the full YAML body (same shape the desktop's buildJobPayload writes): `label`, optional `emoji`, `schedule` (`{ manual: true }` \| `{ every: "30m"\|"6h"\|"2d" }` — the interval floor is 5 minutes \| `{ at: "09:00", days?: [mon…] }`), optional `check`, optional `verify` (a shell command run after the run finishes, deciding whether it is reported as done or as needing a look; rejected on `action` jobs, which lpm hands off without waiting), optional `duplicate` (`true` for a plain copy with default options, or `{ mode?: "copy"\|"worktree", pullLatest?, reinstallDeps?, excludeUncommitted? }` — **write back every key you read**, since the body replaces the job's whole mapping), `run` (`{ action }` \| `{ cmd }` \| `{ prompt, agent?, model?, effort?, access?: "read" }`), and — global-layer jobs only — `projects` (the "runs in" list; `[]` = standalone, omitted = every project). New jobs use `source: "global"`. Writes off the read loop; on success the desktop's Jobs views refresh and a `jobs-changed` push goes to phones. The scheduler validates on its next read, so a bad body surfaces as an invalid row, not an error here |
 | `{ "t": "deleteJob", "id": "<id>", "source": "project"\|"repo"\|"global", "project": "<name>", "deleteCopies": bool }` | `{ "t": "deleteJob", "ok": true, "id": "<id>" }` / `{ "ok": false, "id": "<id>", "error": "…" }` — remove the job from `source`'s layer file and forget its saved state (run history, pause override); `deleteCopies` also tears down the duplicates its runs left behind. Writes off the read loop; refreshes desktop + pushes `jobs-changed` like `saveJob` |
@@ -740,6 +742,9 @@ per (project, status key) so a re-reported identical status never re-notifies.
 Automation results use the same delivery path and connection exclusion. The
 `automationStarted`, `automationDone`, and `automationError` preferences cover
 found-work/pending-window, completed, and error/timed-out results respectively.
+An automation waiting on the user's answer is pushed with the status
+`Waiting for your answer · <question>` when the device has `waiting` or
+`automationDone` on.
 
 **Payload encryption.** The notification plaintext is JSON:
 ```
@@ -1007,6 +1012,38 @@ runningCount: number      // how many of them are running it right now
 standalone: bool          // runs outside any project; `targets` is then empty
 unread: number            // runs that landed after the automation was last read,
                           // folded across `targets`. 0 = nothing new
+ask: JobAsk?              // the question the automation is waiting on the user to
+                          // answer, plus `project` (where it waits — the project to
+                          // answer in) and `at` (the history entry that asked;
+                          // absent while that run is still going). A shared job
+                          // carries the first one found across its targets
+```
+
+**JobAsk** — a question an automation run put to the user (`lpm ask`):
+```
+id: string
+askedAt: unix seconds
+questions: [{
+  id: string
+  type: "confirm" | "choice" | "text" | string   // a type the phone doesn't know
+                                                 // is answered as text
+  text: string
+  yes: string?  no: string?      // confirm: button labels (default Yes / No)
+  options: [{ label: string, description: string? }]?   // choice
+  multiple: bool?                // choice: pick several
+  other: bool?                   // choice: also take the user's own words
+  multiline: bool?  placeholder: string?                 // text
+  optional: bool?
+  default: bool | [string] | string?   // used when it expires unanswered
+}]
+blocking: bool?          // a command run is waiting live; otherwise an agent run
+                         // ended its turn and resumes with the answer
+expiresAt: unix seconds?
+status: "open" | "answered" | "dismissed" | "unanswered" | string
+answers: { "<question id>": bool | [string] | string }?
+reply: string?           // answered in the user's own words, by a plain reply
+answeredAt: unix seconds?
+auto: bool?              // nobody answered in time; the defaults were used
 ```
 
 Project- and repo-layer jobs stay one row per project (each carries its owning
@@ -1033,6 +1070,10 @@ verified: bool?             // the job's `verify` command's verdict for this run
                             // live run to check (a run salvaged after the app
                             // closed) — unverified, which is not a pass
 verifyOutput: string?       // what that command said, capped
+asks: [JobAsk]?             // what the run asked the user, with how each ended
+answerTo: string?           // the JobAsk id this entry's `question` answered —
+                            // the asking entry already shows the answer, so it
+                            // isn't repeated as a message
 unread: true?               // the run landed after the automation was last read.
                             // Only set on entries that left something to read —
                             // quiet checks, skips and stopped runs never carry it

@@ -16,19 +16,19 @@ use std::io::IsTerminal;
 
 #[derive(Args)]
 pub struct Target {
-    job_id: String,
+    pub(crate) job_id: String,
     #[arg(
         long,
         short = 'p',
         conflicts_with = "global",
         help = "Project to act in; defaults to the current one"
     )]
-    project: Option<String>,
+    pub(crate) project: Option<String>,
     #[arg(
         long,
         help = "The automation defined in global.yml, in every project it runs in; required for one with no project"
     )]
-    global: bool,
+    pub(crate) global: bool,
 }
 
 /// The automation's row in `project`'s list, or an error naming the ones it has.
@@ -59,25 +59,11 @@ pub(crate) fn project_row(ctx: &Ctx, project: &str, job_id: &str) -> Result<Valu
 fn projects(ctx: &Ctx, target: &Target) -> Result<Vec<String>, RunError> {
     control::require_app(ctx)?;
     if !target.global {
-        let project =
-            resolve_or_infer(ctx, target.project.as_deref()).map_err(|error| match error {
-                RunError::NotFound(message) if target.project.is_none() => RunError::NotFound(
-                    format!("{message}\nfor an automation in global.yml, pass --global"),
-                ),
-                error => error,
-            })?;
+        let project = target_project(ctx, target)?;
         project_row(ctx, &project, &target.job_id)?;
         return Ok(vec![project]);
     }
-    let rows = value_array(request_value(ctx, "list_all_jobs")?)?;
-    let Some(row) = rows.iter().find(|row| {
-        value_text(row, "source") == "global" && value_text(row, "id") == target.job_id
-    }) else {
-        return Err(RunError::NotFound(format!(
-            "no automation {} in global.yml",
-            target.job_id
-        )));
-    };
+    let row = global_row(ctx, &target.job_id)?;
     if row.get("standalone").and_then(Value::as_bool) == Some(true) {
         return Ok(vec![String::new()]);
     }
@@ -92,7 +78,7 @@ fn projects(ctx: &Ctx, target: &Target) -> Result<Vec<String>, RunError> {
         })
         .unwrap_or_default();
     if projects.is_empty() {
-        return Err(RunError::NotFound(match value_text(row, "error") {
+        return Err(RunError::NotFound(match value_text(&row, "error") {
             "" => format!(
                 "automation {} in global.yml runs in no project that exists",
                 target.job_id
@@ -106,9 +92,27 @@ fn projects(ctx: &Ctx, target: &Target) -> Result<Vec<String>, RunError> {
     Ok(projects)
 }
 
+/// The project a target without --global names, or the current one.
+pub(crate) fn target_project(ctx: &Ctx, target: &Target) -> Result<String, RunError> {
+    resolve_or_infer(ctx, target.project.as_deref()).map_err(|error| match error {
+        RunError::NotFound(message) if target.project.is_none() => RunError::NotFound(format!(
+            "{message}\nfor an automation in global.yml, pass --global"
+        )),
+        error => error,
+    })
+}
+
+/// The global.yml automation's row in the app-wide list.
+pub(crate) fn global_row(ctx: &Ctx, job_id: &str) -> Result<Value, RunError> {
+    value_array(request_value(ctx, "list_all_jobs")?)?
+        .into_iter()
+        .find(|row| value_text(row, "source") == "global" && value_text(row, "id") == job_id)
+        .ok_or_else(|| RunError::NotFound(format!("no automation {job_id} in global.yml")))
+}
+
 /// `verb 'project' 'id' rest`. The empty project rides as --no-project, last,
 /// so it can't take the next argument as its value.
-fn verb_line(verb: &str, project: &str, job_id: &str, rest: &str) -> String {
+pub(crate) fn verb_line(verb: &str, project: &str, job_id: &str, rest: &str) -> String {
     let mut line = if project.is_empty() {
         format!("{verb} {}", quote_arg(job_id))
     } else {

@@ -207,6 +207,9 @@ struct DemoWorld {
         var session: String = ""
         var resumed: String = ""
         var follows: Int? = nil
+        // Questions the run put to the user, in the Mac's JobAsk shape.
+        var asks: [[String: Any]] = []
+        var answerTo: String = ""
     }
 
     struct Job {
@@ -512,6 +515,34 @@ struct DemoWorld {
                 // Read up to the night before, so the demo opens with last
                 // night's run still waiting to be looked at.
                 seenAt: t0 - 1),
+            Job(id: "release-notes", project: "blog", label: "Release notes", emoji: "📝",
+                enabled: true, runKind: "prompt",
+                summary: "Draft release notes from this week's merged pull requests, then ask before publishing them.",
+                scheduleMode: "calendar", atMinutes: 1020, days: ["fri"],
+                lastRunAt: t0 - 3600, lastResult: "completed", nextFireAt: t0 + 6 * 86400,
+                agent: "claude",
+                history: [
+                    JobRun(at: t0 - 3600, result: "completed",
+                           output: "Drafted the notes for v2.4: 9 merged pull requests, grouped into Features and Fixes. They're ready to go out once you say so.",
+                           durationSecs: 94, costUsd: 0.21, session: "demo-release-notes",
+                           asks: [[
+                               "id": "release-notes-v24", "askedAt": t0 - 3600, "status": "open",
+                               "questions": [[
+                                   "id": "q1", "type": "confirm",
+                                   "text": "Publish the v2.4 release notes to the blog?",
+                                   "yes": "Publish", "no": "Not yet",
+                               ]],
+                           ]]),
+                ],
+                body: [
+                    "label": "Release notes",
+                    "emoji": "📝",
+                    "schedule": ["at": "17:00", "days": ["fri"]],
+                    "run": [
+                        "prompt": "Draft release notes from this week's merged pull requests, then ask before publishing them.",
+                        "agent": "claude",
+                    ],
+                ]),
             Job(id: "weekly-deps", project: "blog", label: "Weekly dependency check", emoji: "📦",
                 enabled: false, runKind: "prompt",
                 summary: "Check the project's dependencies for outdated packages and summarize which updates are safe to apply.",
@@ -732,7 +763,21 @@ extension DemoWorld {
         if let v = j.nextFireAt { o["nextFireAt"] = v }
         if let v = j.runningSince { o["runningSince"] = v }
         o["unread"] = jobUnreadCount(j)
+        if let ask = openAsk(j) { o["ask"] = ask }
         return o
+    }
+
+    /// The question the job is waiting on, as its row carries it: with the
+    /// project it waits in and the run that asked.
+    func openAsk(_ j: Job) -> [String: Any]? {
+        for run in j.history.reversed() {
+            if var ask = run.asks.first(where: { $0["status"] as? String == "open" }) {
+                ask["project"] = j.project
+                ask["at"] = run.at
+                return ask
+            }
+        }
+        return nil
     }
 
     /// Runs that landed since the automation was last read. Mirrors the Mac:
@@ -761,6 +806,8 @@ extension DemoWorld {
         if !r.resumed.isEmpty { o["resumed"] = r.resumed }
         if let v = r.follows { o["follows"] = v }
         if !r.question.isEmpty { o["question"] = r.question }
+        if !r.asks.isEmpty { o["asks"] = r.asks }
+        if !r.answerTo.isEmpty { o["answerTo"] = r.answerTo }
         return o
     }
 }

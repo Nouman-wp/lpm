@@ -41,7 +41,8 @@ fun AutomationStatusPill(
     modifier: Modifier = Modifier
 ) {
     val since = job.runningSince
-    val shown = if (job.running && since != null) runningText(since) else text
+    val running = job.running && job.ask == null
+    val shown = if (running && since != null) runningText(since) else text
     val tint = tone.color()
     Row(
         modifier = modifier
@@ -50,7 +51,7 @@ fun AutomationStatusPill(
         horizontalArrangement = Arrangement.spacedBy(7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (job.running) {
+        if (running) {
             ActivityIndicator(size = ActivityIndicatorSize.Mini)
         } else {
             StatusDot(color = tint)

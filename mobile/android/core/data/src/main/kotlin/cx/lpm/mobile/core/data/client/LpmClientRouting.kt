@@ -54,6 +54,9 @@ internal fun LpmClientCallbacks.route(frame: Inbound) {
         is Inbound.AutomationFollowup ->
             onAutomationFollowup?.invoke(frame.project, frame.jobId, frame.error)
 
+        is Inbound.AutomationAnswer ->
+            onAutomationAnswer?.invoke(frame.project, frame.jobId, frame.error)
+
         is Inbound.JobConfig -> onJobConfig?.invoke(
             frame.project,
             frame.jobId,

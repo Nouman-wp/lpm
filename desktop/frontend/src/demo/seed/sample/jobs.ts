@@ -38,16 +38,26 @@ interface Run {
   durationSecs: number;
   costUsd?: number;
   unread?: boolean;
+  // A question the run left waiting on the user.
+  ask?: { id: string; questions: Record<string, unknown>[] };
+}
+
+const runAt = (run: Run) => secs(run.at) + run.durationSecs;
+
+function openAsk(run: Run) {
+  return run.ask && { ...run.ask, askedAt: runAt(run), status: "open" };
 }
 
 function entry(run: Run) {
+  const ask = openAsk(run);
   return {
-    at: secs(run.at) + run.durationSecs,
+    at: runAt(run),
     result: run.result,
     ...(run.unread ? { unread: true } : {}),
     output: run.output,
     durationSecs: run.durationSecs,
     ...(run.costUsd ? { costUsd: run.costUsd } : {}),
+    ...(ask ? { asks: [ask] } : {}),
   };
 }
 
@@ -67,6 +77,8 @@ interface JobSpec {
 
 function row(job: JobSpec) {
   const last = job.runs[job.runs.length - 1];
+  const waiting = last && openAsk(last);
+  const where = "project" in job.scope ? job.scope.project : job.scope.targets[0];
   const scope =
     "project" in job.scope
       ? { source: "project", project: job.scope.project, targets: [job.scope.project] }
@@ -97,6 +109,7 @@ function row(job: JobSpec) {
     model: "",
     effort: "",
     standalone: false,
+    ...(waiting ? { ask: { ...waiting, project: where, at: runAt(last) } } : {}),
     ...scope,
   };
 }
@@ -134,6 +147,18 @@ const JOBS: JobSpec[] = [
         durationSecs: 244,
         costUsd: 0.46,
         unread: true,
+        ask: {
+          id: "triage-431",
+          questions: [
+            {
+              id: "q1",
+              type: "confirm",
+              text: "Open a pull request with the retry fix for #431?",
+              yes: "Open PR",
+              no: "Not yet",
+            },
+          ],
+        },
       },
     ],
   },

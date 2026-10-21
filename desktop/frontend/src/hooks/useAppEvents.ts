@@ -26,9 +26,18 @@ function projectPhrase(name: string, peers: PeerClient[]): string {
   return `${label} on ${peerAlias(peers, peerSlugOf(name) ?? "")}`;
 }
 
+// The app-wide Automations page, on the job a toast is about.
+function openAutomationPage(id: string, project: string | null) {
+  useAutomationOpen.getState().open({ id, project, host: null });
+  useAppStore.getState().setView("scheduled");
+}
+
 // Events safe to handle in every window — they don't reach into
-// main-window-only state (selection, settings view, modals).
-export function useAmbientAppEvents(): void {
+// main-window-only state (selection, settings view, modals). The main window
+// passes `openAutomation` so a toast can take the user to the job.
+export function useAmbientAppEvents(
+  openAutomation?: (id: string, project: string | null) => void,
+): void {
   const { state: peerState } = usePeerState();
   const peersRef = useRef(peerState.peers);
   peersRef.current = peerState.peers;
@@ -61,6 +70,20 @@ export function useAmbientAppEvents(): void {
         }
         // The job sends its results elsewhere, not to lpm.
         if (payload?.notify === false) return;
+        // A run waiting on the user — in any project, or none.
+        if (payload?.result === "asked") {
+          const inProject = !!payload.project && !!stripMarker(payload.project);
+          const where = inProject ? ` in ${projectPhrase(payload.project, peersRef.current)}` : "";
+          toast(`"${name}"${where} is waiting for your answer.`, {
+            description: payload.detail,
+            duration: 15000,
+            action: openAutomation && {
+              label: "Answer",
+              onClick: () => openAutomation(payload.jobId, inProject ? payload.project : null),
+            },
+          });
+          return;
+        }
         if (!payload?.project || !stripMarker(payload.project)) return;
         const project = projectPhrase(payload.project, peersRef.current);
         const copy = payload.copy ? projectPhrase(payload.copy, peersRef.current) : "";
@@ -144,7 +167,7 @@ export function useAmbientAppEvents(): void {
 // only the main shell renders; firing them in a detached window would
 // silently mutate store fields nothing reads.
 export function useAppEvents(): void {
-  useAmbientAppEvents();
+  useAmbientAppEvents(openAutomationPage);
   useEffect(() => {
     const {
       selectProject,

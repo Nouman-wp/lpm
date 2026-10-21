@@ -11,6 +11,8 @@ struct AutomationThread: Identifiable {
     var id: Int { root.at }
     var entries: [AutomationHistoryEntry] { [root] + replies }
     var tail: AutomationHistoryEntry { replies.last ?? root }
+    /// A question in the run still waits for an answer.
+    var waiting: Bool { entries.contains(where: \.waiting) }
 }
 
 func automationThreads(_ entries: [AutomationHistoryEntry]) -> [AutomationThread] {
@@ -70,6 +72,8 @@ func automationScopeLabel(_ job: AutomationJob, projectCount: Int) -> String {
 /// list is a feed of what the automations did, not a directory of what exists.
 func automationsSortedForList(_ jobs: [AutomationJob]) -> [AutomationJob] {
     jobs.sorted { a, b in
+        // One waiting on the user's answer leads the list.
+        if (a.ask != nil) != (b.ask != nil) { return a.ask != nil }
         if (a.unread > 0) != (b.unread > 0) { return a.unread > 0 }
         if a.running != b.running { return a.running }
         let lastA = a.lastRunAt ?? 0
@@ -233,6 +237,7 @@ private func automationTimePhrase(_ job: AutomationJob) -> String {
 
 func automationStatusText(_ job: AutomationJob) -> String {
     if !job.valid { return job.error.isEmpty ? "Invalid automation" : job.error }
+    if let ask = job.ask { return "\(automationWaitingLabel) · \(ask.summary)" }
     if job.running { return "Running" }
     if !job.enabled { return "Off · \(automationScheduleText(job))" }
     if let next = job.nextFireAt { return "\(automationScheduleText(job)) · \(automationDateText(next))" }
@@ -241,9 +246,17 @@ func automationStatusText(_ job: AutomationJob) -> String {
 
 func automationStatusColor(_ job: AutomationJob) -> Color {
     if !job.valid { return .red }
+    if job.ask != nil { return .orange }
     if job.running { return .blue }
     if !job.enabled { return .secondary }
     return automationResultColor(job.lastResult)
+}
+
+let automationWaitingLabel = "Waiting for your answer"
+
+/// An entry's color: a question still open outranks how the run itself ended.
+func automationEntryColor(_ entry: AutomationHistoryEntry) -> Color {
+    entry.waiting ? .orange : automationResultColor(entry.result)
 }
 
 func automationResultColor(_ result: String) -> Color {
@@ -275,6 +288,7 @@ func automationResultLabel(_ result: String) -> String {
 /// What a finished run is called once its own check has had a say. "Done" alone
 /// says the agent exited, not that it did what it was asked.
 func automationEntryLabel(_ entry: AutomationHistoryEntry) -> String {
+    if entry.waiting { return automationWaitingLabel }
     let base = automationResultLabel(entry.result)
     guard entry.result == "completed", let verified = entry.verified else { return base }
     return verified ? "\(base) — checks passed" : "\(base) — checks failed"

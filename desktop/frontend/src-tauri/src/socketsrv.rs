@@ -264,6 +264,10 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "job_history" => cmd_job_history(args),
         "job_live_output" => cmd_job_live_output(args),
         "send_job_followup" => cmd_send_job_followup(args, app),
+        "job_ask" => crate::jobs::ask::cmd_job_ask(args, app),
+        "job_ask_wait" => crate::jobs::ask::cmd_job_ask_wait(args),
+        "answer_job_question" => crate::jobs::ask::cmd_answer_job_question(args, app),
+        "dismiss_job_question" => crate::jobs::ask::cmd_dismiss_job_question(args, app),
         "job_body" => crate::jobsocket::cmd_job_body(args),
         "save_job" => crate::jobsocket::cmd_save_job(args, app),
         "delete_job" => crate::jobsocket::cmd_delete_job(args, app),
@@ -866,7 +870,7 @@ fn cmd_list_all_jobs() -> String {
     }
 }
 
-fn job_result(r: Result<(), String>) -> String {
+pub(crate) fn job_result(r: Result<(), String>) -> String {
     match r {
         Ok(()) => serde_json::json!({ "ok": true }).to_string(),
         Err(e) => serde_json::json!({ "ok": false, "error": e }).to_string(),

@@ -6,7 +6,7 @@ struct AutomationStatusPill: View {
     let job: AutomationJob
 
     var body: some View {
-        if job.running, let since = job.runningSince {
+        if job.running, job.ask == nil, let since = job.runningSince {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 pill(text: "Running for \(automationElapsedText(since: since, now: context.date))")
             }
@@ -17,7 +17,7 @@ struct AutomationStatusPill: View {
 
     private func pill(text: String) -> some View {
         HStack(spacing: 7) {
-            if job.running {
+            if job.running, job.ask == nil {
                 ProgressView().controlSize(.mini)
             } else {
                 Circle().fill(tint).frame(width: 8, height: 8)
@@ -35,6 +35,7 @@ struct AutomationStatusPill: View {
 
     private var text: String {
         if !job.valid { return "Can't run" }
+        if job.ask != nil { return automationWaitingLabel }
         if job.running { return "Running" }
         if !job.enabled { return "Off" }
         if let next = job.nextFireAt { return "Next run \(automationDateText(next))" }
@@ -43,6 +44,7 @@ struct AutomationStatusPill: View {
 
     private var tint: Color {
         if !job.valid { return .red }
+        if job.ask != nil { return .orange }
         if job.running { return .blue }
         if !job.enabled { return .orange }
         return job.nextFireAt == nil ? .secondary : .green
@@ -114,12 +116,12 @@ struct AutomationHistoryRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Circle()
-                .fill(automationResultColor(entry.result))
+                .fill(thread.waiting ? Color.orange : automationResultColor(entry.result))
                 .frame(width: 8, height: 8)
                 .padding(.top, 6)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(automationEntryLabel(entry))
+                    Text(thread.waiting ? automationWaitingLabel : automationEntryLabel(entry))
                         .font(.subheadline.weight(unread ? .semibold : .medium))
                         .lineLimit(1)
                     if unread {

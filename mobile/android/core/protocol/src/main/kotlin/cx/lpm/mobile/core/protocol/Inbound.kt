@@ -123,6 +123,8 @@ sealed interface Inbound {
         Inbound
     data class AutomationFollowup(val project: String, val jobId: String, val error: String?) :
         Inbound
+    data class AutomationAnswer(val project: String, val jobId: String, val error: String?) :
+        Inbound
 
     data class JobConfig(
         val project: String,

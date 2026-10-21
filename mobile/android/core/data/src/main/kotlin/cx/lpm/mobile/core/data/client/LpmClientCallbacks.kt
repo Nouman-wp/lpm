@@ -95,6 +95,7 @@ abstract class LpmClientCallbacks {
     )? = null
     var onAutomationMutation: ((project: String, jobId: String, error: String?) -> Unit)? = null
     var onAutomationFollowup: ((project: String, jobId: String, error: String?) -> Unit)? = null
+    var onAutomationAnswer: ((project: String, jobId: String, error: String?) -> Unit)? = null
     var onJobConfig: (
         (
             project: String,

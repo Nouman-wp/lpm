@@ -53,6 +53,7 @@
 {"at": 800, "frame": {"t": "jobConfig", "project": "blog", "jobId": "weekly-deps"}}
 {"at": 800, "frame": {"t": "jobConfig", "project": "x", "jobId": "y"}}
 {"at": 800, "frame": {"t": "jobLiveOutput", "project": "storefront", "jobId": "nightly-tests"}}
+{"at": 800, "frame": {"t": "jobHistory", "project": "blog", "jobId": "release-notes"}}
 {"at": 900, "frame": {"t": "memory", "project": "storefront"}}
 {"at": 900, "frame": {"t": "memory", "project": "blog"}}
 {"at": 900, "frame": {"t": "memory", "project": "api-gateway"}}
@@ -179,10 +180,15 @@
 {"at": 26100, "frame": {"t": "markJobSeen", "project": "storefront", "jobId": "nightly-tests"}}
 {"at": 26200, "frame": {"t": "sendJobFollowup", "project": "blog", "jobId": "weekly-deps", "at": 0, "message": "Is it safe?"}}
 {"at": 26300, "frame": {"t": "sendJobFollowup", "project": "blog", "jobId": "weekly-deps", "at": 0, "message": "again"}}
+{"at": 26400, "frame": {"t": "dismissJobQuestion", "project": "blog", "jobId": "release-notes", "askId": "nope"}}
+{"at": 26400, "frame": {"t": "answerJobQuestion", "project": "blog", "jobId": "release-notes", "askId": "release-notes-v24", "answers": {"q1": true}}}
+{"at": 26450, "frame": {"t": "answerJobQuestion", "project": "blog", "jobId": "release-notes", "askId": "release-notes-v24", "answers": {"q1": false}}}
+{"at": 26450, "frame": {"t": "jobs"}}
 {"at": 27000, "frame": {"t": "runJob", "project": "blog", "jobId": "weekly-deps"}}
 {"at": 30000, "frame": {"t": "gitAutoState", "project": "work-copy"}}
 {"at": 30000, "frame": {"t": "jobLiveOutput", "project": "blog", "jobId": "weekly-deps"}}
 {"at": 33000, "frame": {"t": "jobHistory", "project": "blog", "jobId": "weekly-deps"}}
+{"at": 33000, "frame": {"t": "jobHistory", "project": "blog", "jobId": "release-notes"}}
 {"at": 33000, "frame": {"t": "saveJob", "id": "hourly", "source": "project", "project": "storefront", "job": {"label": "Hourly check", "emoji": "\u23f1", "schedule": {"every": "2h-4h"}, "run": {"prompt": "Check", "agent": "Codex", "effort": "HIGH"}}}}
 {"at": 33000, "frame": {"t": "saveJob", "id": "window", "source": "global", "job": {"label": "Window", "schedule": {"at": "09:00", "until": "17:00", "times": 3, "days": ["MON", "wed"]}, "run": {"cmd": "make"}}}}
 {"at": 33000, "frame": {"t": "saveJob", "id": "daily2", "source": "project", "project": "blog", "job": {"label": "Daily", "schedule": {"every": 2}, "run": {"action": "new-post"}}}}

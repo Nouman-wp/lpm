@@ -1,3 +1,4 @@
+import { askSummary, isOpenAsk, WAITING_LABEL } from "../../../jobAsk";
 import {
   isBlockedResult,
   jobOutputSnippet,
@@ -23,6 +24,9 @@ export function jobRowPreview(job: JobInfo, runningText: string): JobPreview {
       text: job.error || "This job can't run — open it to fix its settings.",
       tone: "error",
     };
+  }
+  if (isOpenAsk(job.ask)) {
+    return { prefix: `${WAITING_LABEL} · `, text: askSummary(job.ask), tone: "warning" };
   }
   if (job.running) return { prefix: "", text: runningText, tone: "running" };
   if (isBlockedResult(job.lastResult)) {

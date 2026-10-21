@@ -139,8 +139,12 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
 
   // One flat feed: everything unread first, newest activity first inside each
   // half — the project each job runs in rides on the row itself.
+  // In a project's tab, a shared job's question from another of its projects
+  // isn't this one's to answer.
   const shown = project
-    ? (rows ?? []).filter((row) => targetsOfRow(row).includes(project))
+    ? (rows ?? [])
+        .filter((row) => targetsOfRow(row).includes(project))
+        .map((row) => (row.ask && row.ask.project !== project ? { ...row, ask: undefined } : row))
     : rows ?? [];
   const sorted = sortJobsForList(shown);
   const unreadRows = sorted.filter(isUnread);
@@ -193,8 +197,9 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
       .filter((r) => project === null || r.project === project)
       .map((r) => r.id);
 
+  // A job waiting on a question opens where it's waiting.
   const openJobPage = (job: ScheduledJob) =>
-    setOpen({ project: rowProjectOf(job), id: job.id });
+    setOpen({ project: project ?? job.ask?.project ?? rowProject(job), id: job.id });
   const editJob = (job: ScheduledJob) =>
     setEditing({ mode: "edit", project: rowProjectOf(job), job });
   const removeJobRow = (job: ScheduledJob) =>

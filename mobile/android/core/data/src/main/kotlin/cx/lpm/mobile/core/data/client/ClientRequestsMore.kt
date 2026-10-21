@@ -46,6 +46,16 @@ fun LpmClient.sendJobFollowup(
     effort: String
 ) = send(Wire.sendJobFollowup(project, jobId, at, message, agent, model, effort))
 
+fun LpmClient.answerJobQuestion(
+    project: String,
+    jobId: String,
+    askId: String,
+    answers: JsonObject
+) = send(Wire.answerJobQuestion(project, jobId, askId, answers))
+
+fun LpmClient.dismissJobQuestion(project: String, jobId: String, askId: String) =
+    send(Wire.dismissJobQuestion(project, jobId, askId))
+
 fun LpmClient.requestDirs(path: String) = send(Wire.listDirs(path))
 
 fun LpmClient.requestSshHosts() = send(Wire.listSshHosts())

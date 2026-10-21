@@ -20,10 +20,10 @@ class DemoJobsTest {
         val jobs = demo.request("jobs").single("jobs").dictList("jobs")
 
         assertEquals(
-            listOf("Nightly tests", "Weekly dependency check"),
+            listOf("Nightly tests", "Release notes", "Weekly dependency check"),
             jobs.map { it.string("label") }
         )
-        assertEquals(listOf("🌙", "📦"), jobs.map { it.string("emoji") })
+        assertEquals(listOf("🌙", "📝", "📦"), jobs.map { it.string("emoji") })
         val nightly = jobs[0]
         assertEquals(lastNight, nightly.long("lastRunAt"))
         assertEquals(lastNight + 86_400, nightly.long("nextFireAt"))
@@ -32,7 +32,10 @@ class DemoJobsTest {
             mapOf("mode" to "calendar", "atMinutes" to 180L, "days" to emptyList<String>()),
             nightly.sub("schedule")
         )
-        val weekly = jobs[1]
+        val release = jobs[1]
+        assertEquals("open", release.sub("ask")["status"])
+        assertEquals("blog", release.sub("ask")["project"])
+        val weekly = jobs[2]
         assertEquals(false, weekly.bool("enabled"))
         assertEquals(null, weekly["nextFireAt"])
         assertEquals("prompt", weekly.string("runKind"))

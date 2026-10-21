@@ -11,7 +11,8 @@ class InboundCoverageTest {
         "paired", "pairPending", "pairDenied", "ready", "bye", "error", "projects", "sidebar",
         "ttsSpeak", "stats", "limits", "terminals", "slash", "mentions", "history", "upload",
         "uploadBegin", "uploadChunk", "uploadDone", "status", "jobs", "jobHistory", "jobLiveOutput",
-        "runJob", "stopJob", "setJobEnabled", "sendJobFollowup", "jobConfig", "saveJob",
+        "runJob", "stopJob", "setJobEnabled", "sendJobFollowup", "answerJobQuestion",
+        "dismissJobQuestion", "jobConfig", "saveJob",
         "deleteJob", "jobs-changed", "limits-changed", "seed", "control", "o", "exit",
         "duplicateProgress", "duplicate", "duplicateDefaults", "remove", "renameProject",
         "setWorkStatus", "setAutoPull", "claudeAccounts", "setClaudeAccount", "sidebarCreateFolder",
@@ -39,7 +40,7 @@ class InboundCoverageTest {
 
     @Test
     fun decodesExactlyTheTypesIosDoesPlusAndroidsOwn() {
-        assertEquals(133, iosTypes.size)
+        assertEquals(135, iosTypes.size)
         assertEquals(iosTypes + androidOnlyTypes, inboundParsers.keys)
     }
 

@@ -4,6 +4,7 @@
 // wall-clock thread modelled on updates::start_auto_check so it survives sleep,
 // and the pipeline runs on worker threads so one slow job never stalls the tick.
 use crate::config;
+use askform::Ask;
 use crate::jobcal::{self, AtValue, DateRule, DaysValue, IntervalLimits, ParsedDays, DAY_NAMES};
 use crate::sendto;
 use chrono::{Datelike, TimeZone};
@@ -46,10 +47,17 @@ const RUNNING: &str = "running";
 // Event-only status for a quiet job's run that found nothing: it leaves no
 // entry and interrupts no one.
 const QUIET: &str = "quiet";
+// Event-only status for a run that put a question to the user and is waiting
+// for the answer.
+const ASKED: &str = "asked";
 
 /// The whole reply a quiet job's agent gives when its run turned up nothing.
 const NOTHING_TO_REPORT: &str = "NOTHING_TO_REPORT";
 const QUIET_INSTRUCTION: &str = "If you find nothing new or worth reporting, reply with exactly NOTHING_TO_REPORT and nothing else.";
+const ASK_INSTRUCTION: &str = "If you can't go on without a decision or information only the user has, ask them with `lpm ask` (yes/no: `lpm ask \"Deploy to staging?\" --confirm`; a pick from a list: `lpm ask \"Which region?\" --choice us-east --choice eu-west`; free text: `lpm ask \"What should the release be called?\" --text`; `lpm ask --help` for more), then end your turn: their answer comes back as your next message. Don't ask about anything you can decide yourself.";
+
+pub(crate) mod ask;
+mod askform;
 
 // ---- config parsing ---------------------------------------------------------
 
@@ -1159,6 +1167,13 @@ struct HistoryEntry {
         skip_serializing_if = "Option::is_none"
     )]
     verify_output: Option<String>,
+    /// What the run asked the user, with the answers once given.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    asks: Vec<Ask>,
+    /// The question this entry's message answered. The entry that asked shows
+    /// the answer already, so the views don't repeat it as a message.
+    #[serde(default, rename = "answerTo", skip_serializing_if = "Option::is_none")]
+    answer_to: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -1206,6 +1221,14 @@ struct ActiveRun {
     /// for the run after a relaunch.
     #[serde(default, rename = "procStart", skip_serializing_if = "Option::is_none")]
     proc_start: Option<u64>,
+    /// Handed to the run as LPM_RUN_ID — what `lpm ask` names the run by, so a
+    /// process left over from an earlier run can't ask on a later one's behalf.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    token: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    asks: Vec<Ask>,
+    #[serde(default, rename = "answerTo", skip_serializing_if = "Option::is_none")]
+    answer_to: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -1248,6 +1271,15 @@ fn with_state<T>(f: impl FnOnce(&mut JobsStateFile) -> T) -> Result<T, String> {
     let _g = state_lock().lock().unwrap();
     let mut file = load_state_file();
     let out = f(&mut file);
+    save_state_file(&file)?;
+    Ok(out)
+}
+
+/// `with_state` for a change that can be refused: a refusal writes nothing.
+fn try_with_state<T>(f: impl FnOnce(&mut JobsStateFile) -> Result<T, String>) -> Result<T, String> {
+    let _g = state_lock().lock().unwrap();
+    let mut file = load_state_file();
+    let out = f(&mut file)?;
     save_state_file(&file)?;
     Ok(out)
 }
@@ -1595,6 +1627,12 @@ fn run_env(
             "LPM_IS_COPY".to_string(),
             if is_copy { "1" } else { "0" }.to_string(),
         ),
+        // The instance that owns this run, so `lpm ask` reaches it rather than
+        // whichever app holds the default socket.
+        (
+            "LPM_SOCKET_PATH".to_string(),
+            crate::socketsrv::serving(&config::socket_path()),
+        ),
     ];
     // The name terminals already set, so a skill written for one works in both.
     if !project.is_empty() {
@@ -1633,21 +1671,28 @@ enum WaitVerdict {
 /// given) a Stop request lands for that job. Timeout and cancel both SIGKILL
 /// the whole process group — setsid makes pgid == the child's pid, so detached
 /// workers die with it. This is the single place a job's child is ever killed.
+/// Time the run spends waiting on the user's answer doesn't count against it.
 fn wait_or_kill(
     child: &mut std::process::Child,
-    deadline: std::time::Instant,
+    mut deadline: std::time::Instant,
     key: Option<&str>,
 ) -> Result<WaitVerdict, String> {
     let pid = child.id() as i32;
+    let mut last = std::time::Instant::now();
     loop {
         if key.is_some_and(is_cancel_requested) {
             kill_group(pid);
             let _ = child.wait();
             return Ok(WaitVerdict::Canceled);
         }
+        let now = std::time::Instant::now();
+        if key.is_some_and(ask::is_blocked) {
+            deadline += now - last;
+        }
+        last = now;
         match child.try_wait().map_err(|e| e.to_string())? {
             Some(status) => return Ok(WaitVerdict::Exited(status.success())),
-            None if std::time::Instant::now() >= deadline => {
+            None if now >= deadline => {
                 kill_group(pid);
                 let _ = child.wait();
                 return Ok(WaitVerdict::TimedOut);
@@ -1840,10 +1885,11 @@ fn claude_cmdline(
     } else {
         format!(" --effort {e}")
     };
+    // A read-only run can't approve tools, but asking the user stays open to it.
     let access_arg = if full_access {
         " --dangerously-skip-permissions"
     } else {
-        ""
+        " --allowedTools 'Bash(lpm ask:*)'"
     };
     let browser_arg = if browser { " --chrome" } else { "" };
     // stream-json (which requires --verbose in print mode) writes an event per
@@ -2121,7 +2167,7 @@ fn digest_prompt(digest: &str, message: &str) -> String {
     format!(
         "You are continuing an earlier conversation about work you did in this folder. \
          Its full history no longer fits, so here is the visible transcript, oldest first:{digest}\n\n\
-         Reply to the user's new message:\n{message}"
+         Reply to the user's new message:\n{message}\n\n{ASK_INSTRUCTION}"
     )
 }
 
@@ -2203,6 +2249,9 @@ struct CaptureSpec {
     /// person pressed Run now and is waiting to hear it finished.
     quiet: bool,
     manual: bool,
+    /// The question whose answer this run carries on with — the job's own
+    /// work resuming, so it reports out like a run, not like a reply.
+    answer_to: Option<String>,
 }
 
 impl CaptureSpec {
@@ -2220,6 +2269,7 @@ impl CaptureSpec {
             verify: None,
             quiet: false,
             manual: false,
+            answer_to: None,
         }
     }
 
@@ -2244,11 +2294,13 @@ impl CaptureSpec {
 }
 
 /// The prompt a run hands its agent: a memory job's says where its earlier runs
-/// are kept, and a quiet job's carries the one line that lets the agent say it
-/// found nothing — last, as it governs the reply itself.
+/// are kept, every run hears how to put a question to the user, and a quiet
+/// job's carries the one line that lets the agent say it found nothing — last,
+/// as it governs the reply itself.
 fn run_prompt(prompt: &str, memory: Option<&str>, quiet: bool) -> String {
     let mut parts = vec![prompt];
     parts.extend(memory);
+    parts.push(ASK_INSTRUCTION);
     if quiet {
         parts.push(QUIET_INSTRUCTION);
     }
@@ -2344,11 +2396,14 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
         follows,
         fallback,
         compacted,
-        env,
+        mut env,
         verify,
         quiet,
         manual,
+        answer_to,
     } = spec;
+    let token = uuid::Uuid::new_v4().simple().to_string();
+    env.push(("LPM_RUN_ID".to_string(), token.clone()));
     let env2 = env.clone();
     let log_path = logs.join(format!("{}-{}.log", key.replace('/', "_"), now_secs()));
     let cmdline = capture_cmdline(agent.as_deref(), &cmdline, &log_path);
@@ -2375,6 +2430,9 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                     quiet,
                     boot_at: Some(boot_epoch()),
                     proc_start: proc_start(child.id()),
+                    token: Some(token),
+                    asks: Vec::new(),
+                    answer_to: answer_to.clone(),
                 });
             });
             let app2 = app.clone();
@@ -2420,20 +2478,15 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                     }
                 }
                 active_runs().lock().unwrap().remove(&key2);
-                if found_nothing(quiet, result, output.as_deref()) {
-                    let _ = with_state(|f| {
-                        if let Some(st) = f.jobs.get_mut(&key2) {
-                            st.active_run = None;
-                        }
-                    });
-                    emit_quiet(&app2, &key2, manual);
+                if ended_quietly(&app2, &key2, quiet, manual, result, output.as_deref()) {
                     return;
                 }
                 let at = now_secs();
                 // After the final attempt, including the condensed retry — a
-                // run that needed a second try still gets checked once.
+                // run that needed a second try still gets checked once. A run
+                // waiting to be resumed with an answer hasn't finished its work.
                 let (verified, verify_output) = match &verify {
-                    Some(cmd) if result == COMPLETED => {
+                    Some(cmd) if result == COMPLETED && !ask::resumes(&live_asks(&key2)) => {
                         match run_check(&root2, cmd, VERIFY_TIMEOUT, None, &env2) {
                             Ok(v) => (Some(v.work), v.output),
                             Err(e) => (
@@ -2451,39 +2504,25 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                     .join(" · ");
                 let detail = (!detail.is_empty()).then_some(detail);
                 let report = report_text(output.as_deref(), verified);
-                let _ = with_state(|f| {
-                    // The job may have been deleted (its state cleared) while
-                    // this run was live — don't resurrect it with a ghost entry.
-                    if let Some(st) = f.jobs.get_mut(&key2) {
-                        st.active_run = None;
-                        push_entry(
-                            st,
-                            HistoryEntry {
-                                at,
-                                result: result.to_string(),
-                                copy,
-                                output,
-                                session,
-                                question,
-                                resumed,
-                                follows,
-                                compacted,
-                                duration_secs: Some(at.saturating_sub(started)),
-                                cost_usd: cost,
-                                count: None,
-                                verified,
-                                verify_output,
-                            },
-                        );
-                    }
-                });
-                let (project, job_id) = key2.split_once('/').unwrap_or((key2.as_str(), ""));
-                let send_out = if is_reply {
-                    SendOut::No
-                } else {
-                    SendOut::Report(report.as_deref())
+                let entry = HistoryEntry {
+                    at,
+                    result: result.to_string(),
+                    copy,
+                    output,
+                    session,
+                    question,
+                    resumed,
+                    follows,
+                    compacted,
+                    duration_secs: Some(at.saturating_sub(started)),
+                    cost_usd: cost,
+                    count: None,
+                    verified,
+                    verify_output,
+                    asks: Vec::new(),
+                    answer_to,
                 };
-                emit_status_detail(&app2, project, job_id, result, &None, detail, send_out);
+                close_run(&app2, &key2, entry, detail, report);
             });
             Dispatch::Captured
         }
@@ -2615,6 +2654,18 @@ fn pipeline_body(
     trigger: Trigger,
 ) -> Outcome {
     let st = load_job_state(key);
+    if let Some(waiting) = ask::open_in(&st) {
+        return Outcome {
+            result: SKIPPED_OVERLAP,
+            copy: None,
+            advance: true,
+            note: Some(format!(
+                "The run before this one is still waiting for your answer to \"{}\", so this one was skipped.",
+                waiting.summary()
+            )),
+            record: true,
+        };
+    }
     if let Some(prev) = st.history.iter().rev().find_map(|h| h.copy.clone()) {
         if config::project_exists(&prev) {
             return Outcome {
@@ -2762,17 +2813,7 @@ fn dispatch_outcome(dispatch: Dispatch, copy: Option<String>) -> Outcome {
 /// The name the user gave the job. Notifications were the one surface still
 /// showing the internal id.
 fn find_job(project: &str, job_id: &str) -> Option<JobResolved> {
-    if project.is_empty() {
-        resolve_standalone_jobs()
-            .into_iter()
-            .find(|(id, _)| id == job_id)
-            .and_then(|(_, r)| r.ok())
-    } else {
-        resolve_jobs(project)
-            .into_iter()
-            .find(|(id, _, _)| id == job_id)
-            .and_then(|(_, _, r)| r.ok())
-    }
+    resolve_one(project, job_id).ok()
 }
 
 fn label_of(job: Option<&JobResolved>, job_id: &str) -> String {
@@ -2835,11 +2876,116 @@ fn first_line(text: &str, max: usize) -> Option<String> {
     Some(out)
 }
 
+/// The `<project>` and `<jobId>` halves of a state key.
+fn split_key(key: &str) -> (&str, &str) {
+    key.split_once('/').unwrap_or((key, ""))
+}
+
+/// The questions a live run has asked. `lpm ask` records them from another
+/// process, so they're read back from the state rather than carried along.
+fn live_asks(key: &str) -> Vec<Ask> {
+    load_job_state(key)
+        .active_run
+        .map(|r| r.asks)
+        .unwrap_or_default()
+}
+
+/// A quiet job's run that found nothing leaves no entry and interrupts no one —
+/// unless it asked something, which is never nothing.
+fn ended_quietly(
+    app: &AppHandle,
+    key: &str,
+    quiet: bool,
+    manual: bool,
+    result: &str,
+    output: Option<&str>,
+) -> bool {
+    if !found_nothing(quiet, result, output) || !live_asks(key).is_empty() {
+        return false;
+    }
+    let _ = with_state(|f| {
+        if let Some(st) = f.jobs.get_mut(key) {
+            st.active_run = None;
+        }
+    });
+    emit_quiet(app, key, manual);
+    true
+}
+
+/// Record how a run ended, with the questions it asked, then announce it — and
+/// resume it if an answer came in while it was finishing.
+fn close_run(
+    app: &AppHandle,
+    key: &str,
+    mut entry: HistoryEntry,
+    detail: Option<String>,
+    report: Option<String>,
+) {
+    let (at, canceled) = (entry.at, entry.result == CANCELED);
+    entry.asks = with_state(|f| {
+        // The job may have been deleted (its state cleared) while this run was
+        // live — don't resurrect it with a ghost entry.
+        let st = f.jobs.get_mut(key)?;
+        let mut asks = st.active_run.take().map(|r| r.asks).unwrap_or_default();
+        ask::settle(&mut asks, canceled, at);
+        push_entry(
+            st,
+            HistoryEntry {
+                asks: asks.clone(),
+                ..entry.clone()
+            },
+        );
+        Some(asks)
+    })
+    .ok()
+    .flatten()
+    .unwrap_or_default();
+    announce_end(app, key, &entry, detail, report);
+    ask::after_reap(app, key, at, &entry.asks);
+}
+
+/// Tell the views, and whoever the job reports to, how a run ended. A run
+/// left waiting on a question says that instead of "finished": the user is
+/// what it needs next. One whose answer already came in says nothing — it is
+/// carrying on, and announces itself when it does.
+fn announce_end(
+    app: &AppHandle,
+    key: &str,
+    entry: &HistoryEntry,
+    detail: Option<String>,
+    report: Option<String>,
+) {
+    let (project, job_id) = split_key(key);
+    let mut status = (entry.result.as_str(), detail, report);
+    if entry.result != CANCELED {
+        if let Some(open) = entry.asks.iter().find(|a| a.is_open() && !a.blocking) {
+            let said = entry.output.as_deref().map(str::trim).unwrap_or_default();
+            let body = [said, &open.outline()]
+                .into_iter()
+                .filter(|p| !p.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            status = (ASKED, Some(open.summary()), Some(body));
+        } else if ask::resumes(&entry.asks) {
+            return;
+        }
+    }
+    let (result, detail, body) = status;
+    // A reply someone is reading in lpm isn't news to send out; the job's own
+    // work resuming after an answer is.
+    let send_out = if entry.question.is_none() || entry.answer_to.is_some() {
+        SendOut::Report(body.as_deref())
+    } else {
+        SendOut::No
+    };
+    emit_status_detail(app, project, job_id, result, &None, detail, send_out);
+}
+
 /// A quiet job's run that found nothing: enough for the views to drop its
 /// running state, and for a Run now someone is waiting on to say it finished —
 /// no entry, no notification.
 fn emit_quiet(app: &AppHandle, key: &str, manual: bool) {
-    let (project, job_id) = key.split_once('/').unwrap_or((key, ""));
+    let (project, job_id) = split_key(key);
     let payload = json!({
         "project": project,
         "jobId": job_id,
@@ -2916,6 +3062,7 @@ fn outcome_words(result: &str) -> Option<(&'static str, &'static str, &'static s
         FOUND_WORK => ("Automation found work", "started working", "▶️"),
         ERROR => ("Automation hit a problem", "needs a look", "⚠️"),
         TIMED_OUT => ("Automation stopped", "ran too long and was stopped", "⏱️"),
+        ASKED => ("Automation needs your answer", "is waiting for your answer", "❓"),
         _ => return None,
     })
 }
@@ -3200,6 +3347,8 @@ fn orphan_entry(
         duration_secs: ended_at.map(|e| e.saturating_sub(run.started_at)),
         cost_usd: cost,
         count: None,
+        asks: Vec::new(),
+        answer_to: run.answer_to.clone(),
     }
 }
 
@@ -3212,33 +3361,12 @@ fn finish_orphan(
     ended_at: Option<u64>,
 ) {
     let log = std::fs::read_to_string(&run.log_path).unwrap_or_default();
-    let at = now_secs();
-    let entry = orphan_entry(run, &log, canceled, timed_out, at, ended_at);
-    if found_nothing(run.quiet, &entry.result, entry.output.as_deref()) {
-        let _ = with_state(|f| {
-            if let Some(st) = f.jobs.get_mut(key) {
-                st.active_run = None;
-            }
-        });
-        emit_quiet(app, key, false);
+    let entry = orphan_entry(run, &log, canceled, timed_out, now_secs(), ended_at);
+    if ended_quietly(app, key, run.quiet, false, &entry.result, entry.output.as_deref()) {
         return;
     }
-    let result = entry.result.clone();
     let report = entry.output.clone();
-    let _ = with_state(|f| {
-        if let Some(st) = f.jobs.get_mut(key) {
-            st.active_run = None;
-            push_entry(st, entry);
-        }
-    });
-    let (project, job_id) = key.split_once('/').unwrap_or((key, ""));
-    // A salvaged reply was asked for in lpm, so its answer stays there.
-    let send_out = if run.question.is_some() {
-        SendOut::No
-    } else {
-        SendOut::Report(report.as_deref())
-    };
-    emit_status_detail(app, project, job_id, &result, &None, None, send_out);
+    close_run(app, key, entry, None, report);
 }
 
 /// Re-own a run that outlived the previous app process: register it as running
@@ -3250,9 +3378,12 @@ fn adopt_orphan(app: AppHandle, key: String, run: ActiveRun) {
         .lock()
         .unwrap()
         .insert(key.clone(), run.started_at);
+    ask::readopt(&key, &run.asks);
     std::thread::spawn(move || {
-        let deadline = run.started_at + RUN_TIMEOUT.as_secs();
+        let held: u64 = run.asks.iter().map(|a| a.waited_secs(now_secs())).sum();
+        let mut deadline = run.started_at + RUN_TIMEOUT.as_secs() + held;
         let mut timed_out = false;
+        let mut last = now_secs();
         loop {
             if is_cancel_requested(&key) {
                 kill_group(run.pid);
@@ -3261,7 +3392,12 @@ fn adopt_orphan(app: AppHandle, key: String, run: ActiveRun) {
             if !orphan_alive(&run) {
                 break;
             }
-            if now_secs() >= deadline {
+            let now = now_secs();
+            if ask::is_blocked(&key) {
+                deadline += now.saturating_sub(last);
+            }
+            last = now;
+            if now >= deadline {
                 kill_group(run.pid);
                 timed_out = true;
                 break;
@@ -3387,10 +3523,12 @@ fn max_concurrent() -> usize {
 /// A job counts as under way for its whole life: the in-flight set covers the
 /// check and duplicate steps, the active-run map covers the agent that outlives
 /// them. Neither alone spans the gap between the two.
+/// A run held up on a question gives its seat back until it's answered.
 fn under_way() -> usize {
     let pipelines: Vec<String> = inflight().lock().unwrap().keys().cloned().collect();
     let mut keys: HashSet<String> = pipelines.into_iter().collect();
     keys.extend(active_runs().lock().unwrap().keys().cloned());
+    keys.retain(|k| !ask::is_blocked(k));
     keys.len()
 }
 
@@ -3417,6 +3555,7 @@ fn record_capacity_skip(app: &AppHandle, project: &str, job: &JobResolved) {
 }
 
 fn tick(app: &AppHandle) {
+    ask::expire_due(app);
     let now = now_secs();
     let mut due: Vec<(String, JobResolved, u64)> = Vec::new();
     for project in config::project_names() {
@@ -3568,10 +3707,14 @@ fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Valu
     let mut next: Option<i64> = None;
     let mut unread: u32 = 0;
     let mut latest: Option<(u64, String)> = None;
+    let mut waiting: Option<Value> = None;
     for t in &run_targets {
         let key = state_key(t, id);
         let st = load_job_state(&key);
         unread += unread_count(&st);
+        if waiting.is_none() {
+            waiting = ask::open_json(&st, t);
+        }
         if let Some(msg) = latest_message(&st) {
             if latest.as_ref().map_or(true, |(at, _)| msg.0 > *at) {
                 latest = Some(msg);
@@ -3631,6 +3774,9 @@ fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Valu
                 "unread": unread,
                 "lastMessage": latest.map(|(_, m)| m),
             });
+            if let Some(a) = waiting {
+                row["ask"] = a;
+            }
             if let RunTarget::Prompt {
                 agent,
                 model,
@@ -3736,6 +3882,9 @@ pub fn list_jobs(project: String) -> Result<Vec<Value>, String> {
                         "unread": unread_count(&st),
                         "lastMessage": latest_message(&st).map(|(_, m)| m),
                     });
+                    if let Some(a) = ask::open_json(&st, &project) {
+                        row["ask"] = a;
+                    }
                     if let RunTarget::Prompt {
                         agent,
                         model,
@@ -3783,21 +3932,16 @@ pub fn test_job_check(project: String, check: String) -> Result<Value, String> {
 
 #[tauri::command(async)]
 pub fn run_job_now(app: AppHandle, project: String, job_id: String) -> Result<(), String> {
-    let job = if project.is_empty() {
-        resolve_standalone_jobs()
-            .into_iter()
-            .find(|(id, _)| *id == job_id)
-            .ok_or_else(|| "That job doesn't exist.".to_string())?
-            .1?
-    } else {
-        resolve_jobs(&project)
-            .into_iter()
-            .find(|(id, _, _)| *id == job_id)
-            .ok_or_else(|| "That job doesn't exist.".to_string())?
-            .2?
-    };
-    if !load_job_state(&state_key(&project, &job_id)).is_on(job.enabled) {
+    let job = resolve_one(&project, &job_id)?;
+    let st = load_job_state(&state_key(&project, &job_id));
+    if !st.is_on(job.enabled) {
         return Err("This automation is off. Turn it on to run it.".into());
+    }
+    if ask::open_in(&st).is_some() {
+        return Err(
+            "This automation is waiting for your answer. Answer or dismiss its question first."
+                .into(),
+        );
     }
     spawn_pipeline(&app, &project, job, Trigger::Manual);
     Ok(())
@@ -3833,11 +3977,53 @@ pub fn send_job_followup(
     model: String,
     effort: String,
 ) -> Result<(), String> {
+    start_followup(
+        &app,
+        &project,
+        &job_id,
+        at,
+        Followup {
+            message,
+            agent,
+            model,
+            effort,
+            answer_to: None,
+        },
+    )
+}
+
+/// The next message of a conversation, and who answers it.
+#[derive(Default)]
+struct Followup {
+    message: String,
+    agent: String,
+    model: String,
+    effort: String,
+    /// The question this message answers — set when it's the user's answer
+    /// resuming the run, which then carries on as the job's own work, with the
+    /// job's own agent.
+    answer_to: Option<String>,
+}
+
+fn start_followup(
+    app: &AppHandle,
+    project: &str,
+    job_id: &str,
+    at: u64,
+    followup: Followup,
+) -> Result<(), String> {
+    let Followup {
+        message,
+        agent,
+        model,
+        effort,
+        answer_to,
+    } = followup;
     let message = message.trim().to_string();
     if message.is_empty() {
         return Err("Type a message to send.".into());
     }
-    let key = state_key(&project, &job_id);
+    let key = state_key(project, job_id);
     if running_since(&key).is_some() {
         return Err("This job is running — wait for it to finish.".into());
     }
@@ -3848,18 +4034,37 @@ pub fn send_job_followup(
         .find(|g| g.iter().any(|&i| st.history[i].at == at))
         .ok_or_else(|| "That conversation isn't available anymore.".to_string())?;
     let entries: Vec<&HistoryEntry> = group.iter().map(|&i| &st.history[i]).collect();
+    // Writing back in their own words answers whatever the thread was waiting
+    // on.
+    let answers_in_words = answer_to.is_none()
+        && entries
+            .iter()
+            .any(|e| e.asks.iter().any(|a| a.is_open() && !a.blocking));
+    let thread_ats: Vec<u64> = entries.iter().map(|e| e.at).collect();
     // Replies always continue from the thread's newest message, whichever
     // entry the user replied under.
     let tail = *entries.last().expect("a thread group is never empty");
 
-    let job = resolve_jobs(&project)
-        .into_iter()
-        .find(|(id, _, _)| *id == job_id)
-        .ok_or_else(|| "That job doesn't exist.".to_string())?
-        .2?;
-    let full_access = match &job.run {
-        RunTarget::Prompt { full_access, .. } => *full_access,
-        _ => return Err("Replies are only available for AI prompt jobs.".into()),
+    let job = resolve_one(project, job_id)?;
+    let verify = answer_to
+        .as_ref()
+        .map(|_| job.verify.trim().to_string())
+        .filter(|v| !v.is_empty());
+    let RunTarget::Prompt {
+        full_access,
+        agent: job_agent,
+        model: job_model,
+        effort: job_effort,
+        ..
+    } = &job.run
+    else {
+        return Err("Replies are only available for AI prompt jobs.".into());
+    };
+    let full_access = *full_access;
+    let (agent, model, effort) = if answer_to.is_some() {
+        (job_agent.clone(), job_model.clone(), job_effort.clone())
+    } else {
+        (agent, model, effort)
     };
     let agent = {
         let chosen = agent.trim().to_lowercase();
@@ -3883,14 +4088,12 @@ pub fn send_job_followup(
 
     // Agent sessions live with the folder they ran in, so a reply must run in
     // the same place.
-    let target = tail.copy.clone().unwrap_or_else(|| project.clone());
+    let target = tail.copy.clone().unwrap_or_else(|| project.to_string());
     if tail.copy.is_some() && !config::project_exists(&target) {
         return Err("The copy that run worked in is gone — run the job again.".into());
     }
-    let root = match config::project_root(&target) {
-        Ok((r, false)) if !r.is_empty() => r,
-        _ => return Err("This job has no local folder to run in.".into()),
-    };
+    let root = dispatch_root(&target)
+        .ok_or_else(|| "This job has no local folder to run in.".to_string())?;
 
     let condensed = digest_prompt(&digest_of(&entries), &message);
     let thread_full = entries.iter().any(|e| e.result == CONTEXT_FULL);
@@ -3902,8 +4105,8 @@ pub fn send_job_followup(
         .clone()
         .filter(|_| agent == "claude" && !thread_full);
     let reply_env = run_env(
-        &project,
-        &job_id,
+        project,
+        job_id,
         &root,
         Trigger::Reply,
         None,
@@ -3911,6 +4114,7 @@ pub fn send_job_followup(
         tail.copy.is_some(),
     );
     let browser = browser_tools(full_access);
+    let said = answers_in_words.then(|| message.clone());
     let spec = match resume {
         Some(sid) => CaptureSpec {
             cmdline: claude_cmdline(Some(&sid), &model, &effort, full_access, browser, &message),
@@ -3929,9 +4133,10 @@ pub fn send_job_followup(
             )),
             compacted: false,
             env: reply_env.clone(),
-            verify: None,
+            verify: verify.clone(),
             quiet: false,
             manual: false,
+            answer_to: answer_to.clone(),
         },
         None => CaptureSpec {
             cmdline: agent_prompt_cmdline(&agent, &model, &effort, full_access, browser, &condensed),
@@ -3943,17 +4148,39 @@ pub fn send_job_followup(
             fallback: None,
             compacted: true,
             env: reply_env,
-            verify: None,
+            verify,
             quiet: false,
             manual: false,
+            answer_to,
         },
     };
-    match spawn_captured(&app, &key, &root, spec) {
+    match spawn_captured(app, &key, &root, spec) {
         Dispatch::Captured => {
-            emit_status(&app, &project, &job_id, RUNNING, &None);
+            if let Some(said) = said {
+                ask::answer_in_words(&key, &thread_ats, &said);
+            }
+            emit_status(app, project, job_id, RUNNING, &None);
             Ok(())
         }
         _ => Err("Couldn't start the reply.".into()),
+    }
+}
+
+/// One job by name, or why it can't run: a standalone job when `project` is
+/// empty, otherwise the project's own.
+fn resolve_one(project: &str, job_id: &str) -> Result<JobResolved, String> {
+    if project.is_empty() {
+        resolve_standalone_jobs()
+            .into_iter()
+            .find(|(id, _)| id == job_id)
+            .ok_or_else(|| "That job doesn't exist.".to_string())?
+            .1
+    } else {
+        resolve_jobs(project)
+            .into_iter()
+            .find(|(id, _, _)| id == job_id)
+            .ok_or_else(|| "That job doesn't exist.".to_string())?
+            .2
     }
 }
 
@@ -4452,6 +4679,12 @@ pub fn job_history(project: String, job_id: String) -> Result<Vec<Value>, String
             }
             if h.compacted {
                 o["compacted"] = json!(true);
+            }
+            if !h.asks.is_empty() {
+                o["asks"] = json!(h.asks);
+            }
+            if let Some(a) = &h.answer_to {
+                o["answerTo"] = json!(a);
             }
             o
         })
@@ -5526,6 +5759,9 @@ mod tests {
             quiet: false,
             boot_at: None,
             proc_start: None,
+            token: None,
+            asks: Vec::new(),
+            answer_to: None,
         };
         let clean =
             "noise\n{\"result\":\"Did the work.\",\"session_id\":\"s-9\",\"total_cost_usd\":0.05}";
@@ -5573,15 +5809,15 @@ mod tests {
     fn agent_cmdlines_run_headless() {
         assert_eq!(
             agent_prompt_cmdline("claude", "", "", false, false, "fix it"),
-            "claude -p --verbose --output-format stream-json 'fix it'"
+            "claude --allowedTools 'Bash(lpm ask:*)' -p --verbose --output-format stream-json 'fix it'"
         );
         assert_eq!(
             agent_prompt_cmdline("claude", "opus", "", false, false, "fix it"),
-            "claude --model 'opus' -p --verbose --output-format stream-json 'fix it'"
+            "claude --model 'opus' --allowedTools 'Bash(lpm ask:*)' -p --verbose --output-format stream-json 'fix it'"
         );
         assert_eq!(
             agent_prompt_cmdline("claude", "opus", "high", false, false, "fix it"),
-            "claude --model 'opus' --effort 'high' -p --verbose --output-format stream-json 'fix it'"
+            "claude --model 'opus' --effort 'high' --allowedTools 'Bash(lpm ask:*)' -p --verbose --output-format stream-json 'fix it'"
         );
         assert_eq!(
             agent_prompt_cmdline("codex", "gpt-5.6-sol", "", false, false, "fix"),
@@ -5593,7 +5829,7 @@ mod tests {
         );
         assert_eq!(
             agent_prompt_cmdline("claude", "", "max", false, false, "fix it"),
-            "claude --effort 'max' -p --verbose --output-format stream-json 'fix it'"
+            "claude --effort 'max' --allowedTools 'Bash(lpm ask:*)' -p --verbose --output-format stream-json 'fix it'"
         );
         assert_eq!(
             agent_prompt_cmdline("gemini", "", "", false, false, "fix"),
@@ -5768,7 +6004,7 @@ mod tests {
         );
         assert_eq!(
             claude_cmdline(Some("abc-123"), "haiku", "low", false, false, "why?"),
-            "claude --resume 'abc-123' --model 'haiku' --effort 'low' -p --verbose --output-format stream-json 'why?'"
+            "claude --resume 'abc-123' --model 'haiku' --effort 'low' --allowedTools 'Bash(lpm ask:*)' -p --verbose --output-format stream-json 'why?'"
         );
     }
 
@@ -5948,6 +6184,9 @@ mod tests {
             quiet: false,
             boot_at: None,
             proc_start: None,
+            token: None,
+            asks: Vec::new(),
+            answer_to: None,
         });
         assert!(job_is_live(&st, "quiet/job"));
     }
@@ -6304,12 +6543,15 @@ mod tests {
     fn a_memory_run_hears_about_its_session_before_the_quiet_marker() {
         let prompt = run_prompt("Check", Some("Use the memory."), true);
         assert!(prompt.starts_with("Check\n\nUse the memory.\n\n"));
-        assert!(prompt.ends_with(QUIET_INSTRUCTION));
+        assert!(prompt.ends_with(&format!("{ASK_INSTRUCTION}\n\n{QUIET_INSTRUCTION}")));
     }
 
     #[test]
     fn a_quiet_run_asks_for_the_marker_and_goes_quiet_only_on_it() {
-        assert_eq!(run_prompt("Check", None, false), "Check");
+        assert_eq!(
+            run_prompt("Check", None, false),
+            format!("Check\n\n{ASK_INSTRUCTION}")
+        );
         assert!(run_prompt("Check", None, true).ends_with(QUIET_INSTRUCTION));
         assert!(QUIET_INSTRUCTION.contains(NOTHING_TO_REPORT));
 

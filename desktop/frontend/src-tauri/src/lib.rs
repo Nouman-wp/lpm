@@ -325,6 +325,7 @@ use gitpush::git_push_rebasing;
 use gitsync::{sync_project_cancel, sync_project_start};
 use hooks::*;
 use jobs::*;
+use jobs::ask::*;
 use lesson::*;
 use lifecycle::quit_app;
 use log_streaming::*;

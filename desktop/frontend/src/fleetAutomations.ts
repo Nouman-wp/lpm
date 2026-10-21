@@ -1,4 +1,5 @@
 import type { AgentState } from "./agentStatus";
+import { askSummary, isOpenAsk } from "./jobAsk";
 import type { FleetJob, FleetRow } from "./fleetRows";
 import { namelessIdentity, type FleetProjectIdentity } from "./fleetIdentity";
 import {
@@ -48,49 +49,48 @@ export function automationRow(
 ): FleetRow {
   const targetCount = Math.max(job.targetCount ?? 0, targets.length);
   const project = automationIdentity(targets, targetCount, identities);
-  if (job.running !== true) {
-    const state = unreadState(job);
-    return {
-      id: `automation:${project.name}:${job.id}`,
-      kind: "automation",
-      project,
-      title: job.label || job.id,
-      tabTitle: null,
-      shared: 0,
-      holdsError: state === "error",
-      state,
-      statusKey: null,
-      statusValue: null,
-      terminalId: null,
-      jobId: job.id,
-      stateSince: stateSinceOf(job.lastRunAt ? job.lastRunAt * 1000 : undefined, now),
-      detail: jobResultLabel(job.lastResult) || null,
-      dismissable: false,
-      dismissBlocked: null,
-    };
-  }
-  return {
+  const base = {
     id: `automation:${project.name}:${job.id}`,
-    kind: "automation",
+    kind: "automation" as const,
     project,
     title: job.label || job.id,
     tabTitle: null,
     shared: 0,
-    holdsError: false,
-    state: "working",
     statusKey: null,
     statusValue: null,
     terminalId: null,
     jobId: job.id,
-    stateSince: stateSinceOf(
-      job.runningSince ? job.runningSince * 1000 : undefined,
-      now,
-    ),
+    dismissable: false,
+    dismissBlocked: null,
+  };
+  // A question the job put to the user is what it needs next, running or not.
+  if (isOpenAsk(job.ask)) {
+    return {
+      ...base,
+      holdsError: false,
+      state: "needs-you",
+      stateSince: stateSinceOf(job.ask.askedAt * 1000, now),
+      detail: askSummary(job.ask),
+    };
+  }
+  if (job.running !== true) {
+    const state = unreadState(job);
+    return {
+      ...base,
+      holdsError: state === "error",
+      state,
+      stateSince: stateSinceOf(job.lastRunAt ? job.lastRunAt * 1000 : undefined, now),
+      detail: jobResultLabel(job.lastResult) || null,
+    };
+  }
+  return {
+    ...base,
+    holdsError: false,
+    state: "working",
+    stateSince: stateSinceOf(job.runningSince ? job.runningSince * 1000 : undefined, now),
     detail:
       targetCount > 1
         ? `Running in ${job.runningCount ?? 1} of ${targetCount} projects`
         : null,
-    dismissable: false,
-    dismissBlocked: null,
   };
 }

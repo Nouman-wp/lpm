@@ -5,6 +5,7 @@
 //! delegates to the running app over the status socket. It never writes to
 //! `~/.lpm` or the repo configs directly — all mutation flows through the app.
 
+mod ask;
 mod auto_pull;
 mod config;
 mod config_cmd;
@@ -13,6 +14,7 @@ mod duplicate;
 mod error;
 mod hook;
 mod job;
+mod job_answer;
 mod job_edit;
 mod job_open;
 mod job_runtime;
@@ -65,6 +67,7 @@ Config transactions (need the app running): `config get`, `config apply`. Contro
 `start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `worktree`, `remove`, `run`, `refresh-label`, `automations`. \
 `auto-pull` shows whether the app pulls a project by itself; `auto-pull --set` changes it \
 through the running app. \
+Inside an automation run, `ask` puts a question to the user and waits for the answer. \
 Connection commands (for a machine with no UI in front of it): `pair`, `connections`, \
 and `mobile` for the iOS companion app. \
 `wait` polls client-side, except its `--agent` mode which queries the app. Inside an lpm \
@@ -96,6 +99,13 @@ enum Commands {
         #[command(subcommand)]
         command: job::Command,
     },
+    /// Ask the user a question from inside an automation run.
+    #[command(
+        long_about = "Ask the user a question from inside an automation run: yes/no, a pick from \
+a list, or free text. The question shows in the app, on paired phones and wherever the \
+automation reports to, and the first answer from any of them wins."
+    )]
+    Ask(ask::AskArgs),
     /// List every project with its running state, service counts, and agents.
     List {
         /// Emit a single machine-readable JSON object (no ANSI).
@@ -406,6 +416,7 @@ fn main() -> ExitCode {
     let ctx = config::Ctx::from_home();
 
     let result = match cli.command {
+        Commands::Ask(args) => return ask::run(&ctx, args),
         Commands::Config { command } => config_cmd::run(&ctx, command),
         Commands::Automations { command } => job::run(&ctx, command),
         Commands::List { json } => list::run(&ctx, json),

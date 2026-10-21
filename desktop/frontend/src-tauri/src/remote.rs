@@ -2594,6 +2594,32 @@ fn handle_msg(
             reply["jobId"] = json!(job_id);
             send(ws, reply)?;
         }
+        "answerJobQuestion" | "dismissJobQuestion" => {
+            let project = str_field("project").unwrap_or_default();
+            let job_id = str_field("jobId").unwrap_or_default();
+            let ask_id = str_field("askId").unwrap_or_default();
+            let r = if t == "answerJobQuestion" {
+                let answers = v.get("answers").cloned().unwrap_or(Value::Null);
+                crate::jobs::ask::answer_job_question(
+                    app.clone(),
+                    project.clone(),
+                    job_id.clone(),
+                    ask_id,
+                    answers,
+                )
+            } else {
+                crate::jobs::ask::dismiss_job_question(
+                    app.clone(),
+                    project.clone(),
+                    job_id.clone(),
+                    ask_id,
+                )
+            };
+            let mut reply = result_reply(t, r);
+            reply["project"] = json!(project);
+            reply["jobId"] = json!(job_id);
+            send(ws, reply)?;
+        }
         // The raw YAML body of one job, so the phone editor can seed an edit from
         // the exact stored config (the desktop reads it from the layer file too).
         "jobConfig" => {
@@ -5236,6 +5262,9 @@ impl PushDevice {
             "found-work" | "pending-window" => self.push_automation_started,
             "completed" => self.push_automation_done,
             "error" | "timed-out" => self.push_automation_error,
+            // A run waiting on the user is the automation's "needs you" — the
+            // agent preference older phones already have on.
+            "asked" => self.push_waiting || self.push_automation_done,
             _ => false,
         }
     }
@@ -5786,6 +5815,7 @@ fn push_automation_notification(
         "completed" => "Automation finished",
         "error" => "Automation failed",
         "timed-out" => "Automation timed out",
+        "asked" => "Waiting for your answer",
         _ => return,
     };
     // The phone renders "<name> — <status>", so the run's own verdict rides
@@ -8355,5 +8385,12 @@ mod tests {
         assert!(dev.wants_automation("error"));
         assert!(dev.wants_automation("timed-out"));
         assert!(!dev.wants_automation("running"));
+        assert!(!dev.wants_automation("asked"));
+
+        let asking = PushDevice {
+            push_waiting: true,
+            ..dev
+        };
+        assert!(asking.wants_automation("asked"));
     }
 }

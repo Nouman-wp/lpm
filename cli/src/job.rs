@@ -85,6 +85,8 @@ pub enum Command {
         alias = "delete"
     )]
     Remove(job_edit::RemoveArgs),
+    #[command(about = "Answer or dismiss the question an automation is waiting on")]
+    Answer(crate::job_answer::AnswerArgs),
     #[command(about = "Continue an AI automation conversation")]
     Reply {
         #[command(flatten)]
@@ -132,6 +134,7 @@ pub fn run(ctx: &Ctx, command: Command) -> Result<(), RunError> {
         Command::Add(args) => job_edit::add(ctx, *args),
         Command::Edit(args) => job_edit::edit(ctx, *args),
         Command::Remove(args) => job_edit::remove(ctx, args),
+        Command::Answer(args) => crate::job_answer::answer(ctx, args),
         Command::Reply {
             target,
             message,
@@ -239,7 +242,9 @@ fn render_table(style: &Style, jobs: &[Value], now_secs: i64) -> String {
                 "" => id.clone(),
                 label => label.to_string(),
             };
-            let state = if job.get("running").and_then(Value::as_bool).unwrap_or(false) {
+            let state = if job.get("ask").is_some_and(Value::is_object) {
+                "waiting"
+            } else if job.get("running").and_then(Value::as_bool).unwrap_or(false) {
                 "running"
             } else if job.get("enabled").and_then(Value::as_bool).unwrap_or(false) {
                 "enabled"
@@ -293,6 +298,7 @@ fn render_table(style: &Style, jobs: &[Value], now_secs: i64) -> String {
                 match (index, value.as_str()) {
                     (1, _) => style.bold(&padded),
                     (3, "running") => style.green(&padded),
+                    (3, "waiting") => style.yellow(&padded),
                     (3, "enabled") => style.green(&padded),
                     (3, "invalid") => style.red(&padded),
                     _ => style.dim(&padded),
@@ -340,9 +346,57 @@ pub(crate) fn render_history(style: &Style, entries: &[Value], now_ms: i64) -> S
                 output.push_str(&format!("  {line}\n"));
             }
         }
+        for ask in entry.get("asks").and_then(Value::as_array).into_iter().flatten() {
+            output.push_str(&render_ask(ask));
+        }
         output.push('\n');
     }
     output
+}
+
+/// A yes/no question's button label for `yes`: the run's own, or Yes / No.
+pub(crate) fn confirm_label(q: &Value, yes: bool) -> String {
+    let (key, fallback) = if yes { ("yes", "Yes") } else { ("no", "No") };
+    match value_text(q, key) {
+        "" => fallback.to_string(),
+        label => label.to_string(),
+    }
+}
+
+/// A run's question with how it ended: the answers, or why there were none.
+fn render_ask(ask: &Value) -> String {
+    let answers = ask.get("answers");
+    let mut out = String::new();
+    for q in ask.get("questions").and_then(Value::as_array).into_iter().flatten() {
+        let answer = answers.and_then(|a| a.get(value_text(q, "id")));
+        let shown = match (value_text(q, "type"), answer) {
+            ("confirm", Some(Value::Bool(yes))) => confirm_label(q, *yes),
+            (_, Some(Value::Array(picks))) => picks
+                .iter()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join(", "),
+            (_, Some(Value::String(text))) => text.clone(),
+            _ => String::new(),
+        };
+        let line = if shown.is_empty() {
+            value_text(q, "text").to_string()
+        } else {
+            format!("{} → {shown}", value_text(q, "text"))
+        };
+        out.push_str(&format!("  ? {line}\n"));
+    }
+    let status = match value_text(ask, "status") {
+        "open" => Some("waiting for your answer — lpm automations answer"),
+        "dismissed" => Some("dismissed"),
+        "unanswered" => Some("no answer"),
+        _ if value_text(ask, "reply") != "" => Some("answered in a reply"),
+        _ => None,
+    };
+    if let Some(status) = status {
+        out.push_str(&format!("    ({status})\n"));
+    }
+    out
 }
 
 fn humanize_schedule(schedule: &Value) -> String {
@@ -519,5 +573,21 @@ mod tests {
         );
         assert!(output.contains("> continue"));
         assert!(output.contains("done"));
+    }
+
+    #[test]
+    fn history_shows_a_runs_question_and_its_answer() {
+        let style = Style { on: false };
+        let ask = |status: &str, answers: Value| {
+            json!({ "at": 100, "result": "completed", "asks": [{
+                "id": "a", "status": status, "answers": answers,
+                "questions": [{ "id": "q1", "type": "confirm", "text": "Deploy?", "yes": "Ship" }],
+            }]})
+        };
+        let open = render_history(&style, &[ask("open", json!({}))], 100_000);
+        assert!(open.contains("? Deploy?\n"));
+        assert!(open.contains("waiting for your answer"));
+        let answered = render_history(&style, &[ask("answered", json!({ "q1": true }))], 100_000);
+        assert!(answered.contains("? Deploy? → Ship"));
     }
 }

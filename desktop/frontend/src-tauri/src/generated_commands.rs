@@ -158,6 +158,8 @@ macro_rules! all_command_handlers {
             rollback_update,
             cancel_update,
             is_terminal_remote,
+            answer_job_question,
+            dismiss_job_question,
             drain_pending_job_tasks,
             clear_job_state,
             clear_job_state_global,

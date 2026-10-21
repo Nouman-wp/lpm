@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.serialization.json.JsonObject
 
 /**
  * One automation's page (iOS `AutomationDetailView`): its state, schedule and setup,
@@ -112,6 +113,15 @@ class AutomationDetailViewModel @AssistedInject constructor(
             job.enabled -> s.run(job)
             else -> s.setEnabled(job, true)
         }
+    }
+
+    /** Answer the job's open question where it waits; the first answer from any device wins. */
+    fun answer(askId: String, answers: JsonObject) {
+        store?.answerQuestion(uiState.value.askProject, key.jobId, askId, answers)
+    }
+
+    fun dismissQuestion(askId: String) {
+        store?.dismissQuestion(uiState.value.askProject, key.jobId, askId)
     }
 
     fun markRead() {

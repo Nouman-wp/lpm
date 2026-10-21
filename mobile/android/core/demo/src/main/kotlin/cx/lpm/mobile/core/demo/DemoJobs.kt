@@ -204,6 +204,70 @@ private fun DemoServer.registerJobEditorHandlers() {
         )
         push(mapOf("t" to "jobs-changed"))
     }
+    register("answerJobQuestion") { o -> settleAsk(o, o.dict("answers") ?: emptyMap()) }
+    register("dismissJobQuestion") { o -> settleAsk(o, null) }
+}
+
+/**
+ * Answer (or, without answers, dismiss) the job's open question; an answer resumes the
+ * run that asked, as the Mac does.
+ */
+private fun DemoServer.settleAsk(o: Dict, answers: Dict?) {
+    val t = if (answers == null) "dismissJobQuestion" else "answerJobQuestion"
+    val project = o.string("project") ?: ""
+    val jobId = o.string("jobId") ?: ""
+    val askId = o.string("askId") ?: ""
+    val j = job(project, jobId)
+    val r = j?.history?.indexOfFirst { run -> run.asks.any { it.string("id") == askId } } ?: -1
+    val asking = if (r >= 0) j?.history?.get(r) else null
+    val a = asking?.asks?.indexOfFirst { it.string("id") == askId } ?: -1
+    if (j == null || asking == null || a < 0 || asking.asks[a].string("status") != "open") {
+        push(
+            jobReply(
+                t,
+                project,
+                jobId,
+                error = "That question isn't waiting for an answer anymore."
+            )
+        )
+        return
+    }
+    val ask = asking.asks[a].toMutableMap()
+    ask["status"] = if (answers == null) "dismissed" else "answered"
+    ask["answeredAt"] = nowSeconds()
+    if (answers != null) ask["answers"] = answers
+    j.history = j.history.toMutableList().also {
+        it[r] = asking.copy(asks = asking.asks.toMutableList().also { list -> list[a] = ask })
+    }
+    push(jobReply(t, project, jobId))
+    if (answers != null) {
+        startRun(
+            project,
+            jobId,
+            question = demoAnswerText(ask, answers),
+            follows = asking.at,
+            resumed = asking.session,
+            answerTo = askId,
+            answers = answers
+        )
+    }
+    push(mapOf("t" to "jobs-changed"))
+}
+
+/** The message the Mac resumes an agent with: each question and its answer, by label. */
+private fun demoAnswerText(ask: Dict, answers: Dict): String {
+    val lines = ask.dicts("questions").orEmpty().map { q ->
+        val value = answers[q.string("id") ?: ""]
+        val bool = value.asBool()
+        val answer = when {
+            bool != null -> if (bool) q.string("yes") ?: "Yes" else q.string("no") ?: "No"
+            value.asStringList() != null -> value.asStringList().orEmpty().joinToString(", ")
+            value is String -> value
+            else -> "(no answer)"
+        }
+        "- ${q.string("text") ?: ""} → $answer"
+    }
+    return "The user answered your question:\n" + lines.joinToString("\n")
 }
 
 private fun jobReply(t: String, project: String, jobId: String, error: String? = null): Dict {
@@ -224,7 +288,9 @@ private fun DemoServer.startRun(
     jobId: String,
     question: String? = null,
     follows: Long? = null,
-    resumed: String = ""
+    resumed: String = "",
+    answerTo: String = "",
+    answers: Dict? = null
 ) {
     val target = job(project, jobId) ?: return
     val startedAt = nowSeconds()
@@ -234,7 +300,7 @@ private fun DemoServer.startRun(
     target.liveText = ""
     target.runSeq += 1
     val seq = target.runSeq
-    val script = runScript(target, question)
+    val script = runScript(target, question, answers)
 
     // A live run: the job is still the one that started it, and it wasn't stopped.
     fun liveJob(): DemoWorld.Job? = job(project, jobId)?.takeIf { it.runSeq == seq && it.running }
@@ -264,7 +330,8 @@ private fun DemoServer.startRun(
             question = question ?: "",
             session = script.session,
             resumed = resumed,
-            follows = if (question == null) null else follows
+            follows = if (question == null) null else follows,
+            answerTo = answerTo
         )
         mapOf("t" to "jobs-changed")
     }

@@ -282,6 +282,13 @@ describe("a host's automations", () => {
     ]);
   });
 
+  it("marks the project a host's job is waiting in, so its answer goes there", () => {
+    const [row] = translateResult("list_jobs", SLUG, [
+      { id: "deploy", project: "web", ask: { id: "a1", status: "open", project: "web", at: 5 } },
+    ]) as { ask: { project: string; at: number } }[];
+    expect(row.ask).toEqual({ id: "a1", status: "open", project: prefixName(SLUG, "web"), at: 5 });
+  });
+
   it("marks the copy a run worked in, so it opens here", () => {
     expect(
       translateResult("job_history", SLUG, [{ at: 1, result: "completed", copy: "web-2" }, { at: 2, result: "quiet" }]),

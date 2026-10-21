@@ -21,6 +21,15 @@ describe("sortJobsForList", () => {
     ]);
   });
 
+  it("leads with a job waiting on the user's answer", () => {
+    const ask = { id: "a", askedAt: 1, status: "open", questions: [] };
+    const rows = [
+      job({ id: "unread", lastRunAt: 900, unread: 2 }),
+      job({ id: "waiting", lastRunAt: 100, unread: 1, ask }),
+    ];
+    expect(sortJobsForList(rows).map((r) => r.id)).toEqual(["waiting", "unread"]);
+  });
+
   it("orders each half by newest activity, then by name", () => {
     const rows = [
       job({ id: "b", label: "B" }),

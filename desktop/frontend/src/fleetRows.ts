@@ -14,6 +14,7 @@ import {
   type FleetProjectIdentity,
 } from "./fleetIdentity";
 import { formatDuration, jobTargets, type JobInfo } from "./jobsFormat";
+import { isOpenAsk } from "./jobAsk";
 import { automationRow, stateSinceOf } from "./fleetAutomations";
 import { serviceCrashed } from "./serviceExit";
 import { peerSlugOf } from "./peer/markers";
@@ -274,8 +275,9 @@ export function buildFleet(snapshot: FleetSnapshot): Fleet {
 
   for (const job of jobs) {
     const running = job.running === true;
-    // A finished run nobody has opened yet is still waiting on the user.
-    if (!running && (job.unread ?? 0) === 0) continue;
+    // A finished run nobody has opened yet is still waiting on the user, and so
+    // is a question the job asked.
+    if (!running && (job.unread ?? 0) === 0 && !isOpenAsk(job.ask)) continue;
     const targets = jobTargets(job);
     rows.push(automationRow(job, targets, identities, now));
     // Every project the job runs in is busy, even the ones the row can't name.

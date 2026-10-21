@@ -18,6 +18,7 @@ import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { ZoomControl } from "../../ui/ZoomControl";
 import type { ContentZoom } from "../../../hooks/useContentZoom";
 import { JobLiveOutput } from "./JobLiveOutput";
+import { JobAskCard } from "./JobAskCard";
 import {
   CheckIcon,
   ChevronLeftIcon,
@@ -43,9 +44,9 @@ import {
   formatDuration,
   formatRunningFor,
   groupJobThreads,
+  isThreadWaiting,
   jobEntryLabel,
-  jobResultLabel,
-  jobResultTone,
+  jobEntryTone,
   jobThreadTail,
   stripCitationMarkers,
   TONE_DOT_CLASS,
@@ -203,6 +204,13 @@ export function JobTaskView({
     }
   };
 
+  // A question the conversation is waiting on: its card answers it, and a
+  // plain reply answers it in the user's own words.
+  const waiting = thread ? isThreadWaiting(thread) : false;
+  // The answer's own job-status event refreshes the page; this only keeps the
+  // run's progress on show until the resumed turn lands.
+  const answered = () => setPending({ text: "", baseCount: replies.length });
+
   // The copy this conversation worked in, offered for removal with the run.
   const threadCopy = thread
     ? [thread.root, ...thread.replies].find((e) => e.copy)?.copy
@@ -228,7 +236,7 @@ export function JobTaskView({
 
   const root = thread?.root;
   const meta = root
-    ? [project, jobResultLabel(root.result), relativeAgo(root.at)].filter(Boolean).join(" · ")
+    ? [project, jobEntryLabel(root), relativeAgo(root.at)].filter(Boolean).join(" · ")
     : project;
 
   return (
@@ -306,6 +314,9 @@ export function JobTaskView({
           <div style={{ zoom: zoom.zoom }}>
             <EntryBody
               entry={thread.root}
+              project={project}
+              jobId={job.id}
+              onAnswered={answered}
               onOpenCopy={onOpenCopy}
               onOpenProject={() => onOpenCopy(project)}
               first
@@ -314,6 +325,9 @@ export function JobTaskView({
               <EntryBody
                 key={`${reply.at}-${i}`}
                 entry={reply}
+                project={project}
+                jobId={job.id}
+                onAnswered={answered}
                 onOpenCopy={onOpenCopy}
                 onOpenProject={() => onOpenCopy(project)}
                 onRemove={
@@ -326,11 +340,13 @@ export function JobTaskView({
                 to other conversations and must not render here. */}
             {pending && (
               <div className="mt-6">
-                <div className="mb-2 flex justify-end">
-                  <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-[var(--bg-secondary)] px-4 py-2.5 text-[13px] leading-relaxed text-[var(--text-primary)]">
-                    {pending.text}
+                {pending.text && (
+                  <div className="mb-2 flex justify-end">
+                    <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-[var(--bg-secondary)] px-4 py-2.5 text-[13px] leading-relaxed text-[var(--text-primary)]">
+                      {pending.text}
+                    </div>
                   </div>
-                </div>
+                )}
                 <div className="flex items-center gap-2.5 px-1 py-2">
                   <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
                   <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--text-secondary)]">
@@ -386,7 +402,13 @@ export function JobTaskView({
               setDraft(value);
               setSendError(null);
             }}
-            placeholder={locked ? "Waiting for the run to finish…" : "Reply…"}
+            placeholder={
+              locked
+                ? "Waiting for the run to finish…"
+                : waiting
+                  ? "Answer above, or reply in your own words…"
+                  : "Reply…"
+            }
             disabled={locked}
             history={composerHistory}
             aiCwd={projectRoot}
@@ -515,7 +537,7 @@ function EntryHeader({
   return (
     <div className="group flex items-center gap-2.5">
       <span
-        className={`h-1.5 w-1.5 shrink-0 rounded-full ${TONE_DOT_CLASS[jobResultTone(entry.result)]}`}
+        className={`h-1.5 w-1.5 shrink-0 rounded-full ${TONE_DOT_CLASS[jobEntryTone(entry)]}`}
       />
       <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--text-secondary)]">
         {jobEntryLabel(entry)}
@@ -712,12 +734,18 @@ function WaitingGlyph() {
 // own page, so nothing is folded away.
 function EntryBody({
   entry,
+  project,
+  jobId,
+  onAnswered,
   onOpenCopy,
   onOpenProject,
   onRemove,
   first,
 }: {
   entry: JobHistoryEntry;
+  project: string;
+  jobId: string;
+  onAnswered: () => void;
   onOpenCopy: (project: string) => void;
   onOpenProject?: () => void;
   onRemove?: () => void;
@@ -729,7 +757,7 @@ function EntryBody({
 
   return (
     <div className={`group ${first ? "" : "mt-6"}`}>
-      {entry.question && (
+      {entry.question && !entry.answerTo && (
         <div className="mb-2.5 flex justify-end">
           <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-[var(--bg-secondary)] px-4 py-2.5 text-[13px] leading-relaxed text-[var(--text-primary)]">
             {entry.question}
@@ -745,6 +773,11 @@ function EntryBody({
         />
       )}
       {entry.output && <EntryOutput text={entry.output} />}
+      {entry.asks?.map((ask) => (
+        <div key={ask.id} className="mt-3">
+          <JobAskCard ask={ask} project={project} jobId={jobId} onAnswered={onAnswered} />
+        </div>
+      ))}
       {quiet && (
         <EntryHeader
           entry={entry}

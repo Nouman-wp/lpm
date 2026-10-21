@@ -2,6 +2,7 @@
 // first" rule and the per-row project label can be tested without React.
 
 import { jobTargets, type JobInfo } from "./jobsFormat";
+import { isOpenAsk } from "./jobAsk";
 import { prefixName } from "./peer/markers";
 
 type ListJob = JobInfo & { project?: string };
@@ -30,9 +31,12 @@ export function isUnread(job: ListJob): boolean {
 }
 
 // Newest activity first, with everything unread ahead of everything read — the
-// list is a feed of what the jobs did, not a directory of what exists.
+// list is a feed of what the jobs did, not a directory of what exists. A job
+// waiting on the user's answer leads its part of the list.
 export function sortJobsForList<T extends ListJob>(jobs: T[]): T[] {
+  const waiting = (job: T) => isOpenAsk(job.ask);
   return [...jobs].sort((a, b) => {
+    if (waiting(a) !== waiting(b)) return waiting(a) ? -1 : 1;
     if (isUnread(a) !== isUnread(b)) return isUnread(a) ? -1 : 1;
     if (a.running !== b.running) return a.running ? -1 : 1;
     const last = (b.lastRunAt ?? 0) - (a.lastRunAt ?? 0);

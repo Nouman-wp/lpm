@@ -3,6 +3,7 @@ package cx.lpm.mobile.feature.automations.detail
 import androidx.compose.runtime.Immutable
 import cx.lpm.mobile.core.data.automations.AutomationsState
 import cx.lpm.mobile.core.data.automations.automationKey
+import cx.lpm.mobile.core.model.AUTOMATION_WAITING_LABEL
 import cx.lpm.mobile.core.model.AutomationJob
 import cx.lpm.mobile.feature.automations.format.AutomationClock
 import cx.lpm.mobile.feature.automations.format.AutomationThread
@@ -20,6 +21,7 @@ import cx.lpm.mobile.feature.automations.format.automationScheduleText
 import cx.lpm.mobile.feature.automations.format.automationScopeText
 import cx.lpm.mobile.feature.automations.format.automationThreads
 import cx.lpm.mobile.feature.automations.format.automationUsdText
+import cx.lpm.mobile.feature.automations.ui.automationAskWhen
 
 /** A moment on the right of a row: the clock time, and how long ago under it. */
 @Immutable
@@ -69,8 +71,16 @@ data class AutomationDetailUiState(
     val live: String? = null,
     val runs: List<RunRowUi> = emptyList(),
     val historyLoading: Boolean = false,
-    val error: String? = null
-)
+    val error: String? = null,
+    /** "Expires in 3h", or when the open question was asked. */
+    val askWhen: String = "",
+    /** An answer is out and not acknowledged yet. */
+    val answering: Boolean = false,
+    val askError: String? = null
+) {
+    /** Where the job waits — the project its question is answered in. */
+    val askProject: String get() = job?.ask?.project.orEmpty()
+}
 
 internal fun AutomationsState.detailState(
     project: String,
@@ -95,6 +105,7 @@ internal fun AutomationsState.detailState(
         error = error
     )
     if (job == null) return base
+    val askKey = job.ask?.let { automationKey(it.project, jobId) }
     val lastRunAt = job.lastRunAt
     return base.copy(
         scope = automationScopeText(job),
@@ -115,7 +126,12 @@ internal fun AutomationsState.detailState(
             )
         },
         setup = job.setup(),
-        live = if (job.running) liveOutput[key]?.text.orEmpty() else null
+        live = if (job.running) liveOutput[key]?.text.orEmpty() else null,
+        askWhen = job.ask?.let {
+            automationAskWhen(it, clock.now.epochSecond, clock::clock)
+        }.orEmpty(),
+        answering = askKey != null && askKey in pending,
+        askError = askKey?.let(askError::get)
     )
 }
 
@@ -147,8 +163,8 @@ private fun AutomationThread.row(previews: Boolean, clock: AutomationClock): Run
     }
     return RunRowUi(
         rootAt = root.at,
-        label = automationEntryLabel(entry),
-        tone = automationResultTone(entry.result),
+        label = if (waiting) AUTOMATION_WAITING_LABEL else automationEntryLabel(entry),
+        tone = if (waiting) AutomationTone.Orange else automationResultTone(entry.result),
         unread = unread,
         preview = if (previews) automationFirstLine(entry.output) else null,
         meta = meta.joinToString(" · ")

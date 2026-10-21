@@ -29,6 +29,9 @@ final class AppModel {
     var automationPending: Set<String> = []
     var automationError: String?
     var automationFollowupError: [String: String] = [:]
+    /// Why the last answer to an automation's question didn't go through, by
+    /// automation key — shown on the question itself.
+    var automationAskError: [String: String] = [:]
     // Automation authoring (create/edit/delete from the phone editor sheet).
     // `jobConfigBody` holds the raw YAML body fetched for an edit; the loading key
     // marks which job it belongs to. A save/delete sets `jobMutationInFlight` (Save
@@ -1246,6 +1249,7 @@ final class AppModel {
         automationPending = []
         automationError = nil
         automationFollowupError = [:]
+        automationAskError = [:]
         jobConfigBody = nil
         jobConfigError = nil
         jobConfigLoadingKey = nil
@@ -1885,6 +1889,25 @@ final class AppModel {
         automationFollowupError[key] = nil
         client?.sendJobFollowup(project: project, jobId: jobId, at: at, message: message,
                                 agent: agent, model: model, effort: effort)
+    }
+
+    /// Answer the question an automation is waiting on; the first answer from
+    /// any device wins.
+    func answerAutomationQuestion(project: String, jobId: String, askId: String,
+                                  answers: [String: Any]) {
+        beginAnswer(project, jobId)
+        client?.answerJobQuestion(project: project, jobId: jobId, askId: askId, answers: answers)
+    }
+
+    func dismissAutomationQuestion(project: String, jobId: String, askId: String) {
+        beginAnswer(project, jobId)
+        client?.dismissJobQuestion(project: project, jobId: jobId, askId: askId)
+    }
+
+    private func beginAnswer(_ project: String, _ jobId: String) {
+        let key = automationKey(project, jobId)
+        automationPending.insert(key)
+        automationAskError[key] = nil
     }
 
     func automationKey(_ project: String, _ jobId: String) -> String { project + "\n" + jobId }
@@ -2839,6 +2862,13 @@ final class AppModel {
             c.requestJobs()
             c.requestJobHistory(project: project, jobId: jobId)
             c.requestJobLiveOutput(project: project, jobId: jobId)
+        }
+        // The Mac's jobs-changed that follows refreshes the list and histories.
+        c.onAutomationAnswer = { [weak self] project, jobId, error in
+            guard let self else { return }
+            let key = self.automationKey(project, jobId)
+            self.automationPending.remove(key)
+            self.automationAskError[key] = error
         }
         c.onJobConfig = { [weak self] project, jobId, job, error in
             guard let self else { return }

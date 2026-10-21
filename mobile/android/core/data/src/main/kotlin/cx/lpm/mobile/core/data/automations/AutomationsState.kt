@@ -21,6 +21,8 @@ data class AutomationsState(
     /** Run, stop, enable or a follow-up sent and not answered yet. */
     val pending: Set<String> = emptySet(),
     val followupError: Map<String, String> = emptyMap(),
+    /** Why the last answer to a job's question didn't go through, shown on the question. */
+    val askError: Map<String, String> = emptyMap(),
     /** The raw YAML body fetched to seed the editor, and which job it's loading for. */
     val jobConfigBody: JsonObject? = null,
     val jobConfigError: String? = null,

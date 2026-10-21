@@ -101,6 +101,23 @@ class InboundAutomationsTest {
     }
 
     @Test
+    fun answersAndDismissalsReportBack() {
+        assertEquals(
+            Inbound.AutomationAnswer("a", "j", null),
+            Inbound.parse(
+                """{ "t": "answerJobQuestion", "project": "a", "jobId": "j", "ok": true }"""
+            )
+        )
+        assertEquals(
+            Inbound.AutomationAnswer("a", "j", "This question was already answered."),
+            Inbound.parse(
+                """{ "t": "dismissJobQuestion", "project": "a", "jobId": "j", "ok": false,
+                     "error": "This question was already answered." }"""
+            )
+        )
+    }
+
+    @Test
     fun jobConfigKeepsTheRawBody() {
         val f = decode<Inbound.JobConfig>(
             """{ "t": "jobConfig", "project": "a", "jobId": "j", "ok": true,

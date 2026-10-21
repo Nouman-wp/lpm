@@ -1,18 +1,24 @@
 import { useEffect, useState } from "react";
 import { EventsOn } from "../../bridge/runtime";
 import { ListAllJobs } from "../../bridge/commands";
+import { isOpenAsk } from "../jobAsk";
+import type { JobInfo } from "../jobsFormat";
 
 export interface JobsAmbient {
   running: number;
   unread: number;
+  // Jobs waiting on the user to answer a question.
+  waiting: number;
 }
 
 /** Ambient scheduled-job state for the sidebar footer: how many jobs are
- *  running, and how many have results the user hasn't read. A headless run is
- *  otherwise invisible outside a transient toast. */
+ *  waiting on the user, how many are running, and how many have results the
+ *  user hasn't read. A headless run is otherwise invisible outside a transient
+ *  toast. */
 export function useJobsAmbient(): JobsAmbient {
   const [running, setRunning] = useState(0);
   const [unread, setUnread] = useState(0);
+  const [waiting, setWaiting] = useState(0);
   useEffect(() => {
     let alive = true;
     const refresh = () => {
@@ -20,8 +26,9 @@ export function useJobsAmbient(): JobsAmbient {
         .then((rows) => {
           if (!alive) return;
           const list = Array.isArray(rows)
-            ? (rows as { running?: boolean; unread?: number }[])
+            ? (rows as Pick<JobInfo, "running" | "unread" | "ask">[])
             : [];
+          setWaiting(list.filter((r) => isOpenAsk(r.ask)).length);
           setRunning(list.filter((r) => r.running === true).length);
           setUnread(list.filter((r) => (r.unread ?? 0) > 0).length);
         })
@@ -36,5 +43,5 @@ export function useJobsAmbient(): JobsAmbient {
       if (typeof cancelSeen === "function") cancelSeen();
     };
   }, []);
-  return { running, unread };
+  return { running, unread, waiting };
 }

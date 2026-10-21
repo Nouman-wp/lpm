@@ -17,10 +17,10 @@ The lpm app runs automations on their schedule while it is running. Each run goe
 
 1. `--check` (optional) runs in the project. Exit 0 means there is work to do; any other exit code ends the run as "nothing to do". It times out after 10 minutes.
 2. `--duplicate` (optional) makes a fresh copy or Git worktree to work in.
-3. The run itself: `--cmd`, `--action`, or `--prompt`. It times out after an hour.
+3. The run itself: `--cmd`, `--action`, or `--prompt`. It times out after an hour, not counting time spent waiting on an answer.
 4. `--verify` (optional) runs afterwards. Exit 0 means the checks passed. It times out after 15 minutes.
 
-Every step gets `LPM_JOB_ID`, `LPM_PROJECT_NAME`, `LPM_RUN_ROOT` (where the run happens), `LPM_IS_COPY` (`1` in a copy), `LPM_TRIGGER` (`schedule`, `manual`, or `reply`), and, when known, `LPM_SCHEDULED_FOR` and `LPM_LAST_RUN_AT` (Unix seconds). SSH projects can't have automations.
+Every step gets `LPM_JOB_ID`, `LPM_PROJECT_NAME`, `LPM_RUN_ROOT` (where the run happens), `LPM_IS_COPY` (`1` in a copy), `LPM_TRIGGER` (`schedule`, `manual`, or `reply`), and, when known, `LPM_SCHEDULED_FOR` and `LPM_LAST_RUN_AT` (Unix seconds). The run itself also gets `LPM_RUN_ID`, which `lpm ask` uses to put a question to the user: a `cmd` waits for the answer, an AI prompt ends its turn and is resumed with it. While a question is open, the automation's scheduled runs are skipped and Run now is refused. SSH projects can't have automations.
 
 ## Where it lives
 

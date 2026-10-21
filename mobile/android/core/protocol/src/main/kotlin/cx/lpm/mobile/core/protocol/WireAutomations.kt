@@ -56,6 +56,23 @@ sealed interface WireAutomations {
         put("effort", effort)
     }
 
+    fun answerJobQuestion(
+        project: String,
+        jobId: String,
+        askId: String,
+        answers: JsonObject
+    ): String = frame("answerJobQuestion") {
+        putJob(project, jobId)
+        put("askId", askId)
+        put("answers", answers)
+    }
+
+    fun dismissJobQuestion(project: String, jobId: String, askId: String): String =
+        frame("dismissJobQuestion") {
+            putJob(project, jobId)
+            put("askId", askId)
+        }
+
     fun jobConfig(project: String, jobId: String, source: String): String = frame("jobConfig") {
         putJob(project, jobId)
         put("source", source)

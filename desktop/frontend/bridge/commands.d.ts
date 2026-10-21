@@ -140,6 +140,8 @@ export function RunJobNow(...args: any[]): Promise<any>;
 export function SetJobEnabled(...args: any[]): Promise<any>;
 export function StopJobRun(...args: any[]): Promise<any>;
 export function SendJobFollowup(...args: any[]): Promise<any>;
+export function AnswerJobQuestion(...args: any[]): Promise<any>;
+export function DismissJobQuestion(...args: any[]): Promise<any>;
 export function ClearJobState(...args: any[]): Promise<any>;
 export function ClearJobStateGlobal(...args: any[]): Promise<any>;
 export function DeleteJobHistory(...args: any[]): Promise<any>;

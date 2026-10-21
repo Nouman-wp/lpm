@@ -127,6 +127,14 @@ enum Wire {
         json(["t": "sendJobFollowup", "project": project, "jobId": jobId, "at": at,
               "message": message, "agent": agent, "model": model, "effort": effort])
     }
+    static func answerJobQuestion(project: String, jobId: String, askId: String,
+                                  answers: [String: Any]) -> String {
+        json(["t": "answerJobQuestion", "project": project, "jobId": jobId, "askId": askId,
+              "answers": answers])
+    }
+    static func dismissJobQuestion(project: String, jobId: String, askId: String) -> String {
+        json(["t": "dismissJobQuestion", "project": project, "jobId": jobId, "askId": askId])
+    }
     static func jobConfig(project: String, jobId: String, source: String) -> String {
         json(["t": "jobConfig", "project": project, "jobId": jobId, "source": source])
     }
@@ -584,6 +592,7 @@ enum Wire {
         case jobLiveOutput(project: String, jobId: String, live: AutomationLiveOutput?, error: String?)
         case automationMutation(project: String, jobId: String, error: String?)
         case automationFollowup(project: String, jobId: String, error: String?)
+        case automationAnswer(project: String, jobId: String, error: String?)
         case jobConfig(project: String, jobId: String, job: [String: Any]?, error: String?)
         case jobSaved(id: String, error: String?)
         case jobDeleted(id: String, error: String?)
@@ -861,6 +870,11 @@ enum Wire {
                 return .automationFollowup(project: obj["project"] as? String ?? "",
                                            jobId: obj["jobId"] as? String ?? "",
                                            error: ok ? nil : (obj["error"] as? String ?? "Couldn't send the message."))
+            case "answerJobQuestion", "dismissJobQuestion":
+                let ok = obj["ok"] as? Bool ?? false
+                return .automationAnswer(project: obj["project"] as? String ?? "",
+                                         jobId: obj["jobId"] as? String ?? "",
+                                         error: ok ? nil : (obj["error"] as? String ?? "Couldn't send the answer."))
             case "jobConfig":
                 let ok = obj["ok"] as? Bool ?? false
                 return .jobConfig(project: obj["project"] as? String ?? "",
@@ -1335,6 +1349,8 @@ struct AutomationJob: Identifiable {
     /// Runs that landed since this automation was last read, folded across every
     /// project it runs in. Older servers omit it, which reads as nothing new.
     let unread: Int
+    /// The question the automation is waiting on the user to answer.
+    let ask: AutomationAsk?
 
     init(_ o: [String: Any]) {
         id = o["id"] as? String ?? ""
@@ -1379,6 +1395,7 @@ struct AutomationJob: Identifiable {
         targetCount = o["targetCount"] as? Int ?? 0
         runningCount = o["runningCount"] as? Int ?? 0
         standalone = o["standalone"] as? Bool ?? false
+        ask = AutomationAsk(o["ask"]).flatMap { $0.isOpen ? $0 : nil }
     }
 
     var key: String { runProject + "\n" + id }
@@ -1420,9 +1437,16 @@ struct AutomationHistoryEntry: Identifiable {
     let verified: Bool?
     /// The run landed after this automation was last read.
     let unread: Bool
+    /// What the run asked the user, with how each question ended.
+    let asks: [AutomationAsk]
+    /// The question this entry's message answered — the entry that asked shows
+    /// the answer, so it isn't repeated as a message.
+    let answerTo: String
 
     init(_ o: [String: Any]) {
         at = o["at"] as? Int ?? 0
+        asks = (o["asks"] as? [Any] ?? []).compactMap(AutomationAsk.init)
+        answerTo = o["answerTo"] as? String ?? ""
         result = o["result"] as? String ?? ""
         count = o["count"] as? Int ?? 1
         verified = o["verified"] as? Bool
@@ -1439,6 +1463,9 @@ struct AutomationHistoryEntry: Identifiable {
     }
 
     var id: Int { at }
+
+    /// The entry asked the user something that's still unanswered.
+    var waiting: Bool { asks.contains { $0.isOpen } }
 }
 
 struct AutomationLiveOutput {

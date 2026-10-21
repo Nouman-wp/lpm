@@ -52,6 +52,7 @@ final class LpmClient: NSObject {
     var onJobLiveOutput: ((_ project: String, _ jobId: String, _ live: AutomationLiveOutput?, _ error: String?) -> Void)?
     var onAutomationMutation: ((_ project: String, _ jobId: String, _ error: String?) -> Void)?
     var onAutomationFollowup: ((_ project: String, _ jobId: String, _ error: String?) -> Void)?
+    var onAutomationAnswer: ((_ project: String, _ jobId: String, _ error: String?) -> Void)?
     var onJobConfig: ((_ project: String, _ jobId: String, _ job: [String: Any]?, _ error: String?) -> Void)?
     var onJobSaved: ((_ id: String, _ error: String?) -> Void)?
     var onJobDeleted: ((_ id: String, _ error: String?) -> Void)?
@@ -914,6 +915,12 @@ final class LpmClient: NSObject {
         send(Wire.sendJobFollowup(project: project, jobId: jobId, at: at, message: message,
                                   agent: agent, model: model, effort: effort))
     }
+    func answerJobQuestion(project: String, jobId: String, askId: String, answers: [String: Any]) {
+        send(Wire.answerJobQuestion(project: project, jobId: jobId, askId: askId, answers: answers))
+    }
+    func dismissJobQuestion(project: String, jobId: String, askId: String) {
+        send(Wire.dismissJobQuestion(project: project, jobId: jobId, askId: askId))
+    }
     func runAction(project: String, action: String,
                    inputValues: [String: String] = [:], confirmed: Bool = false) {
         send(Wire.runAction(project: project, action: action, inputValues: inputValues, confirmed: confirmed))
@@ -1386,6 +1393,8 @@ final class LpmClient: NSObject {
                 self.onAutomationMutation?(project, jobId, error)
             case .automationFollowup(let project, let jobId, let error):
                 self.onAutomationFollowup?(project, jobId, error)
+            case .automationAnswer(let project, let jobId, let error):
+                self.onAutomationAnswer?(project, jobId, error)
             case .jobConfig(let project, let jobId, let job, let error):
                 self.onJobConfig?(project, jobId, job, error)
             case .jobSaved(let id, let error): self.onJobSaved?(id, error)

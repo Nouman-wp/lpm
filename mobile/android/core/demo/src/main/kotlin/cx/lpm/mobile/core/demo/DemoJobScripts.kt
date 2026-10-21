@@ -13,8 +13,8 @@ internal class RunScript(
     val costUsd: Double?
 )
 
-internal fun DemoServer.runScript(j: DemoWorld.Job, question: String?): RunScript {
-    if (question != null) return followupScript(j)
+internal fun DemoServer.runScript(j: DemoWorld.Job, question: String?, answers: Dict?): RunScript {
+    if (question != null) return followupScript(j, answers)
     return when (j.id) {
         "nightly-tests" -> nightlyTestsScript()
         "weekly-deps" -> weeklyDepsScript()
@@ -111,13 +111,22 @@ private fun DemoServer.genericCmdScript(j: DemoWorld.Job): RunScript {
     )
 }
 
-private fun followupScript(j: DemoWorld.Job): RunScript {
-    val reply = if (j.id == "weekly-deps") {
-        "I took another look. Nothing risky in those updates — astro 4.9.1 only tightens a " +
-            "few types, and both patches are pure bug fixes. Safe to update whenever you like."
-    } else {
-        "I took another look at the last run and double-checked the details you asked about. " +
-            "Everything holds up — no further changes needed."
+/** [answers] is set when the turn carries on from a question the run asked. */
+private fun followupScript(j: DemoWorld.Job, answers: Dict?): RunScript {
+    val reply = when (j.id) {
+        "release-notes" -> if (answers?.get("q1") == true) {
+            "Published the v2.4 release notes on the blog."
+        } else {
+            "Okay — I'll hold the v2.4 notes until you're ready to publish."
+        }
+
+        "weekly-deps" ->
+            "I took another look. Nothing risky in those updates — astro 4.9.1 only tightens a " +
+                "few types, and both patches are pure bug fixes. Safe to update whenever you like."
+
+        else ->
+            "I took another look at the last run and double-checked the details you asked about. " +
+                "Everything holds up — no further changes needed."
     }
     return RunScript(
         steps = listOf(

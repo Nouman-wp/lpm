@@ -17,6 +17,9 @@ data class AutomationThread(
 
     /** A run stays unread while any message in it is. */
     val unread: Boolean get() = root.unread || replies.any { it.unread }
+
+    /** A question in the run still waits for an answer. */
+    val waiting: Boolean get() = entries.any { it.waiting }
 }
 
 fun automationThreads(entries: List<AutomationHistoryEntry>): List<AutomationThread> {
@@ -54,7 +57,8 @@ fun automationMatching(jobs: List<AutomationJob>, project: String, jobId: String
  * is a feed of what the automations did, not a directory of what exists.
  */
 fun automationsSortedForList(jobs: List<AutomationJob>): List<AutomationJob> = jobs.sortedWith(
-    compareByDescending<AutomationJob> { it.unread > 0 }
+    compareByDescending<AutomationJob> { it.ask != null }
+        .thenByDescending { it.unread > 0 }
         .thenByDescending { it.running }
         .thenByDescending { it.lastRunAt ?: 0L }
         .thenBy(String.CASE_INSENSITIVE_ORDER) { it.displayName }

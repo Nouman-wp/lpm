@@ -27,7 +27,9 @@ import cx.lpm.mobile.core.designsystem.component.ListSection
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.feature.automations.R as AutomationsR
+import cx.lpm.mobile.feature.automations.ui.AutomationAskCard
 import cx.lpm.mobile.feature.automations.ui.HeaderlessTopPadding
+import kotlinx.serialization.json.JsonObject
 
 /** What the automation page's controls do. */
 @Immutable
@@ -39,7 +41,9 @@ class AutomationDetailActions(
     val toggleSetup: () -> Unit = {},
     val markRead: () -> Unit = {},
     val openRun: (Long) -> Unit = {},
-    val runBar: () -> Unit = {}
+    val runBar: () -> Unit = {},
+    val answer: (askId: String, answers: JsonObject) -> Unit = { _, _ -> },
+    val dismissQuestion: (askId: String) -> Unit = {}
 )
 
 /**
@@ -96,6 +100,21 @@ fun AutomationDetailScreen(
             ) {
                 if (job != null) {
                     DetailHeader(state)
+                    // The question the automation is waiting on, wherever it waits.
+                    job.ask?.let { ask ->
+                        ListSection {
+                            AutomationAskCard(
+                                ask = ask,
+                                whenText = state.askWhen,
+                                busy = state.answering,
+                                error = state.askError,
+                                onAnswer = { actions.answer(ask.id, it) },
+                                onDismiss = { actions.dismissQuestion(ask.id) },
+                                framed = false,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
                     ListSection {
                         ScheduleGroup(state, actions)
                         SetupGroup(state, actions)

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { BrowserOpenURL } from "../../bridge/runtime";
-import { computeProjectStatus } from "../agentStatus";
+import { AGENT_STATE_LABEL, AGENT_STATE_TONE, computeProjectStatus } from "../agentStatus";
 import { useAgentOverviewShortcut } from "../hooks/useAgentOverviewShortcut";
 import { useJobsAmbient } from "../hooks/useJobsAmbient";
 import { projectAgentRows, sidebarProjectAlert } from "../sidebarAgents";
@@ -87,7 +87,7 @@ export function SidebarFooterNav({
 }: SidebarFooterNavProps) {
   const inSidebar = useSettingsStore((s) => s.sidebarNavInSidebar ?? DEFAULT_SIDEBAR_NAV);
   const update = useSettingsStore((s) => s.update);
-  const { running, unread } = useJobsAmbient();
+  const { running, unread, waiting } = useJobsAmbient();
   const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
   // Bound here rather than on the Activity row so the shortcut keeps working
   // wherever that row currently lives, menu closed or open.
@@ -122,7 +122,11 @@ export function SidebarFooterNav({
   const reset = () => void update({ sidebarNavInSidebar: undefined });
 
   const automationsTrailing =
-    running > 0 ? (
+    waiting > 0 ? (
+      <span className={`text-[10px] font-medium ${AGENT_STATE_TONE["needs-you"]}`}>
+        {AGENT_STATE_LABEL["needs-you"]}
+      </span>
+    ) : running > 0 ? (
       <span className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--accent-cyan)]">
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
         Running
@@ -235,6 +239,9 @@ export function SidebarFooterNav({
       ? `${needsYou} agent${needsYou === 1 ? "" : "s"} waiting on you`
       : "",
     inMenu("activity") && hasError ? "an agent hit an error" : "",
+    inMenu("automations") && waiting > 0
+      ? `${waiting} automation${waiting === 1 ? "" : "s"} waiting for your answer`
+      : "",
     inMenu("automations") && running > 0 ? "a scheduled job is running" : "",
     inMenu("automations") && unread > 0
       ? `${unread} automation${unread === 1 ? "" : "s"} with new messages`
@@ -261,7 +268,9 @@ export function SidebarFooterNav({
           }
           badge={
             inMenu("automations") ? (
-              running > 0 ? (
+              waiting > 0 ? (
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-amber)]" />
+              ) : running > 0 ? (
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
               ) : (
                 <CountBadge count={unread} label="unread automations" />

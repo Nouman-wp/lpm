@@ -43,6 +43,8 @@ internal fun DemoWorld.seedJobs(nowS: Long) {
     ).joinToString("\n")
     val weeklyPrompt = "Check the project's dependencies for outdated packages and " +
         "summarize which updates are safe to apply."
+    val releasePrompt = "Draft release notes from this week's merged pull requests, then ask " +
+        "before publishing them."
 
     jobs = mutableListOf(
         Job(
@@ -88,6 +90,55 @@ internal fun DemoWorld.seedJobs(nowS: Long) {
             // Read up to the night before, so the demo opens with last night's run
             // still waiting to be looked at.
             seenAt = t0 - 1
+        ),
+        Job(
+            id = "release-notes",
+            project = "blog",
+            label = "Release notes",
+            emoji = "📝",
+            enabled = true,
+            runKind = "prompt",
+            summary = releasePrompt,
+            scheduleMode = "calendar",
+            atMinutes = 1020,
+            days = listOf("fri"),
+            lastRunAt = t0 - 3600,
+            lastResult = "completed",
+            nextFireAt = t0 + 6 * 86400,
+            agent = "claude",
+            history = listOf(
+                JobRun(
+                    at = t0 - 3600,
+                    result = "completed",
+                    output = "Drafted the notes for v2.4: 9 merged pull requests, grouped into " +
+                        "Features and Fixes. They're ready to go out once you say so.",
+                    durationSecs = 94,
+                    costUsd = 0.21,
+                    session = "demo-release-notes",
+                    asks = listOf(
+                        mapOf(
+                            "id" to "release-notes-v24",
+                            "askedAt" to t0 - 3600,
+                            "status" to "open",
+                            "questions" to listOf(
+                                mapOf(
+                                    "id" to "q1",
+                                    "type" to "confirm",
+                                    "text" to "Publish the v2.4 release notes to the blog?",
+                                    "yes" to "Publish",
+                                    "no" to "Not yet"
+                                )
+                            )
+                        )
+                    )
+                )
+            ),
+            body = mapOf(
+                "label" to "Release notes",
+                "emoji" to "📝",
+                "schedule" to mapOf("at" to "17:00", "days" to listOf("fri")),
+                "run" to mapOf("prompt" to releasePrompt, "agent" to "claude")
+            )
         ),
         Job(
             id = "weekly-deps",

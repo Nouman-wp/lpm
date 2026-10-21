@@ -183,10 +183,13 @@ function translateProject(slug: string, p: ProjectInfo): ProjectInfo {
 // A standalone row keeps its empty targets; `host` is what routes it.
 function translateJob(slug: string, row: unknown): unknown {
   if (!row || typeof row !== "object") return row;
-  const job = row as { project?: unknown; targets?: unknown };
+  const job = row as { project?: unknown; targets?: unknown; ask?: { project?: unknown } };
   return {
     ...job,
     host: slug,
+    ...(job.ask && typeof job.ask.project === "string"
+      ? { ask: { ...job.ask, project: prefixName(slug, job.ask.project) } }
+      : {}),
     ...(typeof job.project === "string" ? { project: prefixName(slug, job.project) } : {}),
     ...(Array.isArray(job.targets)
       ? { targets: job.targets.map((t) => (typeof t === "string" ? prefixName(slug, t) : t)) }

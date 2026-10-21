@@ -4,6 +4,7 @@
 
 import { composerValueToText, EMPTY_COMPOSER, textToPrompt } from "./composerValue";
 import type { ComposerValue } from "./composerValue";
+import { isOpenAsk, WAITING_LABEL, type JobAsk } from "./jobAsk";
 import { describeCronText } from "./cronDescribe";
 import { DEFAULT_SEND_TO, readSendTo, writeSendTo } from "./sendTo";
 import {
@@ -114,6 +115,8 @@ export interface JobInfo {
   unread?: number;
   // The head of the newest run answer or reply, for the list's preview line.
   lastMessage?: string;
+  // The question the job is waiting on the user to answer.
+  ask?: JobAsk;
 }
 
 export const STANDALONE_PROJECT_LABEL = "No project";
@@ -163,6 +166,11 @@ export interface JobHistoryEntry {
   // not the same as failed.
   verified?: boolean;
   verifyOutput?: string;
+  // What the run asked the user, with the answers once given.
+  asks?: JobAsk[];
+  // The question this entry's message answered — the entry that asked shows
+  // the answer, so it isn't repeated as a message.
+  answerTo?: string;
 }
 
 // One run and the conversation that grew out of it: the scheduled (or manual)
@@ -198,6 +206,11 @@ export function jobThreadTail(thread: JobThread): JobHistoryEntry {
 // the whole run unread — the conversation is what the user came to read.
 export function isThreadUnread(thread: JobThread): boolean {
   return thread.root.unread === true || thread.replies.some((r) => r.unread);
+}
+
+// A question somewhere in the conversation still waits for an answer.
+export function isThreadWaiting(thread: JobThread): boolean {
+  return isEntryWaiting(thread.root) || thread.replies.some(isEntryWaiting);
 }
 
 // Result strings emitted by the backend pipeline (jobs.rs).
@@ -253,9 +266,21 @@ export function jobResultLabel(result: string | undefined, copy?: string): strin
 // What a finished run is called once its own check has had a say. "Done" on its
 // own says the agent exited, not that it did what it was asked.
 export function jobEntryLabel(entry: JobHistoryEntry): string {
+  if (isEntryWaiting(entry)) return WAITING_LABEL;
   const base = jobResultLabel(entry.result, entry.copy);
   if (entry.result !== "completed" || entry.verified === undefined) return base;
   return entry.verified ? `${base} — checks passed` : `${base} — checks failed`;
+}
+
+// The entry asked the user something that's still unanswered.
+export function isEntryWaiting(entry: JobHistoryEntry): boolean {
+  return entry.asks?.some(isOpenAsk) === true;
+}
+
+// How an entry reads at a glance: a question still open outranks how the run
+// itself ended.
+export function jobEntryTone(entry: JobHistoryEntry): JobResultTone {
+  return isEntryWaiting(entry) ? "warning" : jobResultTone(entry.result);
 }
 
 export function jobResultTone(result: string | undefined): JobResultTone {

@@ -45,6 +45,15 @@ internal val automationParsers = parsers {
             error = o.failure("Couldn't send the message.")
         )
     }
+    for (t in listOf("answerJobQuestion", "dismissJobQuestion")) {
+        put(t) { o ->
+            Inbound.AutomationAnswer(
+                project = o.str("project"),
+                jobId = o.str("jobId"),
+                error = o.failure("Couldn't send the answer.")
+            )
+        }
+    }
     put("jobConfig") { o ->
         Inbound.JobConfig(
             project = o.str("project"),

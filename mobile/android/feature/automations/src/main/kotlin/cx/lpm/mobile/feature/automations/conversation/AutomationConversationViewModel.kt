@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.serialization.json.JsonObject
 
 /**
  * One run of an automation as a conversation (iOS `AutomationConversationView`): what
@@ -111,6 +112,15 @@ class AutomationConversationViewModel @AssistedInject constructor(
             job.model,
             job.effort
         )
+    }
+
+    /** Answer the run's question; the first answer from any device wins. */
+    fun answer(askId: String, answers: JsonObject) {
+        store?.answerQuestion(key.project, key.jobId, askId, answers)
+    }
+
+    fun dismiss(askId: String) {
+        store?.dismissQuestion(key.project, key.jobId, askId)
     }
 
     fun dismissFollowupError() {

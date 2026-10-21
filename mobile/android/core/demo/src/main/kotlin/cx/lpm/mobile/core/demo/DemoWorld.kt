@@ -188,7 +188,10 @@ internal class DemoWorld(val clock: Clock) {
         val question: String = "",
         val session: String = "",
         val resumed: String = "",
-        val follows: Long? = null
+        val follows: Long? = null,
+        // Questions the run put to the user, in the Mac's JobAsk shape.
+        val asks: List<Dict> = emptyList(),
+        val answerTo: String = ""
     )
 
     data class Job(

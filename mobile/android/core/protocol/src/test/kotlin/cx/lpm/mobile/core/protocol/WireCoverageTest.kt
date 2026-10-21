@@ -10,7 +10,8 @@ class WireCoverageTest {
         "limits", "ttsSpeak", "terminals", "slash", "upload", "uploadBegin", "uploadChunk",
         "uploadDone", "uploadAbort", "mentions", "history", "historyAdd", "status", "clearStatus",
         "jobs", "jobHistory", "jobLiveOutput", "runJob", "stopJob", "setJobEnabled", "markJobSeen",
-        "markAllJobsSeen", "sendJobFollowup", "jobConfig", "saveJob", "deleteJob", "sub", "unsub",
+        "markAllJobsSeen", "sendJobFollowup", "answerJobQuestion", "dismissJobQuestion",
+        "jobConfig", "saveJob", "deleteJob", "sub", "unsub",
         "claim", "presence", "input", "resize", "runAction", "runActionBackground",
         "actionBgOutput", "cancelActionBackground", "backgroundRuns", "newTerminal",
         "closeTerminal", "renameTerminal", "pinTerminal", "reorderTerminals", "duplicate",
@@ -37,7 +38,7 @@ class WireCoverageTest {
 
     @Test
     fun everyIosBuilderHasAKotlinCounterpart() {
-        assertEquals(149, iosBuilders.toSet().size)
+        assertEquals(151, iosBuilders.toSet().size)
         val kotlin = Wire::class.java.methods.map { it.name }.toSet()
         assertEquals(emptyList<String>(), iosBuilders.filterNot { it in kotlin })
     }

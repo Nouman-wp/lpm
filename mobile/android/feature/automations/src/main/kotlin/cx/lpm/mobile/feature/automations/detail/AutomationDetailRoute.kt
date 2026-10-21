@@ -66,7 +66,9 @@ fun AutomationDetailRoute(
             runBar = {
                 haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
                 viewModel.runBarTapped()
-            }
+            },
+            answer = viewModel::answer,
+            dismissQuestion = viewModel::dismissQuestion
         )
     )
 

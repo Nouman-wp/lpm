@@ -1,6 +1,6 @@
 ---
 name: lpm-cli
-version: 1.6.1
+version: 1.7.0
 description: "Operate lpm-managed projects through the `lpm` CLI: start or stop projects and services, inspect logs and agent status, wait for readiness, run actions, create, edit, run, pause, and read scheduled automations, and duplicate projects into standalone copies or create linked Git worktrees. Use when the user asks to operate or inspect lpm runtime state or manage lpm automations. `LPM_PROJECT_NAME` selects the default project after the skill triggers; it is not a trigger by itself. For editing YAML configuration, use `lpm-config`."
 ---
 
@@ -39,7 +39,7 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 
 Automations are tasks the app runs on a schedule: a shell command, a project action, or a headless AI prompt, optionally after a cheap check and in a fresh copy. These commands need the app running. Read [references/automations.md](references/automations.md) before `add` or `edit`.
 
-- `lpm automations list [-p proj | --all] [--json]` — id, name, state (`running`, `enabled`, `paused`, `invalid`), schedule, last result, next run. With `--json`, `valid: false` rows carry an `error`.
+- `lpm automations list [-p proj | --all] [--json]` — id, name, state (`waiting`, `running`, `enabled`, `paused`, `invalid`), schedule, last result, next run. `waiting` means a run asked the user something; with `--json` the row's `ask` holds the question. `valid: false` rows carry an `error`.
 - `lpm automations show <id> [-p proj | --global] [--json]` — the current definition.
 - `lpm automations open <id> [-p proj | --global]` — bring the app forward on that automation's page in the project's Automations tab, showing its runs there; with `--global`, on the app-wide Automations page. Use it when the user asks to see or open an automation in the app.
 - `lpm automations add <id> [-p proj | --projects a,b | --every-project | --no-project] <schedule> <run> [options]` — create one. Flags cover every field; see the reference.
@@ -51,6 +51,18 @@ Automations are tasks the app runs on a schedule: a shell command, a project act
 - `lpm automations history <id> [-p proj | --global] [-n N] [--json]` — past runs with their outputs, newest first; each run's `at` timestamp identifies it.
 - `lpm automations output <id> [-p proj | --global]` — live output of the run in progress.
 - `lpm automations reply <id> "message" [-p proj | --global] [--at TIMESTAMP] [--agent X] [--model X] [--effort X]` — continue an AI automation's conversation (the newest by default), fire-and-forget; then read `output` or `history`.
+- `lpm automations answer <id> [-p proj | --global] [--yes | --no | --pick LABEL… | --text "…" | --answers JSON | --dismiss]` — answer the question an automation is waiting on, which resumes its run; with no answer it prints the question and its choices. Answer only with what the user said.
+
+### Asking the user from inside an automation run
+
+`lpm ask` puts a question to the user from within a run (it fails outside one). Ask only when you can't go on without a decision or information only the user has.
+
+- `lpm ask "Deploy to staging?" --confirm [--yes-label Deploy --no-label "Not now"]` — yes/no.
+- `lpm ask "Which region?" --choice us-east --choice eu-west [--multiple] [--other]` — a pick from a list; `--other` also takes their own words.
+- `lpm ask "What should the release be called?" --text [--multiline] [--placeholder …]` — free text.
+- `--default ANSWER --timeout 4h` uses the default if nobody answers in time; `--form '{"questions":[…]}'` asks several at once.
+
+In an AI agent's run, `lpm ask` returns at once: end your turn right away, without guessing the answer — it comes back as your next message. In a command run it waits and prints the answer (`yes`/`no` for `--confirm`, exit status 1 for no; picked labels one per line; the text), exiting 3 when the question is dismissed or expires.
 
 An automation in `global.yml` that runs in several projects runs once per project, with its own runs, history, and paused state in each. `-p <project>` acts in one of them; `--global` acts in all of them, like the app's Automations page, so `run --global` starts a run in each. One with no project needs `--global` for every command. With `--global`, `--json` replies carry `global: true` and `projects` instead of `project`, each history entry and live output names its `project`, and `reply` continues the newest conversation across them (or the one holding `--at`).
 

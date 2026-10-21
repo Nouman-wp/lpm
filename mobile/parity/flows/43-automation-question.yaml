@@ -1,0 +1,42 @@
+appId: cx.lpm.mobile
+name: 43-automation-question
+tags: [demo, automations]
+---
+- runFlow: subflows/enter-demo.yaml
+- runFlow: subflows/open-more-menu.yaml
+# The automation waiting on an answer leads the list.
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn: "Automations.*"
+      - extendedWaitUntil:
+          visible: "Release notes"
+          timeout: 5000
+- assertVisible: ".*Waiting for your answer.*"
+- takeScreenshot: 1-automation-waiting
+# Its page asks the question with the job's own buttons, and holds the next run.
+- tapOn: "Release notes"
+- extendedWaitUntil:
+    visible: "Publish the v2.4 release notes to the blog?"
+    timeout: 5000
+- assertVisible: "Publish"
+- assertVisible: "Not yet"
+- assertVisible: "Dismiss"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-automation-question
+# Answering resumes the run, which says what it did with the answer.
+- tapOn: "Publish"
+- extendedWaitUntil:
+    notVisible: "Dismiss"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Published the v2.4 release notes on the blog."
+    timeout: 15000
+- tapOn: "Published the v2.4 release notes on the blog."
+- extendedWaitUntil:
+    visible: "Answered"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 3-automation-answered

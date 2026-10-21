@@ -148,6 +148,63 @@ extension DemoServer {
                           follows: parent?.at ?? at, resumed: parent?.session ?? "")
             self.push(["t": "jobs-changed"])
         }
+        register("answerJobQuestion") { [weak self] o in
+            self?.settleAsk(o, answers: o["answers"] as? [String: Any] ?? [:])
+        }
+        register("dismissJobQuestion") { [weak self] o in
+            self?.settleAsk(o, answers: nil)
+        }
+    }
+
+    /// The message the Mac resumes an agent with: each question and its answer, by label.
+    private func demoAnswerText(_ ask: [String: Any], _ answers: [String: Any]) -> String {
+        let questions = ask["questions"] as? [[String: Any]] ?? []
+        let lines = questions.map { q -> String in
+            let id = q["id"] as? String ?? ""
+            let text = q["text"] as? String ?? ""
+            let answer: String
+            switch answers[id] {
+            case let yes as Bool:
+                answer = yes ? (q["yes"] as? String ?? "Yes") : (q["no"] as? String ?? "No")
+            case let picks as [String]: answer = picks.joined(separator: ", ")
+            case let words as String: answer = words
+            default: answer = "(no answer)"
+            }
+            return "- \(text) → \(answer)"
+        }
+        return "The user answered your question:\n" + lines.joined(separator: "\n")
+    }
+
+    /// Answer (or, without answers, dismiss) the job's open question; an answer
+    /// resumes the run that asked, as the Mac does.
+    private func settleAsk(_ o: [String: Any], answers: [String: Any]?) {
+        let t = answers == nil ? "dismissJobQuestion" : "answerJobQuestion"
+        let project = o["project"] as? String ?? ""
+        let jobId = o["jobId"] as? String ?? ""
+        let askId = o["askId"] as? String ?? ""
+        guard let i = jobIndex(project, jobId),
+              let r = world.jobs[i].history.firstIndex(where: { run in
+                  run.asks.contains { $0["id"] as? String == askId }
+              }),
+              let a = world.jobs[i].history[r].asks.firstIndex(where: { $0["id"] as? String == askId }),
+              world.jobs[i].history[r].asks[a]["status"] as? String == "open" else {
+            push(["t": t, "project": project, "jobId": jobId, "ok": false,
+                  "error": "That question isn't waiting for an answer anymore."])
+            return
+        }
+        let now = Int(Date().timeIntervalSince1970)
+        var ask = world.jobs[i].history[r].asks[a]
+        ask["status"] = answers == nil ? "dismissed" : "answered"
+        ask["answeredAt"] = now
+        if let answers { ask["answers"] = answers }
+        world.jobs[i].history[r].asks[a] = ask
+        let asking = world.jobs[i].history[r]
+        push(["t": t, "project": project, "jobId": jobId, "ok": true])
+        if let answers {
+            startRun(project, jobId, question: demoAnswerText(ask, answers),
+                     follows: asking.at, resumed: asking.session, answerTo: askId, answers: answers)
+        }
+        push(["t": "jobs-changed"])
     }
 
     // MARK: run simulation
@@ -162,7 +219,8 @@ extension DemoServer {
     }
 
     private func startRun(_ project: String, _ jobId: String, question: String? = nil,
-                          follows: Int? = nil, resumed: String = "") {
+                          follows: Int? = nil, resumed: String = "", answerTo: String = "",
+                          answers: [String: Any]? = nil) {
         guard let i = jobIndex(project, jobId) else { return }
         let startedAt = Int(Date().timeIntervalSince1970)
         world.jobs[i].running = true
@@ -171,7 +229,7 @@ extension DemoServer {
         world.jobs[i].liveText = ""
         world.jobs[i].runSeq += 1
         let seq = world.jobs[i].runSeq
-        let script = runScript(for: world.jobs[i], question: question)
+        let script = runScript(for: world.jobs[i], question: question, answers: answers)
 
         for (delay, chunk) in script.steps {
             pushAfter(delay) { [weak self] in
@@ -200,14 +258,16 @@ extension DemoServer {
             run.question = question ?? ""
             run.resumed = resumed
             run.follows = question == nil ? nil : follows
+            run.answerTo = answerTo
             j.history.append(run)
             self.world.jobs[i] = j
             return ["t": "jobs-changed"]
         }
     }
 
-    private func runScript(for j: DemoWorld.Job, question: String?) -> RunScript {
-        if question != nil { return followupScript(for: j) }
+    private func runScript(for j: DemoWorld.Job, question: String?,
+                           answers: [String: Any]?) -> RunScript {
+        if question != nil { return followupScript(for: j, answers: answers) }
         switch j.id {
         case "nightly-tests": return nightlyTestsScript()
         case "weekly-deps": return weeklyDepsScript()
@@ -300,10 +360,18 @@ extension DemoServer {
             costUsd: nil)
     }
 
-    private func followupScript(for j: DemoWorld.Job) -> RunScript {
-        let reply = j.id == "weekly-deps"
-            ? "I took another look. Nothing risky in those updates — astro 4.9.1 only tightens a few types, and both patches are pure bug fixes. Safe to update whenever you like."
-            : "I took another look at the last run and double-checked the details you asked about. Everything holds up — no further changes needed."
+    /// `answers` is set when the turn carries on from a question the run asked.
+    private func followupScript(for j: DemoWorld.Job, answers: [String: Any]?) -> RunScript {
+        let reply: String
+        if j.id == "release-notes" {
+            reply = answers?["q1"] as? Bool == true
+                ? "Published the v2.4 release notes on the blog."
+                : "Okay — I'll hold the v2.4 notes until you're ready to publish."
+        } else if j.id == "weekly-deps" {
+            reply = "I took another look. Nothing risky in those updates — astro 4.9.1 only tightens a few types, and both patches are pure bug fixes. Safe to update whenever you like."
+        } else {
+            reply = "I took another look at the last run and double-checked the details you asked about. Everything holds up — no further changes needed."
+        }
         return RunScript(
             steps: [
                 (0.5, "Resuming session…\n"),

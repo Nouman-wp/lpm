@@ -1,13 +1,15 @@
 import type { ReactNode } from "react";
-import { Check, Clock, ExternalLink, Minus, X } from "lucide-react";
+import { Check, CircleHelp, Clock, ExternalLink, Minus, X } from "lucide-react";
 import { ChevronRightIcon, TrashIcon } from "../../icons";
 import { HoverActionButton } from "./HoverActionButton";
 import { relativeTime } from "../../../relativeTime";
+import { WAITING_LABEL } from "../../../jobAsk";
 import {
   formatCost,
   formatDuration,
   jobOutputSnippet,
   jobEntryLabel,
+  isThreadWaiting,
   jobResultTone,
   isThreadUnread,
   jobThreadTail,
@@ -21,6 +23,11 @@ const TONE_BADGE: Record<JobResultTone, { icon: ReactNode; className: string }> 
   error: { icon: <X size={18} strokeWidth={2.2} />, className: "text-[var(--accent-red-text)]" },
   warning: { icon: <Clock size={17} />, className: "text-[var(--accent-amber-text)]" },
   neutral: { icon: <Minus size={18} />, className: "text-[var(--text-muted)]" },
+};
+
+const WAITING_BADGE = {
+  icon: <CircleHelp size={18} />,
+  className: "text-[var(--accent-amber-text)]",
 };
 
 // One run of a job as a messenger-style row: outcome and vitals on the first
@@ -51,11 +58,13 @@ export function JobRunRow({
   ]
     .filter(Boolean)
     .join(" · ");
-  const label = `${jobEntryLabel(root)}${
-    (root.count ?? 1) > 1 ? ` × ${root.count}` : ""
-  }`;
+  // A question the conversation is waiting on outranks how its run ended.
+  const waiting = isThreadWaiting(thread);
+  const label = waiting
+    ? WAITING_LABEL
+    : `${jobEntryLabel(root)}${(root.count ?? 1) > 1 ? ` × ${root.count}` : ""}`;
   const unread = isThreadUnread(thread);
-  const badge = TONE_BADGE[jobResultTone(root.result)];
+  const badge = waiting ? WAITING_BADGE : TONE_BADGE[jobResultTone(root.result)];
   const hasActions = Boolean(root.copy) || Boolean(onRemove);
 
   const content = (

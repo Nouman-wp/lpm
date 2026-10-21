@@ -1,7 +1,9 @@
 package cx.lpm.mobile.core.data.automations
 
 import cx.lpm.mobile.core.data.client.LpmClient
+import cx.lpm.mobile.core.data.client.answerJobQuestion
 import cx.lpm.mobile.core.data.client.deleteJob
+import cx.lpm.mobile.core.data.client.dismissJobQuestion
 import cx.lpm.mobile.core.data.client.markAllJobsSeen
 import cx.lpm.mobile.core.data.client.markJobSeen
 import cx.lpm.mobile.core.data.client.requestJobConfig
@@ -81,6 +83,14 @@ class AutomationsStore(private val session: MacSession) : SessionStore {
             c.requestJobs()
             c.requestJobHistory(project, jobId)
             c.requestJobLiveOutput(project, jobId)
+        }
+        // The Mac's jobs-changed that follows refreshes the list and histories.
+        c.onAutomationAnswer = { project, jobId, error ->
+            val key = automationKey(project, jobId)
+            mutable.update {
+                val errors = error?.let { e -> it.askError + (key to e) } ?: (it.askError - key)
+                it.copy(pending = it.pending - key, askError = errors)
+            }
         }
         c.onJobConfig = { _, _, job, error ->
             mutable.update {
@@ -179,6 +189,22 @@ class AutomationsStore(private val session: MacSession) : SessionStore {
             it.copy(pending = it.pending + key, followupError = it.followupError - key)
         }
         client?.sendJobFollowup(project, jobId, at, message, agent, model, effort)
+    }
+
+    /** Answer the question a job is waiting on; the first answer from any device wins. */
+    fun answerQuestion(project: String, jobId: String, askId: String, answers: JsonObject) {
+        beginAnswer(project, jobId)
+        client?.answerJobQuestion(project, jobId, askId, answers)
+    }
+
+    fun dismissQuestion(project: String, jobId: String, askId: String) {
+        beginAnswer(project, jobId)
+        client?.dismissJobQuestion(project, jobId, askId)
+    }
+
+    private fun beginAnswer(project: String, jobId: String) {
+        val key = automationKey(project, jobId)
+        mutable.update { it.copy(pending = it.pending + key, askError = it.askError - key) }
     }
 
     /** Fetch a job's raw config body to seed the editor; a leftover body is dropped first. */

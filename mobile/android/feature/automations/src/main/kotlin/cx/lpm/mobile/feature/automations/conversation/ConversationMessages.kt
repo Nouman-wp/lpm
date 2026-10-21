@@ -40,6 +40,7 @@ import cx.lpm.mobile.core.designsystem.component.MarkdownText
 import cx.lpm.mobile.core.designsystem.component.StatusDot
 import cx.lpm.mobile.core.designsystem.component.clickableNoIndication
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.AutomationAsk
 import cx.lpm.mobile.feature.automations.R
 import cx.lpm.mobile.feature.automations.ui.color
 import kotlinx.coroutines.delay
@@ -55,7 +56,8 @@ fun AutomationMessage(
     message: MessageUi,
     modifier: Modifier = Modifier,
     speakingBlock: Int? = null,
-    readAloud: @Composable () -> Unit = {}
+    readAloud: @Composable () -> Unit = {},
+    askCard: @Composable (AutomationAsk) -> Unit = {}
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (message.question.isNotEmpty()) QuestionBubble(message.question)
@@ -67,6 +69,7 @@ fun AutomationMessage(
                 readAloud()
             }
         }
+        message.asks.forEach { askCard(it) }
         if (message.quiet) MessageMeta(message)
     }
 }

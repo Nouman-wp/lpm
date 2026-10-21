@@ -67,7 +67,7 @@ pub(crate) fn job_ref<'a>(
     }
 }
 
-fn failure(error: impl Into<String>) -> String {
+pub(crate) fn failure(error: impl Into<String>) -> String {
     json!({ "ok": false, "error": error.into() }).to_string()
 }
 

@@ -162,7 +162,17 @@ internal fun jobDict(j: DemoWorld.Job): Dict {
     j.nextFireAt?.let { o["nextFireAt"] = it }
     j.runningSince?.let { o["runningSince"] = it }
     o["unread"] = jobUnreadCount(j)
+    openAsk(j)?.let { o["ask"] = it }
     return o
+}
+
+/** The question the job is waiting on, as its row carries it: with the project it waits in and the run that asked. */
+internal fun openAsk(j: DemoWorld.Job): Dict? {
+    for (run in j.history.asReversed()) {
+        val ask = run.asks.firstOrNull { it.string("status") == "open" } ?: continue
+        return ask + mapOf("project" to j.project, "at" to run.at)
+    }
+    return null
 }
 
 /**
@@ -190,5 +200,7 @@ internal fun jobRunDict(r: DemoWorld.JobRun, seenAt: Long = 0): Dict {
     if (r.resumed.isNotEmpty()) o["resumed"] = r.resumed
     r.follows?.let { o["follows"] = it }
     if (r.question.isNotEmpty()) o["question"] = r.question
+    if (r.asks.isNotEmpty()) o["asks"] = r.asks
+    if (r.answerTo.isNotEmpty()) o["answerTo"] = r.answerTo
     return o
 }

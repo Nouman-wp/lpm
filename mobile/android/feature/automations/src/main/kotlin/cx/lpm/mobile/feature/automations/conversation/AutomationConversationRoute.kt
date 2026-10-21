@@ -15,6 +15,7 @@ import cx.lpm.mobile.feature.automations.AutomationsSlots
 import cx.lpm.mobile.feature.automations.FollowupComposer
 import cx.lpm.mobile.feature.automations.R
 import cx.lpm.mobile.feature.automations.ReadAloudRequest
+import cx.lpm.mobile.feature.automations.ui.AutomationAskCard
 import cx.lpm.mobile.feature.automations.ui.LiveOutputPolling
 
 /** A run's conversation wired to its ViewModel, the composer and the reader. */
@@ -34,7 +35,11 @@ fun AutomationConversationRoute(
     LiveOutputPolling(running = state.running, poll = viewModel::loadLiveOutput)
     val title = state.job?.displayName ?: stringResource(R.string.detail_title)
     val placeholder = stringResource(
-        if (state.sending) R.string.chat_running_placeholder else R.string.chat_reply_placeholder
+        when {
+            state.sending -> R.string.chat_running_placeholder
+            state.waiting -> R.string.chat_answer_placeholder
+            else -> R.string.chat_reply_placeholder
+        }
     )
 
     val sourceId = { message: MessageUi -> "${key.project}\n${key.jobId}:${message.at}" }
@@ -44,6 +49,16 @@ fun AutomationConversationRoute(
         onBack = onBack,
         modifier = modifier,
         speechBar = slots.speechBar,
+        askCard = { ask ->
+            AutomationAskCard(
+                ask = ask,
+                whenText = state.askWhen[ask.id].orEmpty(),
+                busy = state.answering,
+                error = state.askError,
+                onAnswer = { viewModel.answer(ask.id, it) },
+                onDismiss = { viewModel.dismiss(ask.id) }
+            )
+        },
         speakingBlock = { message -> slots.speakingBlock(sourceId(message)) },
         readAloud = { message ->
             slots.readAloudButton(

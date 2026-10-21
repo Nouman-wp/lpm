@@ -17,6 +17,7 @@ import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.GlassIconButton
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.AutomationAsk
 import cx.lpm.mobile.feature.automations.R
 
 /**
@@ -32,6 +33,7 @@ fun AutomationConversationScreen(
     modifier: Modifier = Modifier,
     speechBar: @Composable () -> Unit = {},
     speakingBlock: @Composable (MessageUi) -> Int? = { null },
+    askCard: @Composable (AutomationAsk) -> Unit = {},
     readAloud: @Composable (MessageUi) -> Unit = {},
     composer: @Composable () -> Unit = {}
 ) {
@@ -67,7 +69,8 @@ fun AutomationConversationScreen(
                         AutomationMessage(
                             message = message,
                             speakingBlock = speakingBlock(message),
-                            readAloud = { readAloud(message) }
+                            readAloud = { readAloud(message) },
+                            askCard = askCard
                         )
                     }
                 }

@@ -16,6 +16,23 @@ describe("jobRowPreview", () => {
     ).toEqual({ prefix: "", text: "Done Prices rose", tone: "muted" });
   });
 
+  it("puts a question waiting on the user ahead of everything but a broken job", () => {
+    const ask = {
+      id: "a",
+      askedAt: 1,
+      status: "open",
+      questions: [{ id: "q1", type: "confirm", text: "Deploy to staging?" }],
+    };
+    expect(jobRowPreview(job({ ask, running: true, unread: 3 }), "Running")).toEqual({
+      prefix: "Waiting for your answer · ",
+      text: "Deploy to staging?",
+      tone: "warning",
+    });
+    expect(jobRowPreview(job({ ask: { ...ask, status: "answered" }, running: true }), "Running").tone).toBe(
+      "running",
+    );
+  });
+
   it("counts several unread messages in front of the preview", () => {
     expect(jobRowPreview(job({ unread: 12, lastMessage: "Hello" }), "")).toEqual({
       prefix: "9+ new · ",

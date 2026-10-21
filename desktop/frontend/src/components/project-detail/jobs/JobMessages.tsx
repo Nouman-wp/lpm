@@ -21,6 +21,8 @@ import { JobRunRow } from "./JobRunRow";
 import { JobLiveOutput } from "./JobLiveOutput";
 import { JobOffBanner } from "./JobOffBanner";
 import { JobOnOffToggle } from "./JobOnOffToggle";
+import { JobAskCard } from "./JobAskCard";
+import { askWaitingIn } from "../../../jobAsk";
 import {
   formatNextRun,
   formatRunningFor,
@@ -132,6 +134,7 @@ export function JobMessages({
   const projectLabel = stripMarker(project) ? displayNameForProjectName(project, storeProjects) : "";
   const machineLabel = job.host ? peerAlias(peerState.peers, job.host) : "";
   const meta = [projectLabel, machineLabel, scheduleText, nextRunText].filter(Boolean).join(" · ");
+  const waitingAsk = askWaitingIn(job.ask, project);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -177,8 +180,14 @@ export function JobMessages({
             <button
               type="button"
               onClick={onRunNow}
-              disabled={!job.enabled}
-              title={job.enabled ? undefined : "Turn it on to run it"}
+              disabled={!job.enabled || waitingAsk !== undefined}
+              title={
+                waitingAsk
+                  ? "Answer or dismiss its question first"
+                  : job.enabled
+                    ? undefined
+                    : "Turn it on to run it"
+              }
               className="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors enabled:hover:bg-[var(--bg-hover)] enabled:hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <PlayIcon />
@@ -217,6 +226,11 @@ export function JobMessages({
         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6 pt-4"
       >
         {job.valid && !job.enabled && <JobOffBanner onTurnOn={() => onToggleEnabled(true)} />}
+        {waitingAsk && (
+          <div className="mb-4" style={{ zoom: zoom.zoom }}>
+            <JobAskCard ask={waitingAsk} project={project} jobId={job.id} />
+          </div>
+        )}
         {!job.valid ? (
           <p className="py-10 text-center text-[12px] text-[var(--accent-red)]">
             {job.error || "This job can't run — edit it to fix its settings."}

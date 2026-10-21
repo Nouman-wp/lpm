@@ -1,5 +1,6 @@
 package cx.lpm.mobile.core.model
 
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 
 /** One automation (the Mac's JobInfo). Timestamps are unix seconds. */
@@ -58,7 +59,9 @@ data class AutomationJob(
     val runningCount: Int,
     val standalone: Boolean,
     /** Runs that landed since this automation was last read, folded across its projects. */
-    val unread: Int
+    val unread: Int,
+    /** The question the automation is waiting on the user to answer. */
+    val ask: AutomationAsk? = null
 ) {
     val key: String get() = runProject + "\n" + id
     val displayName: String get() = label.ifEmpty { id }
@@ -130,7 +133,8 @@ data class AutomationJob(
                 targetCount = o.int("targetCount") ?: 0,
                 runningCount = o.int("runningCount") ?: 0,
                 standalone = o.bool("standalone") ?: false,
-                unread = o.int("unread") ?: 0
+                unread = o.int("unread") ?: 0,
+                ask = AutomationAsk.parse(o["ask"])?.takeIf { it.isOpen }
             )
         }
     }
@@ -156,9 +160,19 @@ data class AutomationHistoryEntry(
      */
     val verified: Boolean?,
     /** The run landed after this automation was last read. */
-    val unread: Boolean
+    val unread: Boolean,
+    /** What the run asked the user, with how each question ended. */
+    val asks: List<AutomationAsk> = emptyList(),
+    /**
+     * The question this entry's message answered — the entry that asked shows the
+     * answer, so it isn't repeated as a message.
+     */
+    val answerTo: String = ""
 ) {
     val id: Long get() = at
+
+    /** The entry asked the user something that's still unanswered. */
+    val waiting: Boolean get() = asks.any { it.isOpen }
 
     companion object {
         fun parse(o: JsonObject): AutomationHistoryEntry = AutomationHistoryEntry(
@@ -175,7 +189,9 @@ data class AutomationHistoryEntry(
             follows = o.long("follows"),
             compacted = o.bool("compacted") ?: false,
             verified = o.bool("verified"),
-            unread = o.bool("unread") ?: false
+            unread = o.bool("unread") ?: false,
+            asks = (o["asks"] as? JsonArray).orEmpty().mapNotNull(AutomationAsk::parse),
+            answerTo = o.string("answerTo").orEmpty()
         )
     }
 }

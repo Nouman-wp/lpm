@@ -31,7 +31,14 @@ class AutomationsViewModelTest {
         val t = demoSession()
         val state = list(t).uiState.value
         assertTrue(state.loaded)
-        val nightly = state.unread.single()
+        // The job waiting on an answer leads, ahead of last night's run.
+        val (release, nightly) = state.unread
+        assertEquals("Release notes", release.job.displayName)
+        assertEquals(
+            "1 new message · Waiting for your answer · Publish the v2.4 release notes to the blog?",
+            release.status
+        )
+        assertEquals(AutomationTone.Orange, release.statusTone)
         assertEquals("Nightly tests", nightly.job.displayName)
         assertEquals("storefront", nightly.scope)
         assertEquals("1 new message · Every day at 03:00 · in 15 hours", nightly.status)
@@ -49,7 +56,7 @@ class AutomationsViewModelTest {
         vm.markAllRead()
         t.settle()
         assertTrue(vm.uiState.value.unread.isEmpty())
-        assertEquals(2, vm.uiState.value.read.size)
+        assertEquals(3, vm.uiState.value.read.size)
     }
 
     @Test

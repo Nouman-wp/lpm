@@ -30,6 +30,12 @@ struct AutomationDetailView: View {
         List {
             if let job {
                 header(job)
+                // The question the automation is waiting on, wherever it waits.
+                if let ask = job.ask {
+                    Section {
+                        AutomationAskCard(ask: ask, project: ask.project, jobId: job.id, framed: false)
+                    }
+                }
                 Section {
                     schedule(job)
                     setup(job)
@@ -259,7 +265,8 @@ struct AutomationDetailView: View {
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
         .tint(job.running ? .red : .accentColor)
-        .disabled(pending || (job.enabled && !job.valid))
+        // A question waiting for its answer holds the next run back.
+        .disabled(pending || (job.enabled && !job.valid) || (job.ask != nil && !job.running && job.enabled))
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 6)

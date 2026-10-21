@@ -430,6 +430,12 @@ export function StopJobRun(project, jobId) {
 export function SendJobFollowup(project, jobId, at, message, agent, model, effort) {
   return invoke("send_job_followup", { project, jobId, at, message, agent, model, effort });
 }
+export function AnswerJobQuestion(project, jobId, askId, answers) {
+  return invoke("answer_job_question", { project, jobId, askId, answers });
+}
+export function DismissJobQuestion(project, jobId, askId) {
+  return invoke("dismiss_job_question", { project, jobId, askId });
+}
 export function ClearJobState(project, jobId, deleteCopies) {
   return invoke("clear_job_state", { project, jobId, deleteCopies });
 }

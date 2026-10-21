@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.automations.format
 
+import cx.lpm.mobile.core.model.AUTOMATION_WAITING_LABEL
 import cx.lpm.mobile.core.model.AutomationHistoryEntry
 import cx.lpm.mobile.core.model.AutomationJob
 
@@ -9,6 +10,7 @@ enum class AutomationTone { Green, Red, Orange, Blue, Secondary }
 /** What a job's row says under its name: broken, running, off, or when it runs next. */
 fun automationStatusText(job: AutomationJob, now: AutomationClock): String {
     if (!job.valid) return job.error.ifEmpty { "Invalid automation" }
+    job.ask?.let { return "$AUTOMATION_WAITING_LABEL · ${it.summary}" }
     if (job.running) return "Running"
     if (!job.enabled) return "Off · ${automationScheduleText(job)}"
     val next = job.nextFireAt ?: return automationScheduleText(job)
@@ -17,6 +19,7 @@ fun automationStatusText(job: AutomationJob, now: AutomationClock): String {
 
 fun automationStatusTone(job: AutomationJob): AutomationTone = when {
     !job.valid -> AutomationTone.Red
+    job.ask != null -> AutomationTone.Orange
     job.running -> AutomationTone.Blue
     !job.enabled -> AutomationTone.Secondary
     else -> automationResultTone(job.lastResult)
@@ -53,6 +56,7 @@ fun automationResultLabel(result: String): String = when (result) {
  * the agent exited, not that it did what it was asked.
  */
 fun automationEntryLabel(entry: AutomationHistoryEntry): String {
+    if (entry.waiting) return AUTOMATION_WAITING_LABEL
     val base = automationResultLabel(entry.result)
     val verified = entry.verified
     if (entry.result != "completed" || verified == null) return base
@@ -74,6 +78,7 @@ fun automationRowStatusText(job: AutomationJob, now: AutomationClock): String {
 /** The one line that answers "what is this doing right now" when not running. */
 fun automationPillText(job: AutomationJob, now: AutomationClock): String = when {
     !job.valid -> "Can't run"
+    job.ask != null -> AUTOMATION_WAITING_LABEL
     job.running -> "Running"
     !job.enabled -> "Off"
     else -> job.nextFireAt?.let { "Next run ${now.relative(it)}" } ?: "No run scheduled"
@@ -81,10 +86,15 @@ fun automationPillText(job: AutomationJob, now: AutomationClock): String = when 
 
 fun automationPillTone(job: AutomationJob): AutomationTone = when {
     !job.valid -> AutomationTone.Red
+    job.ask != null -> AutomationTone.Orange
     job.running -> AutomationTone.Blue
     !job.enabled -> AutomationTone.Orange
     job.nextFireAt == null -> AutomationTone.Secondary
     else -> AutomationTone.Green
 }
+
+/** A run's tone once a question it asked still waits for an answer. */
+fun automationEntryTone(entry: AutomationHistoryEntry): AutomationTone =
+    if (entry.waiting) AutomationTone.Orange else automationResultTone(entry.result)
 
 private const val MAX_COUNTED = 9
