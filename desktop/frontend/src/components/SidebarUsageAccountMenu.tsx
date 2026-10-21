@@ -1,9 +1,8 @@
 import { MAIN_LOGIN } from "../claudePoolText";
 import { projectPinned } from "../claudeProjectPool";
-import { useAgentLimits } from "../hooks/useAgentLimits";
+import type { AgentLimitsMap } from "../hooks/useAgentLimits";
 import { useNow } from "../hooks/useNow";
-import { useProjectClaudeAccounts } from "../hooks/useProjectClaudeAccounts";
-import { isPeerName } from "../peer/markers";
+import type { ProjectClaudeAccounts } from "../hooks/useProjectClaudeAccounts";
 import { accountMeters } from "../sidebarUsage";
 import { useAppStore } from "../store/app";
 import { openClaudeAccountSettings, setClaudeAccountChoice } from "../store/claudeAccountPin";
@@ -17,6 +16,11 @@ interface SidebarUsageAccountMenuProps {
   // The account's limits key; "default" is the main login.
   account: string;
   label: string;
+  // The machine the selected project is on (null for this Mac), its accounts'
+  // limits, and the account the project's new sessions use there.
+  host: string | null;
+  limits: AgentLimitsMap;
+  inUse: ProjectClaudeAccounts | null;
   x: number;
   y: number;
   onOpenUsage: () => void;
@@ -24,15 +28,23 @@ interface SidebarUsageAccountMenuProps {
 }
 
 /** Right-click on a Claude account's usage row: pin the selected project's
- *  new sessions to that account. */
-export function SidebarUsageAccountMenu({ account, label, x, y, onOpenUsage, onClose }: SidebarUsageAccountMenuProps) {
+ *  new sessions to that account, on the machine the project is on. */
+export function SidebarUsageAccountMenu({
+  account,
+  label,
+  host,
+  limits,
+  inUse,
+  x,
+  y,
+  onOpenUsage,
+  onClose,
+}: SidebarUsageAccountMenuProps) {
   const selected = useAppStore((s) => s.selected);
   const projects = useAppStore((s) => s.projects);
-  const { limits } = useAgentLimits();
   const now = useNow(true, 60_000);
 
-  const project = projects.find((p) => p.name === selected && !p.isRemote && !isPeerName(p.name));
-  const inUse = useProjectClaudeAccounts(project?.name ?? null);
+  const project = projects.find((p) => p.name === selected && !p.isRemote);
   const where = project ? displayNameForProjectName(project.name, projects) : null;
   const usedHere = inUse?.current === account;
   const pinnedHere = usedHere && !!project && projectPinned(project, projects);
@@ -65,7 +77,7 @@ export function SidebarUsageAccountMenu({ account, label, x, y, onOpenUsage, onC
       />
       <ContextMenuSeparator />
       <ContextMenuItem label="Open usage" icon={<StatsIcon />} onClick={then(onOpenUsage)} />
-      <ContextMenuItem label="Claude accounts…" icon={<SettingsIcon />} onClick={then(() => openClaudeAccountSettings())} />
+      <ContextMenuItem label="Claude accounts…" icon={<SettingsIcon />} onClick={then(() => openClaudeAccountSettings(host))} />
     </ContextMenuShell>
   );
 }

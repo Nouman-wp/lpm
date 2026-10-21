@@ -9,6 +9,7 @@ import {
   FEATURES_PATH,
   GIT_TERMINAL_MAC_PATH,
   LINUX_HOST_PATH,
+  MAC_MINI_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
   MOBILE_PATH,
   PARALLEL_PATH,
@@ -77,6 +78,7 @@ const GROUPS: Group[] = [
       { href: TOKEN_USAGE_PATH, label: "Token usage & limits" },
       { href: STATUSLINE_PATH, label: "Statusline customization" },
       { href: LINUX_HOST_PATH, label: "Claude Code on a remote server" },
+      { href: MAC_MINI_PATH, label: "Claude Code & Codex on a Mac mini" },
     ],
   },
   {

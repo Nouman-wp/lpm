@@ -7,7 +7,8 @@ import { useMachineWords } from "../settings/useMachineWords";
 
 /** Settings people set once — the port and keeping this machine awake — and the
  *  security code lpm Link asks to compare, folded under one line so the card
- *  leads with what changes day to day. Without `onKeepAwake` it is the port alone. */
+ *  leads with what changes day to day. Without `onKeepAwake` it is the port alone;
+ *  `keepAwakeRow` lets settings search point at the keep-awake row itself. */
 export function ReachOptions({
   port,
   onPort,
@@ -16,6 +17,7 @@ export function ReachOptions({
   onKeepAwake,
   identityCode = "",
   settingsRow = "mobile.keepAwake",
+  keepAwakeRow,
   open = false,
 }: {
   port: number;
@@ -25,6 +27,7 @@ export function ReachOptions({
   onKeepAwake?: (on: boolean) => void;
   identityCode?: string;
   settingsRow?: string;
+  keepAwakeRow?: string;
   /** Unfolds it, as when the port needs changing; folding it again stays up to the user. */
   open?: boolean;
 }) {
@@ -69,16 +72,18 @@ export function ReachOptions({
           />
         </WayInRow>
         {onKeepAwake && (
-          <WayInRow
-            icon={<Coffee size={16} />}
-            title={`Keep ${words.thisMachine} awake`}
-            subtitle={keepAwakeText(keepAwakeStatus, words.thisMachine)}
-            tone={awake ? "live" : keepAwakeStatus === "failed" ? "problem" : "idle"}
-          >
-            {supported && (
-              <Toggle enabled={keepAwake} onChange={onKeepAwake} ariaLabel={`Keep ${words.thisMachine} awake`} />
-            )}
-          </WayInRow>
+          <div data-settings-row={keepAwakeRow}>
+            <WayInRow
+              icon={<Coffee size={16} />}
+              title={`Keep ${words.thisMachine} awake`}
+              subtitle={keepAwakeText(keepAwakeStatus, words.thisMachine)}
+              tone={awake ? "live" : keepAwakeStatus === "failed" ? "problem" : "idle"}
+            >
+              {supported && (
+                <Toggle enabled={keepAwake} onChange={onKeepAwake} ariaLabel={`Keep ${words.thisMachine} awake`} />
+              )}
+            </WayInRow>
+          </div>
         )}
         {identityCode && (
           <WayInRow

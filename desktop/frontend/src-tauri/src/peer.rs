@@ -862,6 +862,7 @@ pub fn apply(hub: &PeerHub, app: &AppHandle) {
     let cfg = hub.host_config();
     let plan = listen::plan(&cfg, hub.inner.sharing.load(Ordering::SeqCst));
     hub.inner.enabled.store(cfg.enabled, Ordering::Relaxed);
+    sync_keep_awake(hub);
     hub.inner
         .guests_only
         .store(plan.as_ref().is_some_and(|p| !p.paired), Ordering::Relaxed);
@@ -946,6 +947,14 @@ pub fn apply(hub: &PeerHub, app: &AppHandle) {
         }
         accept_loop(listener, hub, app, generation);
     });
+}
+
+/// Tell keep-awake whether other computers may reach this machine. Serialized
+/// like remote.rs's, so the last caller to run applies the latest config.
+fn sync_keep_awake(hub: &PeerHub) {
+    static SYNC: Mutex<()> = Mutex::new(());
+    let _turn = SYNC.lock().unwrap();
+    crate::keepawake::set_for_computers(hub.host_config().enabled);
 }
 
 /// Signal a clean shutdown (app exit). Retires threads and drops clients.
@@ -3274,6 +3283,18 @@ mod tests {
 
         arm_pairing_code(&mut cfg, "CCCC-DDDD", Some(ALL_INTERFACES));
         assert_eq!(bind_address(&cfg.host), ALL_INTERFACES);
+    }
+
+    #[test]
+    fn keep_awake_holds_for_other_computers_while_allow_control_is_on() {
+        let hub = PeerHub::default();
+        arm_pairing_code(&mut hub.inner.config.lock().unwrap(), "AAAA-BBBB", None);
+        sync_keep_awake(&hub);
+        assert!(crate::keepawake::allows_computers());
+
+        hub.inner.config.lock().unwrap().host.enabled = false;
+        sync_keep_awake(&hub);
+        assert!(!crate::keepawake::allows_computers());
     }
 
     // Once the user has opened it up, minting another invite must not quietly

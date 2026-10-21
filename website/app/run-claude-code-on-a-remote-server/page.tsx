@@ -4,8 +4,8 @@ import {
   AI_AGENTS_PATH,
   CONNECT_AGENTS_PATH,
   LINUX_HOST_PATH,
+  MAC_MINI_PATH,
   MOBILE_PATH,
-  PARALLEL_PATH,
   SSH_TERMINAL_MAC_PATH,
   WORKTREE_AGENTS_PATH,
 } from "@/lib/links";
@@ -24,7 +24,6 @@ import Faq, { FAQ_ITEMS } from "./_components/faq";
 import Hero from "./_components/hero";
 import HowItWorks from "./_components/how-it-works";
 import Lesson from "./_components/lesson";
-import LidClosedLesson from "./_components/lid-closed-lesson";
 import Lifetimes from "./_components/lifetimes";
 import Problem from "./_components/problem";
 import QuickAnswer from "./_components/quick-answer";
@@ -92,7 +91,6 @@ const structuredData = [
   ]),
   faqJsonLd(FAQ_ITEMS),
   youtubeLessonJsonLd("claude-code-codex-remote-server"),
-  youtubeLessonJsonLd("keep-agents-running-on-server"),
 ];
 
 export default function RunOnRemoteServerPage() {
@@ -110,7 +108,6 @@ export default function RunOnRemoteServerPage() {
       <Lesson />
       <AfterConnect />
       <Lifetimes />
-      <LidClosedLesson />
       <Security />
       <Requirements />
       <Alternatives />
@@ -148,10 +145,10 @@ export default function RunOnRemoteServerPage() {
               "Pair the phone with your Mac or with the server itself, then watch a run and answer a prompt from anywhere.",
           },
           {
-            href: PARALLEL_PATH,
-            title: "Run Claude Code in parallel",
+            href: MAC_MINI_PATH,
+            title: "Run Claude Code & Codex on a Mac mini",
             description:
-              "Send one prompt to several copies of a project and compare the results, here or on a server.",
+              "No server to rent: start Claude Code and Codex on a Mac that stays on, from your laptop.",
           },
         ]}
       />

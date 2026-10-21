@@ -13,14 +13,13 @@ type Props = {
   title: string;
   description: string;
   steps: Step[];
-  id?: string;
 };
 
 /** A page's "Watch it" section: one lesson from the series beside the steps it
  *  walks through, with a link to the rest of the playlist. */
-export function LessonSection({ lesson, title, description, steps, id = "watch" }: Props) {
+export function LessonSection({ lesson, title, description, steps }: Props) {
   return (
-    <section id={id} className="scroll-mt-20 py-16 sm:py-20">
+    <section id="watch" className="scroll-mt-20 py-16 sm:py-20">
       <div className="max-w-6xl mx-auto px-6">
         <SectionHeader eyebrow="Watch it" title={title} description={description} />
 

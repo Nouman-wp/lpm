@@ -566,8 +566,16 @@ export const ROWS = {
     id: "mobile.keepAwake",
     reach: "any",
     label: `Keep ${MACHINE.thisMachine} awake`,
-    description: "While remote control is on and it's plugged in",
+    description: "While remote control or Allow control is on and it's plugged in",
     keywords: ["sleep", "awake", "power", "battery", "port", "caffeinate", "security code", "identity"],
+  },
+  "connections.keepAwake": {
+    kind: "row",
+    tab: "connections",
+    id: "connections.keepAwake",
+    label: `Keep ${MACHINE.thisMachine} awake`,
+    description: `While Allow control is on and it's plugged in, so your other ${MACHINE.plural} can reach it`,
+    keywords: ["sleep", "awake", "power", "battery", "caffeinate", "allow control", "peer", "host"],
   },
   "connections.peers": {
     kind: "row",

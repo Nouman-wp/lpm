@@ -1,6 +1,8 @@
-// Keeps this machine from idle-sleeping while remote control is on, so a phone
-// away from home still finds it. It holds only while the machine runs on power:
-// on battery it sleeps as usual, and closing a laptop's lid still sleeps it.
+// Keeps this machine from idle-sleeping while Keep awake is on and something may
+// reach it from elsewhere: phones while remote control is on, other computers
+// while Allow control is on, so either still finds it away from home. It holds
+// only while the machine runs on power: on battery it sleeps as usual, and
+// closing a laptop's lid still sleeps it.
 use std::sync::{LazyLock, Mutex, OnceLock};
 use std::time::Duration;
 
@@ -11,6 +13,9 @@ const RETRY_POLLS: u32 = 10;
 
 #[derive(Default)]
 struct State {
+    switch_on: bool,
+    phones: bool,
+    computers: bool,
     want: bool,
     generation: u64,
     hold: Option<Hold>,
@@ -18,36 +23,108 @@ struct State {
     cooldown: u32,
 }
 
+impl State {
+    fn reachable(&self) -> bool {
+        self.phones || self.computers
+    }
+
+    fn wants(&self) -> bool {
+        self.switch_on && self.reachable()
+    }
+
+    fn report(&self, on_power: impl FnOnce() -> bool) -> &'static str {
+        if !self.switch_on {
+            "off"
+        } else if !self.reachable() {
+            "paused"
+        } else if self.failed {
+            "failed"
+        } else if on_power() {
+            "awake"
+        } else {
+            "battery"
+        }
+    }
+
+    /// Applies `change`, dropping the hold when what it wants changes. Returns
+    /// whether that changed, and whether what `status` reports changed; the
+    /// power source is the same throughout.
+    fn apply(&mut self, change: impl FnOnce(&mut Self)) -> (bool, bool) {
+        let before = self.report(|| true);
+        change(self);
+        let want = self.wants();
+        let want_changed = self.want != want;
+        if want_changed {
+            self.want = want;
+            self.generation += 1;
+            self.hold = None;
+            self.failed = false;
+            self.cooldown = 0;
+        }
+        (want_changed, self.report(|| true) != before)
+    }
+}
+
 static STATE: LazyLock<Mutex<State>> = LazyLock::new(Mutex::default);
 static ON_CHANGE: OnceLock<Box<dyn Fn() + Send + Sync>> = OnceLock::new();
 
-/// Called when what `status` reports changes on its own: the machine was
-/// plugged in or unplugged, or the hold failed.
+/// Called when what `status` reports changes without the phone settings
+/// changing: the machine was plugged in or unplugged, the hold failed, or Allow
+/// control was turned on or off.
 pub(crate) fn on_change(f: impl Fn() + Send + Sync + 'static) {
     let _ = ON_CHANGE.set(Box::new(f));
 }
 
-/// Keep the machine awake, or let it sleep again. Safe to call repeatedly.
-pub(crate) fn set(want: bool) {
-    let mut st = STATE.lock().unwrap();
-    if st.want == want {
-        return;
+fn notify() {
+    if let Some(notify) = ON_CHANGE.get() {
+        notify();
     }
-    st.want = want;
-    st.generation += 1;
-    st.hold = None;
-    st.failed = false;
-    st.cooldown = 0;
-    if want && supported() {
+}
+
+/// The Keep awake switch and whether phones may reach this machine (remote
+/// control on), both saved with the phone settings. Safe to call repeatedly.
+pub(crate) fn set_for_phones(switch_on: bool, remote_on: bool) {
+    update(|st| {
+        st.switch_on = switch_on;
+        st.phones = remote_on;
+    });
+}
+
+/// Whether other computers may reach this machine (Allow control on). Safe to
+/// call repeatedly.
+pub(crate) fn set_for_computers(allow_control: bool) {
+    if update(|st| st.computers = allow_control) {
+        notify();
+    }
+}
+
+/// Let this machine sleep again, whatever the settings say.
+pub(crate) fn release() {
+    update(|st| st.switch_on = false);
+}
+
+/// Applies `change`, then takes or drops the hold to match. Returns whether
+/// that changed what `status` reports.
+fn update(change: impl FnOnce(&mut State)) -> bool {
+    let mut st = STATE.lock().unwrap();
+    let (want_changed, status_changed) = st.apply(change);
+    if want_changed && st.want && supported() {
         let generation = st.generation;
         std::thread::spawn(move || watch(generation));
     }
+    status_changed
+}
+
+#[cfg(test)]
+pub(crate) fn allows_computers() -> bool {
+    STATE.lock().unwrap().computers
 }
 
 /// Re-checks the power source now and then: the hold is taken on power and
 /// dropped on battery.
 fn watch(generation: u64) {
-    let mut reported = None;
+    // Settings last read the hold as not failed, before the first try to take it.
+    let mut reported = (on_power(), false);
     loop {
         let acquire_now = {
             let mut st = STATE.lock().unwrap();
@@ -85,36 +162,22 @@ fn watch(generation: u64) {
             st.hold = hold;
         }
         let now = (on_power(), STATE.lock().unwrap().failed);
-        if reported.is_some_and(|r| r != now) {
-            if let Some(notify) = ON_CHANGE.get() {
-                notify();
-            }
+        if now != reported {
+            notify();
         }
-        reported = Some(now);
+        reported = now;
         std::thread::sleep(POLL);
     }
 }
 
 /// What Settings says about it: "unsupported", "off" (switch off), "paused"
-/// (remote control off), "failed", "awake" or "battery".
-pub(crate) fn status(switch_on: bool, remote_on: bool) -> &'static str {
+/// (neither remote control nor Allow control on), "failed", "awake" or
+/// "battery".
+pub(crate) fn status() -> &'static str {
     if !supported() {
         return "unsupported";
     }
-    if !switch_on {
-        return "off";
-    }
-    if !remote_on {
-        return "paused";
-    }
-    if STATE.lock().unwrap().failed {
-        return "failed";
-    }
-    if on_power() {
-        "awake"
-    } else {
-        "battery"
-    }
+    STATE.lock().unwrap().report(on_power)
 }
 
 fn supported() -> bool {
@@ -187,7 +250,7 @@ fn acquire() -> Option<Hold> {
             "--no-ask-password",
             "--what=idle:sleep",
             "--who=lpm",
-            "--why=Remote control is on",
+            "--why=Remote control or Allow control is on",
             "--mode=block",
             "tail",
         ])
@@ -280,3 +343,7 @@ fn on_power() -> bool {
     }
     s.ACLineStatus != 0
 }
+
+#[cfg(test)]
+#[path = "keepawake_tests.rs"]
+mod tests;

@@ -17,7 +17,7 @@ export const FEATURE_FAQS = [
   {
     question: "Do my dev servers and automations keep running when lpm is closed?",
     answer:
-      "Dev servers do: they keep running after you quit or update lpm, and the app picks them up again when you reopen it. In-app terminals, including agent tabs, end when you quit. Automations need lpm open on an awake computer; a run that came due while it wasn't fires once when lpm is back. For work that keeps going after your laptop closes, add a Linux host.",
+      "Dev servers do: they keep running after you quit or update lpm, and the app picks them up again when you reopen it. In-app terminals, including agent tabs, end when you quit. Automations need lpm open on an awake computer; a run that came due while it wasn't fires once when lpm is back. For Claude Code and Codex runs that keep going after your laptop closes, pair an always-on Mac such as a Mac mini, or add a Linux host.",
   },
   {
     question: "Which features talk to the network?",
@@ -27,6 +27,6 @@ export const FEATURE_FAQS = [
   {
     question: "Can I use lpm from my iPhone or another computer?",
     answer:
-      "Yes. The lpm link app mirrors terminals and controls projects from an iPhone or iPad, Connect computers lets one computer running lpm drive another, and a Linux host or SSH project runs work on a server. Every command runs on the machine that owns the project, so it has to be on and reachable, for example over your home network or Tailscale.",
+      "Yes. The lpm link app mirrors terminals and controls projects from an iPhone or iPad, Connect computers lets one computer running lpm drive another, such as a Mac mini that stays on, and a Linux host or SSH project runs work on a server. Every command runs on the machine that owns the project, so it has to be on and reachable, for example over your home network or Tailscale.",
   },
 ];

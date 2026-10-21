@@ -3,9 +3,9 @@ import { RelatedPages } from "@/components/related-pages";
 import {
   AI_AGENTS_PATH,
   AUTOMATIONS_PATH,
-  CONFIG_PATH,
   FEATURES_PATH,
   LINUX_HOST_PATH,
+  MAC_MINI_PATH,
   MOBILE_PATH,
   PARALLEL_PATH,
 } from "@/lib/links";
@@ -143,10 +143,10 @@ export default function FeaturesPage() {
               "Add a Linux host with one SSH string and keep agents running after your laptop closes.",
           },
           {
-            href: CONFIG_PATH,
-            title: "Configuration docs",
+            href: MAC_MINI_PATH,
+            title: "Run Claude Code & Codex on a Mac mini",
             description:
-              "Every field for services, actions, profiles, and terminals, with examples.",
+              "Start Claude Code and Codex on a Mac that stays on, from your laptop, and close the lid.",
           },
         ]}
       />

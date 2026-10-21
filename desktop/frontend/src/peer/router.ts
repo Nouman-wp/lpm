@@ -58,7 +58,6 @@ const LOCAL_ONLY_EXACT = new Set<string>([
   "send_later_send_now",
   "send_later_remove",
   "notify_unattended",
-  "claude_limits_account",
   // An app opens where the person is. These take a paired machine's path and
   // handle it here: Remote-SSH, or a read-only copy fetched over the peer.
   "open_in",

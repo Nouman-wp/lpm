@@ -12,7 +12,7 @@ export const FAQS = [
   {
     question: "Will a job run overnight or while my computer is asleep?",
     answer:
-      "Jobs run while lpm is open and your computer is awake, so an overnight job needs both. If a run was due while the computer slept or lpm was closed, it runs once when they're back; missed runs aren't replayed one by one. If a job is still running when it's due again, the new run is skipped.",
+      "Jobs run while lpm is open and your computer is awake, so an overnight job needs both. If a run was due while the computer slept or lpm was closed, it runs once when they're back; missed runs aren't replayed one by one. If a job is still running when it's due again, the new run is skipped. To run jobs overnight without leaving your laptop on, add them to a project on an always-on Mac you've paired, such as a Mac mini: they run there.",
   },
   {
     question: "Will a scheduled agent change the folder I'm working in?",

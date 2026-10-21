@@ -24,8 +24,9 @@ const FEATURES = [
         Start and stop the project&rsquo;s services on the server from the same
         buttons you use locally, or restart one with{" "}
         <code className="font-mono text-[0.9em]">lpm service &lt;name&gt; restart</code>,
-        and read what they printed. They run there, so they are still up
-        tomorrow morning.
+        and read what they printed. Open one&rsquo;s port and it comes up on
+        your Mac&rsquo;s localhost, through the connection lpm already has.
+        They run there, so they are still up tomorrow morning.
       </>
     ),
   },

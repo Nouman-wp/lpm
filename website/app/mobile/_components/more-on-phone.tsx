@@ -10,7 +10,12 @@ import {
 } from "lucide-react";
 import { FeatureCard } from "@/components/feature-card";
 import { SectionHeader } from "@/components/section-header";
-import { AUTOMATIONS_PATH, LINUX_HOST_PATH, TOKEN_USAGE_PATH } from "@/lib/links";
+import {
+  AUTOMATIONS_PATH,
+  LINUX_HOST_PATH,
+  MAC_MINI_PATH,
+  TOKEN_USAGE_PATH,
+} from "@/lib/links";
 
 const LINK =
   "font-medium text-gray-700 underline decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:decoration-gray-600 dark:hover:text-white";
@@ -65,7 +70,11 @@ const CARDS: { icon: LucideIcon; title: string; body: React.ReactNode }[] = [
     title: "Several Macs and Linux servers",
     body: (
       <>
-        Pair more than one Mac, or{" "}
+        Pair more than one Mac, like{" "}
+        <Link href={MAC_MINI_PATH} className={LINK}>
+          a Mac mini running Claude Code and Codex
+        </Link>
+        , or{" "}
         <Link href={LINUX_HOST_PATH} className={LINK}>
           a Linux server running lpm
         </Link>

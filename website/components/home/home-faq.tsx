@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import {
   LINUX_HOST_PATH,
+  MAC_MINI_PATH,
   MOBILE_PATH,
   PRIVACY_PATH,
   SSH_TERMINAL_MAC_PATH,
@@ -68,7 +69,7 @@ const FAQS: QA[] = [
     question: "Does lpm work with remote servers?",
     answer: (
       <>
-        Yes, in two ways. An{" "}
+        Yes, in three ways. An{" "}
         <Link href={SSH_TERMINAL_MAC_PATH} className={LINK}>
           SSH project
         </Link>{" "}
@@ -79,11 +80,16 @@ const FAQS: QA[] = [
         </Link>{" "}
         with one SSH string: lpm installs itself there (x86-64, Ubuntu 22.04 or
         newer), and the server&apos;s projects show up in your sidebar and keep
-        running on the server.
+        running on the server. Or{" "}
+        <Link href={MAC_MINI_PATH} className={LINK}>
+          pair a Mac that stays on
+        </Link>
+        , like a Mac mini, and run Claude Code and Codex there from your
+        laptop.
       </>
     ),
     answerText:
-      "Yes, in two ways. An SSH project runs its terminals, services and actions on any server you can SSH into. Or add a Linux server with one SSH string: lpm installs itself there (x86-64, Ubuntu 22.04 or newer), and the server's projects show up in your sidebar and keep running on the server.",
+      "Yes, in three ways. An SSH project runs its terminals, services and actions on any server you can SSH into. Or add a Linux server with one SSH string: lpm installs itself there (x86-64, Ubuntu 22.04 or newer), and the server's projects show up in your sidebar and keep running on the server. Or pair a Mac that stays on, like a Mac mini, and run Claude Code and Codex there from your laptop.",
   },
   {
     question: "Does lpm collect my code or telemetry?",

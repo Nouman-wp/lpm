@@ -1,7 +1,15 @@
+import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
+import { MAC_MINI_PATH } from "@/lib/links";
 
-export const FAQ_ITEMS: { question: string; answer: string }[] = [
+type FaqItem = {
+  question: string;
+  answer: string;
+  link?: { href: string; label: string };
+};
+
+export const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Can Claude Code run on a remote server?",
     answer:
@@ -10,7 +18,8 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "How do I keep Claude Code running when I close my MacBook?",
     answer:
-      "Move the run off the MacBook. Anything started on your laptop stops when the laptop sleeps, so the durable answer is to run the agent on a machine that stays awake and treat your Mac as the screen for it. In lpm you add a Linux server under Settings → Connections, start the agent in a terminal on that server, and close the lid — the connection drops, the agent does not. Reopen lpm and it reattaches to the same running session instead of starting a new one.",
+      "Move the run off the MacBook. Anything started on your laptop stops when the laptop sleeps, so the durable answer is to run the agent on a machine that stays awake and treat your Mac as the screen for it. In lpm you add a Linux server under Settings → Connections, start the agent in a terminal on that server, and close the lid — the connection drops, the agent does not. Reopen lpm and it reattaches to the same running session instead of starting a new one. The machine that stays awake can also be a Mac mini you already own, paired with your MacBook instead of reached over SSH, with Claude Code and Codex running there.",
+    link: { href: MAC_MINI_PATH, label: "Run Claude Code and Codex on a Mac mini" },
   },
   {
     question: "Do I need tmux to keep an agent alive over SSH?",
@@ -90,7 +99,7 @@ export default function Faq() {
           title="Running agents on a server, answered"
         />
         <ul className="space-y-3">
-          {FAQ_ITEMS.map(({ question, answer }) => (
+          {FAQ_ITEMS.map(({ question, answer, link }) => (
             <li key={question}>
               <details className="group rounded-2xl border border-gray-200 transition-colors duration-200 open:border-gray-300 open:bg-gray-50/50 hover:border-gray-300 dark:border-gray-800 dark:open:border-gray-700 dark:open:bg-white/[0.02] dark:hover:border-gray-700">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-sm font-semibold text-gray-900 [&::-webkit-details-marker]:hidden dark:text-gray-100">
@@ -102,6 +111,17 @@ export default function Faq() {
                 </summary>
                 <p className="px-5 pb-4 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
                   {answer}
+                  {link && (
+                    <>
+                      {" "}
+                      <Link
+                        href={link.href}
+                        className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
+                      >
+                        {link.label}
+                      </Link>
+                    </>
+                  )}
                 </p>
               </details>
             </li>

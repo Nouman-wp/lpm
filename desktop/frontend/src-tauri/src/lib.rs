@@ -705,7 +705,7 @@ pub fn run() {
                 peer::stop(&app.state::<peer::PeerHub>()); // retire the peer host threads
                 peerclient::stop(&app.state::<peerclient::PeerClientHub>()); // drop peer client conns
                 tailnet::stop(); // take the built-in Tailscale node offline
-                keepawake::set(false); // let this machine sleep again
+                keepawake::release(); // let this machine sleep again
                 socketsrv::release();
             }
             // Dock-icon click with no visible window restores the hidden main

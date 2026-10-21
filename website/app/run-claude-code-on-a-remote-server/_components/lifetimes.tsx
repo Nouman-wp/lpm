@@ -16,7 +16,7 @@ const SURVIVES = [
   },
   {
     title: "Rebooting the server",
-    body: "On a systemd server lpm runs as a service, so it comes back with the machine. Your projects are there; the agent conversations that were running are not. In a container, start it again with lpm-host start.",
+    body: "On a systemd server lpm runs as a service, so it comes back with the machine. Your projects are there; the agents that were running stop, and their Claude Code and Codex tabs resume the conversations when you reopen the project. In a container, start it again with lpm-host start.",
   },
   {
     title: "Your Mac being off, for your phone",
@@ -27,15 +27,11 @@ const SURVIVES = [
 const DOES_NOT = [
   {
     title: "Updating lpm on the server",
-    body: "Update and Reinstall restart lpm there, and that ends every agent running on it. lpm says so in the confirmation before it does it. The project's services are not tied to lpm and keep running; an agent conversation does not resume.",
+    body: "Update and Reinstall restart lpm there, and that ends every agent running on it. lpm says so in the confirmation before it does it. The project's services are not tied to lpm and keep running, and Claude Code and Codex tabs resume their conversations when you reopen the project.",
   },
   {
     title: "Older scrollback",
     body: "When you reattach, the server replays the recent tail of each terminal, not its entire history. What scrolled past long ago is gone.",
-  },
-  {
-    title: "A service's port, on your Mac",
-    body: "Server projects have no port forwarding of their own. Reaching a dev server from your Mac's browser is still an SSH forward you set up yourself.",
   },
   {
     title: "Local-only things, on a server project",

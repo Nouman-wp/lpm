@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Laptop, Server, type LucideIcon } from "lucide-react";
-import { FEATURES_PATH, LINUX_HOST_PATH } from "@/lib/links";
+import { LINUX_HOST_PATH, MAC_MINI_PATH } from "@/lib/links";
 
 const CARDS: {
   icon: LucideIcon;
@@ -10,9 +10,9 @@ const CARDS: {
 }[] = [
   {
     icon: Laptop,
-    href: `${FEATURES_PATH}#devices`,
+    href: MAC_MINI_PATH,
     title: "Connect another computer",
-    body: "Pair two computers running lpm and the other one's projects appear in your sidebar. Start its services and run its agents from here.",
+    body: "Pair your laptop with a Mac mini or another computer running lpm, and its projects appear in your sidebar. Start Claude Code and Codex there, and they keep working when your laptop closes.",
   },
   {
     icon: Server,

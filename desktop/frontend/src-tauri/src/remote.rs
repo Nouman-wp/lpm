@@ -1010,13 +1010,14 @@ fn apply(hub: &RemoteHub, app: &AppHandle) {
     });
 }
 
-/// Hold or release keep-awake to match the saved settings. Every caller goes
-/// through here, serialized, so the last one to run applies the latest config.
+/// Hold or release keep-awake to match the saved settings (peer.rs adds Allow
+/// control). Every caller goes through here, serialized, so the last one to run
+/// applies the latest config.
 fn sync_keep_awake(hub: &RemoteHub) {
     static SYNC: Mutex<()> = Mutex::new(());
     let _turn = SYNC.lock().unwrap();
     let cfg = hub.config();
-    crate::keepawake::set(cfg.enabled && cfg.keep_awake);
+    crate::keepawake::set_for_phones(cfg.keep_awake, cfg.enabled);
 }
 
 /// Signal a clean shutdown (app exit). Retires threads and drops clients.
@@ -6081,7 +6082,7 @@ pub(crate) fn state_value(hub: &RemoteHub) -> Value {
         "port": effective_port(cfg.port),
         "tailscale": cfg.tailscale,
         "keepAwake": cfg.keep_awake,
-        "keepAwakeStatus": crate::keepawake::status(cfg.keep_awake, cfg.enabled),
+        "keepAwakeStatus": crate::keepawake::status(),
         "running": hub.inner.running.load(Ordering::Relaxed),
         "bindError": hub.bind_error(),
         "configError": hub.config_error(),
@@ -6451,12 +6452,18 @@ pub fn remote_rename_device(
     Ok(state_value(&hub))
 }
 
-/// Keep this machine awake while remote control is on. Saved without
-/// restarting the server, so connected phones stay connected.
+/// Keep this machine awake while remote control or Allow control is on. Saved
+/// without restarting the server, so connected phones stay connected. The Phone
+/// and Connections panes both show it, so each hears about a change in the other.
 #[tauri::command(async)]
-pub fn remote_set_keep_awake(hub: State<'_, RemoteHub>, enabled: bool) -> Result<Value, String> {
+pub fn remote_set_keep_awake(
+    app: AppHandle,
+    hub: State<'_, RemoteHub>,
+    enabled: bool,
+) -> Result<Value, String> {
     hub.try_update_config(|cfg| cfg.keep_awake = enabled)?;
     sync_keep_awake(&hub);
+    let _ = app.emit("remote-devices-changed", ());
     Ok(state_value(&hub))
 }
 

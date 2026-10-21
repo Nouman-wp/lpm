@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CodeBlock } from "@/components/config/code-block";
-import { SSH_TERMINAL_MAC_PATH } from "@/lib/links";
+import { MAC_MINI_PATH, SSH_TERMINAL_MAC_PATH } from "@/lib/links";
 
 export default function QuickAnswer() {
   return (
@@ -64,6 +64,17 @@ export default function QuickAnswer() {
               Mac is the window onto it. When one folder is all you need, the
               Server screen&rsquo;s other choice, Just SSH in, opens it as an SSH
               project without installing lpm on the server.
+            </p>
+            <p>
+              No Linux box? Claude Code and Codex can run on{" "}
+              <Link
+                href={MAC_MINI_PATH}
+                className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
+              >
+                a Mac mini you already own
+              </Link>
+              , paired with your laptop under + → Another computer instead of
+              over SSH.
             </p>
           </div>
         </div>

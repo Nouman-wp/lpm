@@ -35,18 +35,29 @@ function readLimits(host: string | null): Promise<unknown> {
 
 // Its changes. A paired machine's arrive on its own stream only, so they never
 // stand in for this Mac's readings.
-function onLimitsChanged(host: string | null, callback: (m: unknown) => void): () => void {
+export function onLimitsChanged(host: string | null, callback: (m: unknown) => void): () => void {
   if (!host) return EventsOn(CHANGED_EVENT, callback);
   return EventsOn(`peer-evt-${host}`, (event: { name?: string; payload?: unknown } | null) => {
     if (event?.name === CHANGED_EVENT) callback(event.payload);
   });
 }
 
+const NO_LIMITS: AgentLimitsMap = {};
+
+// Files machine `key`'s snapshot among the others.
+function filed(key: string, m: unknown) {
+  return (prev: Record<string, AgentLimitsMap>) => ({ ...prev, [key]: (m ?? {}) as AgentLimitsMap });
+}
+
 // Initial fetch of the current snapshot, kept live by the backend's
 // `agent-limits-changed` event (Codex file watcher + Claude statusline forwarder).
 // A paired machine's (`host`) are its own accounts' readings.
 export function useAgentLimits(host: string | null = null): AgentLimitsState {
-  const [limits, setLimits] = useState<AgentLimitsMap>({});
+  // Each machine's last snapshot ("" is this Mac's), so a view that moves between
+  // machines shows the bars it had instead of none while it reads them again.
+  const [snapshots, setSnapshots] = useState<Record<string, AgentLimitsMap>>({});
+  const key = host ?? "";
+  const limits = snapshots[key] ?? NO_LIMITS;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const alive = useRef(true);
@@ -68,27 +79,26 @@ export function useAgentLimits(host: string | null = null): AgentLimitsState {
     setError("");
     try {
       const m = await readLimits(host);
-      if (current()) setLimits((m ?? {}) as AgentLimitsMap);
+      if (current()) setSnapshots(filed(key, m));
     } catch (err) {
       if (current()) setError(String(err));
     } finally {
       if (current()) setLoading(false);
     }
-  }, [host]);
+  }, [host, key]);
 
   useEffect(() => {
-    setLimits({});
     void refresh();
     const off = onLimitsChanged(host, (m) => {
       token.current += 1;
-      setLimits((m ?? {}) as AgentLimitsMap);
+      setSnapshots(filed(key, m));
       setLoading(false);
       setError("");
     });
     return () => {
       if (typeof off === "function") off();
     };
-  }, [host, refresh]);
+  }, [host, key, refresh]);
 
   return { limits, loading, error, refresh };
 }

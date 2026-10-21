@@ -48,14 +48,14 @@ export function keepAwakeText(status: KeepAwakeStatus, thisMachine: string): str
     case "unsupported":
       return "Not available on this computer.";
     case "paused":
-      return "Starts when remote control is on.";
+      return "Starts when remote control or Allow control is on.";
     case "failed":
       return `Couldn't keep ${thisMachine} awake. Turn it off and on to try again.`;
     case "awake":
-      return "Awake · plugged in, so phones can connect any time.";
+      return `Awake · plugged in, so ${thisMachine} won't sleep while idle.`;
     case "battery":
       return `On battery · ${thisMachine} can sleep until it's plugged in.`;
     default:
-      return "While remote control is on and it's plugged in. Closing the lid can still put it to sleep.";
+      return "While remote control or Allow control is on and it's plugged in. Closing the lid can still put it to sleep.";
   }
 }

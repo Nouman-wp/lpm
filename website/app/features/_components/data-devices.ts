@@ -6,7 +6,12 @@ import {
   Smartphone,
   SquareTerminal,
 } from "lucide-react";
-import { LINUX_HOST_PATH, SHARE_TERMINAL_PATH, SSH_TERMINAL_MAC_PATH } from "@/lib/links";
+import {
+  LINUX_HOST_PATH,
+  MAC_MINI_PATH,
+  SHARE_TERMINAL_PATH,
+  SSH_TERMINAL_MAC_PATH,
+} from "@/lib/links";
 import type { FeatureArea } from "./feature-types";
 
 export const DEVICES_AREA: FeatureArea = {
@@ -20,6 +25,8 @@ export const DEVICES_AREA: FeatureArea = {
       title: "Connect computers",
       body: "Pair two computers running lpm and the other one's projects appear in your sidebar under its name. Start its services, use its terminals and agents, review its changes, and run its actions.",
       note: "The host turns on “Allow control” in its settings. On Windows, that asks for a firewall permission the first time.",
+      href: MAC_MINI_PATH,
+      linkLabel: "Run Claude Code and Codex on a Mac mini",
     },
     {
       icon: Server,

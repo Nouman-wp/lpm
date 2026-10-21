@@ -100,6 +100,19 @@ describe("keepAwakeText", () => {
   it("is plain about battery", () => {
     expect(keepAwakeText("battery", "this Mac")).toBe("On battery · this Mac can sleep until it's plugged in.");
   });
+
+  it("holds for phones and other machines alike", () => {
+    expect(keepAwakeText("paused", "this Mac")).toBe("Starts when remote control or Allow control is on.");
+    expect(keepAwakeText("off", "this Mac")).toContain("remote control or Allow control");
+    expect(keepAwakeText("awake", "this Mac")).not.toContain("phone");
+  });
+
+  // Allow control alone keeps it awake, so the Phone pane can show "awake"
+  // beside "paired phones can't connect".
+  it("doesn't promise a connection while awake", () => {
+    expect(keepAwakeText("awake", "this Mac")).toBe("Awake · plugged in, so this Mac won't sleep while idle.");
+    expect(keepAwakeText("awake", "this Mac")).not.toContain("connect");
+  });
 });
 
 describe("isTailscaleAddress", () => {

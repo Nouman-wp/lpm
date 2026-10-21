@@ -20,6 +20,7 @@ export const CONNECT_AGENTS_PATH = "/connect-ai-agents";
 export const WORKTREE_ALTERNATIVE_PATH = "/git-worktree-alternative";
 export const WORKTREE_AGENTS_PATH = "/git-worktree-for-ai-agents";
 export const LINUX_HOST_PATH = "/run-claude-code-on-a-remote-server";
+export const MAC_MINI_PATH = "/run-claude-code-on-a-mac-mini";
 export const TOKEN_USAGE_PATH = "/claude-code-codex-token-usage";
 export const STATUSLINE_PATH = "/claude-code-codex-statusline";
 export const SKILLS_PATH = "/claude-code-codex-skills";

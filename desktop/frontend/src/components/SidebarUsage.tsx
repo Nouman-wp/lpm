@@ -2,11 +2,13 @@ import { useMemo, useRef, useState } from "react";
 import { formatTokenCount } from "../agentUsageFormat";
 import { usageRows, type UsageRow } from "../sidebarUsage";
 import { useAgentLimits } from "../hooks/useAgentLimits";
+import { useClaudeAccountsOf } from "../hooks/useClaudeAccountsOf";
 import { useNow } from "../hooks/useNow";
 import { useProjectClaudeAccounts } from "../hooks/useProjectClaudeAccounts";
 import { useTokensToday } from "../hooks/useTokensToday";
-import { useAccountsStore } from "../store/accounts";
+import { peerSlugOf } from "../peer/markers";
 import { useAppStore } from "../store/app";
+import { useMachineClaudeStore } from "../store/machineClaude";
 import { useSettingsStore } from "../store/settings";
 import { usageSidebarTools, usageSidebarWindow } from "./usageSidebarSettings";
 import { displayNameForProjectName } from "./ProjectNameDisplay";
@@ -107,31 +109,36 @@ function RowBody({ row, note }: { row: UsageRow; note?: AccountNote }) {
 // over a two-lane bar of how much of that window and the other one is gone (the
 // thin lower lane). A tool that has no window yet falls back
 // to what it spent today, so a row never goes blank. Hovering a row opens the
-// same card the Usage window shows. With more than one Claude account listed,
-// the selected project's account carries an "in use" tag and the rest of its
-// pool a "pool" tag. Right-clicking an account row switches to that account.
+// same card the Usage window shows. The lines are of the machine the selected
+// project is on: this Mac, or the paired machine. With more than one Claude
+// account listed, the selected project's account carries an "in use" tag and
+// the rest of its pool a "pool" tag. Right-clicking an account row switches to
+// that account.
 export function SidebarUsage({ onOpen }: { onOpen: () => void }) {
   const enabled = useSettingsStore((s) => s.usageInSidebar ?? true);
   const tools = useSettingsStore(usageSidebarTools);
   const choice = useSettingsStore(usageSidebarWindow);
-  const { limits } = useAgentLimits();
-  const { stats } = useTokensToday(enabled);
-  const now = useNow(enabled, 30_000);
-  const claudeAccounts = useAccountsStore((s) => s.accounts);
-  const accountStatuses = useAccountsStore((s) => s.statuses);
   const selected = useAppStore((s) => s.selected);
   const projects = useAppStore((s) => s.projects);
-  const inUse = useProjectClaudeAccounts(enabled ? selected : null);
+  const host = peerSlugOf(selected);
+  const { limits } = useAgentLimits(enabled ? host : null);
+  const { stats } = useTokensToday(enabled, host);
+  const now = useNow(enabled, 30_000);
+  const machine = useClaudeAccountsOf(enabled ? selected : null);
+  const machineName = useMachineClaudeStore((s) => (host ? s.aliases[host] : undefined));
+  const inUse = useProjectClaudeAccounts(enabled ? selected : null, machine);
   const [hovered, setHovered] = useState<{ id: string; anchor: DOMRect } | null>(null);
   const [menu, setMenu] = useState<{ account: string; label: string; x: number; y: number } | null>(null);
   const timer = useRef<number | null>(null);
 
+  const claudeAccounts = machine?.accounts;
+  const accountStatuses = machine?.statuses;
   const accounts = useMemo(
     () =>
-      claudeAccounts.map((a) => ({
+      (claudeAccounts ?? []).map((a) => ({
         id: a.id,
         label: a.label,
-        email: accountStatuses[a.id]?.email,
+        email: accountStatuses?.[a.id]?.email,
       })),
     [claudeAccounts, accountStatuses],
   );
@@ -165,7 +172,8 @@ export function SidebarUsage({ onOpen }: { onOpen: () => void }) {
   const noteFor = (row: UsageRow): AccountNote | undefined => {
     if (!inUse || !selected || accountRows < 2 || !row.id.startsWith(CLAUDE_ACCOUNT_ROW)) return undefined;
     const id = row.id.slice(CLAUDE_ACCOUNT_ROW.length);
-    const project = displayNameForProjectName(selected, projects);
+    const name = displayNameForProjectName(selected, projects);
+    const project = machineName ? `${name} on ${machineName}` : name;
     if (id === inUse.current) return { mark: "current", text: `New Claude sessions in ${project} use this account` };
     if (inUse.standby.includes(id)) return { mark: "standby", text: `${project} can switch to this account` };
     return undefined;
@@ -253,6 +261,9 @@ export function SidebarUsage({ onOpen }: { onOpen: () => void }) {
         <SidebarUsageAccountMenu
           account={menu.account}
           label={menu.label}
+          host={host}
+          limits={limits}
+          inUse={inUse}
           x={menu.x}
           y={menu.y}
           onOpenUsage={onOpen}

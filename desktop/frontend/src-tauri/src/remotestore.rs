@@ -123,7 +123,7 @@ pub(crate) struct RemoteConfig {
     pub(crate) pairing_code_by_peer: bool,
     pub(crate) tailscale: bool, // advertise this Mac's Tailscale address in the pairing QR
     pub(crate) push_relay: String, // override for the push relay URL (empty => DEFAULT_PUSH_RELAY)
-    pub(crate) keep_awake: bool, // keep this machine from idle-sleeping while remote control is on
+    pub(crate) keep_awake: bool, // keep this machine from idle-sleeping while remote control or Allow control (peer.json) is on
     // Stable identity of this Mac, minted on first run and persisted. Sent to the
     // phone so it can distinguish and label multiple paired Macs, and mixed into
     // the push collapse id so same-named projects on different Macs don't collide.

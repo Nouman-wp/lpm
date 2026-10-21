@@ -17,12 +17,6 @@ vi.mock("../../bridge/runtime", () => ({ EventsOn: () => () => {} }));
 vi.mock("../store/app", () => ({
   useAppStore: (select: (state: unknown) => unknown) => select(mocks.app),
 }));
-vi.mock("../hooks/useAgentLimits", () => ({
-  useAgentLimits: () => ({ limits: {}, loading: false, error: "", refresh: () => {} }),
-}));
-vi.mock("../hooks/useProjectClaudeAccounts", () => ({
-  useProjectClaudeAccounts: (name: string | null) => (name ? mocks.inUse : null),
-}));
 vi.mock("../store/claudeAccountPin", () => ({
   setClaudeAccountChoice: mocks.setClaudeAccountChoice,
   openClaudeAccountSettings: vi.fn(),
@@ -53,7 +47,17 @@ function open(account = "side", label = "Side") {
   const onClose = vi.fn();
   act(() =>
     root.render(
-      <SidebarUsageAccountMenu account={account} label={label} x={0} y={0} onOpenUsage={() => {}} onClose={onClose} />,
+      <SidebarUsageAccountMenu
+        account={account}
+        label={label}
+        host={null}
+        limits={{}}
+        inUse={mocks.inUse}
+        x={0}
+        y={0}
+        onOpenUsage={() => {}}
+        onClose={onClose}
+      />,
     ),
   );
   const item = [...host.querySelectorAll("button")].find(
@@ -93,8 +97,19 @@ describe("SidebarUsageAccountMenu", () => {
     expect(item.disabled).toBe(false);
   });
 
+  it("switches a paired machine's project on that machine", () => {
+    mocks.app.selected = "peer-abcdef12-lpm";
+    mocks.app.projects = [{ name: "peer-abcdef12-lpm", label: "lpm", isRemote: false }];
+    const { item } = open();
+    expect(item.disabled).toBe(false);
+    expect(item.textContent).toContain("New sessions in lpm");
+    act(() => item.click());
+    expect(mocks.setClaudeAccountChoice).toHaveBeenCalledWith("peer-abcdef12-lpm", { kind: "pin", id: "side" });
+  });
+
   it("does nothing without a local project", () => {
     mocks.app.projects = [{ name: "lpm", isRemote: true }];
+    mocks.inUse = null;
     const { item } = open();
     expect(item.disabled).toBe(true);
     expect(item.textContent).toContain("Select a local project first");

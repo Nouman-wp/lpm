@@ -89,7 +89,8 @@ export function SettingsLayout({
         const el = document.querySelector<HTMLElement>(`[data-settings-row="${id}"]`);
         if (el) {
           // A setting folded under a disclosure is shown before it is pointed at.
-          if (el instanceof HTMLDetailsElement) el.open = true;
+          const fold = el.closest("details");
+          if (fold) fold.open = true;
           el.scrollIntoView({ block: "center", behavior: "smooth" });
           el.classList.add("settings-search-flash");
           window.setTimeout(() => el.classList.remove("settings-search-flash"), 1500);

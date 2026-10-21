@@ -4,9 +4,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  agentUsageStats: vi.fn(),
+  agentUsageMachines: vi.fn(),
   agentLimits: vi.fn(),
   claudeLimitsAccount: vi.fn(),
+  peerInvoke: vi.fn(),
   app: { selected: null as string | null, projects: [] as unknown[] },
 }));
 
@@ -14,9 +15,10 @@ vi.mock("../store/app", () => ({
   useAppStore: (select: (state: unknown) => unknown) => select(mocks.app),
 }));
 vi.mock("../../bridge/commands", () => ({
-  AgentUsageStats: mocks.agentUsageStats,
+  AgentUsageMachines: mocks.agentUsageMachines,
   AgentLimits: mocks.agentLimits,
   ClaudeLimitsAccount: mocks.claudeLimitsAccount,
+  PeerInvoke: mocks.peerInvoke,
   AcceptClaudePoolPick: vi.fn(),
   ClaudePoolState: vi.fn(),
   ResumeClaudePool: vi.fn(),
@@ -33,6 +35,7 @@ vi.mock("../../bridge/runtime", () => ({
 
 import { useAccountsStore } from "../store/accounts";
 import { useClaudePoolStore, type ClaudePool } from "../store/claudePool";
+import { useMachineClaudeStore } from "../store/machineClaude";
 import { useSettingsStore } from "../store/settings";
 import { SidebarUsage } from "./SidebarUsage";
 
@@ -81,6 +84,25 @@ function usage(claude: number) {
   };
 }
 
+function today(claude: number) {
+  return { machine: "local", stats: usage(claude), machines: [] };
+}
+
+// Claude readings of the weekly window, by account.
+function weekly(used: Record<string, number>) {
+  return Object.fromEntries(
+    Object.entries(used).map(([id, usedPercent]) => [
+      `claude:${id}`,
+      {
+        provider: "claude",
+        accountId: id,
+        weekly: { usedPercent, resetsAt: IN_TWO_HOURS + 86_400 },
+        updatedAt: Date.now(),
+      },
+    ]),
+  );
+}
+
 async function render(onOpen = () => {}) {
   await act(async () => {
     root.render(<SidebarUsage onOpen={onOpen} />);
@@ -89,7 +111,7 @@ async function render(onOpen = () => {}) {
 
 beforeEach(() => {
   mocks.agentLimits.mockResolvedValue(limits());
-  mocks.agentUsageStats.mockResolvedValue(usage(0));
+  mocks.agentUsageMachines.mockResolvedValue(today(0));
   useSettingsStore.setState({
     usageInSidebar: true,
     usageSidebarTools: undefined,
@@ -97,6 +119,7 @@ beforeEach(() => {
   });
   useAccountsStore.setState({ accounts: [], statuses: {}, usage: {} });
   useClaudePoolStore.setState({ pool: null });
+  useMachineClaudeStore.setState({ machines: {}, aliases: {} });
   mocks.app.selected = null;
   mocks.app.projects = [];
   container = document.createElement("div");
@@ -221,20 +244,7 @@ describe("SidebarUsage", () => {
 
   describe("the selected project's account", () => {
     function twoAccounts() {
-      mocks.agentLimits.mockResolvedValue({
-        "claude:acc-work": {
-          provider: "claude",
-          accountId: "acc-work",
-          weekly: { usedPercent: 40, resetsAt: IN_TWO_HOURS + 86_400 },
-          updatedAt: Date.now(),
-        },
-        "claude:acc-home": {
-          provider: "claude",
-          accountId: "acc-home",
-          weekly: { usedPercent: 12, resetsAt: IN_TWO_HOURS + 86_400 },
-          updatedAt: Date.now(),
-        },
-      });
+      mocks.agentLimits.mockResolvedValue(weekly({ "acc-work": 40, "acc-home": 12 }));
       useAccountsStore.setState({
         accounts: [
           { id: "acc-work", label: "Work" },
@@ -306,6 +316,60 @@ describe("SidebarUsage", () => {
       }
     });
 
+    describe("on a paired machine", () => {
+      const SLUG = "abcdef12";
+      const API = `peer-${SLUG}-api`;
+
+      function pairedMachine(pool: unknown = null) {
+        useMachineClaudeStore.setState({ aliases: { [SLUG]: "Mac mini" } });
+        mocks.peerInvoke.mockImplementation(async (slug: string, cmd: string) => {
+          if (slug !== SLUG) throw new Error(`no machine ${slug}`);
+          if (cmd === "agent_limits") return weekly({ "acc-mini": 70, "acc-spare": 5 });
+          if (cmd === "host_claude_accounts") {
+            return {
+              accounts: [
+                { id: "acc-mini", label: "Mini" },
+                { id: "acc-spare", label: "Spare" },
+              ],
+              statuses: [],
+              usage: {},
+              pool,
+            };
+          }
+          throw new Error(`unexpected ${cmd}`);
+        });
+      }
+
+      it("shows that machine's accounts and tags the one its project runs on", async () => {
+        twoAccounts();
+        pairedMachine();
+        mocks.app.selected = API;
+        mocks.app.projects = [{ name: API, label: "api", isRemote: false, claudeAccount: "acc-spare" }];
+        await render();
+
+        expect(container.textContent).not.toContain("Work");
+        expect(mocks.agentUsageMachines).toHaveBeenCalledWith(1, SLUG, false);
+        expect(tag("Spare")).toBe("in use");
+        expect(tag("Mini")).toBeNull();
+        expect(container.textContent).toContain("New Claude sessions in api on Mac mini use this account");
+      });
+
+      it("asks for the login its project runs on", async () => {
+        twoAccounts();
+        pairedMachine({
+          active: false,
+          pools: [{ key: "__main__", project: null, members: [], current: null, pick: null }],
+        });
+        mocks.claudeLimitsAccount.mockResolvedValue("acc-mini");
+        mocks.app.selected = API;
+        mocks.app.projects = [{ name: API, label: "api", isRemote: false }];
+        await render();
+
+        expect(mocks.claudeLimitsAccount).toHaveBeenCalledWith(API);
+        expect(tag("Mini")).toBe("in use");
+      });
+    });
+
     it("marks nothing for a remote project", async () => {
       twoAccounts();
       mocks.app.selected = "far";
@@ -338,7 +402,7 @@ describe("SidebarUsage", () => {
 
   it("falls back to today's spend for a tool with no window yet", async () => {
     mocks.agentLimits.mockResolvedValue({});
-    mocks.agentUsageStats.mockResolvedValue(usage(2_000_000));
+    mocks.agentUsageMachines.mockResolvedValue(today(2_000_000));
     await render();
 
     const rows = [...container.querySelectorAll("button")];
@@ -370,7 +434,7 @@ describe("SidebarUsage", () => {
   });
 
   it("carries the day's spend under the card", async () => {
-    mocks.agentUsageStats.mockResolvedValue(usage(2_400_000));
+    mocks.agentUsageMachines.mockResolvedValue(today(2_400_000));
     await render();
 
     await act(async () => {
@@ -398,7 +462,7 @@ describe("SidebarUsage", () => {
     await render();
 
     expect(container.textContent).toBe("");
-    expect(mocks.agentUsageStats).not.toHaveBeenCalled();
+    expect(mocks.agentUsageMachines).not.toHaveBeenCalled();
   });
 
   it("renders nothing when no tool has reported anything", async () => {

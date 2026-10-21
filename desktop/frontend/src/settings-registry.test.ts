@@ -70,6 +70,12 @@ describe("matchSettings", () => {
     expect(ids(matchSettings(withTTS, "templates"))).toContain("templates.list");
   });
 
+  it("finds keep awake in both the Phone and Connections panes", () => {
+    expect(ids(matchSettings(withTTS, "caffeinate"))).toEqual(
+      expect.arrayContaining(["mobile.keepAwake", "connections.keepAwake"]),
+    );
+  });
+
   it("excludes filtered-out entries from results", () => {
     expect(ids(matchSettings(withoutTTS, "kokoro"))).not.toContain("tts.enable");
     expect(ids(matchSettings(withTTS, "kokoro"))).toContain("tts.enable");
@@ -124,6 +130,8 @@ describe("a connected machine's settings", () => {
     );
     expect(onStudio).not.toContain("general.removeApp");
     expect(onStudio).not.toContain("backup.export");
+    expect(onStudio).toContain("mobile.keepAwake");
+    expect(onStudio).not.toContain("connections.keepAwake");
     expect(onStudio).toContain("tts.openaiKey");
     expect(onStudio).toContain("global-config");
     expect(onStudio).not.toContain("usage");

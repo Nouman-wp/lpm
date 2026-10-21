@@ -395,6 +395,11 @@ describe("isLocalOnlyCommand", () => {
     expect(isLocalOnlyCommand("notes_read_file_as_input")).toBe(true);
   });
 
+  // A paired machine's project runs on that machine's login, not this Mac's.
+  it("asks a paired machine which account its project uses", () => {
+    expect(isLocalOnlyCommand("claude_limits_account")).toBe(false);
+  });
+
   it("keeps terminal control ownership local even for a peer-prefixed id", () => {
     expect(isLocalOnlyCommand("terminal_claim_control")).toBe(true);
     expect(isLocalOnlyCommand("terminal_present_control")).toBe(true);
