@@ -38,7 +38,7 @@ export function syncPill(peer: PeerClient, diff: SyncDiff | undefined): SyncPill
   if (diff.error) return { text: "Error", color: "var(--accent-red)", title: diff.error };
   const n = diff.items?.length ?? 0;
   if (n === 0) return { text: "In sync", color: "var(--accent-green)" };
-  return { text: `${n} item${n === 1 ? "" : "s"} differ`, color: "var(--accent-amber)" };
+  return { text: n === 1 ? "1 item differs" : `${n} items differ`, color: "var(--accent-amber)" };
 }
 
 // When auto-sync is on but the peer can't sync yet, one short reason in product

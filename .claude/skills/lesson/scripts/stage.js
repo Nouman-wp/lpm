@@ -13,7 +13,9 @@ const OUT = { width: W * ZOOM, height: H * ZOOM };
 const FRAME = {
   width: Number(process.env.FRAME_W) || 1100,
   height: Number(process.env.FRAME_H) || 620,
-  radius: 14,
+  // At least the window's own corner (about 19 pt on macOS 27): a smaller
+  // mask lets the capture's black outside that corner through.
+  radius: 20,
   canvas: CANVAS,
 };
 

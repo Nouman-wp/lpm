@@ -135,6 +135,13 @@ const LESSONS = {
       "Two ways to run your projects on a server with lpm: set it up as a Linux host that holds many projects and keeps Claude Code and Codex working while your Mac sleeps, or just SSH in to open one folder with nothing installed.",
     uploadDate: "2026-10-20T09:00:00+00:00",
   },
+  "keep-agents-running-on-server": {
+    id: "1an8djn43JU",
+    name: "Run Claude Code & Codex on a Server — Keep Agents Running When You Close Your Laptop",
+    description:
+      "Close your laptop and Claude Code stops. Run it on an always-on machine with lpm instead, a Mac mini or a Linux server, and it keeps working: connect the server, start Claude Code and Codex there, close the lid, and come back to finished work.",
+    uploadDate: "2026-10-21T09:00:00+00:00",
+  },
   "sixty-seconds": {
     id: "H46vW5DPbZk",
     name: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",

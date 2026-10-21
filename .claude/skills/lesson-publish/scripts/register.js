@@ -7,6 +7,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { execFileSync } = require("child_process");
 
 const [lessonArg, videoArg] = process.argv.slice(2);
 const id = (/(?:youtu\.be\/|v=|\/shorts\/|^)([A-Za-z0-9_-]{11})(?:\b|$)/.exec(videoArg || "") || [])[1];
@@ -19,7 +20,6 @@ const dir = lessonArg.includes("/") ? path.resolve(lessonArg) : path.join(ROOT, 
 const slug = path.basename(dir);
 const REPO = path.resolve(__dirname, "../../../..");
 const lesson = JSON.parse(fs.readFileSync(path.join(dir, "lesson.json"), "utf8"));
-const timeline = JSON.parse(fs.readFileSync(path.join(dir, "timeline.json"), "utf8"));
 const url = `https://youtu.be/${id}`;
 const today = new Date().toISOString().slice(0, 10);
 
@@ -29,7 +29,8 @@ const record = {
   url,
   title: lesson.title,
   publishedAt: new Date().toISOString(),
-  durationS: Math.round(timeline.totalMs / 1000),
+  // The MP4, not the recording: the edit speeds up and cuts waits.
+  durationS: Math.round(parseFloat(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path.join(dir, `${slug}.mp4`)], { encoding: "utf8" }))),
   chapters: fs.existsSync(chaptersFile) ? fs.readFileSync(chaptersFile, "utf8").trim().split("\n") : [],
 };
 fs.writeFileSync(path.join(dir, "published.json"), JSON.stringify(record, null, 2) + "\n");

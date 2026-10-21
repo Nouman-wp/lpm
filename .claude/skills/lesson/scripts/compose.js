@@ -61,12 +61,14 @@ html, body { margin: 0; background: transparent; width: ${out.width}px; height: 
 #box { position: absolute; left: ${box.x}px; top: ${box.y}px; width: ${box.w}px; height: ${box.h}px; border-radius: ${radius}px; background: transparent; box-shadow: ${shadow}; }
 </style><div id="box"></div>`);
   await page.screenshot({ path: assets.shadow, omitBackground: true });
-  await page.setContent(`<!doctype html><style>
+  // A page of its own at the box's size: Chromium 154 screenshots a page
+  // shrunk with setViewportSize as a band of its old height, repeated.
+  const maskPage = await browser.newPage({ viewport: { width: box.w, height: box.h }, deviceScaleFactor: 1 });
+  await maskPage.setContent(`<!doctype html><style>
 html, body { margin: 0; background: #000; width: ${box.w}px; height: ${box.h}px; overflow: hidden; }
 #box { position: absolute; inset: 0; border-radius: ${radius}px; background: #fff; }
 </style><div id="box"></div>`);
-  await page.setViewportSize({ width: box.w, height: box.h });
-  await page.screenshot({ path: assets.mask });
+  await maskPage.screenshot({ path: assets.mask });
   await browser.close();
   return assets;
 }

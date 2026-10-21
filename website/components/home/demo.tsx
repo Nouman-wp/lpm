@@ -181,6 +181,10 @@ const LESSON_CAPTION: Record<
     heading: "Run Claude Code and Codex on your own server",
     blurb: "A short video: set up a Linux host for many projects, or just SSH in to open one folder.",
   },
+  "keep-agents-running-on-server": {
+    heading: "Close the lid, come back to finished work",
+    blurb: "A short video: start Claude Code and Codex on an always-on Mac, disconnect, and find both done.",
+  },
 };
 
 function DesktopOnlyPrompt({

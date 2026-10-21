@@ -24,6 +24,7 @@ import Faq, { FAQ_ITEMS } from "./_components/faq";
 import Hero from "./_components/hero";
 import HowItWorks from "./_components/how-it-works";
 import Lesson from "./_components/lesson";
+import LidClosedLesson from "./_components/lid-closed-lesson";
 import Lifetimes from "./_components/lifetimes";
 import Problem from "./_components/problem";
 import QuickAnswer from "./_components/quick-answer";
@@ -91,6 +92,7 @@ const structuredData = [
   ]),
   faqJsonLd(FAQ_ITEMS),
   youtubeLessonJsonLd("claude-code-codex-remote-server"),
+  youtubeLessonJsonLd("keep-agents-running-on-server"),
 ];
 
 export default function RunOnRemoteServerPage() {
@@ -108,6 +110,7 @@ export default function RunOnRemoteServerPage() {
       <Lesson />
       <AfterConnect />
       <Lifetimes />
+      <LidClosedLesson />
       <Security />
       <Requirements />
       <Alternatives />
