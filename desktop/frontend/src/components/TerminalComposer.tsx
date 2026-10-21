@@ -72,7 +72,7 @@ import { ImageLightbox } from "./ImageLightbox";
 import { loadImageDataUrl, seedImageDataUrl } from "./imageDataUrl";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
 import { readBackendImage, readPasteContent, unlessNativePaste } from "./terminal/clipboardRead";
-import { TERMINAL_FONT_FAMILY } from "./terminal-utils";
+import { TERMINAL_FONT_FAMILY, composerFontSize } from "./terminal-utils";
 import { basename } from "../path";
 import { composerPlaceholder } from "../composerText";
 import {
@@ -279,7 +279,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const peerSlug = peerSlugOf(terminalId);
   const isRemotePeer = peerSlug !== null;
   // The input reads better slightly larger than the terminal text it feeds.
-  const inputFontSize = fontSize + 2;
+  const inputFontSize = composerFontSize(fontSize);
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
   const [blank, setBlank] = useState(true);

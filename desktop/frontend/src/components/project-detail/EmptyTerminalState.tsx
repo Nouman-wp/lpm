@@ -5,6 +5,7 @@ import { useRecentSessions } from "../../hooks/useRecentSessions";
 import { useRowsThatFit } from "../../hooks/useRowsThatFit";
 import type { PersistedHistoryEntry } from "../../terminals";
 import type { ActionInfo } from "../../types";
+import { composerFontSize } from "../terminal-utils";
 import { LaunchpadPrompt } from "./LaunchpadPrompt";
 import { LaunchpadSessionRow } from "./LaunchpadSessionRow";
 
@@ -33,6 +34,8 @@ interface EmptyTerminalStateProps extends LaunchpadTargets {
   projectName: string;
   projectLabel: string;
   projectRoot: string;
+  // The terminals' font size, so the prompt reads like their composer.
+  fontSize: number;
   actions: ActionInfo[];
   sessionHistory: PersistedHistoryEntry[];
   hiddenSessions: ReadonlySet<string>;
@@ -48,6 +51,7 @@ export function EmptyTerminalState({
   projectName,
   projectLabel,
   projectRoot,
+  fontSize,
   actions,
   sessionHistory,
   hiddenSessions,
@@ -83,16 +87,17 @@ export function EmptyTerminalState({
         <p className="self-end pb-5 pt-10 text-center text-[13px] text-[var(--text-muted)]">
           Open a terminal or start an agent
         </p>
-        <div className="mx-auto w-full max-w-xl">
+        <div className="mx-auto w-full max-w-3xl">
           <LaunchpadPrompt
             project={project}
             launchpad={launchpad}
             focusRequest={focusRequest}
+            fontSize={composerFontSize(fontSize)}
             onSelect={launchpad.select}
             onStart={launchpad.start}
           />
         </div>
-        <div ref={contentRef} className="mx-auto flex w-full max-w-xl flex-col gap-5 self-start pb-10 pt-5">
+        <div ref={contentRef} className="mx-auto flex w-full max-w-3xl flex-col gap-5 self-start pb-10 pt-5">
           {recent && recent.length > 0 && (
             <div className="flex flex-col gap-1">
               <span className={`${CAPTION} px-2.5`}>Pick up where you left off</span>

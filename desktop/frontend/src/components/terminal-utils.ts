@@ -14,6 +14,8 @@ export const TERMINAL_FONT_FAMILY = isLinux
   ? "'DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono', 'Noto Color Emoji', monospace"
   : "'SF Mono', Menlo, Monaco, 'Courier New', 'Segoe UI Emoji', 'Noto Color Emoji', monospace";
 
+export const composerFontSize = (terminalFontSize: number) => terminalFontSize + 2;
+
 // A chosen font always keeps the default stack behind it, so a missing family
 // still renders and the emoji fallbacks stay reachable for glyphs it lacks.
 export function terminalFontStack(family?: string): string {

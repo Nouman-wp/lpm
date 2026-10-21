@@ -119,6 +119,7 @@ export function TerminalPane({
           projectName={projectName}
           projectLabel={projectLabel}
           projectRoot={projectRoot}
+          fontSize={fontSize}
           actions={actions ?? []}
           sessionHistory={sessionHistory}
           hiddenSessions={hiddenSessions}

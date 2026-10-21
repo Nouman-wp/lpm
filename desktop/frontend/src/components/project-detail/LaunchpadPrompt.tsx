@@ -10,6 +10,7 @@ export function LaunchpadPrompt({
   project,
   launchpad,
   focusRequest,
+  fontSize,
   onSelect,
   onStart,
 }: {
@@ -17,6 +18,7 @@ export function LaunchpadPrompt({
   launchpad: Launchpad;
   // Bumped when ⌘T asked for the launcher, so the prompt takes the keyboard.
   focusRequest: number;
+  fontSize?: number;
   onSelect: (id: string) => void;
   onStart: () => void;
 }) {
@@ -26,6 +28,7 @@ export function LaunchpadPrompt({
   return (
     <InputComposer
       tone="terminal"
+      fontSize={fontSize}
       onChange={launchpad.setValue}
       onSubmit={onStart}
       focusRequest={focusRequest}

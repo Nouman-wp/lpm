@@ -111,6 +111,8 @@ interface InputComposerProps {
   // "terminal" frames the box like the terminal's own composer: flush with
   // what's above it and focusing quietly. Dialogs keep the accent focus.
   tone?: "dialog" | "terminal";
+  // Text size of the field and its placeholder, in px.
+  fontSize?: number;
   // When set, a message-history button recalls past prompts for this project.
   history?: ComposerHistory;
   // Working directory AI-edit transforms run in (the project root). When set, an
@@ -155,6 +157,7 @@ export function InputComposer({
   focusRequest,
   onSubmit,
   tone = "dialog",
+  fontSize = 13,
   history,
   aiCwd,
   memory,
@@ -828,11 +831,15 @@ export function InputComposer({
             onCopy={(e) => handleCopyCut(e, false)}
             onCut={(e) => handleCopyCut(e, true)}
             onClick={handleClick}
-            className="block max-h-[200px] min-h-[60px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-3 py-2.5 text-[13px] leading-snug text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
+            style={{ fontSize }}
+            className="block max-h-[200px] min-h-[60px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-3 py-2.5 leading-snug text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
           />
 
           {blank && placeholder && (
-            <div className="pointer-events-none absolute left-3 top-2.5 whitespace-pre-line text-[13px] leading-snug text-[var(--text-muted)]">
+            <div
+              style={{ fontSize }}
+              className="pointer-events-none absolute left-3 top-2.5 whitespace-pre-line leading-snug text-[var(--text-muted)]"
+            >
               {placeholder}
             </div>
           )}

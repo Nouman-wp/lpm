@@ -47,6 +47,7 @@ function render(history: PersistedHistoryEntry[] = [], handlers: Handlers = {}) 
         projectName="wt-one"
         projectLabel="wt-one"
         projectRoot="/tmp/wt-one"
+        fontSize={13}
         actions={handlers.actions ?? []}
         sessionHistory={history}
         hiddenSessions={new Set()}
