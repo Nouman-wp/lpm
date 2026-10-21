@@ -114,6 +114,9 @@ pub struct Grid {
     /// Where the line lpm last typed into the shell started (`mark_anchor`),
     /// until the shell runs it (`cut_to_anchor`).
     anchor: Option<usize>,
+    /// The shell said it was running the typed line before its echo was drawn,
+    /// so the cut waits for the next line feed, which a wrap is not.
+    cut_at_line_end: bool,
 }
 
 impl Grid {
@@ -137,6 +140,7 @@ impl Grid {
             title: String::new(),
             dropped: 0,
             anchor: None,
+            cut_at_line_end: false,
         }
     }
 
@@ -155,13 +159,13 @@ impl Grid {
             self.screen[self.cursor_row].wrapped = true;
             self.cursor_col = 0;
             self.wrap_pending = false;
-            self.line_feed();
+            self.next_row();
         }
         if self.cursor_col + width > cols {
             if self.autowrap {
                 self.screen[self.cursor_row].wrapped = true;
                 self.cursor_col = 0;
-                self.line_feed();
+                self.next_row();
             } else {
                 // Autowrap off: the glyph overwrites the last cell(s) in place.
                 self.cursor_col = cols - width;
@@ -196,6 +200,13 @@ impl Grid {
 
     /// LF: advance a row, scrolling the region when already at its bottom.
     pub fn line_feed(&mut self) {
+        self.next_row();
+        if std::mem::take(&mut self.cut_at_line_end) {
+            self.cut_typed_line();
+        }
+    }
+
+    fn next_row(&mut self) {
         self.wrap_pending = false;
         if self.cursor_row == self.scroll_bottom {
             self.scroll_up(1);
@@ -454,13 +465,24 @@ impl Grid {
     /// here.
     pub fn mark_anchor(&mut self) {
         self.anchor = Some(self.line());
+        self.cut_at_line_end = false;
     }
 
     /// The shell has started running the typed line: drop the rows from the
     /// anchor down to the cursor's, so the output reads from where the line was
-    /// typed. A full-screen program or a scroll region is left alone, as is an
-    /// anchor the scrollback has already let go of.
+    /// typed. ConPTY passes the shell's mark through ahead of an echo it has yet
+    /// to draw, leaving the cursor partway along the prompt, so there the cut
+    /// waits for that line to end. A full-screen program or a scroll region is
+    /// left alone, as is an anchor the scrollback has already let go of.
     pub fn cut_to_anchor(&mut self) {
+        if self.anchor.is_some() && self.cursor_col > 0 {
+            self.cut_at_line_end = true;
+        } else {
+            self.cut_typed_line();
+        }
+    }
+
+    fn cut_typed_line(&mut self) {
         let Some(anchor) = self.anchor.take() else {
             return;
         };

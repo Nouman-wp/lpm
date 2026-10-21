@@ -503,7 +503,7 @@ mod tests {
     /// What a pane sees when lpm types a line into a shell that isn't ready
     /// yet: the terminal echoes it, the prompt draws it again, then the shell
     /// says it is running it and the output follows.
-    const TYPED: &[u8] = b"cd '/srv/app' && npm run api\r\n$ cd '/srv/app' && npm run api\r\n\x1b]7702\x07listening on :4000\r\n";
+    const TYPED: &[u8] = b"cd '/srv/app' && npm run api\r\n$ cd '/srv/app' && npm run api\r\n\x1b]7702;\x07listening on :4000\r\n";
 
     #[test]
     fn the_typed_line_and_its_echoes_are_dropped_once_it_runs() {
@@ -532,6 +532,22 @@ mod tests {
         );
     }
 
+    /// ConPTY passes the shell's mark through at once but draws the line's echo
+    /// on its next frame, together with the first output.
+    #[test]
+    fn an_echo_drawn_after_the_exec_mark_is_dropped_too() {
+        let mut grid = Grid::new(40, 6);
+        let mut parser = Parser::default();
+        parser.feed(b"last run's log\r\n", &mut grid);
+        grid.mark_anchor();
+        parser.feed(b"\r\nme@host /srv/app\r\n$ \x1b]7702;\x07", &mut grid);
+        parser.feed(b"npm run api\r\nlistening on :4000\r\n", &mut grid);
+        assert_eq!(
+            grid.capture(100).trim(),
+            "last run's log\nlistening on :4000"
+        );
+    }
+
     #[test]
     fn without_a_typed_line_the_exec_mark_changes_nothing() {
         assert_eq!(render(40, 6, TYPED).lines().count(), 3);
@@ -543,7 +559,7 @@ mod tests {
         let mut parser = Parser::default();
         parser.feed(b"\x1b[?1049hmenu\r\n", &mut grid);
         grid.mark_anchor();
-        parser.feed(b"typed\r\n\x1b]7702\x07", &mut grid);
+        parser.feed(b"typed\r\n\x1b]7702;\x07", &mut grid);
         assert_eq!(grid.capture(100).trim(), "menu\ntyped");
     }
 

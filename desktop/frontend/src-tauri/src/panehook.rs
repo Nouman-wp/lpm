@@ -8,7 +8,8 @@
 //! Just before running a line, zsh (preexec) and bash 4.4+ (PS0) print a second
 //! OSC. The parser drops the rows from where the line was typed to there, so a
 //! service's log starts at its own output rather than at the line echoed back
-//! twice, by the terminal and again by the prompt.
+//! twice, by the terminal and again by the prompt. It ends in an empty `;`
+//! payload because ConPTY drops an OSC that has none.
 //!
 //! zsh gets the hook through ZDOTDIR, the way lpm's terminals get theirs
 //! (shellwrap.rs), added after the user's .zshrc so nothing in it can drop the
@@ -22,11 +23,11 @@ pub const PROMPT_OSC: &str = "7701";
 pub const EXEC_OSC: &str = "7702";
 
 const ZSH_HOOK: &str = r#"_lpm_pane_prompt() { builtin printf '\033]7701;%d\007' $? }
-_lpm_pane_exec() { builtin printf '\033]7702\007' }
+_lpm_pane_exec() { builtin printf '\033]7702;\007' }
 precmd_functions=(_lpm_pane_prompt $precmd_functions)
 preexec_functions=(_lpm_pane_exec $preexec_functions)"#;
 
-const BASH_FN: &str = r#"() { local s=$?; builtin printf '\033]7701;%d\007' "$s"; [[ $PS0 == *7702* ]] || PS0=$'\e]7702\a'$PS0; export -n PROMPT_COMMAND; export -nf _lpm_pane_prompt; return $s; }"#;
+const BASH_FN: &str = r#"() { local s=$?; builtin printf '\033]7701;%d\007' "$s"; [[ $PS0 == *7702* ]] || PS0=$'\e]7702;\a'$PS0; export -n PROMPT_COMMAND; export -nf _lpm_pane_prompt; return $s; }"#;
 
 const BASH_FN_NAME: &str = "_lpm_pane_prompt";
 
