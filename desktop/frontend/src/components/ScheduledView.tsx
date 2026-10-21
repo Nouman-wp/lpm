@@ -224,7 +224,7 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
         await deleteJob(project, job.id);
         await ClearJobState(project, job.id, deleteCopies);
       }
-      toast.success("Job removed");
+      toast.success("Automation removed");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -342,7 +342,7 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6 pt-4"
       >
         {error && !shown.length ? (
-          <EmptyState title="Couldn't load scheduled jobs" body={error}>
+          <EmptyState title="Couldn't load automations" body={error}>
             <button
               type="button"
               onClick={() => void refetch()}
@@ -361,8 +361,8 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
             title="Nothing scheduled yet"
             body={
               project
-                ? "Create a job to run an AI prompt, a command, or an action in this project on a schedule."
-                : "Create a job to run an AI prompt, a command, or an action on a schedule — for one project or all of them."
+                ? "Create an automation to run an AI prompt, a command, or an action in this project on a schedule."
+                : "Create an automation to run an AI prompt, a command, or an action on a schedule — for one project or all of them."
             }
           >
             <button

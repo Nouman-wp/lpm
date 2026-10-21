@@ -3939,7 +3939,7 @@ pub fn run_job_now(app: AppHandle, project: String, job_id: String) -> Result<()
     }
     if ask::open_in(&st).is_some() {
         return Err(
-            "This automation is waiting for your answer. Answer or dismiss its question first."
+            "This automation is waiting for your answer. Answer or skip its question first."
                 .into(),
         );
     }

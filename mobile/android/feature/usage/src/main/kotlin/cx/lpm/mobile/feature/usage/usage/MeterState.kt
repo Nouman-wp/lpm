@@ -4,7 +4,7 @@ import cx.lpm.mobile.core.model.LimitWindow
 import kotlin.math.roundToLong
 
 /** How a window's verdict is tinted. */
-enum class VerdictTone { Secondary, Warning, Critical }
+enum class VerdictTone { Secondary, Good, Warning, Critical }
 
 /** Everything one window meter shows, worked out from its reading and the clock. */
 data class MeterState(
@@ -76,6 +76,7 @@ fun meterState(win: LimitWindow?, windowMs: Double, now: Double): MeterState {
             expired || pace == null -> VerdictTone.Secondary
             pace.verdict == PaceVerdict.Exhausted -> VerdictTone.Critical
             pace.verdict == PaceVerdict.Over -> VerdictTone.Warning
+            pace.verdict == PaceVerdict.Under -> VerdictTone.Good
             else -> VerdictTone.Secondary
         },
         barFraction = if (hasData) raw.coerceIn(0.0, 100.0) / 100 else 0.0,

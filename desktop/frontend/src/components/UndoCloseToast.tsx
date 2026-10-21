@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
+import { FOOTER_TOASTER_ID } from "../toasterOffset";
 
 interface UndoCloseToastProps {
   toastId: string;
@@ -73,9 +74,7 @@ export function showUndoCloseToast(opts: {
     {
       id: opts.toastId,
       duration: opts.durationMs,
-      // Bottom-left keeps to the footer row (TOASTER_OFFSET), clear of every
-      // pane's composer and its Send button.
-      position: "bottom-left",
+      toasterId: FOOTER_TOASTER_ID,
       onAutoClose: opts.onFinalize,
       onDismiss: opts.onFinalize,
     },

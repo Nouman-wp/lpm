@@ -66,9 +66,12 @@ export function noLabel(q: JobAskQuestion): string {
   return q.no || "No";
 }
 
-// One question settled by a single click on its yes or no.
+// One question settled by a single click: its yes or no, or the one option it
+// takes.
 export function answersOnClick(ask: JobAsk): boolean {
-  return ask.questions.length === 1 && ask.questions[0].type === "confirm";
+  if (ask.questions.length !== 1) return false;
+  const q = ask.questions[0];
+  return q.type === "confirm" || (q.type === "choice" && !q.multiple);
 }
 
 export function draftAnswer(q: JobAskQuestion, d: JobAskDraft): JobAskAnswer | undefined {
@@ -123,7 +126,7 @@ export function askStatusLabel(ask: JobAsk): string {
       if (ask.auto) return "No answer in time — the default was used";
       return ask.reply !== undefined ? "Answered in a reply" : "Answered";
     case "dismissed":
-      return "Dismissed";
+      return "Skipped";
     default:
       return "No answer";
   }
@@ -135,14 +138,22 @@ export function askSummary(ask: JobAsk): string {
   return ask.questions.length > 1 ? `${first} (+${ask.questions.length - 1} more)` : first;
 }
 
-// "Uses the default in 3h" / "Expires in 20m" for a question with a deadline.
-export function askDeadline(ask: JobAsk, nowMs: number = Date.now()): string {
+// "If nobody answers in 3h, it goes with No" for a question with a deadline.
+export function askDeadlineNote(ask: JobAsk, nowMs: number = Date.now()): string {
   if (ask.expiresAt === undefined) return "";
   const left = Math.max(0, ask.expiresAt - Math.floor(nowMs / 1000));
   const mins = Math.max(1, Math.ceil(left / 60));
   const span = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.round(mins / 60)}h` : `${Math.round(mins / 1440)}d`;
+  const lead = `If nobody answers in ${span}`;
+  const [only] = ask.questions;
+  if (ask.questions.length === 1 && only.default !== undefined) {
+    return `${lead}, it goes with ${displayAnswer(only, only.default)}`;
+  }
   const covered = ask.questions.every((q) => q.default !== undefined || q.optional);
-  return covered ? `Uses the default in ${span}` : `Expires in ${span}`;
+  if (!covered) return `${lead}, the question closes`;
+  return ask.questions.some((q) => q.default !== undefined)
+    ? `${lead}, it goes on with the defaults`
+    : `${lead}, it goes on without an answer`;
 }
 
 // The open question a job is waiting on in `project`. A job across several

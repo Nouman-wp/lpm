@@ -50,7 +50,7 @@ data class AutomationConversationUiState(
     /** An answer is out and not acknowledged yet. */
     val answering: Boolean = false,
     val askError: String? = null,
-    /** "Expires in 3h" and the like, per question, measured now. */
+    /** Per question, measured now: what happens if nobody answers in time, or when it settled. */
     val askWhen: Map<String, String> = emptyMap()
 ) {
     val running: Boolean get() = job?.running == true

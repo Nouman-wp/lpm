@@ -21,14 +21,14 @@ tags: [demo, automations]
     timeout: 5000
 - assertVisible: "Publish"
 - assertVisible: "Not yet"
-- assertVisible: "Dismiss"
+- assertVisible: "Skip question"
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 2-automation-question
 # Answering resumes the run, which says what it did with the answer.
 - tapOn: "Publish"
 - extendedWaitUntil:
-    notVisible: "Dismiss"
+    notVisible: "Skip question"
     timeout: 5000
 - extendedWaitUntil:
     visible: "Published the v2.4 release notes on the blog."

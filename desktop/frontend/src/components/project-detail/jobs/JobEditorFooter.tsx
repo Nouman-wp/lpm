@@ -75,7 +75,7 @@ export function JobEditorFooter({
                 : "Creating…"
               : isEditing
                 ? "Save changes"
-                : "Create job"}
+                : "Create automation"}
           {!busy && (
             <kbd className="font-sans text-[11px] font-normal opacity-50">
               {enterHint({ meta: true })}

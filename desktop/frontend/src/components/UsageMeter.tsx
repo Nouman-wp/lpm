@@ -16,15 +16,18 @@ interface UsageMeterProps {
   windowMs: number;
   now: number;
   stale: boolean;
+  /** Half-height bar, for the second meter of a stacked card — the sidebar's thin lower lane. */
+  thin?: boolean;
 }
 
 function verdictColor(verdict: string | undefined): string {
   if (verdict === "exhausted") return "text-[var(--accent-red-text)]";
   if (verdict === "over") return "text-[var(--accent-amber-text)]";
+  if (verdict === "under") return "text-[var(--accent-green-text)]";
   return "text-[var(--text-muted)]";
 }
 
-export function UsageMeter({ label, win, windowMs, now, stale }: UsageMeterProps) {
+export function UsageMeter({ label, win, windowMs, now, stale, thin = false }: UsageMeterProps) {
   const reducedMotion = usePrefersReducedMotion();
   const pace = computePace(win, windowMs, now);
   const expired = pace?.expired ?? false;
@@ -98,7 +101,7 @@ export function UsageMeter({ label, win, windowMs, now, stale }: UsageMeterProps
         title={showTick ? `${elapsed}% of the window has elapsed` : undefined}
         className="relative w-full"
       >
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--bg-active)]">
+        <div className={`${thin ? "h-[3px]" : "h-1.5"} w-full overflow-hidden rounded-full bg-[var(--bg-active)]`}>
           <div
             className="h-full rounded-full"
             style={{

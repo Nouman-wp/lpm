@@ -760,7 +760,7 @@ describe("draft <-> payload round-trip", () => {
     expect(buildJobPayload(job).sendTo).toEqual(["lpm", "telegram"]);
     expect(payloadToDraft(buildJobPayload(job))).toEqual(job);
     expect(buildJobPayload({ ...job, sendTo: ["lpm"] })).not.toHaveProperty("sendTo");
-    expect(validateJobDraft({ ...job, sendTo: [] })).toBe("Choose where to send this job's results.");
+    expect(validateJobDraft({ ...job, sendTo: [] })).toBe("Choose where to send this automation's results.");
   });
 
   it("round-trips reporting only findings, on prompt runs alone", () => {
@@ -895,7 +895,7 @@ describe("describeDraftSchedule", () => {
 
 describe("validateJobDraft", () => {
   it("requires a name", () => {
-    expect(validateJobDraft(defaultJobDraft())).toBe("Give this job a name.");
+    expect(validateJobDraft(defaultJobDraft())).toBe("Give this automation a name.");
   });
 
   it("requires the chosen run target to be filled", () => {

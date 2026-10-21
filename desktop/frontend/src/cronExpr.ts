@@ -176,7 +176,7 @@ export function parseCron(expr: string): CronParse {
   if (minGapMinutes(spec) * 60 < MIN_GAP_SECS) {
     return {
       ok: false,
-      error: `A cron job can run at most every ${MIN_GAP_SECS / 60} minutes.`,
+      error: `An automation can run at most every ${MIN_GAP_SECS / 60} minutes.`,
       field: "minute",
     };
   }

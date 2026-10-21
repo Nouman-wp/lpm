@@ -138,7 +138,7 @@ describe("a connected machine's settings", () => {
 
     const onServer = ids(buildSearchEntries({ experimentalTTS: true, mac: true, machine: server }));
     expect(onServer).toEqual(
-      expect.arrayContaining(["general.checkOrigin", "general.defaultDir", "notifications.hooks"]),
+      expect.arrayContaining(["general.checkOrigin", "general.defaultDir", "ai.claudeHooks"]),
     );
     expect(onServer).not.toContain("general.theme");
     expect(onServer).not.toContain("terminal.fontSize");

@@ -8,7 +8,6 @@ import { SoundPicker } from "../SoundPicker";
 import { TelegramRow } from "../TelegramRow";
 import { BTN_SECONDARY } from "../ui/buttons";
 import { Toggle } from "../ui/Toggle";
-import { ClaudeHooksRow } from "./ClaudeHooksRow";
 import { useRowReach, useSettingsTarget } from "./settingsTarget";
 import { useMachineList } from "./useMachineList";
 
@@ -30,43 +29,53 @@ export function NotificationsPane() {
   const sounds = useMachineList(shows("notifications.sound") ? commands.listSystemSounds : null);
   const soundEnabled = settings.soundNotifications ?? true;
 
+  const alerts = shows("notifications.system") || shows("notifications.sound");
+  const sendsResults = shows("notifications.telegram") || shows("notifications.sendToRequest");
+
   return (
-    <SettingsSection>
-      {shows("notifications.system") && (
-        <SettingsRow {...rowProps("notifications.system")}>
-          <Toggle
-            enabled={settings.systemNotifications ?? true}
-            onChange={(v) => void update({ systemNotifications: v })}
-          />
-        </SettingsRow>
+    <>
+      {alerts && (
+        <SettingsSection title="Alerts and sounds">
+          {shows("notifications.system") && (
+            <SettingsRow {...rowProps("notifications.system")}>
+              <Toggle
+                enabled={settings.systemNotifications ?? true}
+                onChange={(v) => void update({ systemNotifications: v })}
+              />
+            </SettingsRow>
+          )}
+          {shows("notifications.sound") && (
+            <SettingsRow {...rowProps("notifications.sound")}>
+              <Toggle enabled={soundEnabled} onChange={(v) => void update({ soundNotifications: v })} />
+            </SettingsRow>
+          )}
+          {shows("notifications.sound") &&
+            soundEnabled &&
+            SOUND_EVENTS.map((r) => (
+              <SettingsRow key={r.event} id={`sound.${r.event}`} label={r.label} description={r.description}>
+                <SoundPicker
+                  event={r.event}
+                  value={SOUND_SETTINGS[r.event].value(settings) ?? "chime"}
+                  sounds={sounds}
+                  local={machine.kind === "local"}
+                  onChange={(v) => void update(SOUND_SETTINGS[r.event].patch(v))}
+                />
+              </SettingsRow>
+            ))}
+        </SettingsSection>
       )}
-      {shows("notifications.sound") && (
-        <SettingsRow {...rowProps("notifications.sound")}>
-          <Toggle enabled={soundEnabled} onChange={(v) => void update({ soundNotifications: v })} />
-        </SettingsRow>
+      {sendsResults && (
+        <SettingsSection title="Send automation results to">
+          {shows("notifications.telegram") && <TelegramRow host={machine.kind === "peer" ? machine.slug : null} />}
+          {shows("notifications.sendToRequest") && (
+            <SettingsRow {...rowProps("notifications.sendToRequest")}>
+              <button onClick={() => BrowserOpenURL(sendToRequestUrl())} className={BTN_SECONDARY}>
+                Request on GitHub
+              </button>
+            </SettingsRow>
+          )}
+        </SettingsSection>
       )}
-      {shows("notifications.sound") &&
-        soundEnabled &&
-        SOUND_EVENTS.map((r) => (
-          <SettingsRow key={r.event} id={`sound.${r.event}`} label={r.label} description={r.description}>
-            <SoundPicker
-              event={r.event}
-              value={SOUND_SETTINGS[r.event].value(settings) ?? "chime"}
-              sounds={sounds}
-              local={machine.kind === "local"}
-              onChange={(v) => void update(SOUND_SETTINGS[r.event].patch(v))}
-            />
-          </SettingsRow>
-        ))}
-      {shows("notifications.telegram") && <TelegramRow host={machine.kind === "peer" ? machine.slug : null} />}
-      {shows("notifications.sendToRequest") && (
-        <SettingsRow {...rowProps("notifications.sendToRequest")}>
-          <button onClick={() => BrowserOpenURL(sendToRequestUrl())} className={BTN_SECONDARY}>
-            Request on GitHub
-          </button>
-        </SettingsRow>
-      )}
-      <ClaudeHooksRow />
-    </SettingsSection>
+    </>
   );
 }

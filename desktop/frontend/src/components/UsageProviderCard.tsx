@@ -73,7 +73,7 @@ export function UsageProviderCard({
       </header>
 
       <div className={`grid gap-x-6 gap-y-5 pt-4 ${stacked ? "grid-cols-1" : "grid-cols-2"}`}>
-        {(fiveHourFirst ? [fiveHour, weekly] : [weekly, fiveHour]).map((meter) => (
+        {(fiveHourFirst ? [fiveHour, weekly] : [weekly, fiveHour]).map((meter, i) => (
           <UsageMeter
             key={meter.label}
             label={meter.label}
@@ -81,6 +81,7 @@ export function UsageProviderCard({
             windowMs={meter.windowMs}
             now={now}
             stale={stale}
+            thin={stacked && i === 1}
           />
         ))}
       </div>

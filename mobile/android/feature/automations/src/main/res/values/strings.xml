@@ -70,8 +70,11 @@
     <string name="chat_copy">Copy message</string>
     <string name="chat_copied">Copied</string>
     <string name="chat_condensed">Condensed</string>
-    <string name="ask_dismiss">Dismiss</string>
+    <string name="ask_skip">Skip question</string>
     <string name="ask_send">Send answer</string>
+    <string name="ask_send_all">Send answers</string>
+    <string name="ask_send_short">Send</string>
+    <string name="ask_optional">optional</string>
     <string name="ask_other">Something else…</string>
     <string name="ask_your_answer">Your answer</string>
     <string name="ask_default">Default: %1$s</string>

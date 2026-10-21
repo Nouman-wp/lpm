@@ -714,9 +714,9 @@ export function validateJobDraft(
   draft: JobDraft,
   standalone = false,
 ): string | null {
-  if (!draft.label.trim()) return "Give this job a name.";
+  if (!draft.label.trim()) return "Give this automation a name.";
   if (standalone && draft.runMode === "action") {
-    return "Standalone jobs can't run an action.";
+    return "A standalone automation can't run an action.";
   }
   const scheduleError = validateDraftSchedule(draft);
   if (scheduleError) return scheduleError;
@@ -732,7 +732,7 @@ export function validateJobDraft(
   if (draft.runMode === "prompt" && !draft.prompt.text.trim()) {
     return "Enter a prompt to run.";
   }
-  if (draft.sendTo.length === 0) return "Choose where to send this job's results.";
+  if (draft.sendTo.length === 0) return "Choose where to send this automation's results.";
   return null;
 }
 

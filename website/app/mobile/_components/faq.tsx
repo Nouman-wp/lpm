@@ -66,7 +66,7 @@ const FAQS: QA[] = [
   {
     question: "Can I check my Claude Code usage limits on my phone?",
     answer:
-      "Yes. The Usage screen shows how much of your Claude and Codex 5-hour and weekly windows you have used, whether you are ahead of pace, and when each resets. Claude readings need Claude usage turned on in lpm on your Mac. A Stats screen shows token totals and estimated cost by project.",
+      "Yes. The Usage screen shows how much of your Claude and Codex 5-hour and weekly windows you have used, whether you are using them too fast, and when each resets. Claude readings need Claude usage turned on in lpm on your Mac. A Stats screen shows token totals and estimated cost by project.",
   },
   {
     question: "Can I create and run automations from my phone?",

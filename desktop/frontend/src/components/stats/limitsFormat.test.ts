@@ -255,13 +255,13 @@ describe("computePace numeric safety", () => {
 describe("paceLabel", () => {
   it("phrases each judged verdict", () => {
     expect(paceLabel(computePace(resettingIn(FIVE_HOUR_MS / 2, 90), FIVE_HOUR_MS, NOW))).toBe(
-      "ahead of pace",
+      "too fast",
     );
     expect(paceLabel(computePace(resettingIn(FIVE_HOUR_MS / 2, 50), FIVE_HOUR_MS, NOW))).toBe(
       "on pace",
     );
     expect(paceLabel(computePace(resettingIn(FIVE_HOUR_MS / 2, 10), FIVE_HOUR_MS, NOW))).toBe(
-      "under pace",
+      "will last",
     );
     expect(paceLabel(computePace(resettingIn(FIVE_HOUR_MS / 2, 100), FIVE_HOUR_MS, NOW))).toBe(
       "limit reached",

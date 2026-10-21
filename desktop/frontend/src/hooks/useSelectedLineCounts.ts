@@ -7,8 +7,9 @@ interface FileLines {
   removed: number;
 }
 
-// The lines the selected files add and remove, recounted whenever the file list
-// reloads. Null until counted, and on a paired Mac whose older lpm can't count.
+// The lines each changed file adds and removes, and the total over the selected
+// ones, recounted whenever the file list reloads. Null until counted, and on a
+// paired Mac whose older lpm can't count.
 export function useSelectedLineCounts(
   projectPath: string,
   files: readonly unknown[],
@@ -34,7 +35,7 @@ export function useSelectedLineCounts(
     };
   }, [projectPath, files]);
 
-  return useMemo(() => {
+  const selectedTotal = useMemo(() => {
     if (!counts) return null;
     let added = 0;
     let removed = 0;
@@ -46,4 +47,6 @@ export function useSelectedLineCounts(
     }
     return { added, removed };
   }, [counts, selected]);
+
+  return { selected: selectedTotal, byPath: counts };
 }

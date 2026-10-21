@@ -1,4 +1,4 @@
-import type { TreeNode } from "./ChangedFilesTree";
+import type { TreeNode } from "./changedTree";
 
 export interface TreeRowEntry {
   node: TreeNode;
@@ -16,6 +16,22 @@ export function visibleRows(nodes: TreeNode[], collapsed: ReadonlySet<string>): 
     }
   };
   walk(nodes, 0);
+  return rows;
+}
+
+// Up to this many files list flat, each with its folder beside its name.
+export const FLAT_LIST_MAX = 12;
+
+// Every file in tree order, with no folder rows.
+export function flatRows(nodes: TreeNode[]): TreeRowEntry[] {
+  const rows: TreeRowEntry[] = [];
+  const walk = (level: TreeNode[]) => {
+    for (const node of level) {
+      if (node.kind === "file") rows.push({ node, depth: 0 });
+      else walk(node.children);
+    }
+  };
+  walk(nodes);
   return rows;
 }
 

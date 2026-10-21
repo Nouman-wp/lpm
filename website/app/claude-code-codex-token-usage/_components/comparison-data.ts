@@ -109,7 +109,7 @@ export const ROWS: ComparisonRow[] = [
       },
       lpm: {
         verdict: "yes",
-        value: "Ahead, on or under pace",
+        value: "Too fast, on pace or will last",
         detail: "Plus “runs out in ~1h 4m, before reset”",
       },
     },

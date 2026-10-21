@@ -154,7 +154,7 @@ describe("cron", () => {
     expect(validateDraftSchedule(cron)).toBeNull();
     expect(validateDraftSchedule({ ...cron, cron: "" })).toBe("Enter a cron line.");
     expect(validateDraftSchedule({ ...cron, cron: "* * * * *" })).toBe(
-      "A cron job can run at most every 5 minutes.",
+      "An automation can run at most every 5 minutes.",
     );
     expect(describeDraftSchedule({ ...cron, cron: "0 25 * * *" })).toBe("");
   });

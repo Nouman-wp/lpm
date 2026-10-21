@@ -11,6 +11,7 @@ import { SettingsRow } from "../SettingsRow";
 import { SettingsSection } from "../SettingsSection";
 import { onStatusLineChanged } from "../statusLineChanges";
 import { StatusLineRowPreview } from "../StatusLineRowPreview";
+import { ClaudeHooksRow } from "./ClaudeHooksRow";
 import { BTN_SECONDARY } from "../ui/buttons";
 import { useRowReach, useSettingsTarget } from "./settingsTarget";
 import { useClaudeAccountsSource } from "./useClaudeAccountsSource";
@@ -94,6 +95,10 @@ export function AiPane({ onNavigate }: { onNavigate: (view: View) => void }) {
           </SettingsRow>
         </SettingsSection>
       )}
+
+      <SettingsSection>
+        <ClaudeHooksRow />
+      </SettingsSection>
     </>
   );
 }

@@ -2290,7 +2290,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const showActions = ai.anyAvailable && !guest;
 
   return (
-    <div className="composer-terminal-surface border-t border-[var(--composer-border)] bg-[var(--terminal-bg)] px-3 pb-1 pt-2">
+    <div data-toast-floor className="composer-terminal-surface border-t border-[var(--composer-border)] bg-[var(--terminal-bg)] px-3 pb-1 pt-2">
       {tabView.length > 1 && (
         <ComposerTabStrip
           tabs={tabView}

@@ -142,6 +142,13 @@ const LESSONS = {
       "Close your laptop and Claude Code stops. Run it on an always-on machine with lpm instead, a Mac mini or a Linux server, and it keeps working: connect the server, start Claude Code and Codex there, close the lid, and come back to finished work.",
     uploadDate: "2026-10-21T09:00:00+00:00",
   },
+  "automations-that-ask-you-first": {
+    id: "4ekpJw1KQAI",
+    name: "Automations That Ask You First: Answer and the Agent Keeps Going",
+    description:
+      "Let an lpm automation stop and ask you before it makes a call that's yours: the agent asks a question, you answer with a click or in your own words, and it carries on where it stopped.",
+    uploadDate: "2026-10-21T09:00:00+00:00",
+  },
   "sixty-seconds": {
     id: "H46vW5DPbZk",
     name: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",

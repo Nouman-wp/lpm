@@ -20,14 +20,14 @@ class MeterStateTest {
         val meter = meterState(window(71.0, 3 * hour), FIVE_HOUR_MS, now)
         assertTrue(meter.hasData)
         assertEquals(71L, meter.shown)
-        assertEquals("ahead of pace", meter.verdict)
+        assertEquals("too fast", meter.verdict)
         assertEquals(VerdictTone.Warning, meter.verdictTone)
         assertEquals(0.71, meter.barFraction, 1e-9)
         assertEquals(0.4, meter.tick!!, 1e-9)
         assertEquals("runs out in ~49m, before reset", meter.runsOut)
         assertTrue(meter.resetLine.startsWith("resets in 3h · "))
         assertEquals(
-            "71% used, ahead of pace, 40% of the window elapsed, resets in 3h, " +
+            "71% used, too fast, 40% of the window elapsed, resets in 3h, " +
                 "runs out in ~49m, before reset",
             meter.accessibilityValue
         )
@@ -36,8 +36,8 @@ class MeterStateTest {
     @Test
     fun `a calm window has a tick but no warning`() {
         val meter = meterState(window(11.0, 106 * hour), WEEKLY_MS, now)
-        assertEquals("under pace", meter.verdict)
-        assertEquals(VerdictTone.Secondary, meter.verdictTone)
+        assertEquals("will last", meter.verdict)
+        assertEquals(VerdictTone.Good, meter.verdictTone)
         assertEquals(62.0 / 168, meter.tick!!, 1e-9)
         assertEquals("", meter.runsOut)
     }

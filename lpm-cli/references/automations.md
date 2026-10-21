@@ -1,6 +1,6 @@
 # Creating and editing automations
 
-Read this reference before `lpm automations add` or `edit`. Every command here needs the lpm app running.
+Read this reference before `lpm automations add`, `edit`, or `remove-run`. Every command here needs the lpm app running.
 
 - [What an automation does](#what-an-automation-does)
 - [Where it lives](#where-it-lives)
@@ -10,6 +10,7 @@ Read this reference before `lpm automations add` or `edit`. Every command here n
 - [Check, copy, verify, delivery](#check-copy-verify-delivery)
 - [Edit](#edit)
 - [Remove](#remove)
+- [Runs](#runs)
 
 ## What an automation does
 
@@ -26,7 +27,7 @@ Every step gets `LPM_JOB_ID`, `LPM_PROJECT_NAME`, `LPM_RUN_ROOT` (where the run 
 
 | Runs in | Flag | Kept in |
 |---|---|---|
-| One project | `-p <project>`, or none inside the project | that project's config |
+| One project | `-p <project>`, `--projects <project>`, or none inside the project | that project's config |
 | Several projects | `--projects a,b` | `~/.lpm/global.yml` |
 | Every project | `--every-project` | `global.yml` |
 | No project, in the home directory | `--no-project` | `global.yml` |
@@ -115,14 +116,28 @@ Run `show` first to see the current definition. `edit` changes only the fields y
 - An empty value clears a field: `--check ""`, `--model ""`, `--send-to ""`. Turn a flag off with `--quiet false` or `--duplicate off`.
 - Any schedule flag replaces the whole schedule, so pass all of it again. For example, moving `--at 09:00 --days mon` to 10:00 needs `--at 10:00 --days mon`.
 - `--cmd` replaces the whole run. `--action` drops the AI settings. `--prompt` on its own keeps the current action or agent settings. To turn an action into an AI prompt, pass `--action "" --prompt "..."`.
-- On an automation in `global.yml`, `--projects`, `--every-project`, and `--no-project` change where it runs. A project's automation can't move to `global.yml`; remove it and add it again.
+- `--projects`, `--every-project`, and `--no-project` change where it runs, and the automation moves to where that is kept (see [Where it lives](#where-it-lives)), keeping its runs: `--projects web` on one in `global.yml` moves it into `web`'s config, and `--projects web,api` on one of `web`'s moves it to `global.yml`. An automation in the project's `.lpm.yml` travels with the folder, so change where it runs there instead.
 
 Pause and resume with `lpm automations disable|enable` instead of editing; the app keeps that choice separately.
 
 ## Remove
 
 ```bash
-lpm automations remove <id> [-p proj | --global]
+lpm automations remove <id> [-p proj | --global] [--delete-copies]
 ```
 
-This deletes the definition and its run history; remove one only when the user asks. An automation in `global.yml` needs `--global`, because removing it affects every project it runs in. Copies its runs left behind stay; remove them with `lpm remove <copy>`.
+This deletes the definition and its run history; remove one only when the user asks. An automation in `global.yml` needs `--global`, because removing it affects every project it runs in. Copies its runs worked in stay unless you pass `--delete-copies`.
+
+## Runs
+
+```bash
+lpm automations history <id> [-p proj | --global] [-n N]
+lpm automations remove-run <id> --at TIMESTAMP [-p proj | --global] [--message] [--delete-copies]
+lpm automations mark-read <id> [-p proj | --global] [--at TIMESTAMP]
+lpm automations mark-read --all
+lpm automations test-check <id> [-p proj | --global] [--check CMD]
+```
+
+- `remove-run` deletes the conversation the run at `--at` belongs to: the run and the replies that continued it. `--message` deletes only that one message. `--delete-copies` also removes the copy the run worked in. Only when the user asks.
+- `list` shows how many runs the user hasn't read under `NEW`. `mark-read` marks them read, the same as opening them in the app; `--at` stops at that run, so newer ones stay new.
+- `test-check` runs the automation's check in the project (with `--global`, in the first project it runs in) and says whether a scheduled run would go ahead, with the check's output. `--check CMD` tries a command before you save it with `edit`. It runs nothing but the check, which times out after a minute.

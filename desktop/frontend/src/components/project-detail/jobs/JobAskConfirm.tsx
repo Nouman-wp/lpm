@@ -1,31 +1,38 @@
 import { noLabel, yesLabel } from "../../../jobAsk";
 import type { JobAskFieldProps } from "./JobAskField";
+import { SHEET_BUTTON } from "./jobAskSheet";
 
-// Yes and no as two buttons: a click answers outright when it's the only
-// question, otherwise it marks the pick until the form is sent.
+// Yes and no. As the only question, a click answers outright and yes leads,
+// stacked; in a form the two sit side by side and mark the pick until it's sent.
 export function JobAskConfirm({ question: q, draft, onChange, onAnswer, disabled }: JobAskFieldProps) {
+  if (onAnswer) {
+    return (
+      <div className="flex flex-col gap-2">
+        <button type="button" disabled={disabled} onClick={() => onAnswer(true)} className={SHEET_BUTTON.fill}>
+          {yesLabel(q)}
+        </button>
+        <button type="button" disabled={disabled} onClick={() => onAnswer(false)} className={SHEET_BUTTON.plain}>
+          {noLabel(q)}
+        </button>
+      </div>
+    );
+  }
   const button = (value: "yes" | "no", label: string) => {
     const picked = draft.picks[0] === value;
     return (
       <button
         type="button"
         disabled={disabled}
-        onClick={() =>
-          onAnswer ? onAnswer(value === "yes") : onChange({ ...draft, picks: picked ? [] : [value] })
-        }
-        aria-pressed={onAnswer ? undefined : picked}
-        className={`min-w-20 rounded-lg border px-3.5 py-1.5 text-[12.5px] font-medium transition-colors disabled:opacity-50 ${
-          picked
-            ? "border-[var(--text-primary)] bg-[var(--text-primary)] text-[var(--bg-primary)]"
-            : "border-[var(--border)] text-[var(--text-primary)] enabled:hover:bg-[var(--bg-hover)]"
-        }`}
+        onClick={() => onChange({ ...draft, picks: picked ? [] : [value] })}
+        aria-pressed={picked}
+        className={SHEET_BUTTON[picked ? "picked" : "plain"]}
       >
         {label}
       </button>
     );
   };
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex gap-2">
       {button("yes", yesLabel(q))}
       {button("no", noLabel(q))}
     </div>

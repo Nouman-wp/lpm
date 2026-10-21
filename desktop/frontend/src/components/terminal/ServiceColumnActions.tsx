@@ -1,7 +1,9 @@
 import { RefreshIcon, StopIcon } from "../icons";
 import { Tooltip } from "../ui/Tooltip";
+import { ServicePortLinks } from "./ServicePortLinks";
 
 interface ServiceColumnActionsProps {
+  projectName: string;
   name: string;
   ports: number[];
   exited: boolean;
@@ -14,11 +16,11 @@ const BUTTON =
 
 // The right end of a service's column header in the All view: where it
 // listens, and restart/stop without leaving the view.
-export function ServiceColumnActions({ name, ports, exited, onRestart, onStop }: ServiceColumnActionsProps) {
+export function ServiceColumnActions({ projectName, name, ports, exited, onRestart, onStop }: ServiceColumnActionsProps) {
   return (
     <>
       {!exited && ports.length > 0 && (
-        <span className="mr-1 tabular-nums opacity-70">{ports.map((p) => `:${p}`).join(" ")}</span>
+        <ServicePortLinks projectName={projectName} ports={ports} className="mr-1" />
       )}
       <Tooltip content={`Restart ${name}`} side="bottom" align="end">
         <button type="button" onClick={onRestart} aria-label={`Restart ${name}`} className={BUTTON}>

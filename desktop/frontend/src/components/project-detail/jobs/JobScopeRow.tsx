@@ -65,16 +65,16 @@ export function JobScopeRow({
   const unready = draft.sendTo.filter((id) => sendToReady(id, links) === false);
   const notes = [
     skippedCopies.length > 0 &&
-      `A job that runs in more than one project skips copies — it won't run in ${listNames(skippedCopies)}.`,
+      `An automation that runs in more than one project skips copies — it won't run in ${listNames(skippedCopies)}.`,
     canDuplicate &&
       draft.duplicateMode !== "none" &&
       `Each run works in a new ${draft.duplicateMode === "worktree" ? "worktree" : "copy"}, leaving the project untouched. The next run waits until you've looked at the last one and removed it.`,
     draft.runMode === "prompt" &&
       draft.quiet &&
-      "A run that finds nothing leaves no trace: no notification and nothing in the job's history.",
+      "A run that finds nothing leaves no trace: no notification and nothing in the automation's history.",
     draft.sendTo.length > 0 &&
       !draft.sendTo.includes(LPM_DESTINATION) &&
-      "lpm won't notify you about this job's runs, but they still land in its history.",
+      "lpm won't notify you about this automation's runs, but they still land in its history.",
   ].filter((n): n is string => Boolean(n));
 
   return (

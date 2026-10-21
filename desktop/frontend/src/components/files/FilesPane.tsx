@@ -36,10 +36,15 @@ import { useFileIndex } from "./useFileIndex";
 import { useFileView } from "./useFileView";
 import { useFilesPaneRequests } from "./useFilesPaneRequests";
 import { useFilesChords } from "./useFilesChords";
+import { FilesStart } from "./FilesStart";
+import { useSelectedLineCounts } from "../../hooks/useSelectedLineCounts";
+import type { ChangedFile } from "./useChangedFiles";
 
 const TREE_WIDTH_KEY = "lpm:filesTreeWidth";
 const CHANGES_ZOOM_KEY = "lpm:filesChangesZoom";
 const NO_ITEMS: IndexEntry[] = [];
+const NO_CHANGES: ChangedFile[] = [];
+const NO_SELECTION: ReadonlySet<string> = new Set();
 const TREE_WIDTH_MIN = 180;
 const TREE_WIDTH_MAX = 480;
 const TREE_WIDTH_DEFAULT = 260;
@@ -100,6 +105,8 @@ export function FilesPane({
   const changeRows = useMemo(() => buildMatchTree(git.items ?? NO_ITEMS, collapsed), [git.items, collapsed]);
   const folderRows = useMemo(() => flattenTree(listings, expanded), [listings, expanded]);
   const rows = changesOnly ? changeRows : folderRows;
+  const startShown = !buffer.file && !git.allChanges && git.files.length > 0;
+  const startLines = useSelectedLineCounts(projectRoot, startShown ? git.files : NO_CHANGES, NO_SELECTION).byPath;
   const ignoredPaths = useMemo(() => ignoredPathsOf(listings), [listings]);
   // Which file the diff stack is scrolled to, so the rail follows the reading.
   const [stackPath, setStackPath] = useState<string | null>(null);
@@ -180,6 +187,14 @@ export function FilesPane({
       uncollapse(ancestorsOf(path));
     },
     [openBuffer, changesOnly, setDiffWanted, showAllChanges, expandDirs, uncollapse],
+  );
+
+  const openChange = useCallback(
+    (path: string) => {
+      openFile(path);
+      setDiffWanted(true);
+    },
+    [openFile, setDiffWanted],
   );
 
   // A diff editor has two inputs; the editable one comes last. A preview has
@@ -380,7 +395,18 @@ export function FilesPane({
               />
             </div>
           )}
-          {!git.allChanges && (
+          {startShown && (
+            <FilesStart
+              files={git.files}
+              lineCounts={startLines}
+              onOpen={openChange}
+              onReviewAll={() => {
+                git.showChangesOnly(true);
+                showAllChanges(true);
+              }}
+            />
+          )}
+          {!git.allChanges && !startShown && (
             <FilesEditor
               file={buffer.file}
               value={buffer.value}

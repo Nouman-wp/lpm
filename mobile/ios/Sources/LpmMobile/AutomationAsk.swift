@@ -77,8 +77,11 @@ struct AutomationAsk: Identifiable {
 
     var isOpen: Bool { status == "open" }
 
-    /// One yes/no question, settled by a single tap.
-    var answersOnTap: Bool { questions.count == 1 && questions[0].type == "confirm" }
+    /// One question settled by a single tap: its yes or no, or the one option it takes.
+    var answersOnTap: Bool {
+        guard questions.count == 1, let q = questions.first else { return false }
+        return q.type == "confirm" || (q.type == "choice" && !q.multiple)
+    }
 
     /// The first question, and how many more come with it.
     var summary: String {
@@ -93,7 +96,7 @@ struct AutomationAsk: Identifiable {
         case "answered":
             if auto { return "No answer in time — the default was used" }
             return reply == nil ? "Answered" : "Answered in a reply"
-        case "dismissed": return "Dismissed"
+        case "dismissed": return "Skipped"
         default: return "No answer"
         }
     }
@@ -166,14 +169,22 @@ func automationAskDisplay(_ q: AutomationAskQuestion, _ answer: Any?) -> String 
     }
 }
 
-/// "Uses the default in 3h" / "Expires in 20m" for a question with a deadline.
-func automationAskDeadline(_ ask: AutomationAsk, now: Date = Date()) -> String {
+/// "If nobody answers in 3h, it goes with No" for a question with a deadline.
+func automationAskDeadlineNote(_ ask: AutomationAsk, now: Date = Date()) -> String {
     guard let expiresAt = ask.expiresAt else { return "" }
     let left = max(0, expiresAt - Int(now.timeIntervalSince1970))
     let mins = max(1, Int((Double(left) / 60).rounded(.up)))
     let span = mins < 60 ? "\(mins)m"
         : mins < 1440 ? "\(Int((Double(mins) / 60).rounded()))h"
         : "\(Int((Double(mins) / 1440).rounded()))d"
-    let covered = ask.questions.allSatisfy { $0.defaultAnswer != nil || $0.optional }
-    return covered ? "Uses the default in \(span)" : "Expires in \(span)"
+    let lead = "If nobody answers in \(span)"
+    if ask.questions.count == 1, let only = ask.questions.first, let d = only.defaultAnswer {
+        return "\(lead), it goes with \(automationAskDisplay(only, d))"
+    }
+    guard ask.questions.allSatisfy({ $0.defaultAnswer != nil || $0.optional }) else {
+        return "\(lead), the question closes"
+    }
+    return ask.questions.contains { $0.defaultAnswer != nil }
+        ? "\(lead), it goes on with the defaults"
+        : "\(lead), it goes on without an answer"
 }

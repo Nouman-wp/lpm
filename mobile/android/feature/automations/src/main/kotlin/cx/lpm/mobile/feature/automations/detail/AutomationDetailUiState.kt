@@ -72,7 +72,7 @@ data class AutomationDetailUiState(
     val runs: List<RunRowUi> = emptyList(),
     val historyLoading: Boolean = false,
     val error: String? = null,
-    /** "Expires in 3h", or when the open question was asked. */
+    /** Under the open question, what happens if nobody answers in time. */
     val askWhen: String = "",
     /** An answer is out and not acknowledged yet. */
     val answering: Boolean = false,

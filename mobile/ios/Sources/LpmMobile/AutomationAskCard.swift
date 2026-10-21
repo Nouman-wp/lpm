@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// A question an automation put to the user: the form to answer it while it is
-/// open, then what became of it. `framed` draws its own card, for the
-/// conversation; in a list the row is the frame.
+/// A question an automation put to the user: the answers stacked like an action
+/// sheet while it is open, then what became of it. `framed` draws its own card,
+/// for the conversation; in a list the row is the frame.
 struct AutomationAskCard: View {
     @Environment(AppModel.self) private var model
     let ask: AutomationAsk
@@ -15,85 +15,84 @@ struct AutomationAskCard: View {
 
     private var key: String { model.automationKey(project, jobId) }
     private var busy: Bool { model.automationPending.contains(key) }
-    private var tint: Color { ask.isOpen ? .orange : .secondary }
+    /// The sheet's rows stand out from what's behind them: the conversation's
+    /// grouped background, or a list row's own fill.
+    private var sheetFill: Color {
+        framed ? Color(.secondarySystemGroupedBackground) : Color(.tertiarySystemGroupedBackground)
+    }
 
     var body: some View {
         if framed {
             content
                 .padding(14)
-                .background(tint.opacity(ask.isOpen ? 0.08 : 0), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(tint.opacity(ask.isOpen ? 0.5 : 0.25))
+                        .strokeBorder(Color.secondary.opacity(0.25))
                 )
         } else {
             content.padding(.vertical, 4)
         }
     }
 
+    @ViewBuilder
     private var content: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 7) {
-                Circle().fill(tint).frame(width: 7, height: 7)
-                Text(ask.statusLabel)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(ask.isOpen ? Color.orange : Color.secondary)
-                Spacer(minLength: 8)
-                Text(when)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            if ask.isOpen { form } else { summary }
-        }
-    }
-
-    private var when: String {
-        if ask.isOpen {
-            let deadline = automationAskDeadline(ask)
-            return deadline.isEmpty ? automationClockText(ask.askedAt) : deadline
-        }
-        return automationClockText(ask.answeredAt ?? ask.askedAt)
+        if ask.isOpen { form } else { closed }
     }
 
     // MARK: Open
 
     private var form: some View {
         let state = automationAskAnswers(ask.questions, drafts)
-        return VStack(alignment: .leading, spacing: 14) {
+        let lead = ask.questions.count == 1
+        return VStack(spacing: 16) {
             ForEach(ask.questions) { q in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(q.text)
-                        .font(.subheadline.weight(.semibold))
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let d = q.defaultAnswer {
-                        Text("Default: \(automationAskDisplay(q, d))")
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        (Text(q.text) + Text(q.optional ? "  optional" : "")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary))
+                            .font(lead ? .headline : .subheadline.weight(.semibold))
+                            .fixedSize(horizontal: false, vertical: true)
+                        if !lead, let d = q.defaultAnswer {
+                            Text("Default: \(automationAskDisplay(q, d))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     field(q)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            HStack(spacing: 12) {
-                if let error = model.automationAskError[key] {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
+            if !ask.answersOnTap {
+                sheet {
+                    row(lead ? "Send answer" : "Send answers", bold: true,
+                        enabled: state.missing == nil) { send(state.answers) }
                 }
-                Spacer(minLength: 0)
-                Button("Dismiss") {
+            }
+            if let error = model.automationAskError[key] {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            VStack(spacing: 4) {
+                if ask.expiresAt != nil {
+                    TimelineView(.periodic(from: .now, by: 60)) { context in
+                        Text(automationAskDeadlineNote(ask, now: context.date))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                Button("Skip question") {
                     model.dismissAutomationQuestion(project: project, jobId: jobId, askId: ask.id)
                 }
+                .font(.subheadline)
                 .buttonStyle(.borderless)
                 .foregroundStyle(.secondary)
                 .disabled(busy)
-                if !ask.answersOnTap {
-                    Button("Send answer") { send(state.answers) }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(busy || state.missing != nil)
-                }
             }
-            .font(.subheadline)
         }
     }
 
@@ -105,91 +104,120 @@ struct AutomationAskCard: View {
         )
         switch q.type {
         case "confirm":
-            HStack(spacing: 10) {
-                confirmButton(q, draft: draft, value: "yes", label: q.yesLabel)
-                confirmButton(q, draft: draft, value: "no", label: q.noLabel)
-            }
-        case "choice":
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(q.options, id: \.self) { option in
-                    choiceRow(q, draft: draft, option: option)
-                }
-                if q.other {
-                    TextField("Something else…", text: Binding(
-                        get: { draft.wrappedValue.other },
-                        set: { value in
-                            var next = draft.wrappedValue
-                            next.other = value
-                            if !q.multiple, !value.isEmpty { next.picks = [] }
-                            draft.wrappedValue = next
-                        }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                }
-            }
-        default:
-            TextField(q.placeholder.isEmpty ? "Your answer" : q.placeholder,
-                      text: Binding(get: { draft.wrappedValue.text },
-                                    set: { draft.wrappedValue.text = $0 }),
-                      axis: .vertical)
-                .lineLimit(q.multiline ? 3...8 : 1...4)
-                .textFieldStyle(.roundedBorder)
-        }
-    }
-
-    private func confirmButton(_ q: AutomationAskQuestion, draft: Binding<AutomationAskDraft>,
-                               value: String, label: String) -> some View {
-        let picked = draft.wrappedValue.picks.first == value
-        return Button {
-            Haptics.tap()
             if ask.answersOnTap {
-                send([q.id: value == "yes"])
+                sheet {
+                    row(q.yesLabel, bold: true) { send([q.id: true]) }
+                    Divider()
+                    row(q.noLabel) { send([q.id: false]) }
+                }
             } else {
-                draft.wrappedValue.picks = picked ? [] : [value]
-            }
-        } label: {
-            Text(label)
-                .font(.subheadline.weight(.medium))
-                .frame(minWidth: 72)
-        }
-        .buttonStyle(.bordered)
-        .tint(picked ? .accentColor : .primary)
-        .disabled(busy)
-    }
-
-    private func choiceRow(_ q: AutomationAskQuestion, draft: Binding<AutomationAskDraft>,
-                           option: AutomationAskOption) -> some View {
-        let picked = draft.wrappedValue.picks.contains(option.label)
-        let mark = q.multiple
-            ? (picked ? "checkmark.square.fill" : "square")
-            : (picked ? "checkmark.circle.fill" : "circle")
-        return Button {
-            draft.wrappedValue = automationAskToggle(q, draft.wrappedValue, option.label)
-        } label: {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: mark)
-                    .foregroundStyle(picked ? Color.accentColor : Color.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(option.label).foregroundStyle(.primary)
-                    if !option.description.isEmpty {
-                        Text(option.description)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                HStack(spacing: 10) {
+                    ForEach([("yes", q.yesLabel), ("no", q.noLabel)], id: \.0) { value, label in
+                        let picked = draft.wrappedValue.picks.first == value
+                        sheet {
+                            row(label, picked: picked) {
+                                draft.wrappedValue.picks = picked ? [] : [value]
+                            }
+                        }
                     }
                 }
-                Spacer(minLength: 0)
             }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(picked ? Color.accentColor : Color.secondary.opacity(0.3))
-            )
+        case "choice":
+            VStack(spacing: 10) {
+                sheet {
+                    ForEach(Array(q.options.enumerated()), id: \.element) { i, option in
+                        if i > 0 { Divider() }
+                        let picked = draft.wrappedValue.picks.contains(option.label)
+                        row(option.label, detail: option.description, picked: picked) {
+                            if ask.answersOnTap {
+                                send([q.id: [option.label]])
+                            } else {
+                                draft.wrappedValue = automationAskToggle(q, draft.wrappedValue, option.label)
+                            }
+                        }
+                    }
+                }
+                if q.other { otherField(q, draft: draft) }
+            }
+        default:
+            answerBox(q.placeholder.isEmpty ? "Your answer" : q.placeholder,
+                      text: Binding(get: { draft.wrappedValue.text },
+                                    set: { draft.wrappedValue.text = $0 }),
+                      lines: q.multiline ? 3...8 : 1...4)
+        }
+    }
+
+    private func otherField(_ q: AutomationAskQuestion, draft: Binding<AutomationAskDraft>) -> some View {
+        let text = Binding(
+            get: { draft.wrappedValue.other },
+            set: { value in
+                var next = draft.wrappedValue
+                next.other = value
+                if !q.multiple, !value.isEmpty { next.picks = [] }
+                draft.wrappedValue = next
+            }
+        )
+        let own = draft.wrappedValue.other.trimmingCharacters(in: .whitespacesAndNewlines)
+        return HStack(spacing: 10) {
+            answerBox("Something else…", text: text, lines: 1...4)
+            if ask.answersOnTap {
+                sheet {
+                    row("Send", bold: true, enabled: !own.isEmpty) { send([q.id: [own]]) }
+                }
+                .frame(width: 84)
+            }
+        }
+    }
+
+    private func answerBox(_ prompt: String, text: Binding<String>, lines: ClosedRange<Int>) -> some View {
+        TextField(prompt, text: text, axis: .vertical)
+            .lineLimit(lines)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 13)
+            .background(sheetFill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .disabled(busy)
+    }
+
+    /// Rows on one rounded fill, split by hairlines — the action sheet's look.
+    private func sheet<Rows: View>(@ViewBuilder _ rows: () -> Rows) -> some View {
+        VStack(spacing: 0) { rows() }
+            .background(sheetFill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func row(_ label: String, detail: String = "", bold: Bool = false, picked: Bool = false,
+                     enabled: Bool = true, action: @escaping () -> Void) -> some View {
+        Button {
+            Haptics.tap()
+            action()
+        } label: {
+            VStack(spacing: 2) {
+                Text(label)
+                    .font(.body.weight(bold ? .semibold : .regular))
+                    .foregroundStyle(enabled ? Color.accentColor : Color.secondary)
+                if !detail.isEmpty {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .padding(.horizontal, 36)
+            .padding(.vertical, detail.isEmpty ? 0 : 6)
+            .background(picked ? Color.accentColor.opacity(0.14) : .clear)
+            .overlay(alignment: .trailing) {
+                if picked {
+                    Image(systemName: "checkmark")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.trailing, 14)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(picked ? .isSelected : [])
-        .disabled(busy)
+        .disabled(busy || !enabled)
     }
 
     private func send(_ answers: [String: Any]) {
@@ -198,15 +226,27 @@ struct AutomationAskCard: View {
 
     // MARK: Closed
 
-    private var summary: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(ask.questions) { q in
-                let answer = automationAskDisplay(q, ask.answers[q.id])
-                (Text(q.text).foregroundStyle(answer.isEmpty ? Color.secondary : Color.primary.opacity(0.75))
-                    + Text(answer.isEmpty ? "" : " → ")
-                    + Text(answer).fontWeight(.semibold))
-                    .font(.subheadline)
-                    .fixedSize(horizontal: false, vertical: true)
+    private var closed: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 7) {
+                Circle().fill(Color.secondary).frame(width: 7, height: 7)
+                Text(ask.statusLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                Text(automationClockText(ask.answeredAt ?? ask.askedAt))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(ask.questions) { q in
+                    let answer = automationAskDisplay(q, ask.answers[q.id])
+                    (Text(q.text).foregroundStyle(answer.isEmpty ? Color.secondary : Color.primary.opacity(0.75))
+                        + Text(answer.isEmpty ? "" : " → ")
+                        + Text(answer).fontWeight(.semibold))
+                        .font(.subheadline)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }

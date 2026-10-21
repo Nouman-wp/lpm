@@ -11,8 +11,8 @@ import SwiftUI
 /// The verdict in words; empty when there is nothing worth judging yet.
 func paceLabel(_ pace: Pace?) -> String {
     switch pace?.verdict {
-    case .over: return "ahead of pace"
-    case .under: return "under pace"
+    case .over: return "too fast"
+    case .under: return "will last"
     case .on: return "on pace"
     case .exhausted: return "limit reached"
     default: return ""

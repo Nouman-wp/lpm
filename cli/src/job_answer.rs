@@ -22,7 +22,12 @@ pub struct AnswerArgs {
     pick: Vec<String>,
     #[arg(long, value_name = "TEXT", conflicts_with_all = ["answers", "dismiss"], help = "Answer in your own words")]
     text: Option<String>,
-    #[arg(long, value_name = "JSON", conflicts_with = "dismiss", help = "Answers keyed by question id, for a question with several parts")]
+    #[arg(
+        long,
+        value_name = "JSON",
+        conflicts_with = "dismiss",
+        help = "Answers keyed by question id, for a question with several parts"
+    )]
     answers: Option<String>,
     #[arg(long, help = "Drop the question without answering it")]
     dismiss: bool,
@@ -43,13 +48,19 @@ fn waiting(ctx: &Ctx, target: &Target) -> Result<(String, Value), RunError> {
         .filter(|a| a.is_object())
         .cloned()
         .ok_or_else(|| {
-            RunError::NotFound(format!("automation {} isn't waiting for an answer", target.job_id))
+            RunError::NotFound(format!(
+                "automation {} isn't waiting for an answer",
+                target.job_id
+            ))
         })?;
     Ok((value_text(&ask, "project").to_string(), ask))
 }
 
 /// The answers the flags give, for a question with one part.
-pub(crate) fn answers_from_flags(ask: &Value, args: &AnswerArgs) -> Result<Option<Value>, RunError> {
+pub(crate) fn answers_from_flags(
+    ask: &Value,
+    args: &AnswerArgs,
+) -> Result<Option<Value>, RunError> {
     if let Some(raw) = &args.answers {
         let v: Value = serde_json::from_str(raw)
             .map_err(|e| RunError::NotFound(format!("--answers isn't valid JSON: {e}")))?;
@@ -66,7 +77,11 @@ pub(crate) fn answers_from_flags(ask: &Value, args: &AnswerArgs) -> Result<Optio
     } else {
         return Ok(None);
     };
-    let questions = ask.get("questions").and_then(Value::as_array).cloned().unwrap_or_default();
+    let questions = ask
+        .get("questions")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
     let [only] = questions.as_slice() else {
         return Err(RunError::NotFound(
             "this question has several parts — answer them with --answers '{\"<id>\": ...}'".into(),
@@ -77,8 +92,17 @@ pub(crate) fn answers_from_flags(ask: &Value, args: &AnswerArgs) -> Result<Optio
 
 pub(crate) fn describe(ask: &Value) -> String {
     let mut out = String::new();
-    for q in ask.get("questions").and_then(Value::as_array).into_iter().flatten() {
-        out.push_str(&format!("{}  [{}]\n", value_text(q, "text"), value_text(q, "id")));
+    for q in ask
+        .get("questions")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        out.push_str(&format!(
+            "{}  [{}]\n",
+            value_text(q, "text"),
+            value_text(q, "id")
+        ));
         match value_text(q, "type") {
             "confirm" => out.push_str(&format!(
                 "  --yes ({})  or  --no ({})\n",
@@ -86,7 +110,12 @@ pub(crate) fn describe(ask: &Value) -> String {
                 confirm_label(q, false)
             )),
             "choice" => {
-                for o in q.get("options").and_then(Value::as_array).into_iter().flatten() {
+                for o in q
+                    .get("options")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
                     out.push_str(&format!("  --pick {}\n", quote_arg(value_text(o, "label"))));
                 }
             }
@@ -116,11 +145,18 @@ pub fn answer(ctx: &Ctx, args: AnswerArgs) -> Result<(), RunError> {
             "answer_job_question",
             &project,
             job_id,
-            &format!("{ask_arg} --answers-hex={}", hex_encode(&answers.to_string())),
+            &format!(
+                "{ask_arg} --answers-hex={}",
+                hex_encode(&answers.to_string())
+            ),
         )
     };
     ensure_ok(request_value(ctx, &line)?)?;
-    let action = if args.dismiss { "dismissed" } else { "answered" };
+    let action = if args.dismiss {
+        "dismissed"
+    } else {
+        "answered"
+    };
     if args.json {
         print_json(&json!({ "ok": true, "action": action, "automation": job_id, "ask": ask_id }));
     } else {
@@ -157,10 +193,17 @@ mod tests {
             Some(json!({ "q1": false }))
         );
         assert_eq!(
-            answers_from_flags(&one("choice"), &parse(&["nightly", "--pick", "a", "--pick", "b"])).unwrap(),
+            answers_from_flags(
+                &one("choice"),
+                &parse(&["nightly", "--pick", "a", "--pick", "b"])
+            )
+            .unwrap(),
             Some(json!({ "q1": ["a", "b"] }))
         );
-        assert_eq!(answers_from_flags(&one("text"), &parse(&["nightly"])).unwrap(), None);
+        assert_eq!(
+            answers_from_flags(&one("text"), &parse(&["nightly"])).unwrap(),
+            None
+        );
     }
 
     #[test]

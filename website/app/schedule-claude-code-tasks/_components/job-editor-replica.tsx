@@ -86,7 +86,7 @@ export function JobEditorReplica() {
       <div className="flex items-center justify-end gap-3 border-t border-[#2e2e2e] px-5 py-3.5">
         <span className="rounded-lg px-4 py-2 text-[13px] font-medium text-[#b3b3b3]">Cancel</span>
         <span className="rounded-lg bg-[#e5e5e5] px-4 py-2 text-[13px] font-medium text-[#1a1a1a]">
-          Create job
+          Create automation
         </span>
       </div>
     </div>

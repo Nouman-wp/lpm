@@ -69,7 +69,7 @@ export function ClaudeHooksRow() {
 
   return (
     <>
-      <SettingsRow {...rowProps("notifications.hooks", { description: HOOKS_DESCRIPTION[status] })}>
+      <SettingsRow {...rowProps("ai.claudeHooks", { description: HOOKS_DESCRIPTION[status] })}>
         <div className="flex items-center gap-2">
           <button onClick={check} disabled={status === "checking" || resetting} className={BTN_SECONDARY}>
             {status === "checking" ? <Spinner /> : "Check"}

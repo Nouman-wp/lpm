@@ -76,13 +76,46 @@ class AutomationAskTest {
     }
 
     @Test
-    fun tellsADeadlineThatFallsBackToDefaults() {
+    fun answersASingleYesNoOrPickOneOnTap() {
+        val choice = ask.questions[1]
+        assertTrue(ask.copy(questions = listOf(ask.questions[0])).answersOnTap)
+        assertTrue(ask.copy(questions = listOf(choice)).answersOnTap)
+        assertFalse(ask.copy(questions = listOf(choice.copy(multiple = true))).answersOnTap)
+        assertFalse(ask.copy(questions = listOf(ask.questions[2])).answersOnTap)
+    }
+
+    @Test
+    fun saysWhatHappensWhenNobodyAnswersInTime() {
         val open = ask.copy(questions = listOf(ask.questions[0]), expiresAt = 1000 + 3 * 3600)
-        assertEquals("Expires in 3h", automationAskDeadline(open, 1000))
+        assertEquals(
+            "If nobody answers in 3h, the question closes",
+            automationAskDeadlineNote(open, 1000)
+        )
         val covered = open.copy(
             questions = listOf(ask.questions[0].copy(defaultAnswer = JsonPrimitive(false))),
             expiresAt = 1000 + 20 * 60
         )
-        assertEquals("Uses the default in 20m", automationAskDeadline(covered, 1000))
+        assertEquals(
+            "If nobody answers in 20m, it goes with No",
+            automationAskDeadlineNote(covered, 1000)
+        )
+        val several = open.copy(
+            questions = listOf(
+                ask.questions[0].copy(defaultAnswer = JsonPrimitive(true)),
+                ask.questions[2]
+            ),
+            expiresAt = 1000 + 90
+        )
+        assertEquals(
+            "If nobody answers in 2m, it goes on with the defaults",
+            automationAskDeadlineNote(several, 1000)
+        )
+        val skippable = open.copy(questions = listOf(ask.questions[2]), expiresAt = 1000 + 3600)
+        assertEquals(
+            "If nobody answers in 1h, it goes on without an answer",
+            automationAskDeadlineNote(skippable, 1000)
+        )
+        assertEquals("", automationAskDeadlineNote(ask, 1000))
+        assertEquals("Skipped", ask.copy(status = "dismissed").statusLabel)
     }
 }

@@ -4,6 +4,7 @@ use crate::control;
 use crate::error::{resolve_or_infer, RunError};
 use crate::job::{ensure_ok, humanize_until, request_value, value_array, value_text};
 use crate::job_fields::JobFields;
+use crate::job_move::{home_of, write_projects};
 use crate::job_runtime::project_row;
 use crate::statussock::{hex_encode, quote_arg};
 use crate::util::{now_millis, print_json};
@@ -14,8 +15,8 @@ use serde_norway::{Mapping, Value};
 // Authoring automations: `show`, `add`, `edit` and `remove` read and write a
 // job's entry in the config layer that defines it, through the app.
 
-const PROJECT: &str = "project";
-const GLOBAL: &str = "global";
+pub(crate) const PROJECT: &str = "project";
+pub(crate) const GLOBAL: &str = "global";
 
 #[derive(Args)]
 pub struct Locate {
@@ -41,7 +42,7 @@ pub struct Scope {
         value_name = "NAMES",
         value_delimiter = ',',
         conflicts_with_all = ["every_project", "no_project"],
-        help = "Run in these projects (kept in global.yml)"
+        help = "Run in these projects; one project keeps it in that project's config, several in global.yml"
     )]
     projects: Option<Vec<String>>,
     #[arg(
@@ -100,6 +101,8 @@ pub struct EditArgs {
 pub struct RemoveArgs {
     #[command(flatten)]
     at: Locate,
+    #[arg(long, help = "Also remove the copies its runs made and left behind")]
+    delete_copies: bool,
     #[arg(long)]
     json: bool,
 }
@@ -107,13 +110,13 @@ pub struct RemoveArgs {
 /// Where an automation's entry lives: its layer, the project whose file holds
 /// it (empty for global.yml), and its id.
 pub(crate) struct Definition {
-    source: String,
-    project: String,
-    id: String,
+    pub(crate) source: String,
+    pub(crate) project: String,
+    pub(crate) id: String,
 }
 
 impl Definition {
-    fn verb_args(&self) -> String {
+    pub(crate) fn verb_args(&self) -> String {
         let mut args = format!("{} {}", self.source, quote_arg(&self.id));
         if !self.project.is_empty() {
             args.push(' ');
@@ -122,7 +125,7 @@ impl Definition {
         args
     }
 
-    fn place(&self) -> String {
+    pub(crate) fn place(&self) -> String {
         match self.source.as_str() {
             GLOBAL => "global.yml".into(),
             "repo" => format!("{}'s .lpm.yml", self.project),
@@ -137,34 +140,32 @@ impl Definition {
 }
 
 impl Scope {
-    fn given(&self) -> bool {
+    pub(crate) fn given(&self) -> bool {
         self.projects.is_some() || self.every_project || self.no_project
     }
 
-    fn apply(&self, ctx: &Ctx, job: &mut Mapping) -> Result<(), RunError> {
+    /// The projects the scope names: None for every project, an empty list for
+    /// none.
+    pub(crate) fn resolve(&self, ctx: &Ctx) -> Result<Option<Vec<String>>, RunError> {
         if self.every_project {
-            job.shift_remove("projects");
-        } else if self.no_project {
-            job.insert("projects".into(), Value::Sequence(Vec::new()));
-        } else if let Some(names) = &self.projects {
-            let mut projects = Vec::new();
-            for name in names.iter().map(|n| n.trim()).filter(|n| !n.is_empty()) {
-                let name = resolve_or_infer(ctx, Some(name))?;
-                if !projects.contains(&name) {
-                    projects.push(name);
-                }
-            }
-            if projects.is_empty() {
-                return Err(RunError::NotFound(
-                    "--projects needs at least one project; use --no-project for none".into(),
-                ));
-            }
-            job.insert(
-                "projects".into(),
-                Value::Sequence(projects.into_iter().map(Value::String).collect()),
-            );
+            return Ok(None);
         }
-        Ok(())
+        if self.no_project {
+            return Ok(Some(Vec::new()));
+        }
+        let mut projects = Vec::new();
+        for name in self.projects.iter().flatten().map(|n| n.trim()).filter(|n| !n.is_empty()) {
+            let name = resolve_or_infer(ctx, Some(name))?;
+            if !projects.contains(&name) {
+                projects.push(name);
+            }
+        }
+        if projects.is_empty() {
+            return Err(RunError::NotFound(
+                "--projects needs at least one project; use --no-project for none".into(),
+            ));
+        }
+        Ok(Some(projects))
     }
 }
 
@@ -211,23 +212,16 @@ pub fn add(ctx: &Ctx, args: AddArgs) -> Result<(), RunError> {
             "give it something to run: --cmd, --action or --prompt".into(),
         ));
     }
-    let def = if args.scope.given() {
-        Definition {
-            source: GLOBAL.into(),
-            project: String::new(),
-            id,
-        }
+    let projects = if args.scope.given() {
+        args.scope.resolve(ctx)?
     } else {
-        Definition {
-            source: PROJECT.into(),
-            project: resolve_or_infer(ctx, args.project.as_deref())?,
-            id,
-        }
+        Some(vec![resolve_or_infer(ctx, args.project.as_deref())?])
     };
+    let def = home_of(&id, &projects);
     ensure_new(ctx, &def)?;
     let mut body = Mapping::new();
     args.fields.apply(&mut body).map_err(RunError::NotFound)?;
-    args.scope.apply(ctx, &mut body)?;
+    write_projects(&mut body, &def, &projects);
     save(ctx, &def, body, "added", args.json)
 }
 
@@ -238,17 +232,12 @@ pub fn edit(ctx: &Ctx, args: EditArgs) -> Result<(), RunError> {
         ));
     }
     let def = locate(ctx, &args.at)?;
-    if args.scope.given() && def.source != GLOBAL {
-        return Err(RunError::NotFound(format!(
-            "automation {} lives in {}; only one in global.yml takes --projects, --every-project or --no-project",
-            def.id,
-            def.place()
-        )));
-    }
     let mut body = read_body(ctx, &def)?;
     args.fields.apply(&mut body).map_err(RunError::NotFound)?;
-    args.scope.apply(ctx, &mut body)?;
-    save(ctx, &def, body, "updated", args.json)
+    if !args.scope.given() {
+        return save(ctx, &def, body, "updated", args.json);
+    }
+    crate::job_move::rescope(ctx, def, body, args.scope.resolve(ctx)?, args.json)
 }
 
 pub fn remove(ctx: &Ctx, args: RemoveArgs) -> Result<(), RunError> {
@@ -259,9 +248,10 @@ pub fn remove(ctx: &Ctx, args: RemoveArgs) -> Result<(), RunError> {
             def.id
         )));
     }
+    let copies = if args.delete_copies { " --delete-copies" } else { "" };
     ensure_ok(request_value(
         ctx,
-        &format!("delete_job {}", def.verb_args()),
+        &format!("delete_job {}{copies}", def.verb_args()),
     )?)?;
     if args.json {
         print_json(&json!({
@@ -269,9 +259,11 @@ pub fn remove(ctx: &Ctx, args: RemoveArgs) -> Result<(), RunError> {
             "automation": def.id,
             "source": def.source,
             "action": "removed",
+            "deletedCopies": args.delete_copies,
         }));
     } else {
-        println!("removed automation {} from {}", def.id, def.place());
+        let also = if args.delete_copies { " and the copies its runs left" } else { "" };
+        println!("removed automation {} from {}{also}", def.id, def.place());
     }
     Ok(())
 }
@@ -301,7 +293,7 @@ pub(crate) fn locate(ctx: &Ctx, at: &Locate) -> Result<Definition, RunError> {
     })
 }
 
-fn read_body(ctx: &Ctx, def: &Definition) -> Result<Mapping, RunError> {
+pub(crate) fn read_body(ctx: &Ctx, def: &Definition) -> Result<Mapping, RunError> {
     let reply = request_value(ctx, &format!("job_body {}", def.verb_args()))?;
     let Some(yaml) = reply.get("yaml").and_then(JsonValue::as_str) else {
         let error = value_text(&reply, "error");
@@ -349,7 +341,7 @@ fn ensure_new(ctx: &Ctx, def: &Definition) -> Result<(), RunError> {
     Ok(())
 }
 
-fn save(
+pub(crate) fn save(
     ctx: &Ctx,
     def: &Definition,
     body: Mapping,
@@ -403,7 +395,8 @@ fn save(
         let when = next
             .map(|at| format!(", next run {}", humanize_until(at - now_millis() / 1000)))
             .unwrap_or_default();
-        println!("{action} automation {} in {}{when}", def.id, def.place());
+        let to = if action == "moved" { "to" } else { "in" };
+        println!("{action} automation {} {to} {}{when}", def.id, def.place());
         for warning in &warnings {
             println!("warning: {warning}");
         }

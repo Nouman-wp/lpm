@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   answersOnClick,
-  askDeadline,
+  askDeadlineNote,
   askStatusLabel,
   askWaitingIn,
   displayAnswer,
@@ -57,10 +57,12 @@ describe("jobAsk", () => {
     expect(displayAnswer(notes, "later")).toBe("later");
   });
 
-  it("answers a single yes/no on click and everything else on send", () => {
+  it("answers a single yes/no or pick-one on click and everything else on send", () => {
     expect(answersOnClick(ask())).toBe(true);
+    expect(answersOnClick(ask({ questions: [choice] }))).toBe(true);
+    expect(answersOnClick(ask({ questions: [{ ...choice, multiple: true }] }))).toBe(false);
     expect(answersOnClick(ask({ questions: [confirm, notes] }))).toBe(false);
-    expect(answersOnClick(ask({ questions: [choice] }))).toBe(false);
+    expect(answersOnClick(ask({ questions: [notes] }))).toBe(false);
   });
 
   it("says how a question ended", () => {
@@ -68,15 +70,22 @@ describe("jobAsk", () => {
     expect(askStatusLabel(ask({ status: "answered" }))).toBe("Answered");
     expect(askStatusLabel(ask({ status: "answered", reply: "later" }))).toBe("Answered in a reply");
     expect(askStatusLabel(ask({ status: "answered", auto: true }))).toContain("default");
+    expect(askStatusLabel(ask({ status: "dismissed" }))).toBe("Skipped");
     expect(askStatusLabel(ask({ status: "unanswered" }))).toBe("No answer");
   });
 
-  it("tells a deadline that falls back to defaults from one that doesn't", () => {
+  it("says what happens when nobody answers in time", () => {
     const now = 1_000_000;
-    expect(askDeadline(ask({ expiresAt: 1000 + 3 * 3600 }), now)).toBe("Expires in 3h");
+    expect(askDeadlineNote(ask({ expiresAt: 1000 + 3 * 3600 }), now)).toBe(
+      "If nobody answers in 3h, the question closes",
+    );
     const covered = ask({ questions: [{ ...confirm, default: false }], expiresAt: 1000 + 20 * 60 });
-    expect(askDeadline(covered, now)).toBe("Uses the default in 20m");
-    expect(askDeadline(ask(), now)).toBe("");
+    expect(askDeadlineNote(covered, now)).toBe("If nobody answers in 20m, it goes with No");
+    const several = ask({ questions: [{ ...confirm, default: true }, notes], expiresAt: 1000 + 90 });
+    expect(askDeadlineNote(several, now)).toBe("If nobody answers in 2m, it goes on with the defaults");
+    const skippable = ask({ questions: [notes], expiresAt: 1000 + 3600 });
+    expect(askDeadlineNote(skippable, now)).toBe("If nobody answers in 1h, it goes on without an answer");
+    expect(askDeadlineNote(ask(), now)).toBe("");
   });
 
   it("finds the question waiting in a project", () => {

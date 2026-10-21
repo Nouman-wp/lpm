@@ -39,9 +39,12 @@ export function StatTiles({
           cost > 0 ? (
             <span
               title="Estimated at current public list prices, per model — cached reads and writes priced separately. OpenAI/Codex pricing is approximate."
-              className="shrink-0 text-sm font-medium tabular-nums text-[var(--text-secondary)]"
+              className="flex shrink-0 flex-col items-end text-sm font-medium tabular-nums text-[var(--text-secondary)]"
             >
-              <span className="text-[var(--text-muted)]">≈</span> {formatUsd(cost)}
+              <span>
+                <span className="text-[var(--text-muted)]">≈</span> {formatUsd(cost)}
+              </span>
+              <span className="text-[10.5px] font-normal text-[var(--text-muted)]">at API list prices</span>
             </span>
           ) : undefined
         }

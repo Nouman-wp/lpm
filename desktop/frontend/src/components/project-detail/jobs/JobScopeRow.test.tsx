@@ -150,7 +150,7 @@ describe("JobScopeRow", () => {
     pick("lpm");
     expect(latest.sendTo).toEqual(["telegram:releases"]);
     expect(trigger("Send to")!.textContent).toBe("Releases");
-    expect(host.textContent).toContain("lpm won't notify you about this job's runs");
+    expect(host.textContent).toContain("lpm won't notify you about this automation's runs");
     pick("Add a chat");
     expect(onConnect).toHaveBeenCalledWith("telegram", "add");
   });

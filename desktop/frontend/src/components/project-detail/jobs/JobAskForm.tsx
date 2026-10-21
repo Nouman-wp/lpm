@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { useNow } from "../../../hooks/useNow";
 import { AnswerJobQuestion, DismissJobQuestion } from "../../../../bridge/commands";
 import {
   answersOnClick,
+  askDeadlineNote,
   draftAnswers,
   EMPTY_ASK_DRAFT,
   type JobAsk,
@@ -9,6 +11,7 @@ import {
   type JobAskDraft,
 } from "../../../jobAsk";
 import { JobAskField } from "./JobAskField";
+import { SHEET_BUTTON } from "./jobAskSheet";
 
 interface JobAskFormProps {
   ask: JobAsk;
@@ -24,7 +27,10 @@ export function JobAskForm({ ask, project, jobId, onAnswered }: JobAskFormProps)
   const [drafts, setDrafts] = useState<Record<string, JobAskDraft>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const now = useNow(ask.expiresAt !== undefined, 60_000);
+  const deadline = askDeadlineNote(ask, now);
   const instant = answersOnClick(ask);
+  const lead = ask.questions.length === 1;
   const { answers, missing } = draftAnswers(ask.questions, drafts);
 
   const settle = async (call: Promise<unknown>) => {
@@ -46,40 +52,37 @@ export function JobAskForm({ ask, project, jobId, onAnswered }: JobAskFormProps)
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        if (!instant && missing === null && !busy) send(answers);
+        if (missing === null && !busy) send(answers);
       }}
-      className="mt-2.5"
     >
       {ask.questions.map((q) => (
         <JobAskField
           key={q.id}
           question={q}
+          lead={lead}
           draft={drafts[q.id] ?? EMPTY_ASK_DRAFT}
           onChange={(d) => setDrafts((all) => ({ ...all, [q.id]: d }))}
           onAnswer={instant ? (a) => send({ [q.id]: a }) : undefined}
           disabled={busy}
         />
       ))}
-      <div className="mt-3 flex items-center gap-2">
-        <p className="min-w-0 flex-1 text-[11px] leading-snug text-[var(--accent-red-text)]">{error}</p>
+      {!instant && (
+        <button type="submit" disabled={busy || missing !== null} className={`${SHEET_BUTTON.fill} mt-4`}>
+          {lead ? "Send answer" : "Send answers"}
+        </button>
+      )}
+      {error && <p className="mt-2.5 text-[11.5px] leading-snug text-[var(--accent-red-text)]">{error}</p>}
+      <div className="mt-3 flex flex-col items-center gap-1 text-center">
+        {deadline && <p className="text-[11.5px] text-[var(--text-muted)]">{deadline}</p>}
         <button
           type="button"
           disabled={busy}
           onClick={() => void settle(DismissJobQuestion(project, jobId, ask.id))}
-          title="Drop the question without answering it"
-          className="shrink-0 rounded-md px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-muted)] transition-colors enabled:hover:bg-[var(--bg-hover)] enabled:hover:text-[var(--text-primary)] disabled:opacity-50"
+          title="Close the question without an answer"
+          className="rounded-md px-2.5 py-1 text-[12.5px] font-medium text-[var(--text-muted)] transition-colors enabled:hover:text-[var(--text-primary)] disabled:opacity-50"
         >
-          Dismiss
+          Skip question
         </button>
-        {!instant && (
-          <button
-            type="submit"
-            disabled={busy || missing !== null}
-            className="shrink-0 rounded-lg bg-[var(--text-primary)] px-3.5 py-1.5 text-[12px] font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-30"
-          >
-            Send answer
-          </button>
-        )}
       </div>
     </form>
   );

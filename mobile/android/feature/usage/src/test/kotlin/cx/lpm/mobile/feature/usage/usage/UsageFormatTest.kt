@@ -77,8 +77,8 @@ class UsageFormatTest {
 
     @Test
     fun `verdicts in words`() {
-        assertEquals("ahead of pace", paceLabel(computePace(weekly(60.0, 0.5), WEEKLY_MS, now)))
-        assertEquals("under pace", paceLabel(computePace(weekly(20.0, 0.5), WEEKLY_MS, now)))
+        assertEquals("too fast", paceLabel(computePace(weekly(60.0, 0.5), WEEKLY_MS, now)))
+        assertEquals("will last", paceLabel(computePace(weekly(20.0, 0.5), WEEKLY_MS, now)))
         assertEquals("on pace", paceLabel(computePace(weekly(50.0, 0.5), WEEKLY_MS, now)))
         assertEquals("limit reached", paceLabel(computePace(weekly(120.0, 0.5), WEEKLY_MS, now)))
         assertEquals("", paceLabel(computePace(weekly(1.0, 0.01), WEEKLY_MS, now)))

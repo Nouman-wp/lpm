@@ -1,4 +1,5 @@
 import type { SettingsTab, View } from "./store/app";
+import { builtinShortcutGroups } from "./builtinShortcuts";
 import { HOTKEYS } from "./hotkeys";
 import { chordLabel } from "./keys";
 import { MACHINE } from "./machineWords";
@@ -261,10 +262,10 @@ export const ROWS = {
     description: "Slack, Discord, email… ask for the one you'd use",
     keywords: ["slack", "discord", "email", "webhook", "request", "github", "send to", "automation"],
   },
-  "notifications.hooks": {
+  "ai.claudeHooks": {
     kind: "row",
-    tab: "notifications",
-    id: "notifications.hooks",
+    tab: "ai",
+    id: "ai.claudeHooks",
     reach: "any",
     label: "Claude Code Hooks",
     description: "Display Claude Code running progress in sidebar",
@@ -692,6 +693,20 @@ function shortcutEntries(): SettingsRowEntry[] {
   }));
 }
 
+function builtinShortcutEntries(tts: boolean): SettingsRowEntry[] {
+  return builtinShortcutGroups(tts).flatMap((group) =>
+    group.shortcuts.map((s): SettingsRowEntry => ({
+      kind: "row",
+      tab: "shortcuts",
+      id: `shortcut.builtin.${s.id}`,
+      label: s.label,
+      description: s.description,
+      keywords: ["keyboard", "hotkey", "shortcut", s.keys],
+      reach: "sameKeyboard",
+    })),
+  );
+}
+
 function rowEntries(): SettingsRowEntry[] {
   return [...Object.values(ROWS), ...soundEntries(), ...shortcutEntries()];
 }
@@ -720,7 +735,12 @@ export function buildSearchEntries(ctx: {
 }): SettingsSearchEntry[] {
   const mac = ctx.mac ?? isMac;
   const machine = ctx.machine ?? LOCAL_MACHINE;
-  const entries: SettingsSearchEntry[] = [...rowEntries(), ...VIEW_ENTRIES, ...MODAL_ENTRIES];
+  const entries: SettingsSearchEntry[] = [
+    ...rowEntries(),
+    ...builtinShortcutEntries(ctx.experimentalTTS),
+    ...VIEW_ENTRIES,
+    ...MODAL_ENTRIES,
+  ];
   return entries.filter((e) =>
     e.kind === "row"
       ? (e.tab !== "tts" || ctx.experimentalTTS) &&

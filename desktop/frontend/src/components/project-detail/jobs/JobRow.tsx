@@ -1,12 +1,12 @@
-import { ChevronRightIcon, ClockIcon, PencilIcon, StopIcon, TrashIcon } from "../../icons";
+import { ClockIcon, PencilIcon, StopIcon, TrashIcon } from "../../icons";
 import { PlayIcon } from "../icons";
 import { Switch } from "../../ui/Switch";
 import { HoverActionButton } from "./HoverActionButton";
 import { jobRowPreview, type JobPreviewTone } from "./jobRowPreview";
-import { relativeTime } from "../../../relativeTime";
+import { relativeAgo } from "../../../relativeTime";
+import { nextRunLabel } from "../../../jobNextRun";
 import { useNow } from "../../../hooks/useNow";
 import {
-  formatNextRun,
   formatRunningFor,
   formatSchedule,
   type JobInfo,
@@ -34,8 +34,8 @@ const TONE_CLASS: Record<JobPreviewTone, string> = {
 };
 
 // One automation as a conversation in a messenger list: who it is, where and
-// when it runs, and the last thing it said. Its buttons take the place of the
-// time while the row is hovered; the on/off switch under the time stays put.
+// when it runs, and the last thing it said. Its next run sits beside the on/off
+// switch, and its buttons take that place while the row is hovered.
 export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onOpen, onEdit, onRemove }: JobRowProps) {
   const now = useNow(job.running === true);
   const unread = job.unread ?? 0;
@@ -61,17 +61,11 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
     scopeLabel,
     job.source === "repo" ? "in repo" : "",
     job.valid && job.schedule ? formatSchedule(job.schedule) : "",
+    job.lastRunAt ? `ran ${relativeAgo(job.lastRunAt)}` : "",
   ]
     .filter(Boolean)
     .join(" · ");
-  const nextRun = job.valid && enabled ? formatNextRun(job.nextFireAt) : "";
-  const when = !job.valid
-    ? ""
-    : !enabled
-      ? "Off"
-      : job.lastRunAt
-        ? relativeTime(job.lastRunAt)
-        : "";
+  const nextRun = job.valid && enabled ? nextRunLabel(job.nextFireAt) : "";
 
   return (
     <div className="group flex items-start gap-3 rounded-[14px] py-3 pl-1 pr-3 transition-colors focus-within:bg-[var(--bg-secondary)] hover:bg-[var(--bg-secondary)]">
@@ -100,10 +94,7 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
             {job.label || job.id}
           </span>
           {meta && (
-            <span
-              title={nextRun || undefined}
-              className="min-w-0 shrink-[4] truncate text-[12px] text-[var(--text-muted)]"
-            >
+            <span className="min-w-0 shrink-[4] truncate text-[12px] text-[var(--text-muted)]">
               {meta}
             </span>
           )}
@@ -120,19 +111,16 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
         </span>
       </button>
 
-      <span className="-mt-0.5 flex shrink-0 flex-col items-end gap-2.5">
+      <span className="flex shrink-0 items-center gap-3 self-center">
         <span className="flex h-[30px] items-center">
-          <span className="flex items-center gap-1 group-focus-within:hidden group-hover:hidden">
-            {when && (
-              <span
-                className={`text-[12px] tabular-nums text-[var(--text-muted)] ${off ? "font-medium" : ""}`}
-              >
-                {when}
-              </span>
+          <span className="flex flex-col items-end leading-tight group-focus-within:hidden group-hover:hidden">
+            {nextRun && (
+              <>
+                <span className="text-[12px] font-medium tabular-nums text-[var(--text-secondary)]">{nextRun}</span>
+                <span className="text-[11px] text-[var(--text-muted)]">next run</span>
+              </>
             )}
-            <span className="scale-90 text-[var(--text-muted)] opacity-70">
-              <ChevronRightIcon />
-            </span>
+            {off && <span className="text-[12px] font-medium text-[var(--text-muted)]">Off</span>}
           </span>
           <span className="hidden items-center gap-1 group-focus-within:flex group-hover:flex">
             {job.valid &&
@@ -147,11 +135,11 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
                   </HoverActionButton>
                 )
               ))}
-            <HoverActionButton label="Edit job" title="Edit" onClick={() => onEdit(job)}>
+            <HoverActionButton label="Edit automation" title="Edit" onClick={() => onEdit(job)}>
               <PencilIcon size={13} />
             </HoverActionButton>
             {removable && (
-              <HoverActionButton label="Remove job" title="Remove" danger onClick={() => onRemove(job)}>
+              <HoverActionButton label="Remove automation" title="Remove" danger onClick={() => onRemove(job)}>
                 <TrashIcon size={13} />
               </HoverActionButton>
             )}

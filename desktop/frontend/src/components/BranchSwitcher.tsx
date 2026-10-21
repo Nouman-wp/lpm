@@ -62,6 +62,11 @@ import { branchKey, isUnpublished, orderBranches, RemoteBadge } from "./branchUt
 import { relativeTime } from "../relativeTime";
 import { shouldFetch, recordFetch } from "../gitFetchThrottle";
 import { toastPullError } from "../gitPullErrors";
+import { pulledText, pushedText, syncedText } from "../gitToastText";
+import { middleTruncate } from "../middleTruncate";
+
+// What fits the footer label (max-w-32) in the 11px monospace face.
+const BRANCH_LABEL_MAX = 19;
 
 export function BranchSwitcher({
   projectName,
@@ -213,9 +218,11 @@ export function BranchSwitcher({
     if (busy) return;
     setCommitMenuOpen(false);
     setBusy(true);
+    const { behind, branch } = status;
     try {
       await PullBranch(projectPath, cfg.strategy, pullFlags(cfg));
       await refresh();
+      toast.success(pulledText(behind, branch));
     } catch (err) {
       toastPullError(err, "Pull", () => runPull({ ...cfg, autostash: true }));
       await refresh();
@@ -231,10 +238,11 @@ export function BranchSwitcher({
     if (busy) return;
     setCommitMenuOpen(false);
     setBusy(true);
+    const { ahead, branch } = status;
     try {
       await GitPush(projectPath, pushFlags(cfg));
       await refresh();
-      toast.success("Pushed");
+      toast.success(pushedText(ahead, branch));
     } catch (err) {
       toast.error(`Push: ${err}`);
     } finally {
@@ -318,9 +326,11 @@ export function BranchSwitcher({
     try {
       const pull = getSettings().gitPull ?? DEFAULT_PULL_CONFIG;
       const push = getSettings().gitPush ?? DEFAULT_PUSH_CONFIG;
+      const { behind, ahead, branch } = status;
       await PullBranch(projectPath, pull.strategy, pullFlags(pull));
       await GitPush(projectPath, pushFlags(push));
       await refresh();
+      toast.success(syncedText(behind, ahead, branch));
     } catch (err) {
       toast.error(`Sync: ${err}`);
     } finally {
@@ -457,8 +467,11 @@ export function BranchSwitcher({
           }`}
         >
           <BranchIcon size={12} />
-          <span className="max-w-32 truncate font-mono">
-            {status.branch || "detached"}
+          <span
+            className="max-w-32 truncate font-mono"
+            title={status.branch.length > BRANCH_LABEL_MAX ? status.branch : undefined}
+          >
+            {status.branch ? middleTruncate(status.branch, BRANCH_LABEL_MAX) : "detached"}
           </span>
           <ChevronDownIcon />
         </button>

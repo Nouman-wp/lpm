@@ -23,7 +23,7 @@ export function TelegramRow({ host }: { host: string | null }) {
     status === undefined
       ? "Checking…"
       : status.connected
-        ? `Posts through ${bot}. Each job picks which of these chats it sends to.`
+        ? `Posts through ${bot}. Each automation picks which of these chats it sends to.`
         : waiting
           ? `Almost there: open ${bot} in Telegram and tap Start`
           : "Send automation results to a Telegram chat, group or channel";

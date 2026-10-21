@@ -18,6 +18,7 @@ import { EmojiMark } from "./EmojiMark";
 import { TabContextMenu } from "./terminal/TabContextMenu";
 import { ServiceTabContextMenu } from "./terminal/ServiceTabContextMenu";
 import { ServiceExitBar } from "./terminal/ServiceExitBar";
+import { ServicePortLinks } from "./terminal/ServicePortLinks";
 import { TerminalEndedBar } from "./terminal/TerminalEndedBar";
 import { useEndedTerminals } from "../store/endedTerminals";
 import { serviceCrashed } from "../serviceExit";
@@ -555,11 +556,7 @@ function PaneViewImpl(props: PaneViewProps) {
                       }`}
                     />
                   ) : (
-                    ports.length > 0 && (
-                      <span className="shrink-0 font-mono text-[10px] tabular-nums opacity-60">
-                        {ports.map((p) => `:${p}`).join(" ")}
-                      </span>
-                    )
+                    ports.length > 0 && <ServicePortLinks projectName={projectName} ports={ports} />
                   )
                 }
                 onClick={(e) => {
@@ -759,6 +756,7 @@ function PaneViewImpl(props: PaneViewProps) {
                 labelHint={svc.cmd}
                 labelActions={
                   <ServiceColumnActions
+                    projectName={projectName}
                     name={svc.name}
                     ports={svc.ports ?? []}
                     exited={svc.exited ?? false}

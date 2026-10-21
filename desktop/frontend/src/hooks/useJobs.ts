@@ -40,7 +40,7 @@ export function useJobs(projectName: string, active: boolean): UseJobsResult {
       setError(null);
     } catch (err) {
       if (id !== reqId.current) return;
-      setError(err instanceof Error ? err.message : "Couldn't load scheduled jobs.");
+      setError(err instanceof Error ? err.message : "Couldn't load automations.");
     } finally {
       if (id === reqId.current) setLoading(false);
     }

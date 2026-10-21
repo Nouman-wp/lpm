@@ -46,6 +46,7 @@ export function TerminalFooter({
 
   return (
     <div
+      data-toast-floor
       onContextMenu={onRowContextMenu}
       className={`composer-terminal-surface flex ${alignTop ? "items-start" : "items-center"} gap-2 bg-[var(--terminal-bg)] px-3 py-2`}
     >

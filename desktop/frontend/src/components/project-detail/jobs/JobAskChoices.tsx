@@ -2,56 +2,58 @@ import { Check } from "lucide-react";
 import { togglePick } from "../../../jobAsk";
 import type { JobAskFieldProps } from "./JobAskField";
 import { JobAskInput } from "./JobAskInput";
+import { SHEET_BUTTON } from "./jobAskSheet";
 
-// The options as a list to pick from — one, or several when the question takes
-// them — and a box for an answer of the user's own when it allows one.
-export function JobAskChoices({ question: q, draft, onChange, disabled }: JobAskFieldProps) {
+// The options stacked full width. As the only question taking one, a click
+// answers with it; otherwise a click marks the pick — one, or several when the
+// question takes them. A box takes an answer of the user's own when allowed.
+export function JobAskChoices({ question: q, draft, onChange, onAnswer, disabled }: JobAskFieldProps) {
+  const own = draft.other.trim();
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-2">
       {(q.options ?? []).map((o) => {
         const picked = draft.picks.includes(o.label);
         return (
           <button
             key={o.label}
             type="button"
-            role={q.multiple ? "checkbox" : "radio"}
-            aria-checked={picked}
+            role={onAnswer ? undefined : q.multiple ? "checkbox" : "radio"}
+            aria-checked={onAnswer ? undefined : picked}
             disabled={disabled}
-            onClick={() => onChange(togglePick(q, draft, o.label))}
-            className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-50 ${
-              picked
-                ? "border-[var(--accent-cyan)] bg-[color-mix(in_srgb,var(--accent-cyan)_8%,transparent)]"
-                : "border-[var(--border)] enabled:hover:bg-[var(--bg-hover)]"
-            }`}
+            onClick={() => (onAnswer ? onAnswer([o.label]) : onChange(togglePick(q, draft, o.label)))}
+            className={`${SHEET_BUTTON[picked ? "picked" : "plain"]} flex items-center gap-3 text-left`}
           >
-            <span
-              className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center border ${
-                q.multiple ? "rounded" : "rounded-full"
-              } ${picked ? "border-[var(--accent-cyan)] bg-[var(--accent-cyan)] text-[var(--bg-primary)]" : "border-[var(--text-muted)]"}`}
-            >
-              {picked && <Check size={11} strokeWidth={3} />}
-            </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-[13px] text-[var(--text-primary)]">{o.label}</span>
+              <span className="block">{o.label}</span>
               {o.description && (
-                <span className="mt-0.5 block text-[11.5px] leading-snug text-[var(--text-muted)]">
+                <span className="mt-0.5 block text-[11.5px] font-normal leading-snug text-[var(--text-muted)]">
                   {o.description}
                 </span>
               )}
             </span>
+            {picked && <Check size={15} strokeWidth={2.6} className="shrink-0 text-[var(--accent-cyan)]" />}
           </button>
         );
       })}
       {q.other && (
-        <JobAskInput
-          value={draft.other}
-          onChange={(e) =>
-            onChange({ ...draft, other: e.target.value, picks: q.multiple ? draft.picks : [] })
-          }
-          placeholder="Something else…"
-          disabled={disabled}
-          className="mt-1"
-        />
+        <div className="flex gap-2">
+          <JobAskInput
+            value={draft.other}
+            onChange={(e) =>
+              onChange({ ...draft, other: e.target.value, picks: q.multiple ? draft.picks : [] })
+            }
+            placeholder="Something else…"
+            disabled={disabled}
+            className="min-h-10 flex-1"
+          />
+          {onAnswer && (
+            <div className="w-24 shrink-0">
+              <button type="submit" disabled={disabled || !own} className={SHEET_BUTTON.fill}>
+                Send
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

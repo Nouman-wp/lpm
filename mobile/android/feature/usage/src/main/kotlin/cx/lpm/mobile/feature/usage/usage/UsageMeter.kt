@@ -92,6 +92,7 @@ internal fun UsageMeter(
                     color = when (meter.verdictTone) {
                         VerdictTone.Critical -> colors.red
                         VerdictTone.Warning -> colors.orange
+                        VerdictTone.Good -> colors.green
                         VerdictTone.Secondary -> colors.secondaryLabel
                     },
                     modifier = Modifier.alignByBaseline()

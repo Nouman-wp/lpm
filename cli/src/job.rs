@@ -87,6 +87,18 @@ pub enum Command {
     Remove(job_edit::RemoveArgs),
     #[command(about = "Answer or dismiss the question an automation is waiting on")]
     Answer(crate::job_answer::AnswerArgs),
+    #[command(
+        name = "remove-run",
+        about = "Remove one run (or one message of it) from an automation's history"
+    )]
+    RemoveRun(crate::job_manage::RemoveRunArgs),
+    #[command(name = "mark-read", about = "Mark an automation's runs read, or every automation's")]
+    MarkRead(crate::job_manage::MarkReadArgs),
+    #[command(
+        name = "test-check",
+        about = "Try an automation's check command now, the way a scheduled run would"
+    )]
+    TestCheck(crate::job_manage::TestCheckArgs),
     #[command(about = "Continue an AI automation conversation")]
     Reply {
         #[command(flatten)]
@@ -135,6 +147,9 @@ pub fn run(ctx: &Ctx, command: Command) -> Result<(), RunError> {
         Command::Edit(args) => job_edit::edit(ctx, *args),
         Command::Remove(args) => job_edit::remove(ctx, args),
         Command::Answer(args) => crate::job_answer::answer(ctx, args),
+        Command::RemoveRun(args) => crate::job_manage::remove_run(ctx, args),
+        Command::MarkRead(args) => crate::job_manage::mark_read(ctx, args),
+        Command::TestCheck(args) => crate::job_manage::test_check(ctx, args),
         Command::Reply {
             target,
             message,
@@ -223,7 +238,7 @@ pub(crate) fn value_text<'a>(value: &'a Value, key: &str) -> &'a str {
 }
 
 fn render_table(style: &Style, jobs: &[Value], now_secs: i64) -> String {
-    let rows: Vec<[String; 7]> = jobs
+    let rows: Vec<[String; 8]> = jobs
         .iter()
         .map(|job| {
             let id = value_text(job, "id").to_string();
@@ -233,6 +248,7 @@ fn render_table(style: &Style, jobs: &[Value], now_secs: i64) -> String {
                     id,
                     value_text(job, "error").to_string(),
                     "invalid".into(),
+                    String::new(),
                     String::new(),
                     String::new(),
                     String::new(),
@@ -256,11 +272,13 @@ fn render_table(style: &Style, jobs: &[Value], now_secs: i64) -> String {
                 .and_then(Value::as_i64)
                 .map(|at| humanize_until(at - now_secs))
                 .unwrap_or_else(|| "—".into());
+            let unread = job.get("unread").and_then(Value::as_u64).unwrap_or(0);
             [
                 value_text(job, "project").to_string(),
                 id,
                 name,
                 state.into(),
+                if unread > 0 { unread.to_string() } else { String::new() },
                 humanize_schedule(job.get("schedule").unwrap_or(&Value::Null)),
                 value_text(job, "lastResult").to_string(),
                 next,
@@ -272,6 +290,7 @@ fn render_table(style: &Style, jobs: &[Value], now_secs: i64) -> String {
         "ID",
         "AUTOMATION",
         "STATE",
+        "NEW",
         "SCHEDULE",
         "LAST",
         "NEXT",
@@ -301,6 +320,7 @@ fn render_table(style: &Style, jobs: &[Value], now_secs: i64) -> String {
                     (3, "waiting") => style.yellow(&padded),
                     (3, "enabled") => style.green(&padded),
                     (3, "invalid") => style.red(&padded),
+                    (4, count) if !count.is_empty() => style.bold(&padded),
                     _ => style.dim(&padded),
                 }
             })

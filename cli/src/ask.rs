@@ -109,18 +109,28 @@ pub fn run(ctx: &Ctx, args: AskArgs) -> ExitCode {
         Err(e) => return fail(USAGE, &e),
     };
     if opened.get("ok").and_then(Value::as_bool) != Some(true) {
-        return fail(USAGE, text_of(&opened, "error").unwrap_or("the app refused the question"));
+        return fail(
+            USAGE,
+            text_of(&opened, "error").unwrap_or("the app refused the question"),
+        );
     }
     if opened.get("blocking").and_then(Value::as_bool) != Some(true) {
         println!("{}", text_of(&opened, "message").unwrap_or_default());
         return ExitCode::SUCCESS;
     }
     let id = text_of(&opened, "id").unwrap_or_default().to_string();
-    let wait = format!("job_ask_wait --run={} --id={}", quote_arg(&token), quote_arg(&id));
+    let wait = format!(
+        "job_ask_wait --run={} --id={}",
+        quote_arg(&token),
+        quote_arg(&id)
+    );
     let ask = loop {
         match request_json(&socket, &wait) {
             Ok(v) if v.get("ok").and_then(Value::as_bool) != Some(true) => {
-                return fail(NO_ANSWER, text_of(&v, "error").unwrap_or("the question was lost"))
+                return fail(
+                    NO_ANSWER,
+                    text_of(&v, "error").unwrap_or("the question was lost"),
+                )
             }
             Ok(v) => match text_of(&v, "status") {
                 Some("open") => continue,
@@ -160,7 +170,8 @@ pub(crate) fn build_request(args: &AskArgs) -> Result<Value, String> {
             } else {
                 form.clone()
             };
-            serde_json::from_str::<Value>(&raw).map_err(|e| format!("--form isn't valid JSON: {e}"))?
+            serde_json::from_str::<Value>(&raw)
+                .map_err(|e| format!("--form isn't valid JSON: {e}"))?
         }
         None => json!({ "questions": [question(args)?] }),
     };
@@ -243,7 +254,10 @@ pub(crate) fn render_answer(ask: &Value, as_json: bool) -> (String, u8) {
     if as_json || questions.len() != 1 {
         return (answers.to_string(), 0);
     }
-    let id = questions[0].get("id").and_then(Value::as_str).unwrap_or_default();
+    let id = questions[0]
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     match answers.get(id) {
         Some(Value::Bool(yes)) => (
             if *yes { "yes" } else { "no" }.to_string(),
@@ -287,13 +301,28 @@ mod tests {
 
     #[test]
     fn builds_each_kind_from_flags() {
-        let r = build_request(&parse(&["Deploy?", "--confirm", "--yes-label", "Ship", "--default", "no"]))
-            .unwrap();
+        let r = build_request(&parse(&[
+            "Deploy?",
+            "--confirm",
+            "--yes-label",
+            "Ship",
+            "--default",
+            "no",
+        ]))
+        .unwrap();
         assert_eq!(
             r,
             json!({ "questions": [{ "type": "confirm", "text": "Deploy?", "yes": "Ship", "default": "no" }] })
         );
-        let r = build_request(&parse(&["Region?", "--choice", "us", "--choice", "eu", "--multiple"])).unwrap();
+        let r = build_request(&parse(&[
+            "Region?",
+            "--choice",
+            "us",
+            "--choice",
+            "eu",
+            "--multiple",
+        ]))
+        .unwrap();
         assert_eq!(r["questions"][0]["type"], json!("choice"));
         assert_eq!(r["questions"][0]["options"], json!(["us", "eu"]));
         assert_eq!(r["questions"][0]["multiple"], json!(true));
@@ -307,7 +336,13 @@ mod tests {
         let mixed = Wrap::try_parse_from(["ask", "Q?", "--confirm", "--choice", "a"]);
         assert!(mixed.is_err());
         assert!(build_request(&parse(&["--confirm"])).is_err());
-        let form = build_request(&parse(&["--form", "{\"questions\":[{\"text\":\"A\"}]}", "--timeout", "90"])).unwrap();
+        let form = build_request(&parse(&[
+            "--form",
+            "{\"questions\":[{\"text\":\"A\"}]}",
+            "--timeout",
+            "90",
+        ]))
+        .unwrap();
         assert_eq!(form["timeout"], json!(90));
     }
 
@@ -322,11 +357,15 @@ mod tests {
 
     #[test]
     fn prints_the_answer_the_way_a_script_reads_it() {
-        let ask = |answers: Value| {
-            json!({ "questions": [{ "id": "q1", "type": "confirm", "text": "Go?" }], "answers": answers })
-        };
-        assert_eq!(render_answer(&ask(json!({ "q1": true })), false), ("yes".into(), 0));
-        assert_eq!(render_answer(&ask(json!({ "q1": false })), false), ("no".into(), 1));
+        let ask = |answers: Value| json!({ "questions": [{ "id": "q1", "type": "confirm", "text": "Go?" }], "answers": answers });
+        assert_eq!(
+            render_answer(&ask(json!({ "q1": true })), false),
+            ("yes".into(), 0)
+        );
+        assert_eq!(
+            render_answer(&ask(json!({ "q1": false })), false),
+            ("no".into(), 1)
+        );
         assert_eq!(
             render_answer(&ask(json!({ "q1": false })), true),
             ("{\"q1\":false}".into(), 0)

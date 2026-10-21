@@ -34,6 +34,7 @@ struct AutomationDetailView: View {
                 if let ask = job.ask {
                     Section {
                         AutomationAskCard(ask: ask, project: ask.project, jobId: job.id, framed: false)
+                            .id(ask.id)
                     }
                 }
                 Section {

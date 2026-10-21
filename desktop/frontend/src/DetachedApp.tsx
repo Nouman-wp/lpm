@@ -1,6 +1,5 @@
 import { useEffect } from "react";
-import { Toaster } from "sonner";
-import { TOASTER_OFFSET } from "./toasterOffset";
+import { AppToaster } from "./components/AppToaster";
 import { DictationOverlay } from "./components/dictation/DictationOverlay";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
@@ -103,14 +102,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
 
   return (
     <div className="flex h-screen" style={{ paddingRight: dockInset }}>
-      <Toaster
-        position="top-right"
-        theme={theme}
-        offset={TOASTER_OFFSET}
-        closeButton
-        richColors
-        toastOptions={{ duration: 5000 }}
-      />
+      <AppToaster theme={theme} dockInset={dockInset} />
       <DictationOverlay />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar

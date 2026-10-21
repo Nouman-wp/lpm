@@ -48,7 +48,7 @@ export function ScheduleUnscheduled({
         Not on the board
         <span className={HEADING_COUNT}>
           {jobs.length + dense.length}{" "}
-          {jobs.length + dense.length === 1 ? "job" : "jobs"}
+          {jobs.length + dense.length === 1 ? "automation" : "automations"}
         </span>
       </h3>
 

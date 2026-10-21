@@ -25,8 +25,7 @@ import { PairApprovalHost } from "./components/PairApprovalHost";
 import { PairRequestDialog } from "./components/connections/PairRequestDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
-import { Toaster } from "sonner";
-import { TOASTER_OFFSET } from "./toasterOffset";
+import { AppToaster } from "./components/AppToaster";
 import { DictationOverlay } from "./components/dictation/DictationOverlay";
 import { MainTopBar } from "./components/MainTopBar";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
@@ -258,14 +257,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen" style={{ paddingRight: dockInset }}>
-      <Toaster
-        position="top-right"
-        theme={theme}
-        offset={TOASTER_OFFSET}
-        closeButton
-        richColors
-        toastOptions={{ duration: 5000 }}
-      />
+      <AppToaster theme={theme} dockInset={dockInset} />
       <ClaudeAccountPoolDialog />
       <DictationOverlay />
       <ClaudePoolConsentDialog />

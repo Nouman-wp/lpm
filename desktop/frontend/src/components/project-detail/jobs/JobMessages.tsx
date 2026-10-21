@@ -143,7 +143,7 @@ export function JobMessages({
           <button
             type="button"
             onClick={onBack}
-            aria-label="Back to all jobs"
+            aria-label="Back to all automations"
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           >
             <ChevronLeftIcon />
@@ -183,7 +183,7 @@ export function JobMessages({
               disabled={!job.enabled || waitingAsk !== undefined}
               title={
                 waitingAsk
-                  ? "Answer or dismiss its question first"
+                  ? "Answer or skip its question first"
                   : job.enabled
                     ? undefined
                     : "Turn it on to run it"
@@ -206,8 +206,8 @@ export function JobMessages({
             <button
               type="button"
               onClick={onRemove}
-              title="Remove job"
-              aria-label="Remove job"
+              title="Remove automation"
+              aria-label="Remove automation"
               className="flex shrink-0 items-center rounded-md p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
             >
               <TrashIcon size={13} />
@@ -228,7 +228,7 @@ export function JobMessages({
         {job.valid && !job.enabled && <JobOffBanner onTurnOn={() => onToggleEnabled(true)} />}
         {waitingAsk && (
           <div className="mb-4" style={{ zoom: zoom.zoom }}>
-            <JobAskCard ask={waitingAsk} project={project} jobId={job.id} />
+            <JobAskCard key={waitingAsk.id} ask={waitingAsk} project={project} jobId={job.id} />
           </div>
         )}
         {!job.valid ? (

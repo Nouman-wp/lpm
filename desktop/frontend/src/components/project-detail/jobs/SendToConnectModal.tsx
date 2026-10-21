@@ -44,8 +44,8 @@ export function SendToConnectModal({
             </h2>
             <p className="mt-1.5 text-[12.5px] leading-5 text-[var(--text-muted)]">
               {adding
-                ? "Each job can send its results to any of these."
-                : `Once it's connected, any job can send its results to ${label}.`}
+                ? "Each automation can send its results to any of these."
+                : `Once it's connected, any automation can send its results to ${label}.`}
             </p>
           </div>
           <button

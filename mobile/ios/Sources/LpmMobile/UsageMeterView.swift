@@ -182,6 +182,7 @@ struct UsageMeterView: View {
         switch verdict {
         case .exhausted: return .red
         case .over: return .orange
+        case .under: return .green
         default: return .secondary
         }
     }

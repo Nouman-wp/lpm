@@ -137,7 +137,7 @@ fn by_token<'a>(f: &'a mut JobsStateFile, token: &str) -> Option<(&'a String, &'
 fn not_open(ask: &Ask) -> String {
     match ask.status.as_str() {
         ANSWERED => "This question was already answered.".into(),
-        DISMISSED => "This question was dismissed.".into(),
+        DISMISSED => "This question was skipped.".into(),
         _ => "This question isn't waiting for an answer anymore.".into(),
     }
 }

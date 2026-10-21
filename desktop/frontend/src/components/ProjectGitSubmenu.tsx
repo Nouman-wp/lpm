@@ -38,6 +38,7 @@ import {
   type GitPullConfig,
 } from "../gitOptions";
 import { toastPullError } from "../gitPullErrors";
+import { pulledText, pushedText } from "../gitToastText";
 import type { AutoPullMode } from "../autoPull";
 import { useAutoPullMode } from "../hooks/useAutoPullMode";
 
@@ -164,7 +165,7 @@ function GitSubmenuItems({
 
   const pull = (cfg: GitPullConfig, id: string | number = toast.loading("Pulling…")) => {
     PullBranch(projectPath, cfg.strategy, pullFlags(cfg)).then(
-      () => toast.success("Pulled", { id }),
+      () => toast.success(pulledText(status.behind, status.branch), { id }),
       (err) => toastPullError(err, "Pull failed", () => pull({ ...cfg, autostash: true }), id),
     );
   };
@@ -195,7 +196,7 @@ function GitSubmenuItems({
         label="Push"
         icon={<UploadIcon />}
         onClick={() =>
-          runOp("Pushing…", "Pushed", "Push", () => {
+          runOp("Pushing…", pushedText(status.ahead, status.branch), "Push", () => {
             const cfg = getSettings().gitPush ?? DEFAULT_PUSH_CONFIG;
             return GitPush(projectPath, pushFlags(cfg));
           })

@@ -56,7 +56,7 @@ pub(crate) fn project_row(ctx: &Ctx, project: &str, job_id: &str) -> Result<Valu
 
 /// The projects the verb acts in: the one given or inferred, or with --global
 /// every project the automation runs in — `""` for one with no project.
-fn projects(ctx: &Ctx, target: &Target) -> Result<Vec<String>, RunError> {
+pub(crate) fn projects(ctx: &Ctx, target: &Target) -> Result<Vec<String>, RunError> {
     control::require_app(ctx)?;
     if !target.global {
         let project = target_project(ctx, target)?;
@@ -376,7 +376,7 @@ fn conversation(
     })
 }
 
-fn load_history(ctx: &Ctx, project: &str, job_id: &str) -> Result<Vec<Value>, RunError> {
+pub(crate) fn load_history(ctx: &Ctx, project: &str, job_id: &str) -> Result<Vec<Value>, RunError> {
     value_array(request_value(
         ctx,
         &verb_line("job_history", project, job_id, ""),

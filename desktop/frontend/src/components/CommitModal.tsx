@@ -96,7 +96,8 @@ export function CommitModal({
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const loadedForOpen = useRef(false);
   const genPromise = useRef<Promise<string> | null>(null);
-  const selectedLines = useSelectedLineCounts(projectPath, files, selected);
+  const lineCounts = useSelectedLineCounts(projectPath, files, selected);
+  const selectedLines = lineCounts.selected;
 
   useEffect(() => {
     if (!open) return;
@@ -582,6 +583,7 @@ export function CommitModal({
                   onClickFile={toggleDiff}
                   onDiscardFile={setConfirmDiscardPath}
                   onDiscardFolder={setConfirmDiscardFolder}
+                  lineCounts={lineCounts.byPath}
                 />
               )}
             </div>

@@ -16,7 +16,7 @@ describe("readCronReply", () => {
 
   it("refuses a reply the scheduler wouldn't take", () => {
     expect(readCronReply("* * * * *")).toEqual({
-      error: "The agent replied “* * * * *”. A cron job can run at most every 5 minutes.",
+      error: "The agent replied “* * * * *”. An automation can run at most every 5 minutes.",
     });
     expect(readCronReply("")).toEqual({ error: "The agent didn't reply with a cron line." });
   });

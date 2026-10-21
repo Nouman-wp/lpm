@@ -80,9 +80,9 @@ export function computePace(
 export function paceLabel(pace: Pace | null): string {
   switch (pace?.verdict) {
     case "over":
-      return "ahead of pace";
+      return "too fast";
     case "under":
-      return "under pace";
+      return "will last";
     case "on":
       return "on pace";
     case "exhausted":

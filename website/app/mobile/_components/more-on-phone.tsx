@@ -47,7 +47,7 @@ const CARDS: { icon: LucideIcon; title: string; body: React.ReactNode }[] = [
     body: (
       <>
         See how much of your Claude and Codex 5‑hour and weekly windows is
-        left, whether you are ahead of pace, and{" "}
+        left, whether you are using them too fast, and{" "}
         <Link href={TOKEN_USAGE_PATH} className={LINK}>
           where the tokens went
         </Link>{" "}

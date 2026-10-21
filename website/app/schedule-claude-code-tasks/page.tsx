@@ -15,6 +15,7 @@ import {
   webPageJsonLd,
   youtubeLessonJsonLd,
 } from "@/lib/structured-data";
+import AskLesson from "./_components/ask-lesson";
 import AutomationsPreview from "./_components/automations-preview";
 import Cta from "./_components/cta";
 import Examples from "./_components/examples";
@@ -83,6 +84,7 @@ const structuredData = [
     { name: "Schedule Claude Code Tasks", path: AUTOMATIONS_PATH },
   ]),
   youtubeLessonJsonLd("create-an-automation"),
+  youtubeLessonJsonLd("automations-that-ask-you-first"),
 ];
 
 export default function ScheduleClaudeCodeTasksPage() {
@@ -102,6 +104,7 @@ export default function ScheduleClaudeCodeTasksPage() {
       <Guardrails />
       <RunHistory />
       <StayInLoop />
+      <AskLesson />
       <Limits />
       <Faq />
       <RelatedPages

@@ -27,7 +27,7 @@ export const AUTOMATIONS_AREA: FeatureArea = {
     {
       icon: Gauge,
       title: "Plan limit meters",
-      body: "Watch your 5-hour and weekly plan windows fill up, see when each resets and whether you're ahead of pace, with a warning before you run out. A compact meter sits in the sidebar.",
+      body: "Watch your 5-hour and weekly plan windows fill up, see when each resets and whether you're using them too fast, with a warning before you run out. A compact meter sits in the sidebar.",
       note: "Claude meters need a one-click opt-in and a subscription login.",
       scope: "claude-codex",
     },

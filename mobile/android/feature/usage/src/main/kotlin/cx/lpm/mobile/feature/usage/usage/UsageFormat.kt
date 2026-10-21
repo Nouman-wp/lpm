@@ -78,8 +78,8 @@ fun computePace(win: LimitWindow?, windowMs: Double, now: Double): Pace? {
 
 /** The verdict in words; empty when there is nothing worth judging yet. */
 fun paceLabel(pace: Pace?): String = when (pace?.verdict) {
-    PaceVerdict.Over -> "ahead of pace"
-    PaceVerdict.Under -> "under pace"
+    PaceVerdict.Over -> "too fast"
+    PaceVerdict.Under -> "will last"
     PaceVerdict.On -> "on pace"
     PaceVerdict.Exhausted -> "limit reached"
     else -> ""

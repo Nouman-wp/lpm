@@ -245,7 +245,7 @@ export function JobTaskView({
         <button
           type="button"
           onClick={onBack}
-          aria-label="Back to the job"
+          aria-label="Back to the automation"
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         >
           <ChevronLeftIcon />
@@ -444,7 +444,7 @@ export function JobTaskView({
         body={
           removing?.whole ? (
             <>
-              The run and its replies are removed from this job's history. This
+              The run and its replies are removed from this automation's history. This
               cannot be undone.
               {threadCopy && (
                 <label className="mt-3 flex cursor-pointer items-center gap-1.5 text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">
@@ -459,7 +459,7 @@ export function JobTaskView({
               )}
             </>
           ) : (
-            "The message is removed from this job's history. This cannot be undone."
+            "The message is removed from this automation's history. This cannot be undone."
           )
         }
         confirmLabel="Remove"

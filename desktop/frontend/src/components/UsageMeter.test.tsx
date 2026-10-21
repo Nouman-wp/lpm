@@ -48,6 +48,6 @@ describe("UsageMeter pace tick", () => {
   it("marks elapsed time once the window is judged", () => {
     const tick = renderMeter(3, 122);
     expect(parseFloat(tick!.style.left)).toBeCloseTo((46 / 168) * 100);
-    expect(container.textContent).toContain("under pace");
+    expect(container.textContent).toContain("will last");
   });
 });

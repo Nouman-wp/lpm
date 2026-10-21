@@ -4,7 +4,9 @@ import { main } from "../../bridge/models";
 import { UndoIcon } from "./icons";
 import { BASE_LEFT_PX, INDENT_PX, TreeChevron } from "./treeRow";
 import { DiffViewer } from "./DiffViewer";
-import { selectedCounts, visibleRows, type TreeRowEntry } from "./changedTreeRows";
+import { LineCounts } from "./LineCounts";
+import { FLAT_LIST_MAX, flatRows, selectedCounts, visibleRows, type TreeRowEntry } from "./changedTreeRows";
+import { buildTree, fileDescendants, type FileNode, type FolderNode } from "./changedTree";
 
 type ChangedFile = main.ChangedFile;
 
@@ -20,129 +22,6 @@ export const STATUS_DISPLAY: Record<
   conflicted: { label: "!", color: "text-[var(--accent-red-text)]", dot: "bg-[var(--accent-red)]" },
 };
 export const DEFAULT_STATUS = STATUS_DISPLAY.modified;
-
-export type FileNode = {
-  kind: "file";
-  path: string;
-  name: string;
-  file: ChangedFile;
-};
-export type FolderNode = {
-  kind: "folder";
-  path: string;
-  name: string;
-  children: TreeNode[];
-  fileCount: number;
-};
-export type TreeNode = FileNode | FolderNode;
-
-export function buildTree(files: ChangedFile[]): TreeNode[] {
-  const root: FolderNode = {
-    kind: "folder",
-    path: "",
-    name: "",
-    children: [],
-    fileCount: 0,
-  };
-
-  for (const file of files) {
-    const parts = file.path.split("/");
-    let current = root;
-
-    for (let i = 0; i < parts.length - 1; i++) {
-      const folderName = parts[i];
-      const folderPath = parts.slice(0, i + 1).join("/");
-      let child = current.children.find(
-        (c): c is FolderNode =>
-          c.kind === "folder" && c.name === folderName,
-      );
-      if (!child) {
-        child = {
-          kind: "folder",
-          path: folderPath,
-          name: folderName,
-          children: [],
-          fileCount: 0,
-        };
-        current.children.push(child);
-      }
-      current = child;
-    }
-
-    current.children.push({
-      kind: "file",
-      path: file.path,
-      name: parts[parts.length - 1],
-      file,
-    });
-  }
-
-  return sortNodes(root.children.map(collapseAndSort));
-}
-
-function sortNodes(nodes: TreeNode[]): TreeNode[] {
-  return [...nodes].sort((a, b) => {
-    if (a.kind !== b.kind) return a.kind === "folder" ? -1 : 1;
-    return a.name.localeCompare(b.name);
-  });
-}
-
-// Files in the exact order an already-built tree renders them (folders first,
-// then files, alphabetically), so a flat list like the diff stack matches the
-// tree view. Takes prebuilt nodes so a caller that also renders the tree does
-// not pay for buildTree twice.
-export function flattenNodes(nodes: TreeNode[]): ChangedFile[] {
-  const out: ChangedFile[] = [];
-  const walk = (ns: TreeNode[]) => {
-    for (const node of ns) {
-      if (node.kind === "file") out.push(node.file);
-      else walk(node.children);
-    }
-  };
-  walk(nodes);
-  return out;
-}
-
-export function flattenTree(files: ChangedFile[]): ChangedFile[] {
-  return flattenNodes(buildTree(files));
-}
-
-function collapseAndSort(node: TreeNode): TreeNode {
-  if (node.kind === "file") return node;
-
-  const processed = node.children.map(collapseAndSort);
-
-  if (processed.length === 1 && processed[0].kind === "folder") {
-    const child = processed[0];
-    return {
-      kind: "folder",
-      path: child.path,
-      name: `${node.name}/${child.name}`,
-      children: child.children,
-      fileCount: child.fileCount,
-    };
-  }
-
-  const sorted = sortNodes(processed);
-
-  const fileCount = sorted.reduce(
-    (acc, c) => acc + (c.kind === "file" ? 1 : c.fileCount),
-    0,
-  );
-
-  return {
-    kind: "folder",
-    path: node.path,
-    name: node.name,
-    children: sorted,
-    fileCount,
-  };
-}
-
-export function fileDescendants(node: TreeNode): string[] {
-  if (node.kind === "file") return [node.path];
-  return node.children.flatMap(fileDescendants);
-}
 
 export type CheckState = "none" | "some" | "all";
 
@@ -247,6 +126,13 @@ interface ChangedFilesTreeProps {
   onClickFile: (path: string) => void;
   onDiscardFile: (path: string) => void;
   onDiscardFolder: (info: { name: string; paths: string[] }) => void;
+  // Lines each file adds and removes, by path; null until counted.
+  lineCounts?: ReadonlyMap<string, FileLines> | null;
+}
+
+interface FileLines {
+  added: number;
+  removed: number;
 }
 
 interface RowHandlers {
@@ -279,7 +165,11 @@ export function ChangedFilesTree(props: ChangedFilesTreeProps) {
     [],
   );
 
-  const rows = useMemo(() => visibleRows(tree, collapsed), [tree, collapsed]);
+  const flat = files.length <= FLAT_LIST_MAX;
+  const rows = useMemo(
+    () => (flat ? flatRows(tree) : visibleRows(tree, collapsed)),
+    [flat, tree, collapsed],
+  );
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => props.scrollRef.current,
@@ -295,6 +185,8 @@ export function ChangedFilesTree(props: ChangedFilesTreeProps) {
         <FileRow
           node={node}
           depth={depth}
+          dir={flat ? parentDir(node.path) : null}
+          lines={props.lineCounts?.get(node.path) ?? null}
           checked={selected.has(node.path)}
           expanded={expanded}
           diffContent={expanded ? diffContent : ""}
@@ -387,9 +279,16 @@ const FolderRow = memo(function FolderRow({
   );
 });
 
+function parentDir(path: string): string {
+  const cut = path.lastIndexOf("/");
+  return cut > 0 ? path.slice(0, cut) : "";
+}
+
 const FileRow = memo(function FileRow({
   node,
   depth,
+  dir,
+  lines,
   checked,
   expanded,
   diffContent,
@@ -399,6 +298,8 @@ const FileRow = memo(function FileRow({
 }: {
   node: FileNode;
   depth: number;
+  dir: string | null;
+  lines: FileLines | null;
   checked: boolean;
   expanded: boolean;
   diffContent: string;
@@ -430,10 +331,14 @@ const FileRow = memo(function FileRow({
         </span>
         <span
           onClick={() => handlers.clickFile(node.path)}
-          className="min-w-0 flex-1 cursor-pointer truncate text-xs text-[var(--text-primary)]"
+          className="flex min-w-0 flex-1 cursor-pointer items-baseline gap-2"
         >
-          {node.name}
+          <span className="min-w-0 truncate text-xs text-[var(--text-primary)]">{node.name}</span>
+          {dir && (
+            <span className="min-w-0 flex-1 truncate text-[11px] text-[var(--text-muted)]">{dir}</span>
+          )}
         </span>
+        {lines && <LineCounts added={lines.added} removed={lines.removed} className="shrink-0 text-[11px]" />}
         <button
           onClick={() => handlers.discardFile(node.path)}
           disabled={busy}

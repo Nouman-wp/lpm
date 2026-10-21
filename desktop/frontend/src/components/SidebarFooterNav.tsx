@@ -242,7 +242,7 @@ export function SidebarFooterNav({
     inMenu("automations") && waiting > 0
       ? `${waiting} automation${waiting === 1 ? "" : "s"} waiting for your answer`
       : "",
-    inMenu("automations") && running > 0 ? "a scheduled job is running" : "",
+    inMenu("automations") && running > 0 ? "an automation is running" : "",
     inMenu("automations") && unread > 0
       ? `${unread} automation${unread === 1 ? "" : "s"} with new messages`
       : "",

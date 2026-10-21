@@ -9,11 +9,11 @@ export const LEGEND: LegendItem[] = [
   },
   {
     lead: "The verdict compares the two.",
-    text: "Used divided by elapsed above 1.15 is ahead of pace, below 0.85 is under pace, and anything between is on pace. In the first 5% of a window there's no pace verdict, only “limit reached” once you hit 100%.",
+    text: "Used divided by elapsed above 1.15 reads “too fast”, below 0.85 reads “will last”, and anything between is “on pace”. In the first 5% of a window there's no pace verdict, only “limit reached” once you hit 100%.",
   },
   {
     lead: "Run-out time shows only when it matters.",
-    text: "It appears when you're ahead of pace and the current rate would use up the rest before the reset. Bars turn amber at 80% and red at 95%, and a reading older than 15 minutes dims.",
+    text: "It appears when you're using the window too fast and the current rate would use up the rest before the reset. Bars turn amber at 80% and red at 95%, and a reading older than 15 minutes dims.",
   },
 ];
 

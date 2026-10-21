@@ -31,7 +31,7 @@ export function RemoveJobDialog({
   return (
     <ConfirmDialog
       open={removing !== null}
-      title="Remove job?"
+      title="Remove automation?"
       body={
         <>
           Remove{" "}

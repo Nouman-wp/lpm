@@ -71,8 +71,12 @@ data class AutomationAsk(
 ) {
     val isOpen: Boolean get() = status == "open"
 
-    /** One yes/no question, settled by a single tap. */
-    val answersOnTap: Boolean get() = questions.size == 1 && questions[0].type == "confirm"
+    /** One question settled by a single tap: its yes or no, or the one option it takes. */
+    val answersOnTap: Boolean
+        get() {
+            val q = questions.singleOrNull() ?: return false
+            return q.type == "confirm" || (q.type == "choice" && !q.multiple)
+        }
 
     /** The first question, and how many more come with it. */
     val summary: String
@@ -92,7 +96,7 @@ data class AutomationAsk(
                 else -> "Answered in a reply"
             }
 
-            "dismissed" -> "Dismissed"
+            "dismissed" -> "Skipped"
 
             else -> "No answer"
         }
@@ -190,8 +194,8 @@ fun automationAskDisplay(q: AutomationAskQuestion, answer: JsonElement?): String
     else -> ""
 }
 
-/** "Uses the default in 3h" / "Expires in 20m" for a question with a deadline. */
-fun automationAskDeadline(ask: AutomationAsk, nowSecs: Long): String {
+/** "If nobody answers in 3h, it goes with No" for a question with a deadline. */
+fun automationAskDeadlineNote(ask: AutomationAsk, nowSecs: Long): String {
     val expiresAt = ask.expiresAt ?: return ""
     val left = max(0L, expiresAt - nowSecs)
     val mins = max(1, ceil(left / 60.0).toInt())
@@ -200,6 +204,19 @@ fun automationAskDeadline(ask: AutomationAsk, nowSecs: Long): String {
         mins < 1440 -> "${(mins / 60.0).roundToInt()}h"
         else -> "${(mins / 1440.0).roundToInt()}d"
     }
-    val covered = ask.questions.all { it.defaultAnswer != null || it.optional }
-    return if (covered) "Uses the default in $span" else "Expires in $span"
+    val lead = "If nobody answers in $span"
+    val only = ask.questions.singleOrNull()
+    val default = only?.defaultAnswer
+    if (only != null && default != null) {
+        return "$lead, it goes with ${automationAskDisplay(only, default)}"
+    }
+    return when {
+        !ask.questions.all {
+            it.defaultAnswer != null || it.optional
+        } -> "$lead, the question closes"
+
+        ask.questions.any { it.defaultAnswer != null } -> "$lead, it goes on with the defaults"
+
+        else -> "$lead, it goes on without an answer"
+    }
 }

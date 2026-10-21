@@ -110,7 +110,7 @@ export function CheckAIModal({
             </div>
             <p className="mt-1.5 text-[12.5px] leading-5 text-[var(--text-muted)]">
               Say when the job has work to do. AI writes a command that succeeds
-              only then{task ? ", with what the job does as context" : ""}.
+              only then{task ? ", with what the automation does as context" : ""}.
             </p>
           </div>
           <button
@@ -134,7 +134,7 @@ export function CheckAIModal({
             <div className="rounded-[calc(0.75rem-1px)] bg-[var(--bg-secondary)]">
               <textarea
                 ref={textareaRef}
-                aria-label="When the job has work"
+                aria-label="When the automation has work"
                 value={want}
                 onChange={(e) => setWant(e.target.value)}
                 onKeyDown={(e) => {

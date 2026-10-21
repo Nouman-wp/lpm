@@ -46,9 +46,9 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
       "Yes. lpm's Stats view matches the Claude Code and Codex sessions on this computer to the lpm project whose folder it ran in, including sessions started from another terminal or editor and ones from before you installed lpm. Copies and worktrees you make in lpm are projects of their own, so their tokens are counted separately; when project folders nest, the deepest one gets the session. Sort projects by tokens, sessions or name, and open a recent session to see its input, cached, output and reasoning tokens. SSH projects and projects on other computers or Linux servers aren't counted.",
   },
   {
-    question: "What do ahead of pace, on pace and under pace mean?",
+    question: "What do too fast, on pace and will last mean?",
     answer:
-      "lpm divides the share of a window you've used by the share of time that has passed. Above 1.15 is ahead of pace, below 0.85 is under pace, and anything between is on pace; in the first 5% of a window there's no pace verdict, only “limit reached” at 100%. When you're ahead of pace and the current rate would use up the window before it resets, the meter adds an estimate such as “runs out in ~1h 4m, before reset”.",
+      "lpm divides the share of a window you've used by the share of time that has passed. Above 1.15 reads “too fast”, below 0.85 reads “will last”, and anything between is “on pace”; in the first 5% of a window there's no pace verdict, only “limit reached” at 100%. When it reads too fast and the current rate would use up the window before it resets, the meter adds an estimate such as “runs out in ~1h 4m, before reset”.",
   },
   {
     question: "Why is Claude Code using so many tokens?",
