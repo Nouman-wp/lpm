@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useStickToBottom } from "./use-stick-to-bottom";
-import { INITIAL_AI_STATUS, type ReplyContext } from "./projects";
+import { INITIAL_AI_STATUS, type ReplyContext, type ResumedTurn } from "./projects";
 import { AgentBanner, AgentStatusLine, TurnFooter, WorkingLine } from "./agent-chrome";
 import { AgentComposer } from "./agent-composer";
 import { registerAgentDrive } from "./agent-drive";
@@ -112,6 +112,10 @@ type AgentTerminalProps = {
   autoDeferred?: boolean;
   // Registers this session with the tour, which types into its composer.
   driveKey?: string;
+  // Sent as the session opens, through the same path a typed prompt takes.
+  firstPrompt?: string;
+  // Opens on a past conversation instead, finished and reporting no status.
+  resumed?: ResumedTurn;
 };
 
 export function AgentTerminal({
@@ -126,6 +130,8 @@ export function AgentTerminal({
   autoAnswerSteps,
   autoDeferred,
   driveKey,
+  firstPrompt,
+  resumed,
 }: AgentTerminalProps) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -257,7 +263,22 @@ export function AgentTerminal({
     startedRef.current = true;
     // The agent launches idle, awaiting your first prompt — unless it opens
     // with work in flight (progress) or already finished (done) via autoPrompt.
-    if (autoPrompt && autoMode === "progress" && !autoDeferred) {
+    if (firstPrompt) {
+      runQuery(firstPrompt);
+    } else if (resumed) {
+      nextIdRef.current += 1;
+      setHistory([
+        {
+          id: nextIdRef.current,
+          query: resumed.prompt,
+          revealed: 1,
+          steps: [{ kind: "text", text: resumed.reply }],
+          finished: true,
+          startedAt: resumed.landedAt - SEEDED_TURN_MS,
+          doneMs: SEEDED_TURN_MS,
+        },
+      ]);
+    } else if (autoPrompt && autoMode === "progress" && !autoDeferred) {
       runQuery(autoPrompt, {
         steps: autoSteps ?? IN_PROGRESS_STEPS,
         keepBusy: true,

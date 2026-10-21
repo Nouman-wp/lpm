@@ -21,10 +21,13 @@ import { IconBtn } from "./icon-btn";
 import { PANE_ACTION_META, type UtilityTabKind } from "./pane-action-meta";
 import type { PaneActionId } from "./pane-actions";
 import { PaneMenuButton } from "./pane-menu-button";
+import { PaneShareButton } from "./pane-share-button";
 import { PaneToolbarButton } from "./pane-toolbar-button";
+import { SharedTabMark } from "./shared-tab-mark";
 import { AddTabButton } from "./tab-controls";
 import { Tooltip } from "./tooltip";
 import { FOCUS_RING } from "./ui";
+import type { TabShare } from "./use-tab-shares";
 
 // Partial so a status added to AgentStatus can't break the header; "waiting" is
 // listed ahead of that because the app's HeaderTab already styles it.
@@ -45,6 +48,7 @@ export type TabInfo = {
   pinned?: boolean;
   status?: AgentStatus;
   closable?: boolean;
+  share?: TabShare;
 };
 
 /** The header's pane actions: which sit on the toolbar, which are left in the
@@ -77,6 +81,12 @@ type PaneHeaderProps = {
   onToggleFullscreen?: () => void;
   onClosePane?: () => void;
   onTabContextMenu?: (idx: number, x: number, y: number) => void;
+  // Share for the terminal tab in front; absent for any other tab.
+  shareButton?: {
+    share?: TabShare;
+    open: boolean;
+    onToggle: (button: HTMLElement) => void;
+  };
 };
 
 export function PaneHeader({
@@ -95,6 +105,7 @@ export function PaneHeader({
   onToggleFullscreen,
   onClosePane,
   onTabContextMenu,
+  shareButton,
 }: PaneHeaderProps) {
   // Only a split tree has a pane worth singling out, so the cyan focus edge
   // rides on the close control the split also brings.
@@ -231,6 +242,7 @@ export function PaneHeader({
               >
                 {tab.label}
               </span>
+              {tab.share && <SharedTabMark share={tab.share} />}
               {port !== undefined && (
                 <Tooltip
                   content={`Preview localhost:${port}`}
@@ -265,6 +277,7 @@ export function PaneHeader({
             onReset={paneActions.onReset}
           />
         )}
+        {shareButton && <PaneShareButton {...shareButton} />}
         {onSplitRight && (
           <Tooltip content="Split right  ·  ⌘D" side="bottom">
             <IconBtn onClick={onSplitRight} ariaLabel="Split right">

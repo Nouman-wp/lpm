@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog } from "./confirm-dialog";
+import { lineCounts } from "./diff-lines";
 import {
   BranchIcon,
   CheckIcon,
@@ -15,10 +16,12 @@ import {
   SyncIcon,
   TrashIcon,
 } from "./branch-icons";
-import { GitActionsMenu, type PullStrategy } from "./git-actions-menu";
+import { GitActionsMenu } from "./git-actions-menu";
+import { DEFAULT_GIT_PREFS, type GitPrefs, type PullStrategy } from "./git-prefs";
+import { LineCounts } from "./line-counts";
 import { MergeDialog } from "./merge-dialog";
 import { NO_AUTOFILL } from "./no-autofill";
-import type { DemoBranch, DemoGit } from "./projects";
+import type { ChangedFile, DemoBranch, DemoGit } from "./projects";
 import { RemoteBadge } from "./remote-badge";
 import { SparkleGlyph } from "./sparkle-glyph";
 import { FOCUS_RING, PRESS } from "./ui";
@@ -35,6 +38,8 @@ const AI_BRANCH_SUGGESTIONS = [
 
 type BranchSwitcherProps = {
   git: DemoGit;
+  // The working tree's diff, for the line counts on Commit.
+  changedFiles?: ChangedFile[];
   busy?: boolean;
   onCheckout: (branch: DemoBranch) => void;
   onCommit: () => void;
@@ -54,6 +59,7 @@ type BranchSwitcherProps = {
 
 export function DemoBranchSwitcher({
   git,
+  changedFiles,
   busy = false,
   onCheckout,
   onCommit,
@@ -72,7 +78,8 @@ export function DemoBranchSwitcher({
 }: BranchSwitcherProps) {
   const [branchOpen, setBranchOpen] = useState(false);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
-  const [pullStrategy, setPullStrategy] = useState<PullStrategy>("ff");
+  const [gitPrefs, setGitPrefs] = useState<GitPrefs>(DEFAULT_GIT_PREFS);
+  const counts = lineCounts(changedFiles ?? []);
   const [mergePicker, setMergePicker] = useState(false);
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
@@ -194,14 +201,13 @@ export function DemoBranchSwitcher({
     setRenamingKey(null);
   };
 
-  const handlePull = (strategy: PullStrategy) => {
-    setPullStrategy(strategy);
+  const handlePull = () => {
     setCommitMenuOpen(false);
-    onPull(strategy);
+    onPull(gitPrefs.pull.strategy);
   };
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-1">
       {needsSync && (
         <button
           type="button"
@@ -243,13 +249,7 @@ export function DemoBranchSwitcher({
           }`}
         >
           <BranchIcon />
-          <span className="max-w-[160px] truncate font-mono">{git.branch}</span>
-          {git.uncommitted > 0 && (
-            <span
-              className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[#60a5fa]"
-              title={`${git.uncommitted} uncommitted file${git.uncommitted === 1 ? "" : "s"}`}
-            />
-          )}
+          <span className="max-w-32 truncate font-mono">{git.branch}</span>
           <ChevronDownIcon />
         </button>
 
@@ -492,9 +492,12 @@ export function DemoBranchSwitcher({
         >
           <CommitIcon />
           <span>Commit</span>
-          {git.uncommitted > 0 && (
-            <span className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[#60a5fa]" />
-          )}
+          {git.uncommitted > 0 &&
+            (counts.added + counts.removed > 0 ? (
+              <LineCounts added={counts.added} removed={counts.removed} className="ml-0.5" />
+            ) : (
+              <span className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[#60a5fa]" />
+            ))}
         </button>
         <button
           type="button"
@@ -517,12 +520,8 @@ export function DemoBranchSwitcher({
           <GitActionsMenu
             busy={busy}
             uncommitted={git.uncommitted}
-            pullStrategy={pullStrategy}
-            onSelectPullStrategy={setPullStrategy}
-            onCommit={() => {
-              setCommitMenuOpen(false);
-              onCommit();
-            }}
+            prefs={gitPrefs}
+            onPrefs={setGitPrefs}
             onPull={handlePull}
             onPush={() => {
               setCommitMenuOpen(false);
@@ -548,6 +547,12 @@ export function DemoBranchSwitcher({
               setCommitMenuOpen(false);
               onCommit();
               onPush();
+            }}
+            onAutoCreatePR={() => {
+              setCommitMenuOpen(false);
+              onCommit();
+              onPush();
+              onCreatePR();
             }}
             onDiscard={() => {
               setCommitMenuOpen(false);

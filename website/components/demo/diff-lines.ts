@@ -1,4 +1,4 @@
-import type { DiffLine } from "./projects";
+import type { ChangedFile, DiffLine } from "./projects";
 
 export type DiffRow = { line: DiffLine; oldNo: number | null; newNo: number | null };
 
@@ -20,4 +20,17 @@ export function numberDiff(lines: readonly DiffLine[]): DiffRow[] {
     if (line.t === "del") return { line, oldNo: oldNo++, newNo: null };
     return { line, oldNo: oldNo++, newNo: newNo++ };
   });
+}
+
+// What the Commit button counts: lines added and removed across the working tree.
+export function lineCounts(files: readonly ChangedFile[]): { added: number; removed: number } {
+  let added = 0;
+  let removed = 0;
+  for (const file of files) {
+    for (const line of file.diff) {
+      if (line.t === "add") added++;
+      else if (line.t === "del") removed++;
+    }
+  }
+  return { added, removed };
 }

@@ -4,18 +4,12 @@ import { Zap } from "lucide-react";
 import {
   TOKENS_TODAY,
   USAGE_PROVIDERS,
-  usageBarColor,
-  usagePaceColor,
-  usagePaceLabel,
-  resetAbsolute,
-  resetDurationShort,
-  type UsageProviderData,
   type UsageSidebarSettings,
   type UsageToolKey,
   type UsageWindowChoice,
-  type UsageWindowData,
 } from "./usage-data";
 import { SegmentedControl, Switch, type SegmentedOption } from "./ui-kit";
+import { UsageProviderCard } from "./usage-provider-card";
 import { FOCUS_RING } from "./ui";
 
 const WINDOWS: readonly SegmentedOption<UsageWindowChoice>[] = [
@@ -56,7 +50,7 @@ export function UsageView({ settings, onSettingsChange }: UsageViewProps) {
       <div className="min-h-0 flex-1 overflow-y-auto border-t border-[#2e2e2e] px-3 py-3 sm:px-4">
         <div className="grid gap-3 lg:grid-cols-2">
           {USAGE_PROVIDERS.map((provider) => (
-            <ProviderCard key={provider.key} provider={provider} />
+            <UsageProviderCard key={provider.key} provider={provider} />
           ))}
         </div>
 
@@ -127,85 +121,6 @@ export function UsageView({ settings, onSettingsChange }: UsageViewProps) {
           window runs out mid-task.
         </p>
       </div>
-    </div>
-  );
-}
-
-function ProviderCard({ provider }: { provider: UsageProviderData }) {
-  return (
-    <section className="rounded-xl border border-[#2e2e2e] bg-[#242424] p-4">
-      <header className="flex items-center gap-2 border-b border-[#2e2e2e] pb-3">
-        <span
-          aria-hidden="true"
-          className="h-2 w-2 shrink-0 rounded-full"
-          style={{ backgroundColor: provider.color }}
-        />
-        <span className="shrink-0 text-sm font-medium text-[#e5e5e5]">{provider.label}</span>
-        {provider.account && (
-          <span className="min-w-0 truncate text-[11px] text-[#919191]">{provider.account}</span>
-        )}
-        <span className="ml-auto flex shrink-0 items-center gap-2">
-          <span className="rounded border border-[#2e2e2e] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[#b3b3b3]">
-            {provider.plan}
-          </span>
-          <span className="text-[11px] tabular-nums text-[#919191]">{provider.updated}</span>
-        </span>
-      </header>
-
-      <div className="grid grid-cols-2 gap-x-6 gap-y-4 pt-3.5">
-        <Meter label="5-hour" win={provider.fiveHour} />
-        <Meter label="Weekly" win={provider.weekly} />
-      </div>
-
-      <div className="mt-3.5 border-t border-[#2e2e2e] pt-3 text-[11px] tabular-nums text-[#919191]">
-        {provider.tokensToday} spent today · {provider.sessions} sessions
-      </div>
-    </section>
-  );
-}
-
-function Meter({ label, win }: { label: string; win: UsageWindowData }) {
-  const pace = usagePaceLabel(win);
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-[10px] font-medium uppercase tracking-[0.13em] text-[#919191]">
-        {label}
-      </span>
-      <div className="flex flex-wrap items-baseline gap-x-1.5">
-        <span className="text-2xl font-semibold leading-none tabular-nums tracking-tight text-[#e5e5e5]">
-          {Math.round(win.usedPercent)}
-        </span>
-        <span className="text-[12px] leading-none text-[#919191]">%</span>
-        {pace && <span className={`text-[11px] leading-none ${usagePaceColor(pace)}`}>{pace}</span>}
-      </div>
-      <div
-        role="meter"
-        aria-label={`${label} window usage`}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(win.usedPercent)}
-        title={`${Math.round(win.elapsedPercent)}% of the window has elapsed`}
-        className="relative h-1.5 w-full overflow-hidden rounded-full bg-[#333333]"
-      >
-        <div
-          className="h-full rounded-full transition-[width] duration-700"
-          style={{
-            width: `${Math.max(1, Math.min(100, win.usedPercent))}%`,
-            backgroundColor: usageBarColor(win.usedPercent),
-          }}
-        />
-        {win.elapsedPercent >= 5 && (
-          <div
-            aria-hidden="true"
-            className="absolute inset-y-0 w-px -translate-x-1/2 bg-[#b3b3b3] opacity-70"
-            style={{ left: `${win.elapsedPercent}%` }}
-          />
-        )}
-      </div>
-      <span className="truncate text-[11px] tabular-nums text-[#919191]">
-        resets in {resetDurationShort(win.resetInMs)} ·{" "}
-        {resetAbsolute(win.resetInMs)}
-      </span>
     </div>
   );
 }

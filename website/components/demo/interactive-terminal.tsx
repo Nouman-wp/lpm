@@ -228,6 +228,7 @@ export function InteractiveTerminal({
   git,
   changedFiles,
   onCommand,
+  initialCommand,
 }: {
   projectRoot: string;
   projectName?: string;
@@ -237,6 +238,8 @@ export function InteractiveTerminal({
   changedFiles?: ChangedFile[];
   // Told every command this shell runs, whoever typed it.
   onCommand?: (command: string) => void;
+  // Run as the shell opens, the way the launcher's Run does.
+  initialCommand?: string;
 }) {
   const [input, setInput] = useState("");
   const [history, setHistory] = useState<
@@ -339,6 +342,14 @@ export function InteractiveTerminal({
   useEffect(() => {
     driveRef.current = { run, typeThen, onCommand };
   });
+
+  const ranInitialRef = useRef(false);
+  useEffect(() => {
+    if (!initialCommand || ranInitialRef.current) return;
+    ranInitialRef.current = true;
+    driveRef.current.run(initialCommand);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!projectName) return;

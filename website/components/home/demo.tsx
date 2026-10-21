@@ -357,7 +357,6 @@ export function DemoSection({
           phoneHeading={LESSON_CAPTION[lesson].heading}
           phoneBlurb={LESSON_CAPTION[lesson].blurb}
           headingId={headingId}
-          steps={tour.steps.length}
         />
         <div data-nosnippet>
           <DemoStage

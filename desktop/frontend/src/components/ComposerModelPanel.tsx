@@ -120,7 +120,7 @@ export function ComposerModelPanel({
         />
         {/* Two lines held open, so the panel keeps its height as the
             description changes under the pointer. */}
-        <p className="line-clamp-2 min-h-[32px] px-3 pt-1.5 text-[11.5px] leading-4 text-[var(--text-secondary)]">
+        <p className="mt-1.5 line-clamp-2 min-h-[32px] px-3 text-[11.5px] leading-4 text-[var(--text-secondary)]">
           {described ? (
             <>
               <span className="font-medium text-[var(--text-primary)]">

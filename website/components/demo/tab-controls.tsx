@@ -13,6 +13,7 @@ import {
   PinOff,
   Plus,
   Terminal as TerminalIcon,
+  Users,
   X,
 } from "lucide-react";
 
@@ -48,6 +49,7 @@ export function TabContextMenu({
   onTogglePin,
   onCloseTab,
   onCloseOthers,
+  onShare,
   onDismiss,
 }: {
   x: number;
@@ -57,6 +59,7 @@ export function TabContextMenu({
   onTogglePin: () => void;
   onCloseTab: () => void;
   onCloseOthers?: () => void;
+  onShare?: () => void;
   onDismiss: () => void;
 }) {
   const run = (fn: () => void) => () => {
@@ -80,6 +83,13 @@ export function TabContextMenu({
           label={pinned ? "Unpin" : "Pin"}
           onClick={run(onTogglePin)}
         />
+        {onShare && (
+          <MenuButton
+            icon={<Users className="h-3.5 w-3.5" />}
+            label="Share tab…"
+            onClick={run(onShare)}
+          />
+        )}
         <MenuButton
           icon={<X className="h-3.5 w-3.5" />}
           label="Close"

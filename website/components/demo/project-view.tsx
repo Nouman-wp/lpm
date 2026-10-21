@@ -8,7 +8,6 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { Folder, Globe, Terminal } from "lucide-react";
 import type {
   DemoAction,
   DemoBranch,
@@ -34,6 +33,9 @@ import {
 import { BrowserView } from "./browser-view";
 import { InteractiveTerminal } from "./interactive-terminal";
 import { ProjectHeader } from "./project-header";
+import { ProjectLaunchpad } from "./project-launchpad";
+import { ShareTabPopover } from "./share-tab-popover";
+import { useTabShares, type ShareAnchor, type TabShare } from "./use-tab-shares";
 import { DemoBranchSwitcher } from "./branch-switcher";
 import { TabContextMenu, TabRenameModal } from "./tab-controls";
 import { AppTip } from "./app-tip";
@@ -206,6 +208,27 @@ export function DemoProjectView({
     tabIdx: number;
   } | null>(null);
   const [focusedLeafId, setFocusedLeafId] = useState<string | null>(null);
+  const tabShares = useTabShares();
+  const [viewEl, setViewEl] = useState<HTMLDivElement | null>(null);
+  // Shares a tab, from a rect in the window's coordinates: the popover sits in
+  // this view, so it scrolls with the page rather than floating over it.
+  const shareTab = (key: string, label: string, rect: ShareAnchor, toggle: boolean) => {
+    const view = viewEl?.getBoundingClientRect();
+    if (!view) return;
+    const next = {
+      key,
+      label,
+      anchor: {
+        left: rect.left - view.left,
+        top: rect.top - view.top,
+        right: rect.right - view.left,
+        bottom: rect.bottom - view.top,
+      },
+      bounds: { width: view.width, height: view.height },
+    };
+    if (toggle) tabShares.toggle(next);
+    else tabShares.open(next);
+  };
   const [fullscreenLeafId, setFullscreenLeafId] = useState<string | null>(null);
   // Where each pane's utility toggle was pressed from, by `${leafId}:${kind}`.
   const utilityReturns = useRef<Map<string, string>>(new Map());
@@ -266,16 +289,8 @@ export function DemoProjectView({
     if (!a.confirm) onActionRun?.(a);
   };
 
-  const openNewPaneWithShell = () => {
-    setTree((prev) => appendLeaf(prev, makeLeaf(newShellContent(prev))));
-  };
-
-  const openNewPaneWithBrowser = () => {
-    setTree((prev) => appendLeaf(prev, makeLeaf(newBrowserContent())));
-  };
-
-  const openNewPaneWithFiles = () => {
-    setTree((prev) => appendLeaf(prev, makeLeaf(newFilesContent())));
+  const openNewPaneWithShell = (command?: string) => {
+    setTree((prev) => appendLeaf(prev, makeLeaf(newShellContent(prev, command))));
   };
 
   const addTerminalToLeaf = (leafId: string) => {
@@ -472,6 +487,7 @@ export function DemoProjectView({
       handleToggleService(tab.name);
       return;
     }
+    tabShares.stop(tabKey(tab));
     if (tab.kind === "action") {
       const key = tab.key;
       setActionTerminals((map) => {
@@ -492,7 +508,16 @@ export function DemoProjectView({
     setTree((prev) => (prev ? closeTabInLeaf(prev, leafId, tabIdx) : prev));
   };
 
+  const handleShareFromMenu = (menu: { leafId: string; tabIdx: number; x: number; y: number }) => {
+    const tab = tree ? findLeaf(tree, menu.leafId)?.tabs[menu.tabIdx] : undefined;
+    if (!tab || (tab.kind !== "shell" && tab.kind !== "action")) return;
+    const point = { left: menu.x, top: menu.y, right: menu.x, bottom: menu.y };
+    shareTab(tabKey(tab), tab.label ?? defaultLabel(tab), point, false);
+  };
+
   const handleClosePane = (leafId: string) => {
+    const leaf = tree ? findLeaf(tree, leafId) : null;
+    leaf?.tabs.forEach((tab) => tabShares.stop(tabKey(tab)));
     setTree((prev) => (prev ? removeLeaf(prev, leafId) : prev));
     setFocusedLeafId((id) => (id === leafId ? null : id));
     setFullscreenLeafId((id) => (id === leafId ? null : id));
@@ -566,7 +591,7 @@ export function DemoProjectView({
   };
 
   return (
-    <div className="relative flex flex-1 min-w-0 min-h-0 flex-col bg-[#1a1a1a]">
+    <div ref={setViewEl} className="relative flex flex-1 min-w-0 min-h-0 flex-col bg-[#1a1a1a]">
       <ProjectHeader
         project={project}
         anyRunning={anyRunning}
@@ -616,6 +641,9 @@ export function DemoProjectView({
             onFocusPane={setFocusedLeafId}
             onClosePane={leaves.length > 1 ? handleClosePane : undefined}
             registerSlot={registerSlot}
+            shares={tabShares.shares}
+            shareOpenKey={tabShares.target?.key ?? null}
+            onShareTab={(key, label, rect) => shareTab(key, label, rect, true)}
           />
           {/* Mounted once per leaf, for the life of that leaf, and portaled
               into the slot its pane exposes. */}
@@ -630,11 +658,10 @@ export function DemoProjectView({
           ))}
         </div>
       ) : (
-        <EmptyState
-          projectName={project.name}
+        <ProjectLaunchpad
+          project={project}
           onOpenTerminal={openNewPaneWithShell}
-          onOpenBrowser={openNewPaneWithBrowser}
-          onOpenFiles={openNewPaneWithFiles}
+          onOpenAgent={openActionTerminal}
         />
       )}
 
@@ -653,6 +680,7 @@ export function DemoProjectView({
           {git && (
             <DemoBranchSwitcher
               git={git}
+              changedFiles={project.changedFiles}
               onCheckout={handleGitCheckout}
               onCommit={handleGitCommit}
               onPull={handleGitPull}
@@ -690,6 +718,12 @@ export function DemoProjectView({
         }}
       />
 
+      <ShareTabPopover
+        key={tabShares.target?.key}
+        shares={tabShares}
+        project={project.label ?? project.name}
+      />
+
       {tabMenu && (() => {
         const leaf = tree ? findLeaf(tree, tabMenu.leafId) : null;
         const tab = leaf?.tabs[tabMenu.tabIdx];
@@ -705,6 +739,11 @@ export function DemoProjectView({
             }
             onTogglePin={() => handleTogglePin(tabMenu.leafId, tabMenu.tabIdx)}
             onCloseTab={() => handleCloseTab(tabMenu.leafId, tabMenu.tabIdx)}
+            onShare={
+              tab.kind === "shell" || tab.kind === "action"
+                ? () => handleShareFromMenu(tabMenu)
+                : undefined
+            }
             onDismiss={() => setTabMenu(null)}
           />
         );
@@ -766,6 +805,9 @@ type PaneLayoutProps = {
   onClosePane?: (leafId: string) => void;
   /** Where a leaf hands back the element its bodies get portaled into. */
   registerSlot: (leafId: string, el: HTMLElement | null) => void;
+  shares: Record<string, TabShare>;
+  shareOpenKey: string | null;
+  onShareTab: (key: string, label: string, rect: ShareAnchor) => void;
 };
 
 function PaneLayout(props: PaneLayoutProps) {
@@ -844,6 +886,7 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
           git={ctx.git}
           changedFiles={ctx.project.changedFiles}
           onCommand={ctx.onShellCommand}
+          initialCommand={tab.command}
         />
       ),
     };
@@ -916,6 +959,8 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
         autoIntent={action.autoIntent}
         autoAnswerSteps={action.autoAnswerSteps}
         autoDeferred={action.autoDeferred}
+        firstPrompt={action.firstPrompt}
+        resumed={action.resumed}
         driveKey={agentDriveKey(ctx.project.name, action.agent)}
         onStatus={(status, timing) =>
           ctx.onAgentTabStatus(key, tab.label, status, timing)
@@ -948,6 +993,9 @@ function Leaf({
   onFocusPane,
   onClosePane,
   registerSlot,
+  shares,
+  shareOpenKey,
+  onShareTab,
 }: PaneLayoutProps & { leaf: PaneLeaf }) {
   const ctx: LeafContext = {
     project,
@@ -957,6 +1005,8 @@ function Leaf({
     onAgentTabStatus,
   };
   const resolved = leaf.tabs.map((tab) => resolveTab(tab, ctx));
+  const infos = resolved.map((r) => ({ ...r.info, share: shares[r.info.key] }));
+  const activeInfo = infos[leaf.activeTabIdx];
   const active = leaf.tabs[leaf.activeTabIdx];
   const activeUtilityTab: UtilityTabKind | null =
     active?.kind === "review" || active?.kind === "files" ? active.kind : null;
@@ -981,7 +1031,7 @@ function Leaf({
     >
       <PaneHeader
         focused={focusedLeafId === leaf.id}
-        tabs={resolved.map((r) => r.info)}
+        tabs={infos}
         activeIdx={leaf.activeTabIdx}
         onSelectTab={(i) => onSelectTab(leaf.id, i)}
         onCloseTab={(i) => onCloseTab(leaf.id, i)}
@@ -996,6 +1046,16 @@ function Leaf({
         fullscreen={fullscreen}
         onToggleFullscreen={() => onToggleFullscreen(leaf.id)}
         onClosePane={onClosePane ? () => onClosePane(leaf.id) : undefined}
+        shareButton={
+          activeInfo?.type === "terminal"
+            ? {
+                share: activeInfo.share,
+                open: shareOpenKey === activeInfo.key,
+                onToggle: (button) =>
+                  onShareTab(activeInfo.key, activeInfo.label, button.getBoundingClientRect()),
+              }
+            : undefined
+        }
       />
       {/* Only a slot: the bodies are mounted once, outside the tree, and
           portaled in here. Splitting a pane turns this Leaf into a SplitView,
@@ -1159,80 +1219,6 @@ function SplitView(
         style={bStyle}
       >
         <PaneLayout {...props} node={split.b} path={[...path, 1]} />
-      </div>
-    </div>
-  );
-}
-
-function EmptyState({
-  projectName,
-  onOpenTerminal,
-  onOpenBrowser,
-  onOpenFiles,
-}: {
-  projectName: string;
-  onOpenTerminal: () => void;
-  onOpenBrowser: () => void;
-  onOpenFiles: () => void;
-}) {
-  return (
-    <div className="relative flex flex-1 min-h-0 flex-col items-center justify-center overflow-hidden px-8">
-      <div className="pointer-events-none absolute inset-0 empty-grid" aria-hidden />
-      <div className="relative flex max-w-sm flex-col items-center gap-5 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#2e2e2e] bg-[#2a2a2a] text-[#919191] animate-icon-glow">
-          <svg
-            width={26}
-            height={26}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-          >
-            <polyline points="4 17 10 11 4 5" />
-            <line x1="12" y1="19" x2="20" y2="19" />
-          </svg>
-        </div>
-        <div className="flex flex-col items-center gap-1.5">
-          <p className="text-sm font-medium text-[#e5e5e5]">No active terminals</p>
-          <p className="text-xs leading-relaxed text-[#919191]">
-            Open a terminal to start working on{" "}
-            <span className="font-mono">{projectName}</span>, or open a browser
-            on a running service.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onOpenTerminal}
-            className={`flex items-center gap-2 rounded-lg bg-[#e5e5e5] px-4 py-2 text-xs font-medium text-[#1a1a1a] hover:opacity-85 animate-cta-breath ${PRESS} ${FOCUS_RING}`}
-          >
-            <Terminal className="h-4 w-4" strokeWidth={1.75} />
-            New Terminal
-            <kbd className="ml-1 text-[10px] opacity-70">⌘T</kbd>
-          </button>
-          <button
-            type="button"
-            onClick={onOpenBrowser}
-            className={`flex items-center gap-2 rounded-lg border border-[#2e2e2e] px-4 py-2 text-xs font-medium text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] ${PRESS} ${FOCUS_RING}`}
-          >
-            <Globe className="h-4 w-4" strokeWidth={1.75} />
-            Open browser
-          </button>
-        </div>
-        {/* Tertiary, the way the app keeps "Resume a past session" under its
-            two buttons. */}
-        <button
-          type="button"
-          onClick={onOpenFiles}
-          className={`-mt-1 flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-medium text-[#919191] transition-colors hover:text-[#b3b3b3] ${FOCUS_RING}`}
-        >
-          <Folder className="h-3 w-3" strokeWidth={1.75} />
-          Browse the project files
-          <kbd className="ml-1 text-[10px] opacity-70">⌘⇧E</kbd>
-        </button>
       </div>
     </div>
   );

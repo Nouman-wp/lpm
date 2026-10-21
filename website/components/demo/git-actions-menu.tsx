@@ -1,44 +1,51 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ChevronLeft } from "lucide-react";
+import { AiGitRow } from "./ai-git-row";
+import { FlagRow } from "./flag-row";
 import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  GitCommitHorizontal,
-  GitMerge,
-  GitPullRequestArrow,
-  RefreshCw,
-  RotateCcw,
-  Upload,
-} from "lucide-react";
-import { SparkleGlyph } from "./sparkle-glyph";
+  FetchIcon,
+  MergeIcon,
+  PullIcon,
+  PullRequestIcon,
+  PushIcon,
+  UndoIcon,
+} from "./git-menu-icons";
+import { GitModeScreen } from "./git-mode-screen";
+import {
+  PULL_STRATEGY_LABELS,
+  PUSH_MODE_LABELS,
+  type GitPrefs,
+  type PullStrategy,
+  type PushMode,
+} from "./git-prefs";
+import { MenuSplitRow } from "./menu-split-row";
 import { FOCUS_RING } from "./ui";
 
-export type PullStrategy = "ff" | "ff-only" | "rebase";
+const ROW = `flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`;
+const PULL_STRATEGIES = Object.keys(PULL_STRATEGY_LABELS) as PullStrategy[];
+const PUSH_MODES = Object.keys(PUSH_MODE_LABELS) as PushMode[];
 
-export const PULL_STRATEGY_LABELS: Record<PullStrategy, string> = {
-  ff: "Pull (ff if possible)",
-  "ff-only": "Pull (ff-only)",
-  rebase: "Pull (rebase)",
+type AutoAction = "commit" | "commit-push" | "pr";
+type Screen = "root" | "pull" | "pull-advanced" | "push" | "push-advanced" | "fetch";
+
+const SCREENS: Record<Exclude<Screen, "root">, { title: string; back: Screen }> = {
+  pull: { title: "Pull", back: "root" },
+  "pull-advanced": { title: "Pull · Advanced", back: "pull" },
+  push: { title: "Push", back: "root" },
+  "push-advanced": { title: "Push · Advanced", back: "push" },
+  fetch: { title: "Fetch", back: "root" },
 };
 
-const PULL_STRATEGIES = Object.keys(PULL_STRATEGY_LABELS) as PullStrategy[];
-
-const ROW = `flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`;
-const INSET_ROW = `mx-1.5 flex w-[calc(100%-12px)] items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-40 ${FOCUS_RING}`;
-const AI_ROW = `group flex w-full items-start gap-2.5 px-4 py-2 text-left transition-colors hover:bg-[#2a2a2a] disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`;
-const ICON = "h-3.5 w-3.5 shrink-0";
-
-type AutoAction = "commit" | "commit-push";
-
+// Ports the app's git menu under Commit's chevron: Pull, Push and Fetch run
+// their default or open their settings, then PRs, merging, the AI rows and
+// discarding.
 export function GitActionsMenu({
   busy,
   uncommitted,
-  pullStrategy,
-  onSelectPullStrategy,
-  onCommit,
+  prefs,
+  onPrefs,
   onPull,
   onPush,
   onFetch,
@@ -47,13 +54,13 @@ export function GitActionsMenu({
   onDiscard,
   onAutoCommit,
   onAutoCommitAndPush,
+  onAutoCreatePR,
 }: {
   busy: boolean;
   uncommitted: number;
-  pullStrategy: PullStrategy;
-  onSelectPullStrategy: (strategy: PullStrategy) => void;
-  onCommit: () => void;
-  onPull: (strategy: PullStrategy) => void;
+  prefs: GitPrefs;
+  onPrefs: (prefs: GitPrefs) => void;
+  onPull: () => void;
   onPush: () => void;
   onFetch: () => void;
   onCreatePR: () => void;
@@ -61,8 +68,9 @@ export function GitActionsMenu({
   onDiscard: () => void;
   onAutoCommit: () => void;
   onAutoCommitAndPush: () => void;
+  onAutoCreatePR: () => void;
 }) {
-  const [screen, setScreen] = useState<"root" | "pull">("root");
+  const [screen, setScreen] = useState<Screen>("root");
   const [generating, setGenerating] = useState<AutoAction | null>(null);
   const genTimer = useRef<number | null>(null);
 
@@ -85,79 +93,81 @@ export function GitActionsMenu({
     }, 650);
   };
 
+  const pull = (patch: Partial<GitPrefs["pull"]>) =>
+    onPrefs({ ...prefs, pull: { ...prefs.pull, ...patch } });
+  const push = (patch: Partial<GitPrefs["push"]>) =>
+    onPrefs({ ...prefs, push: { ...prefs.push, ...patch } });
+  const fetch = (patch: Partial<GitPrefs["fetch"]>) =>
+    onPrefs({ ...prefs, fetch: { ...prefs.fetch, ...patch } });
+
+  const noChanges = uncommitted === 0;
+
   return (
     <div className="menu-pop absolute bottom-full right-0 z-50 mb-2 w-80 overflow-hidden rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] py-1.5 shadow-2xl">
       {screen === "root" ? (
         <>
-          <button
-            type="button"
-            onClick={onCommit}
-            disabled={busy || uncommitted === 0}
-            className={ROW}
-          >
-            <GitCommitHorizontal className={ICON} strokeWidth={2} />
-            Commit
-          </button>
-          <div className="mx-1.5 flex items-center overflow-hidden rounded-lg">
-            <button
-              type="button"
-              onClick={() => onPull(pullStrategy)}
-              disabled={busy}
-              className={`flex flex-1 items-center gap-2.5 px-2.5 py-2 text-left text-[13px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-40 ${FOCUS_RING}`}
-            >
-              <Download className={ICON} strokeWidth={2} />
-              {PULL_STRATEGY_LABELS[pullStrategy]}
-            </button>
-            <button
-              type="button"
-              onClick={() => setScreen("pull")}
-              disabled={busy}
-              title="Configure"
-              aria-label="Configure pull"
-              className={`flex items-center border-l border-[#2e2e2e] px-2.5 py-2 text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-40 ${FOCUS_RING}`}
-            >
-              <ChevronRight className={ICON} strokeWidth={2} />
-            </button>
-          </div>
-          <button type="button" onClick={onPush} disabled={busy} className={ROW}>
-            <Upload className={ICON} strokeWidth={2} />
-            Push
-          </button>
-          <button type="button" onClick={onFetch} disabled={busy} className={ROW}>
-            <RefreshCw className={ICON} strokeWidth={2} />
-            Fetch
-          </button>
+          <MenuSplitRow
+            icon={<PullIcon />}
+            label={PULL_STRATEGY_LABELS[prefs.pull.strategy]}
+            configureLabel="Configure pull"
+            disabled={busy}
+            onRun={onPull}
+            onConfigure={() => setScreen("pull")}
+          />
+          <MenuSplitRow
+            icon={<PushIcon />}
+            label={PUSH_MODE_LABELS[prefs.push.mode]}
+            configureLabel="Configure push"
+            disabled={busy}
+            onRun={onPush}
+            onConfigure={() => setScreen("push")}
+          />
+          <MenuSplitRow
+            icon={<FetchIcon />}
+            label="Fetch"
+            configureLabel="Configure fetch"
+            disabled={busy}
+            onRun={onFetch}
+            onConfigure={() => setScreen("fetch")}
+          />
           <button type="button" onClick={onCreatePR} className={ROW}>
-            <GitPullRequestArrow className={ICON} strokeWidth={2} />
+            <PullRequestIcon />
             Create PR
           </button>
           <button type="button" onClick={onMerge} disabled={busy} className={ROW}>
-            <GitMerge className={ICON} strokeWidth={2} />
+            <MergeIcon />
             Merge
           </button>
           <div className="my-1.5 border-t border-[#2e2e2e]" />
-          <AutoCommitRow
+          <AiGitRow
             label="Auto Commit"
             description="AI writes the message, then commits"
             generating={generating === "commit"}
-            disabled={busy || uncommitted === 0 || generating !== null}
+            disabled={busy || noChanges || generating !== null}
             onClick={() => runAuto("commit", onAutoCommit)}
           />
-          <AutoCommitRow
+          <AiGitRow
             label="Auto Commit and Push"
             description="AI writes the message, commits, and pushes"
             generating={generating === "commit-push"}
-            disabled={busy || uncommitted === 0 || generating !== null}
+            disabled={busy || noChanges || generating !== null}
             onClick={() => runAuto("commit-push", onAutoCommitAndPush)}
+          />
+          <AiGitRow
+            label="Auto Create PR"
+            description="AI names the branch, commits, pushes, and opens the PR"
+            generating={generating === "pr"}
+            disabled={busy || generating !== null}
+            onClick={() => runAuto("pr", onAutoCreatePR)}
           />
           <div className="my-1.5 border-t border-[#2e2e2e]" />
           <button
             type="button"
             onClick={onDiscard}
-            disabled={uncommitted === 0}
+            disabled={noChanges}
             className={`flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[#f87171] transition-colors hover:bg-[#2a2a2a] disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`}
           >
-            <RotateCcw className={ICON} strokeWidth={2} />
+            <UndoIcon />
             Discard all changes
           </button>
         </>
@@ -165,79 +175,118 @@ export function GitActionsMenu({
         <>
           <button
             type="button"
-            onClick={() => setScreen("root")}
+            onClick={() => setScreen(SCREENS[screen].back)}
             className={`mx-2 mb-1 flex items-center gap-1 rounded-lg py-1 pl-1 pr-2.5 text-left transition-colors hover:bg-[#2a2a2a] ${FOCUS_RING}`}
           >
             <span className="flex h-6 w-6 shrink-0 items-center justify-center text-[#b3b3b3]">
-              <ChevronLeft className={ICON} strokeWidth={2} />
+              <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2} />
             </span>
             <span className="min-w-0 truncate text-[12.5px] font-medium text-[#e5e5e5]">
-              Pull
+              {SCREENS[screen].title}
             </span>
           </button>
-          <div className="px-4 pb-1 pt-1 text-[10px] font-medium uppercase tracking-wide text-[#919191]">
-            Default on click
-          </div>
-          {PULL_STRATEGIES.map((strategy) => {
-            const active = strategy === pullStrategy;
-            return (
-              <button
-                key={strategy}
-                type="button"
-                onClick={() => onSelectPullStrategy(strategy)}
+          {screen === "pull" && (
+            <GitModeScreen
+              options={PULL_STRATEGIES}
+              labels={PULL_STRATEGY_LABELS}
+              value={prefs.pull.strategy}
+              busy={busy}
+              runLabel="Run pull"
+              onSelect={(strategy) => pull({ strategy })}
+              onAdvanced={() => setScreen("pull-advanced")}
+              onRun={onPull}
+            />
+          )}
+          {screen === "pull-advanced" && (
+            <>
+              <FlagRow
+                label="Autostash"
+                flag="--autostash"
+                checked={prefs.pull.autostash}
                 disabled={busy}
-                className={INSET_ROW}
+                onToggle={() => pull({ autostash: !prefs.pull.autostash })}
+              />
+              <FlagRow
+                label="No verify"
+                flag="--no-verify"
+                checked={prefs.pull.noVerify}
+                disabled={busy}
+                onToggle={() => pull({ noVerify: !prefs.pull.noVerify })}
+              />
+            </>
+          )}
+          {screen === "push" && (
+            <GitModeScreen
+              options={PUSH_MODES}
+              labels={PUSH_MODE_LABELS}
+              value={prefs.push.mode}
+              busy={busy}
+              runLabel="Run push"
+              onSelect={(mode) => push({ mode })}
+              onAdvanced={() => setScreen("push-advanced")}
+              onRun={onPush}
+            />
+          )}
+          {screen === "push-advanced" && (
+            <>
+              <FlagRow
+                label="No verify"
+                flag="--no-verify"
+                checked={prefs.push.noVerify}
+                disabled={busy}
+                onToggle={() => push({ noVerify: !prefs.push.noVerify })}
+              />
+              <FlagRow
+                label="Push tags"
+                flag="--tags"
+                checked={prefs.push.tags}
+                disabled={busy}
+                onToggle={() => push({ tags: !prefs.push.tags })}
+              />
+            </>
+          )}
+          {screen === "fetch" && (
+            <>
+              <FlagRow
+                label="All remotes"
+                flag="--all"
+                checked={prefs.fetch.all}
+                disabled={busy}
+                onToggle={() => fetch({ all: !prefs.fetch.all })}
+              />
+              <FlagRow
+                label="Prune"
+                flag="--prune"
+                checked={prefs.fetch.prune}
+                disabled={busy}
+                onToggle={() => fetch({ prune: !prefs.fetch.prune })}
+              />
+              <FlagRow
+                label="Prune tags"
+                flag="--prune-tags"
+                checked={prefs.fetch.pruneTags}
+                disabled={busy}
+                onToggle={() => fetch({ pruneTags: !prefs.fetch.pruneTags })}
+              />
+              <FlagRow
+                label="Tags"
+                flag="--tags"
+                checked={prefs.fetch.tags}
+                disabled={busy}
+                onToggle={() => fetch({ tags: !prefs.fetch.tags })}
+              />
+              <button
+                type="button"
+                onClick={onFetch}
+                disabled={busy}
+                className={`mx-1.5 mt-1 flex w-[calc(100%-12px)] items-center justify-center rounded-lg px-2.5 py-2 text-[13px] font-medium text-[#4ade80] transition-colors hover:bg-[#2a2a2a] disabled:opacity-40 ${FOCUS_RING}`}
               >
-                <span className="flex w-3.5 shrink-0">
-                  {active && <Check className={ICON} strokeWidth={2.5} />}
-                </span>
-                <span className={active ? "text-[#e5e5e5]" : ""}>
-                  {PULL_STRATEGY_LABELS[strategy]}
-                </span>
+                Run fetch
               </button>
-            );
-          })}
-          <div className="mx-3 my-1 border-t border-[#2e2e2e]" />
-          <button
-            type="button"
-            onClick={() => onPull(pullStrategy)}
-            disabled={busy}
-            className={`mx-1.5 mt-1 flex w-[calc(100%-12px)] items-center justify-center rounded-lg px-2.5 py-2 text-[13px] font-medium text-[#4ade80] transition-colors hover:bg-[#2a2a2a] disabled:opacity-40 ${FOCUS_RING}`}
-          >
-            Run pull
-          </button>
+            </>
+          )}
         </>
       )}
     </div>
-  );
-}
-
-function AutoCommitRow({
-  label,
-  description,
-  generating,
-  disabled,
-  onClick,
-}: {
-  label: string;
-  description: string;
-  generating: boolean;
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" onClick={onClick} disabled={disabled} className={AI_ROW}>
-      <span
-        className={`mt-0.5 text-[#b3b3b3] ${generating ? "animate-spin" : ""}`}
-      >
-        <SparkleGlyph size={14} />
-      </span>
-      <span className="flex flex-col">
-        <span className="text-[13px] text-[#b3b3b3] group-hover:text-[#e5e5e5]">
-          {generating ? "Generating…" : label}
-        </span>
-        <span className="text-[11px] text-[#919191]">{description}</span>
-      </span>
-    </button>
   );
 }

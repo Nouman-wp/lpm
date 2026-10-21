@@ -3,7 +3,8 @@ export type SplitDirection = "row" | "col";
 export type LeafContent =
   | { kind: "all" }
   | { kind: "service"; name: string }
-  | { kind: "shell"; id: string; label?: string; emoji?: string; pinned?: boolean }
+  // `command` runs once, when the shell first opens.
+  | { kind: "shell"; id: string; label?: string; emoji?: string; pinned?: boolean; command?: string }
   | { kind: "action"; key: string; label: string; emoji?: string; pinned?: boolean }
   | { kind: "browser"; id: string; label?: string; pinned?: boolean; url?: string }
   | { kind: "review"; id: string; pinned?: boolean }
@@ -30,11 +31,12 @@ function rand(n: number): string {
   return Math.random().toString(36).slice(2, 2 + n);
 }
 
-export function newShellContent(node: PaneNode | null = null): LeafContent {
+export function newShellContent(node: PaneNode | null = null, command?: string): LeafContent {
   return {
     kind: "shell",
     id: `sh-${Date.now().toString(36)}-${rand(4)}`,
     label: pickTerminalLabel(node),
+    ...(command ? { command } : {}),
   };
 }
 

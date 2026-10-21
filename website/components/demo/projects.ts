@@ -23,6 +23,12 @@ export type DemoService = {
   loop?: { line: OutputLine; intervalMs: number };
 };
 
+export type ResumedTurn = {
+  prompt: string;
+  reply: string;
+  landedAt: number;
+};
+
 export type DemoAction = {
   name: string;
   label: string;
@@ -38,6 +44,10 @@ export type DemoAction = {
   // Opens on an empty composer instead, holding the prompt back until it is
   // asked for — the tour types it in as a step of its own.
   autoDeferred?: boolean;
+  // Sent the moment the session opens, as if typed: the launcher's task.
+  firstPrompt?: string;
+  // A past conversation the launcher reopened, already finished.
+  resumed?: ResumedTurn;
   // The work that reply streams. Falls back to a generic canned session.
   autoSteps?: AgentStep[];
   // For a "waiting" session, what answering yes carries out.
@@ -339,7 +349,6 @@ const PROJECTS: DemoProject[] = [
         cmd: "pnpm test",
         display: "header",
         durationMs: 1200,
-        color: "#4ade80",
         output: [
           { text: "$ pnpm test", color: "green", delay: 50 },
           { text: "> vitest run", color: "muted", delay: 150 },
@@ -360,7 +369,6 @@ const PROJECTS: DemoProject[] = [
         display: "header",
         confirm: true,
         durationMs: 900,
-        color: "#60a5fa",
         output: [
           { text: "$ bin/rails db:migrate", color: "green", delay: 50 },
           { text: `== ${YMD}090100 AddIndexToUsers: migrating =======`, color: "muted", delay: 200 },
@@ -377,7 +385,6 @@ const PROJECTS: DemoProject[] = [
         display: "footer",
         confirm: true,
         durationMs: 1400,
-        color: "#fb923c",
         output: [
           { text: "$ ./scripts/deploy.sh production", color: "green", delay: 50 },
           { text: "→ building release bundle", color: "muted", delay: 250 },
@@ -536,7 +543,6 @@ const PROJECTS: DemoProject[] = [
         cmd: "go test ./...",
         display: "header",
         durationMs: 1100,
-        color: "#4ade80",
         output: [
           { text: "$ go test ./...", color: "green", delay: 50 },
           { text: "ok   github.com/you/auth-service/internal/auth   0.142s", color: "green", delay: 500 },
@@ -715,7 +721,6 @@ const PROJECTS: DemoProject[] = [
         display: "footer",
         confirm: true,
         durationMs: 1800,
-        color: "#fb923c",
         output: [
           { text: "$ vercel deploy --prod", color: "green", delay: 50 },
           { text: "Vercel CLI 38.0.0", color: "muted", delay: 200 },
@@ -927,7 +932,6 @@ const PROJECTS: DemoProject[] = [
         display: "header",
         confirm: true,
         durationMs: 2400,
-        color: "#fbbf24",
         output: [
           { text: "$ python -m pipeline.train --full", color: "green", delay: 50 },
           { text: "loading dataset: ./data/train.parquet (128MB)", color: "muted", delay: 300 },
@@ -945,7 +949,6 @@ const PROJECTS: DemoProject[] = [
         cmd: "python -m pipeline.eval --latest",
         display: "header",
         durationMs: 1800,
-        color: "#22d3ee",
         output: [
           { text: "$ python -m pipeline.eval --latest", color: "green", delay: 50 },
           { text: "loading checkpoint ./runs/latest.ckpt", color: "muted", delay: 300 },
@@ -1083,7 +1086,6 @@ const PROJECTS: DemoProject[] = [
         cmd: "pnpm test",
         display: "header",
         durationMs: 1500,
-        color: "#4ade80",
         output: [
           { text: "$ pnpm test", color: "green", delay: 50 },
           { text: "> jest", color: "muted", delay: 150 },
@@ -1105,7 +1107,6 @@ const PROJECTS: DemoProject[] = [
         cmd: "npx expo run:ios",
         display: "header",
         durationMs: 2600,
-        color: "#60a5fa",
         output: [
           { text: "$ npx expo run:ios", color: "green", delay: 50 },
           { text: "› Planning build", color: "muted", delay: 350 },
@@ -1123,7 +1124,6 @@ const PROJECTS: DemoProject[] = [
         display: "footer",
         confirm: true,
         durationMs: 1900,
-        color: "#fb923c",
         output: [
           { text: "$ eas update --branch preview", color: "green", delay: 50 },
           { text: "✔ Compressed bundle files", color: "muted", delay: 500 },
