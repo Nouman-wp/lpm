@@ -5,8 +5,7 @@ import { CLAUDE_SESSION } from "./before-after-session";
 import { ReplicaSidebar } from "./before-after-sidebar";
 
 // The same window every lpm user works in, placed on the stage where the pile it
-// replaces lies. Palette and structure are lifted from components/demo/*, which
-// mirrors desktop/frontend/src.
+// replaces lies. Palette and structure are lifted from desktop/frontend/src.
 const TEXT = "text-[#d4d4d4]";
 
 // The app tints a tab's label with its agent's state: amber, pulsing, while it

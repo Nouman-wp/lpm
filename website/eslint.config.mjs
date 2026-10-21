@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Built from desktop/frontend by scripts/build-demo-app.mjs.
+    "public/demo-app/**",
   ]),
 ]);
 

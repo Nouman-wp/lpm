@@ -1,4 +1,4 @@
-import { defineTour } from "@/components/demo/tour";
+import { defineTour } from "@/components/home/tour";
 import type { PageDemo } from "@/components/home/demo";
 
 // A Rails app's Procfile.dev, taken in as the folder is added: a pane per

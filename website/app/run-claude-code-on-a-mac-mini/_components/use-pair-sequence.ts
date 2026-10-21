@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useReducedMotion } from "@/components/demo/ui";
+import { useReducedMotion } from "@/lib/use-reduced-motion";
 
 export type PairStep =
   | "idle"

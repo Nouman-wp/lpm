@@ -1,5 +1,5 @@
 import { MoreHorizontal, Plus } from "lucide-react";
-import { TerminalGlyph } from "@/components/demo/terminal-glyph";
+import { TerminalGlyph } from "@/components/home/terminal-glyph";
 import { ReplicaProjectRow, type Row } from "./before-after-project-row";
 
 const ROWS: Row[] = [

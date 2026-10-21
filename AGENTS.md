@@ -16,7 +16,11 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
     architecture recommendations: read `mobile/android/PORTING.md` first
   - `parity/` — the same Maestro flows on both apps in an iPhone simulator and an
     Android emulator, with a side-by-side report (`node mobile/parity/parity.js all --open`)
-- `website/` — Next.js marketing site (lpm.cx)
+- `website/` — Next.js marketing site (lpm.cx). Every interactive demo on it is the
+  desktop UI itself in an iframe: `desktop/frontend/src/demo` answers its commands
+  from sample data in memory and plays each page's tour against the real UI
+  (`npm run dev:demo` in `desktop/frontend`, `?seed=sample` for the sample
+  workspace), built into `website/public/demo-app`
 - `relay/` — Cloudflare Worker that lets a browser join a shared tab: a Durable
   Object room per share, forwarding Noise-encrypted messages, and the guest page
   (lpm-share-relay.lpm-share-relay.workers.dev). `npm run dev` / `npm test` / `npm run deploy`; see its README
@@ -63,6 +67,9 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
   implements a feature, change it on both phones in the same change, and keep
   its parity flow in `mobile/parity/flows` passing on both
 - Keep connected computers (Settings → Connections) in step with the desktop app: a project on a paired machine must work the same as a local one
+- Give every new Tauri command a demo answer: handle it in a `desktop/frontend/src/demo`
+  module, or list the empty value of its return type in `src/demo/defaults.ts`
+  (`defaults.test.ts` fails until you do)
 - Never commit or push any changes
 
 ## Analytics

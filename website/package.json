@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "node scripts/build-demo-app.mjs --if-missing && next dev",
+    "build": "node scripts/build-demo-app.mjs && next build",
+    "demo-app": "node scripts/build-demo-app.mjs",
     "start": "next start",
     "lint": "eslint",
     "sitemap:dates": "node scripts/generate-sitemap-dates.mjs"

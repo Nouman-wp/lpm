@@ -1,4 +1,4 @@
-import { defineTour } from "@/components/demo/tour";
+import { defineTour } from "@/components/home/tour";
 import type { PageDemo } from "@/components/home/demo";
 
 // Overmind's per-process verbs, clicked: start a named set, read one process,

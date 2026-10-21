@@ -1,4 +1,11 @@
-import { BRAND } from "@/components/demo/agent-script";
+// What Claude Code prints in its launch banner.
+const CLAUDE = {
+  color: "text-[#d97757]",
+  name: "Claude Code",
+  version: "v2.1.232",
+  model: "Fable 5",
+  account: "Claude Max",
+};
 
 // Claude Code's launch mascot. The CLI prints it as three rows of block glyphs
 // ( ▐▛███▜▌ / ▝▜█████▛▘ /   ▘▘ ▝▝ ), which a web font draws with seams between
@@ -21,7 +28,6 @@ const RUNS: [number, number, number][] = [
 // so the mascot has a terminal cell's proportions and each of its rows lines
 // up with a line of text.
 export function ClaudeBanner({ cwd }: { cwd: string }) {
-  const b = BRAND.claude;
   return (
     <div className="flex gap-[2ch] text-[0.95em] leading-[1.2]">
       <svg
@@ -29,7 +35,7 @@ export function ClaudeBanner({ cwd }: { cwd: string }) {
         preserveAspectRatio="none"
         shapeRendering="crispEdges"
         aria-hidden="true"
-        className={`h-[3.6em] w-[9ch] shrink-0 ${b.color}`}
+        className={`h-[3.6em] w-[9ch] shrink-0 ${CLAUDE.color}`}
       >
         {RUNS.map(([row, first, last]) => (
           <rect key={`${row}-${first}`} x={first} y={row} width={last - first + 1} height={1} fill="currentColor" />
@@ -37,11 +43,11 @@ export function ClaudeBanner({ cwd }: { cwd: string }) {
       </svg>
       <div className="whitespace-pre">
         <div>
-          <span className="font-semibold text-[#f2f2f2]">{b.name}</span>{" "}
-          <span className="text-[#999999]">{b.version}</span>
+          <span className="font-semibold text-[#f2f2f2]">{CLAUDE.name}</span>{" "}
+          <span className="text-[#999999]">{CLAUDE.version}</span>
         </div>
         <div className="text-[#999999]">
-          {b.model} · {b.account}
+          {CLAUDE.model} · {CLAUDE.account}
         </div>
         <div className="text-[#999999]">{cwd}</div>
       </div>

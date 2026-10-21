@@ -1,6 +1,5 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useInView } from "@/components/config/playground/hooks";
@@ -9,10 +8,13 @@ import {
   type Tour,
   type TourHandle,
   type TourState,
-} from "@/components/demo/tour";
+} from "@/components/home/tour";
 import { DownloadLink } from "@/components/download-link";
 import { DemoCaption } from "@/components/home/demo-caption";
+import { DemoFrame } from "@/components/home/demo-frame";
+import { DemoSkeleton } from "@/components/home/demo-skeleton";
 import { DemoSteps } from "@/components/home/demo-steps";
+import { WINDOW_FRAME } from "@/components/home/demo-window";
 import { YouTubeVideo } from "@/components/youtube-video";
 import { MOBILE_PATH } from "@/lib/links";
 import type { YouTubeLessonId } from "@/lib/youtube-lessons";
@@ -20,78 +22,6 @@ import type { YouTubeLessonId } from "@/lib/youtube-lessons";
 // Set by .demo-stage in globals.css: capped where a 1040px stage keeps the
 // app's 3:2 proportions.
 const DEMO_HEIGHT_DESKTOP = "var(--demo-stage-h)";
-
-// Same recipe as the macOS windows in before-after-window.tsx: the edge comes
-// from a ring, the depth from a layered shadow.
-const WINDOW_FRAME =
-  "overflow-hidden rounded-xl bg-[#1a1a1a] ring-1 ring-white/[0.16] shadow-[0_1px_0_0_rgba(0,0,0,0.8),0_24px_60px_-20px_rgba(0,0,0,0.9)]";
-
-const DemoApp = dynamic(
-  () => import("@/components/demo/demo-app").then((m) => m.DemoApp),
-  {
-    ssr: false,
-    loading: () => <DemoPlaceholder />,
-  },
-);
-
-// The frame's own furniture, drawn rather than photographed. A screenshot here
-// would be a picture of some other workspace, so every element would change the
-// moment the demo mounted; this holds the exact shape the demo arrives in.
-function SkeletonBar({ className = "" }: { className?: string }) {
-  return (
-    <div className={`rounded bg-[#2e2e2e] motion-safe:animate-pulse ${className}`} />
-  );
-}
-
-function DemoPlaceholder() {
-  return (
-    <div
-      aria-hidden="true"
-      className={`relative flex h-[var(--demo-h)] ${WINDOW_FRAME}`}
-      style={{ "--demo-h": DEMO_HEIGHT_DESKTOP } as React.CSSProperties}
-    >
-      <div className="hidden w-52 shrink-0 flex-col border-r border-[#2e2e2e] bg-[#1e1e1e] sm:flex lg:w-[260px]">
-        <div className="flex h-11 shrink-0 items-center gap-2 px-[14px] pt-[7px]">
-          <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-          <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
-          <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-        </div>
-        <div className="px-4 pb-2 text-xs font-medium uppercase tracking-wider text-[#919191]">
-          Projects
-        </div>
-        <div className="flex flex-col gap-1 px-2">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center gap-3 px-3 py-2">
-              <span className="h-2 w-2 shrink-0 rounded-full border border-[#3a3a3a]" />
-              <SkeletonBar className="h-2.5 flex-1" />
-            </div>
-          ))}
-        </div>
-        {/* The footer the sidebar carries, so the column does not visibly grow
-            a bottom half the moment the demo arrives. */}
-        <div className="mt-auto flex flex-col gap-3 p-3">
-          <SkeletonBar className="h-1 w-full" />
-          <SkeletonBar className="h-1 w-full" />
-          <SkeletonBar className="h-3 w-20" />
-          <SkeletonBar className="h-3 w-14" />
-        </div>
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex shrink-0 items-center gap-4 px-3 py-3">
-          <SkeletonBar className="h-4 w-28" />
-          <div className="ml-auto flex items-center gap-2">
-            <SkeletonBar className="h-8 w-24" />
-            <SkeletonBar className="h-8 w-20" />
-            <SkeletonBar className="h-8 w-16" />
-          </div>
-        </div>
-        <div className="flex flex-1 items-center justify-center border-t border-[#2e2e2e]">
-          <span className="text-[13px] text-[#919191]">Loading demo…</span>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // What a phone reads above the lesson it plays instead of the demo: a heading
 // for that lesson, not for the tour it stands in for, and one line on what it
@@ -220,7 +150,7 @@ function DesktopOnlyPrompt({
 }
 
 // The frame sits in the first viewport, so the observer fires on load. Waiting
-// for an idle slot keeps the demo's bundle off the critical path — the drawn
+// for an idle slot keeps the demo app's load off the critical path — the drawn
 // placeholder is what the visitor sees while the page settles.
 function useIdle() {
   const [idle, setIdle] = useState(false);
@@ -296,16 +226,21 @@ function DemoStage({
             onRestart={restart}
           />
           {isDesktop && inView && idle ? (
-            <DemoApp
+            <DemoFrame
               key={demoRun}
-              heightCss={DEMO_HEIGHT_DESKTOP}
-              heightCssSm={DEMO_HEIGHT_DESKTOP}
+              height={DEMO_HEIGHT_DESKTOP}
+              tour={script}
               tourRef={tourRef}
               onTour={setTour}
-              tour={script}
+              placeholder={<DemoSkeleton />}
             />
           ) : (
-            <DemoPlaceholder />
+            <div
+              className={WINDOW_FRAME}
+              style={{ height: DEMO_HEIGHT_DESKTOP }}
+            >
+              <DemoSkeleton />
+            </div>
           )}
           <p
             id="demo-next"
@@ -325,7 +260,7 @@ function DemoStage({
 }
 
 // What a page's demo shows: the tour it walks through (see the tours defined
-// in components/demo/tour.ts, or build one with defineTour), the caption above
+// in components/home/tour.ts, or build one with defineTour), the caption above
 // it, and the lesson a phone plays in its place.
 export type PageDemo = {
   tour?: Tour;

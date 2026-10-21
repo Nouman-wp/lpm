@@ -1,4 +1,4 @@
-import { defineTour } from "@/components/demo/tour";
+import { defineTour } from "@/components/home/tour";
 import type { PageDemo } from "@/components/home/demo";
 
 // A multi-service stack: boot it, add one service to it, preview it, then

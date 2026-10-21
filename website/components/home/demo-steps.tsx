@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, RotateCcw } from "lucide-react";
-import type { TourState, TourStep } from "@/components/demo/tour";
+import type { TourState, TourStep } from "@/components/home/tour";
 
 type Props = {
   steps: TourStep[];

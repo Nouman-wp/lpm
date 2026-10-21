@@ -1,4 +1,4 @@
-import { defineTour } from "@/components/demo/tour";
+import { defineTour } from "@/components/home/tour";
 import type { PageDemo } from "@/components/home/demo";
 
 // Two agents on two projects: one working, one stopped on a question — the

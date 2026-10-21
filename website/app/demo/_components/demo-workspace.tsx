@@ -1,38 +1,27 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  EMPTY_TOUR,
   HOME_TOUR,
   type TourHandle,
   type TourState,
-} from "@/components/demo/tour";
+} from "@/components/home/tour";
 import { DownloadLink } from "@/components/download-link";
+import { DemoFrame } from "@/components/home/demo-frame";
 import { DemoSteps } from "@/components/home/demo-steps";
+import { WINDOW_FRAME } from "@/components/home/demo-window";
 import { StartChooser, type DemoStart } from "./start-chooser";
-
-const FRAME =
-  "overflow-hidden rounded-xl bg-[#1a1a1a] ring-1 ring-white/[0.16] shadow-[0_1px_0_0_rgba(0,0,0,0.8),0_24px_60px_-20px_rgba(0,0,0,0.9)]";
 
 const DEMO_HEIGHT = "min(720px, calc(100vh - 230px))";
 
 const SWITCH =
   "cursor-pointer underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 hover:decoration-current dark:decoration-gray-600 dark:hover:text-white";
 
-const DemoApp = dynamic(
-  () => import("@/components/demo/demo-app").then((m) => m.DemoApp),
-  {
-    ssr: false,
-    loading: () => <FramePlaceholder />,
-  },
-);
-
 function FramePlaceholder() {
   return (
     <div
       aria-hidden="true"
-      className={`flex h-[var(--demo-h)] items-center justify-center ${FRAME}`}
+      className={`flex h-[var(--demo-h)] items-center justify-center ${WINDOW_FRAME}`}
       style={{ "--demo-h": DEMO_HEIGHT } as React.CSSProperties}
     >
       <span className="text-[13px] text-[#5c5c5c]">Loading demo…</span>
@@ -44,7 +33,7 @@ function DesktopOnlyPrompt() {
   return (
     <div
       data-on-dark
-      className={`flex flex-col items-center gap-3 px-5 py-10 text-center ${FRAME}`}
+      className={`flex flex-col items-center gap-3 px-5 py-10 text-center ${WINDOW_FRAME}`}
     >
       <p className="max-w-xs text-[13px] leading-relaxed text-[#919191]">
         lpm is a desktop app with a multi-pane terminal workspace. Open this page
@@ -108,23 +97,15 @@ export function DemoWorkspace() {
             {!isDesktop ? (
               <FramePlaceholder />
             ) : start === "sample" ? (
-              <DemoApp
+              <DemoFrame
                 key={`sample-${sampleRun}`}
-                heightCss={DEMO_HEIGHT}
-                heightCssSm={DEMO_HEIGHT}
+                height={DEMO_HEIGHT}
+                tour={HOME_TOUR}
                 tourRef={tourRef}
                 onTour={setTour}
-                tour={HOME_TOUR}
               />
             ) : (
-              <DemoApp
-                key="empty"
-                heightCss={DEMO_HEIGHT}
-                heightCssSm={DEMO_HEIGHT}
-                tour={EMPTY_TOUR}
-                seedProjects={[]}
-                seedJobs={[]}
-              />
+              <DemoFrame key="empty" height={DEMO_HEIGHT} />
             )}
             {start === null && <StartChooser onPick={pick} />}
           </div>

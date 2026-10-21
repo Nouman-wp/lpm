@@ -20,6 +20,9 @@
 # production
 /build
 
+# built from desktop/frontend by scripts/build-demo-app.mjs
+/public/demo-app/
+
 # misc
 .DS_Store
 *.pem
