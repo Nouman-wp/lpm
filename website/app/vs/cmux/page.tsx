@@ -9,7 +9,7 @@ import { Faq, type FaqItem } from "@/components/vs/faq";
 import { QuickAnswer } from "@/components/vs/quick-answer";
 import { VS_REVIEWED, VS_REVIEWED_ISO } from "@/components/vs/reviewed";
 import { SectionVideo } from "@/components/vs/section-video";
-import { VerdictCards, type VerdictCard } from "@/components/vs/verdict-cards";
+import type { VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import {
   AI_AGENTS_PATH,
@@ -160,6 +160,7 @@ export default function LpmVsCmuxPage() {
         jumpHref="#matrix"
         jumpLabel="Jump to the row-by-row table"
         downloadSource="vs-cmux-hero"
+        verdict={VERDICT_CARDS}
       />
 
       <ComparisonBasis
@@ -204,8 +205,6 @@ lpm worktree api --count 3 --run claude --prompt "fix the flaky auth test"
 lpm status --json`}
         </CodeBlock>
       </QuickAnswer>
-
-      <VerdictCards cards={VERDICT_CARDS} />
 
       <FanOut />
 

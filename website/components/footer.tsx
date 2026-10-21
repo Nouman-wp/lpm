@@ -111,7 +111,7 @@ export function Footer() {
   return (
     <footer className="border-t border-gray-200 dark:border-gray-800 py-14">
       <div data-nosnippet className="max-w-5xl mx-auto px-6">
-        <div className="grid grid-cols-1 gap-x-8 gap-y-10 min-[480px]:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-x-5 gap-y-10 sm:gap-x-8 lg:grid-cols-4">
           {GROUPS.map((group) => (
             <div key={group.heading}>
               <nav aria-label={group.heading}>

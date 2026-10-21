@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { AppStoreButton } from "@/components/app-store-button";
+import { AppStoreScan } from "@/components/app-store-scan";
 import { DevicesCapabilities } from "@/components/home/devices-capabilities";
 import { DevicesCards } from "@/components/home/devices-cards";
 import { SyncLink } from "@/components/home/paired-devices-link";
@@ -123,7 +124,10 @@ export function PairedDevices({ companionLink = true, flush = false }: Props) {
         {companionLink && (
           <>
             <div className="mt-12 flex flex-col items-center gap-3 text-center sm:mt-14">
-              <AppStoreButton source="home-devices" />
+              <div className="flex flex-col items-center gap-4 md:flex-row">
+                <AppStoreButton source="home-devices" />
+                <AppStoreScan />
+              </div>
               <p className="text-pretty text-[13px] text-gray-500 dark:text-gray-400">
                 lpm link for iPhone and iPad. Scan one QR code to pair it with
                 your computer.{" "}
@@ -138,7 +142,7 @@ export function PairedDevices({ companionLink = true, flush = false }: Props) {
             <div className="mt-10 border-t border-gray-200 pt-10 sm:mt-14 sm:pt-12 dark:border-gray-800/60">
               <DevicesCapabilities />
             </div>
-            <div className="mt-10 sm:mt-12">
+            <div className="mt-10 border-t border-gray-200 pt-10 sm:mt-12 sm:pt-12 dark:border-gray-800/60">
               <DevicesCards />
             </div>
           </>

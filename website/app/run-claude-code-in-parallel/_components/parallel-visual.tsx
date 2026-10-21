@@ -1,5 +1,11 @@
 import ParallelWindow from "./parallel-window";
 
+const LEGEND = [
+  "Copies and worktrees get their own sidebar row, with what their agent is doing and for how long.",
+  "Run in duplicates sends one prompt to as many as 10 copies at once, so you can keep the best result.",
+  "Two agents can also share one project, split side by side in the same window.",
+];
+
 export default function ParallelVisual() {
   return (
     <section className="pb-2">
@@ -16,11 +22,19 @@ export default function ParallelVisual() {
 
         <ParallelWindow />
 
-        <p className="mx-auto mt-4 max-w-2xl text-center text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-          Two agents split side by side in one project, three more in its copies
-          and worktree — and a new prompt about to run three ways. Every row
-          says what its agent is doing and for how long.
-        </p>
+        <ol className="mx-auto mt-5 grid max-w-4xl gap-4 text-left sm:grid-cols-3 sm:gap-6">
+          {LEGEND.map((text, i) => (
+            <li
+              key={text}
+              className="flex gap-2.5 text-[13px] leading-relaxed text-gray-600 dark:text-gray-400"
+            >
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-900 text-[11px] font-bold text-white dark:bg-white dark:text-gray-900">
+                {i + 1}
+              </span>
+              {text}
+            </li>
+          ))}
+        </ol>
       </div>
     </section>
   );

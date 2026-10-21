@@ -5,7 +5,7 @@ import {
 } from "@/lib/github-stats";
 import { REPO_URL } from "@/lib/links";
 
-function formatDownloads(n: number): string {
+export function formatDownloads(n: number): string {
   if (n >= 1000) {
     return `${(Math.floor(n / 100) * 100).toLocaleString("en-US")}+`;
   }

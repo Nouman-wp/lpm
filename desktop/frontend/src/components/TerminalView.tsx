@@ -81,7 +81,7 @@ interface TerminalViewProps {
   // What the user calls the project, for the + popup's prompt history.
   projectLabel: string;
   projectRoot: string;
-  services: { name: string; cwd?: string; exited?: boolean; exitCode?: number | null }[];
+  services: { name: string; cmd?: string; cwd?: string; exited?: boolean; exitCode?: number | null }[];
   terminalTheme: TerminalThemeName;
   onTerminalCountChange?: (count: number) => void;
   fontSize: number;
@@ -363,6 +363,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
         ports: servicePorts[svc.name] ?? [],
         exited: serviceExits.has(svc.name),
         exitCode: serviceExits.get(svc.name) ?? null,
+        cmd: svc.cmd,
       })),
     [stableServices, outputs, projectName, projectRoot, servicePorts, serviceExits],
   );

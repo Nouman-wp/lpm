@@ -9,7 +9,7 @@ import { Faq, type FaqItem } from "@/components/vs/faq";
 import { QuickAnswer } from "@/components/vs/quick-answer";
 import { VS_REVIEWED_ISO } from "@/components/vs/reviewed";
 import { SectionVideo } from "@/components/vs/section-video";
-import { VerdictCards, type VerdictCard } from "@/components/vs/verdict-cards";
+import type { VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import {
   AI_AGENTS_PATH,
@@ -203,6 +203,7 @@ export default function LpmVsPm2Page() {
         jumpHref="#map"
         jumpLabel="Every pm2 verb, mapped"
         downloadSource="vs-pm2-hero"
+        verdict={VERDICT_CARDS}
       />
 
       <QuickAnswer question={QUESTION}>
@@ -228,8 +229,6 @@ export default function LpmVsPm2Page() {
           {BOTH_TOOLS}
         </CodeBlock>
       </QuickAnswer>
-
-      <VerdictCards cards={VERDICT_CARDS} />
 
       <SurvivesQuit />
 

@@ -173,6 +173,10 @@ interface TerminalComposerProps {
   focused: boolean;
   // Label of the terminal that will receive the input.
   targetLabel: string;
+  // The agent the input goes to, and whether it has taken a prompt yet; they
+  // word the placeholder (see composerPlaceholder).
+  agent?: string | null;
+  agentStarted?: boolean;
   // Every terminal tab in the project ({id,label}), so the "@" menu can offer
   // any one's logs — not just this composer's own terminal.
   terminals: { id: string; label: string }[];
@@ -264,7 +268,7 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
   return a.every((t, i) => t.id === b[i].id && t.label === b[i].label);
 }
 
-export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, session, cwd, launchCmd, actionName, fontSize, canFork, onFork, canForkCopy, onForkCopy, onSubmit, onFocusTerminal, onRunInDuplicates, onOpenMemorySession, memory, onDetachMemory, guest = false }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, agent, agentStarted, terminals, session, cwd, launchCmd, actionName, fontSize, canFork, onFork, canForkCopy, onForkCopy, onSubmit, onFocusTerminal, onRunInDuplicates, onOpenMemorySession, memory, onDetachMemory, guest = false }: TerminalComposerProps) {
   // A remote (peer) terminal runs on another machine, so an attachment is
   // uploaded to the host at attach time and the chip holds the host-valid path
   // that comes back — images via UploadClipboardImageForTerminal, any other file
@@ -2378,7 +2382,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             style={textStyle}
             className="pointer-events-none absolute left-3.5 right-3.5 top-1.5 truncate text-[var(--composer-fg-muted)]"
           >
-            {composerPlaceholder(targetLabel)}
+            {composerPlaceholder({ label: targetLabel, agent, started: agentStarted })}
           </div>
         )}
         {hint && (

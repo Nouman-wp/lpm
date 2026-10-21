@@ -1,11 +1,20 @@
+import { getDownloadStats } from "@/lib/github-stats";
+import { getReleaseSummary } from "@/lib/release-verification";
 import { HeroCta } from "./hero-cta";
 import { HeroPoints } from "./hero-points";
-import { ProofStrip } from "./proof-strip";
+import { formatDownloads } from "./proof-strip";
 
 // The interactive demo sits directly below and has to reach the first
 // viewport, so the hero's vertical rhythm tracks viewport height rather than
 // stepping at width breakpoints.
-export function Hero() {
+export async function Hero() {
+  const [release, stats] = await Promise.all([
+    getReleaseSummary(),
+    getDownloadStats().catch(() => null),
+  ]);
+  const downloads =
+    stats && stats.total >= 1000 ? formatDownloads(stats.total) : null;
+
   return (
     <section className="relative pt-[clamp(4.5rem,9.5vh,6.5rem)] pb-[clamp(1.25rem,3vh,2rem)] text-center">
       <div
@@ -32,10 +41,8 @@ export function Hero() {
         <HeroPoints />
 
         <div className="mx-auto mt-[clamp(1.25rem,3vh,1.75rem)] max-w-3xl">
-          <HeroCta appStoreSource="home-hero" />
+          <HeroCta appStoreSource="home-hero" menu={{ release, downloads }} />
         </div>
-
-        <ProofStrip />
       </div>
     </section>
   );

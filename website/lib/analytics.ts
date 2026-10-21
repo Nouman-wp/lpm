@@ -58,6 +58,7 @@ export type DownloadSource =
   | "share-cta"
   | "not-found"
   | "join"
+  | "mobile-hero"
   | "mobile-cta"
   | "vs-hub-hero"
   | "vs-hub-cta"

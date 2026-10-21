@@ -1,4 +1,5 @@
 import { ArrowUp, ChevronUp, Copy, Forward, SquarePen } from "lucide-react";
+import CalloutMark from "./callout-mark";
 
 const MENU_ITEMS = [
   {
@@ -37,7 +38,11 @@ export default function VisualComposer() {
             )}
           </div>
         ))}
-        <div className="mx-1 flex items-start gap-2 rounded-md bg-white/[0.07] px-1.5 py-1.5 text-[9px] sm:text-[10.5px]">
+        <div className="relative mx-1 flex items-start gap-2 rounded-md bg-white/[0.07] px-1.5 py-1.5 text-[9px] sm:text-[10.5px]">
+          <CalloutMark
+            n={2}
+            className="absolute -left-4 top-1/2 -translate-y-1/2 sm:-left-5"
+          />
           <Copy className="mt-0.5 h-3 w-3 shrink-0 text-gray-200" strokeWidth={2} />
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-gray-100">Run in duplicates</span>

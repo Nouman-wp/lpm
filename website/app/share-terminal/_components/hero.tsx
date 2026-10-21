@@ -1,11 +1,12 @@
 import { GithubLink } from "@/components/github-link";
 import { HeroDownload } from "@/components/home/hero-download";
+import { HeroPoints } from "@/components/home/hero-points";
 
-const CHIPS = [
-  "nothing to install for them",
-  "you let each person in",
-  "view only until you allow typing",
-  "encrypted end to end",
+const POINTS = [
+  "Nothing to install for them",
+  "You let each person in",
+  "View only until you allow typing",
+  "Encrypted end to end",
 ];
 
 export default function Hero() {
@@ -30,16 +31,7 @@ export default function Hero() {
           person in, and they type only when you say so.
         </p>
 
-        <ul className="mt-[clamp(1rem,2vh,1.5rem)] flex flex-wrap justify-center gap-3 text-xs font-medium text-gray-600 dark:text-gray-300">
-          {CHIPS.map((chip) => (
-            <li
-              key={chip}
-              className="rounded-full border border-gray-200 bg-white/70 px-3 py-1.5 shadow-sm dark:border-gray-800 dark:bg-white/[0.04]"
-            >
-              {chip}
-            </li>
-          ))}
-        </ul>
+        <HeroPoints points={POINTS} layout="grid" />
 
         <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex justify-center">
           <HeroDownload source="share-hero" />

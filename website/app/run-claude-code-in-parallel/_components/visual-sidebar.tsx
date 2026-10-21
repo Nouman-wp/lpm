@@ -1,4 +1,5 @@
 import { AlertCircle, Bell, Check } from "lucide-react";
+import CalloutMark from "./callout-mark";
 import { SIDEBAR_ROWS, STATE_TONE, type AgentState } from "./visual-data";
 
 const STATE_MARK: Record<AgentState, typeof Bell | null> = {
@@ -44,6 +45,7 @@ export default function VisualSidebar() {
               />
             </span>
             <span className="min-w-0 flex-1 truncate">{row.name}</span>
+            {row.callout && <CalloutMark n={row.callout} className="-my-1" />}
           </div>
           {row.rollup && (
             <div className="-mt-1 truncate pb-1 pl-[1.6rem] text-[9px] sm:text-[10px]">

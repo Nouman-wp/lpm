@@ -231,6 +231,7 @@ impl Pane {
                 line.len()
             ));
         }
+        self.grid.lock().unwrap().mark_anchor();
         let mut writer = self.writer.lock().unwrap();
         writer
             .write_all(line.as_bytes())

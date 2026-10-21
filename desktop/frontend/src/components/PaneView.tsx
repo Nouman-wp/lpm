@@ -78,6 +78,17 @@ import { chordLabel } from "../keys";
 import { isMac } from "../platform";
 import { useIsFullscreen } from "../hooks/useIsFullscreen";
 import { paneHeaderPadding } from "./terminal/paneHeaderPadding";
+import { composerAgentName } from "../composerText";
+import { TabOverflowChip } from "./terminal/TabOverflowChip";
+import {
+  ALL_STRIP_KEY,
+  STRIP_EDGE_ZONE,
+  serviceStripKey,
+  terminalStripKey,
+  usePaneStripOverflow,
+} from "./terminal/usePaneStripOverflow";
+import { ServiceColumnActions } from "./terminal/ServiceColumnActions";
+import { ServiceStateDot } from "./terminal/ServiceStateDot";
 
 export type StatusKind = "Done" | "Waiting" | "Error";
 
@@ -147,6 +158,8 @@ export interface ServiceTabInfo {
   // The service's command has ended; its tab stays with the last output.
   exited?: boolean;
   exitCode?: number | null;
+  // The command the service runs, for its column's tooltip in the All view.
+  cmd?: string;
 }
 
 export interface PaneViewProps {
@@ -377,6 +390,15 @@ function PaneViewImpl(props: PaneViewProps) {
       ? activeTerm
       : null;
   const composerStatus = paneAgentStatus(paneStatus, composerTab?.id);
+  const composerAgent = composerTab
+    ? composerAgentName(
+        composerTab.startCmd ?? composerTab.resumeCmd,
+        paneStatus?.providers.get(composerTab.id),
+      )
+    : null;
+  // A status report or a conversation title both mean the agent has taken a
+  // prompt; the title outlasts a Done the user has already cleared.
+  const composerStarted = composerStatus !== null || !!composerTab?.sessionTitle;
   const composerEnded = useEndedTerminals((s) =>
     composerTab && composerTab.id in s.ended ? s.ended[composerTab.id] : undefined,
   );
@@ -415,8 +437,8 @@ function PaneViewImpl(props: PaneViewProps) {
   ]);
   useWheelScrollX(scrollRef);
 
-  // Keep the focused tab on screen. The margin clears the w-6 fade gradient at
-  // each edge so the tab isn't left half-hidden under it.
+  // Keep the focused tab on screen. The margin clears the overflow chip and
+  // its fade at each edge so the tab isn't left half-hidden under them.
   const scrollTabIntoView = useCallback(
     (tab: HTMLElement | null, behavior: ScrollBehavior = "smooth") => {
       const container = scrollRef.current;
@@ -428,12 +450,31 @@ function PaneViewImpl(props: PaneViewProps) {
         clientWidth: container.clientWidth,
         elementLeft: tabRect.left - containerRect.left + container.scrollLeft,
         elementWidth: tabRect.width,
-        margin: 28,
+        margin: STRIP_EDGE_ZONE + 12,
       });
       if (next !== null) container.scrollTo({ left: next, behavior });
     },
     [scrollRef],
   );
+
+  const activateTab = (i: number) => {
+    const id = pane.tabs[i].id;
+    if (paneStatus?.done.has(id)) onClearStatus(id, "Done");
+    if (paneStatus?.error.has(id)) onClearStatus(id, "Error");
+    onFocusTab(pane.id, i);
+  };
+  const stripOverflow = usePaneStripOverflow({
+    scrollRef,
+    edges: { left: canScrollLeft, right: canScrollRight },
+    services,
+    tabs: pane.tabs,
+    filesChangesOnly,
+    tabIcon: (t) => <TabIcon tab={t} />,
+    onSelectService: (name) => onFocusService(pane.id, name),
+    onSelectTab: activateTab,
+    scrollIntoView: scrollTabIntoView,
+    deps: [pane.tabs, services, activeServiceName],
+  });
 
   // Covers activation that changes state (reuse landing on a different tab,
   // keyboard switches) and explicit reuse requests for the already-active tab
@@ -489,6 +530,7 @@ function PaneViewImpl(props: PaneViewProps) {
               label="All"
               icon={<Columns2 size={14} />}
               active={isAllActive}
+              stripKey={ALL_STRIP_KEY}
               onClick={(e) => {
                 onFocusService(pane.id, ALL_SERVICES);
                 scrollTabIntoView(e.currentTarget);
@@ -504,6 +546,7 @@ function PaneViewImpl(props: PaneViewProps) {
                 label={svc.name}
                 icon={<ZapIcon />}
                 active={isActive}
+                stripKey={serviceStripKey(svc.name)}
                 trailing={
                   svc.exited ? (
                     <span
@@ -554,6 +597,7 @@ function PaneViewImpl(props: PaneViewProps) {
                     origin={terminalOriginLabel(t)}
                     icon={<TabIcon tab={t} />}
                     active={isActive}
+                    stripKey={terminalStripKey(t.id)}
                     pinned={t.pinned}
                     shimmer={paneStatus?.running.has(t.id) ?? false}
                     done={isDone}
@@ -568,9 +612,7 @@ function PaneViewImpl(props: PaneViewProps) {
                       </>
                     }
                     onClick={(e) => {
-                      if (isDone) onClearStatus(t.id, "Done");
-                      if (isError) onClearStatus(t.id, "Error");
-                      onFocusTab(pane.id, i);
+                      activateTab(i);
                       scrollTabIntoView(e.currentTarget);
                     }}
                     onClose={() => onCloseTerminal(pane.id, i)}
@@ -599,6 +641,12 @@ function PaneViewImpl(props: PaneViewProps) {
             canScrollRight={canScrollRight}
             from="from-[var(--terminal-header)]"
           />
+          {stripOverflow.left.length > 0 && (
+            <TabOverflowChip side="left" entries={stripOverflow.left} onSelect={stripOverflow.select} />
+          )}
+          {stripOverflow.right.length > 0 && (
+            <TabOverflowChip side="right" entries={stripOverflow.right} onSelect={stripOverflow.select} />
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           {paneActions.menu.length > 0 && (
@@ -707,6 +755,17 @@ function PaneViewImpl(props: PaneViewProps) {
                 themeOverride={themeOverride}
                 cwd={svc.cwd}
                 label={isAllActive ? svc.name : undefined}
+                labelLead={<ServiceStateDot exited={svc.exited} exitCode={svc.exitCode} />}
+                labelHint={svc.cmd}
+                labelActions={
+                  <ServiceColumnActions
+                    name={svc.name}
+                    ports={svc.ports ?? []}
+                    exited={svc.exited ?? false}
+                    onRestart={() => onRestartService(svc.name)}
+                    onStop={() => onStopService(svc.name)}
+                  />
+                }
                 onLabelClick={
                   isAllActive
                     ? () => onFocusService(pane.id, svc.name)
@@ -827,6 +886,8 @@ function PaneViewImpl(props: PaneViewProps) {
             shown={visible}
             focused={focused}
             targetLabel={terminalDisplayLabel(composerTab)}
+            agent={composerAgent}
+            agentStarted={composerStarted}
             terminals={allTerminals}
             session={composerSession}
             cwd={interactiveCwd}
@@ -850,6 +911,8 @@ function PaneViewImpl(props: PaneViewProps) {
           // Input closed: leave a slim stand-in that reopens it (same as ⌘I).
           <ComposerReopenBar
             targetLabel={terminalDisplayLabel(composerTab)}
+            agent={composerAgent}
+            agentStarted={composerStarted}
             fontSize={fontSize}
             agentStatus={composerStatus}
           />

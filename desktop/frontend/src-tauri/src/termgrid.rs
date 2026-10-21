@@ -108,6 +108,12 @@ pub struct Grid {
     /// that arrives next belongs.
     last_drawn: Option<(usize, usize)>,
     pub title: String,
+    /// Rows the scrollback has let go of from its top, so a line can be named
+    /// by an absolute number that survives the history being trimmed.
+    dropped: usize,
+    /// Where the line lpm last typed into the shell started (`mark_anchor`),
+    /// until the shell runs it (`cut_to_anchor`).
+    anchor: Option<usize>,
 }
 
 impl Grid {
@@ -129,6 +135,8 @@ impl Grid {
             alt_saved: None,
             last_drawn: None,
             title: String::new(),
+            dropped: 0,
+            anchor: None,
         }
     }
 
@@ -218,6 +226,7 @@ impl Grid {
                 self.scrollback.push_back(row);
                 while self.scrollback.len() > HISTORY_LIMIT {
                     self.scrollback.pop_front();
+                    self.dropped += 1;
                 }
             }
             self.screen.insert(self.scroll_bottom, Row::blank(self.cols));
@@ -272,7 +281,7 @@ impl Grid {
                     row.clear();
                 }
                 if mode == 3 {
-                    self.scrollback.clear();
+                    self.clear_history();
                 }
             }
             _ => {
@@ -430,7 +439,55 @@ impl Grid {
 
     /// Drop the scrollback, keeping the visible screen — tmux's `clear-history`.
     pub fn clear_history(&mut self) {
+        self.dropped += self.scrollback.len();
         self.scrollback.clear();
+    }
+
+    // ---- the typed line ------------------------------------------------------
+
+    fn line(&self) -> usize {
+        self.dropped + self.scrollback.len() + self.cursor_row
+    }
+
+    /// Remember the cursor's line as lpm types a line into the shell: the
+    /// terminal's echo of it, and the shell's prompt with it again, draw from
+    /// here.
+    pub fn mark_anchor(&mut self) {
+        self.anchor = Some(self.line());
+    }
+
+    /// The shell has started running the typed line: drop the rows from the
+    /// anchor down to the cursor's, so the output reads from where the line was
+    /// typed. A full-screen program or a scroll region is left alone, as is an
+    /// anchor the scrollback has already let go of.
+    pub fn cut_to_anchor(&mut self) {
+        let Some(anchor) = self.anchor.take() else {
+            return;
+        };
+        let whole = self.scroll_top == 0 && self.scroll_bottom + 1 == self.rows;
+        if self.on_alt_screen() || !whole || anchor < self.dropped {
+            return;
+        }
+        let start = anchor - self.dropped;
+        let end = self.scrollback.len() + self.cursor_row;
+        if start >= end {
+            return;
+        }
+        let mut rows: Vec<Row> = self
+            .scrollback
+            .drain(..)
+            .chain(self.screen.drain(..))
+            .collect();
+        rows.drain(start..end);
+        // Keep the cursor on the screen row it was on where the history allows.
+        let top = start - start.min(self.cursor_row);
+        let mut screen = rows.split_off(top);
+        screen.resize_with(self.rows, || Row::blank(self.cols));
+        self.scrollback = rows.into();
+        self.screen = screen;
+        self.cursor_row = start - top;
+        self.wrap_pending = false;
+        self.last_drawn = None;
     }
 
     // ---- reading -------------------------------------------------------------

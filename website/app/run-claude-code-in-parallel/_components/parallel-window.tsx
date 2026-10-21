@@ -66,6 +66,7 @@ export default function ParallelWindow() {
                     title: "Tests for auth middleware",
                     state: "needs-you",
                     display: "flex md:hidden",
+                    callout: 3,
                   },
                   {
                     glyph: "●",
@@ -88,6 +89,7 @@ export default function ParallelWindow() {
                       title: "Tests for auth middleware",
                       state: "needs-you",
                       active: true,
+                      callout: 3,
                     },
                   ]}
                 />

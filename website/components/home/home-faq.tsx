@@ -13,6 +13,8 @@ import { faqJsonLd, jsonLdString } from "@/lib/structured-data";
 
 type QA = {
   question: string;
+  // The yes-or-no most readers came for, shown without a click.
+  short: string;
   answer: ReactNode;
   answerText?: string;
 };
@@ -25,31 +27,43 @@ const CODE =
 const FAQS: QA[] = [
   {
     question: "Is lpm free?",
+    short:
+      "Yes. Free and open source under the MIT license, with no paid tier and no account.",
     answer:
       "Yes. lpm is free and open source under the MIT license. There is no paid tier and no account: download it from lpm.cx, or browse the source on GitHub.",
   },
   {
     question: "Which systems does lpm run on?",
+    short:
+      "macOS 12 or later, on Apple Silicon and Intel. Windows 11 and x86-64 Linux are in beta.",
     answer:
       "macOS 12 or later, with one build for Apple Silicon and one for Intel, both signed with an Apple-issued Developer ID and notarized by Apple. Windows and Linux are in beta: Windows 11 on x64 with Git for Windows installed, and 64-bit x86 Linux with glibc 2.35 or newer (Ubuntu 22.04 and up) as a .deb, .rpm or AppImage. The Windows and Linux builds aren't code-signed yet. None of them uses Electron.",
   },
   {
     question: "Does lpm detect my services automatically?",
+    short:
+      "Yes. It reads package.json, Procfile, Docker Compose and Python, Rails, Go or Rust projects, on your computer and with no AI.",
     answer:
       "Yes. When you add a folder or clone a repo, lpm reads its files (package.json, Procfile, Docker Compose, and Python, Rails, Go or Rust projects, including apps inside a monorepo) and sets up each dev server with its start command and, when it can tell, its port. Detection runs on your computer with no AI involved. If nothing is found, you get a starter service to fill in, and your AI agent can draft the setup for you.",
   },
   {
     question: "Which AI coding agents does lpm support?",
+    short:
+      "Claude Code and Codex get one-click buttons and live status. Gemini CLI and Cursor CLI get live status, and any other CLI agent runs in the terminal.",
     answer:
       "Claude Code and Codex get one-click buttons from the first launch and the deepest integration: live working, done and needs-you status, sounds and system notifications, resume and fork, and a model and effort picker. Gemini CLI and Cursor CLI report live status with sounds and notifications too. Gemini CLI and OpenCode can be added as one-click buttons, and any other command-line agent or script runs in the built-in terminal. lpm doesn't install the agents; you use your own CLI and account.",
   },
   {
     question: "Does lpm replace my terminal or editor?",
+    short:
+      "It can replace your terminal, with tabs, split panes, search, a Files tab and diff review. It opens projects in your editor.",
     answer:
       "It can replace your terminal: every project gets tabs, split panes, search, a Files tab with an editor, diff review and, on macOS and Windows, a built-in browser tab. It works alongside your code editor, and one click opens a project in Cursor, VS Code, Zed and others.",
   },
   {
     question: "Is there an iPhone app?",
+    short:
+      "Yes. lpm link pairs by QR code, mirrors your terminals live and tells you when an agent needs you.",
     answer: (
       <>
         Yes.{" "}
@@ -67,6 +81,8 @@ const FAQS: QA[] = [
   },
   {
     question: "Does lpm work with remote servers?",
+    short:
+      "Yes. Run a project over SSH, or add a Linux server with one SSH string and keep its agents running there.",
     answer: (
       <>
         Yes, in three ways. An{" "}
@@ -93,6 +109,8 @@ const FAQS: QA[] = [
   },
   {
     question: "Does lpm collect my code or telemetry?",
+    short:
+      "No. The desktop app has no analytics, telemetry or account.",
     answer: (
       <>
         No. The desktop app has no analytics, telemetry or account. It checks
@@ -112,11 +130,15 @@ const FAQS: QA[] = [
   },
   {
     question: "How does lpm update?",
+    short:
+      "It checks at launch and every 24 hours. On macOS one click updates and relaunches, and your dev servers keep running.",
     answer:
       "lpm checks for a new version when it opens and every 24 hours while it runs, and you can choose Check for Updates… from the lpm menu. On macOS, an update button appears in the sidebar: one click downloads it, replaces the app and relaunches, and your dev servers keep running through the update. On Windows and Linux, lpm tells you about the new version and opens its download in your browser; run the installer or install the package to update.",
   },
   {
     question: "How do I uninstall lpm?",
+    short:
+      "Settings → General → Remove app. It cleans up its command, hooks and skills, and never touches your project folders.",
     answer: (
       <>
         Open Settings → General → Remove app. lpm stops your projects and
@@ -150,23 +172,34 @@ const structuredData = faqJsonLd(
 export function HomeFaq() {
   return (
     <section className="py-16 sm:py-20">
-      <div className="max-w-3xl mx-auto px-6">
+      <div className="max-w-5xl mx-auto px-6">
         <SectionHeader
           eyebrow="FAQ"
           title="Questions developers ask before downloading"
+          className="mb-10 sm:mb-12"
         />
-        <ul className="space-y-3">
-          {FAQS.map(({ question, answer }) => (
-            <li key={question}>
-              <details className="group rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 transition-colors duration-200 open:border-gray-300 dark:open:border-gray-700 open:bg-gray-50/50 dark:open:bg-white/[0.02]">
-                <summary className="flex min-h-11 items-center justify-between gap-4 cursor-pointer list-none px-5 py-4 text-sm font-semibold text-gray-900 dark:text-gray-100 [&::-webkit-details-marker]:hidden">
-                  <span>{question}</span>
+        <ul className="grid gap-x-12 md:grid-cols-2">
+          {FAQS.map(({ question, short, answer }) => (
+            <li
+              key={question}
+              className="group/qa border-t border-gray-200 py-5 dark:border-gray-800"
+            >
+              <h3 className="text-[15px] font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                {question}
+              </h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-gray-600 group-has-[details[open]]/qa:hidden dark:text-gray-400">
+                {short}
+              </p>
+              <details className="group">
+                <summary className="-ml-1 mt-1 inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded px-1 text-[13px] font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-gray-300 dark:hover:text-white [&::-webkit-details-marker]:hidden">
+                  <span className="group-open:hidden">Full answer</span>
+                  <span className="hidden group-open:inline">Show less</span>
                   <ChevronDown
-                    className="w-4 h-4 shrink-0 text-gray-500 dark:text-gray-400 transition-transform duration-200 group-open:rotate-180"
+                    className="h-3.5 w-3.5 transition-transform duration-200 group-open:rotate-180"
                     aria-hidden
                   />
                 </summary>
-                <div className="px-5 pb-4 text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                <div className="-mt-1 mb-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
                   {answer}
                 </div>
               </details>

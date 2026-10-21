@@ -528,7 +528,9 @@ export function AgentTerminal({
         }}
         onSubmit={onSubmit}
         busy={busy}
-        placeholder={busy ? "Working… send to interrupt" : `Send to ${b.name}…`}
+        placeholder={
+          busy ? "Working… send to interrupt" : history.length > 0 ? `Reply to ${b.short}…` : `Ask ${b.short}…`
+        }
         inputRef={inputRef}
         onRecall={() => fillInput(lastQuery)}
         canRecall={!!lastQuery}

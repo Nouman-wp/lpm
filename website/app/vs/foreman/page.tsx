@@ -10,7 +10,7 @@ import { Faq } from "@/components/vs/faq";
 import { QuickAnswer } from "@/components/vs/quick-answer";
 import { VS_REVIEWED, VS_REVIEWED_ISO } from "@/components/vs/reviewed";
 import { SectionVideo } from "@/components/vs/section-video";
-import { VerdictCards, type VerdictCard } from "@/components/vs/verdict-cards";
+import type { VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import {
   AI_AGENTS_PATH,
@@ -141,6 +141,7 @@ export default function LpmVsForemanPage() {
         jumpHref="#matrix"
         jumpLabel="See all three side by side"
         downloadSource="vs-foreman-hero"
+        verdict={VERDICT_CARDS}
       />
 
       <ComparisonBasis
@@ -217,8 +218,6 @@ export default function LpmVsForemanPage() {
           can crash without taking <code>web</code>{" "}down with it.
         </p>
       </QuickAnswer>
-
-      <VerdictCards cards={VERDICT_CARDS} />
 
       <OneTerminal />
 

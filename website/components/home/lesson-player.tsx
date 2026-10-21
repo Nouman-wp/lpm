@@ -81,7 +81,8 @@ export function LessonPlayer() {
             index={i}
             title={s.title}
             blurb={s.blurb}
-            lesson={s.lesson}
+            thumbnail={s.thumbnail}
+            seconds={s.seconds}
             active={i === selected}
             controls={PLAYER_ID}
             onSelect={() => select(i)}

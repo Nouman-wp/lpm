@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -10,16 +10,28 @@ import {
   Smartphone,
 } from "lucide-react";
 import { trackGithubVisit } from "@/lib/analytics";
-import type { DesktopOs } from "@/lib/downloads";
+import type { DesktopOs, ReleaseSummary } from "@/lib/downloads";
 import { LINUX_HOST_PATH, MOBILE_PATH, RELEASES_URL } from "@/lib/links";
-import { isDownloadPlatform, usePlatform } from "@/lib/use-platform";
-import { DownloadOsColumn } from "./download-os-column";
+import {
+  detectedOs,
+  isDownloadPlatform,
+  usePlatform,
+} from "@/lib/use-platform";
+import { DownloadOsTabs } from "./download-os-tabs";
+import { DownloadTable } from "./download-table";
+import { SendLinkButton } from "./send-link-button";
 
-const OS_ORDER: DesktopOs[] = ["macos", "windows", "linux"];
-
-export function Downloads({ children }: { children?: ReactNode }) {
+export function Downloads({
+  release,
+  children,
+}: {
+  release: ReleaseSummary | null;
+  children?: ReactNode;
+}) {
   const platform = usePlatform();
   const isUnavailable = platform === "ipad" || platform === "unsupported";
+  const [picked, setPicked] = useState<DesktopOs | null>(null);
+  const phoneOs = picked ?? detectedOs(platform) ?? "macos";
 
   return (
     <section
@@ -60,16 +72,18 @@ export function Downloads({ children }: { children?: ReactNode }) {
             <p className="mt-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
               Open lpm.cx on your Mac or PC to choose the correct installer.
             </p>
+            <div className="mt-4">
+              <SendLinkButton />
+            </div>
           </div>
         ) : (
-          <div className="mx-auto grid max-w-3xl grid-cols-1 gap-x-5 gap-y-10 sm:grid-cols-3">
-            {OS_ORDER.map((os) => (
-              <DownloadOsColumn
-                key={os}
-                os={os}
-                recommended={isDownloadPlatform(platform) ? platform : null}
-              />
-            ))}
+          <div className="mx-auto max-w-3xl">
+            <DownloadOsTabs value={phoneOs} onChange={setPicked} />
+            <DownloadTable
+              recommended={isDownloadPlatform(platform) ? platform : null}
+              release={release}
+              phoneOs={phoneOs}
+            />
           </div>
         )}
         <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-x-6 text-sm">

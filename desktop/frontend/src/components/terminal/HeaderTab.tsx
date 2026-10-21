@@ -24,6 +24,7 @@ export function HeaderTab({
   agentStatus,
   color,
   trailing,
+  stripKey,
 }: {
   label: string;
   icon?: ReactNode;
@@ -48,6 +49,8 @@ export function HeaderTab({
   // colors (error/waiting/shimmer/done) take precedence while active.
   color?: string;
   trailing?: ReactNode;
+  // Names the tab to its strip's overflow count (useHiddenTabs).
+  stripKey?: string;
 }) {
   const closable = !!onClose && !pinned;
   const hasHoverIcon = closable || !!pinned;
@@ -120,6 +123,7 @@ export function HeaderTab({
         }
       }}
       data-active-tab={active || undefined}
+      data-strip-tab={stripKey}
       style={accentStyle}
       className={`group flex h-6 max-w-[150px] shrink-0 select-none items-center gap-1.5 overflow-hidden rounded-md px-2 font-mono text-[11px] font-medium transition-colors duration-150 ${
         active

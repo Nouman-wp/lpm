@@ -3,6 +3,7 @@ import {
   DOWNLOAD_ENTRIES,
   type DesktopOs,
   type DownloadPlatform,
+  type ReleaseSummary,
 } from "./downloads";
 import { REPO_API_URL } from "./links";
 
@@ -105,4 +106,16 @@ export async function getLatestReleaseVerification(): Promise<ReleaseVerificatio
   } catch {
     return null;
   }
+}
+
+export async function getReleaseSummary(): Promise<ReleaseSummary | null> {
+  const release = await getLatestReleaseVerification();
+  if (!release) return null;
+  return {
+    version: release.tag.replace(/^v/, ""),
+    publishedAt: release.publishedAt,
+    sizes: Object.fromEntries(
+      release.assets.map(({ platform, size }) => [platform, size]),
+    ),
+  };
 }

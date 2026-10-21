@@ -10,6 +10,7 @@ import { Hero } from "@/components/home/hero";
 import { HomeFaq } from "@/components/home/home-faq";
 import { HowItWorks } from "@/components/home/how-it-works";
 import { PairedDevices } from "@/components/home/paired-devices";
+import { getReleaseSummary } from "@/lib/release-verification";
 import { jsonLdString, youtubeLessonJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
@@ -27,7 +28,8 @@ const structuredData = [
   youtubeLessonJsonLd("parallel-agents"),
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const release = await getReleaseSummary();
   return (
     <>
       <script
@@ -43,7 +45,7 @@ export default function HomePage() {
       <Features />
       <HomeFaq />
       <Contributors />
-      <Downloads>
+      <Downloads release={release}>
         <DownloadSafety />
       </Downloads>
     </>

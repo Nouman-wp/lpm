@@ -18,6 +18,7 @@ export type SidebarRow = {
   selected?: boolean;
   agents?: SidebarAgent[];
   rollup?: RollupSegment[];
+  callout?: number;
 };
 
 export const STATE_TONE: Record<AgentState, string> = {
@@ -41,6 +42,7 @@ export const SIDEBAR_ROWS: SidebarRow[] = [
   {
     name: "shop-api-attempt-2",
     kind: "copy",
+    callout: 1,
     running: false,
     agents: [{ title: "Rate-limit the login route", state: "done", elapsed: "6m" }],
   },

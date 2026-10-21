@@ -11,6 +11,8 @@ interface ComposerReopenBarProps {
   // Terminal the input would target; drives the same placeholder as the live
   // input so the collapsed bar stands in for the same field.
   targetLabel: string;
+  agent?: string | null;
+  agentStarted?: boolean;
   // Terminal font size; the label scales with it just like the composer's real
   // placeholder, so toggling open doesn't jump the text size.
   fontSize: number;
@@ -22,7 +24,7 @@ interface ComposerReopenBarProps {
 // Shown in the composer's slot when the shared input is closed: a slim, inert
 // stand-in for the field that reopens it on click (same as ⌘I). Sits per-pane so
 // wherever a terminal is, its input is one click away.
-export function ComposerReopenBar({ targetLabel, fontSize, agentStatus }: ComposerReopenBarProps) {
+export function ComposerReopenBar({ targetLabel, agent, agentStarted, fontSize, agentStatus }: ComposerReopenBarProps) {
   return (
     <div className="border-t border-[var(--border)] bg-[var(--terminal-bg)] px-3 py-1.5">
       <button
@@ -39,7 +41,7 @@ export function ComposerReopenBar({ targetLabel, fontSize, agentStatus }: Compos
           style={{ fontSize, lineHeight: 1.5 }}
           className="min-w-0 flex-1 truncate"
         >
-          {composerPlaceholder(targetLabel)}
+          {composerPlaceholder({ label: targetLabel, agent, started: agentStarted })}
         </span>
         {/* The collapsed bar is full width and its placeholder truncates first,
             so there is room for the state word the button row has to drop. */}

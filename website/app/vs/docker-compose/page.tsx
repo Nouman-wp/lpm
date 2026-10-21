@@ -10,7 +10,7 @@ import { Faq, type FaqItem } from "@/components/vs/faq";
 import { QuickAnswer } from "@/components/vs/quick-answer";
 import { VS_REVIEWED, VS_REVIEWED_ISO } from "@/components/vs/reviewed";
 import { SectionVideo } from "@/components/vs/section-video";
-import { VerdictCards, type VerdictCard } from "@/components/vs/verdict-cards";
+import type { VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import {
   AI_AGENTS_PATH,
@@ -244,6 +244,7 @@ export default function LpmVsDockerComposePage() {
         jumpHref="#map"
         jumpLabel="See every compose command mapped"
         downloadSource="vs-compose-hero"
+        verdict={VERDICT_CARDS}
       />
 
       <ComparisonBasis
@@ -285,8 +286,6 @@ export default function LpmVsDockerComposePage() {
           .
         </p>
       </QuickAnswer>
-
-      <VerdictCards cards={VERDICT_CARDS} />
 
       <ComposeMap />
 

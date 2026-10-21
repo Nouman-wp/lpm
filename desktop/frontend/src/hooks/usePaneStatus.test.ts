@@ -31,6 +31,7 @@ describe("derivePaneStatus", () => {
     expect([...s.waiting]).toEqual(["%2"]);
     expect(s.agents.get("%1")).toEqual({ state: "working", since: NOW - 90_000 });
     expect(s.agents.get("%2")).toEqual({ state: "needs-you", since: NOW - 5_000 });
+    expect(s.providers.get("%1")).toBe("claude");
   });
 
   it("ignores entries with no pane", () => {

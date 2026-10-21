@@ -1,15 +1,12 @@
 import Image from "next/image";
-import {
-  youtubeLesson,
-  youtubeThumbnailUrl,
-  type YouTubeLessonId,
-} from "@/lib/youtube-lessons";
+import { formatLength } from "@/components/home/lesson-data";
 
 type Props = {
   index: number;
   title: string;
   blurb: string;
-  lesson: YouTubeLessonId;
+  thumbnail: string;
+  seconds: number;
   active: boolean;
   controls: string;
   onSelect: () => void;
@@ -21,12 +18,12 @@ export function LessonRow({
   index,
   title,
   blurb,
-  lesson,
+  thumbnail,
+  seconds,
   active,
   controls,
   onSelect,
 }: Props) {
-  const { id } = youtubeLesson(lesson);
   return (
     <li
       className={`relative flex items-center gap-3.5 rounded-xl p-2.5 pr-3 transition-colors ${
@@ -36,21 +33,25 @@ export function LessonRow({
       }`}
     >
       <div
-        className={`relative aspect-video w-[5.5rem] shrink-0 overflow-hidden rounded-md bg-[#ebe5d9] ${
+        className={`relative aspect-video w-[7rem] shrink-0 overflow-hidden rounded-md bg-[#1a1a1a] ${
           active
             ? "ring-2 ring-gray-900 dark:ring-white"
             : "ring-1 ring-black/5 dark:ring-white/10"
         }`}
       >
         <Image
-          src={youtubeThumbnailUrl(id)}
+          src={thumbnail}
           alt=""
           fill
-          sizes="88px"
+          sizes="112px"
           className="object-cover"
         />
         <span className="absolute bottom-1 left-1 rounded bg-gray-900/85 px-1 py-px text-[10px] font-semibold tabular-nums leading-tight text-white">
           {String(index + 1).padStart(2, "0")}
+        </span>
+        <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 py-px font-mono text-[10px] tabular-nums leading-tight text-white">
+          <span className="sr-only">Length </span>
+          {formatLength(seconds)}
         </span>
       </div>
       <div className="min-w-0">

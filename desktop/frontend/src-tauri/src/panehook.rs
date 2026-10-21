@@ -1,9 +1,14 @@
 //! How a service pane's shell says that the line lpm typed has finished, and
-//! with what status. A service runs as a line typed into a shell
+//! with what status, and when it starts running it. A service runs as a line typed into a shell
 //! (sessionpane.rs), so it is the shell's child and only the shell can wait on
 //! it. zsh and bash print `$?` before each prompt as a private OSC, which the
 //! pane's parser takes and never draws (termvt.rs). Other shells say nothing,
 //! and a service there reads as running for as long as its shell lives.
+//!
+//! Just before running a line, zsh (preexec) and bash 4.4+ (PS0) print a second
+//! OSC. The parser drops the rows from where the line was typed to there, so a
+//! service's log starts at its own output rather than at the line echoed back
+//! twice, by the terminal and again by the prompt.
 //!
 //! zsh gets the hook through ZDOTDIR, the way lpm's terminals get theirs
 //! (shellwrap.rs), added after the user's .zshrc so nothing in it can drop the
@@ -14,11 +19,14 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 pub const PROMPT_OSC: &str = "7701";
+pub const EXEC_OSC: &str = "7702";
 
 const ZSH_HOOK: &str = r#"_lpm_pane_prompt() { builtin printf '\033]7701;%d\007' $? }
-precmd_functions=(_lpm_pane_prompt $precmd_functions)"#;
+_lpm_pane_exec() { builtin printf '\033]7702\007' }
+precmd_functions=(_lpm_pane_prompt $precmd_functions)
+preexec_functions=(_lpm_pane_exec $preexec_functions)"#;
 
-const BASH_FN: &str = r#"() { local s=$?; builtin printf '\033]7701;%d\007' "$s"; export -n PROMPT_COMMAND; export -nf _lpm_pane_prompt; return $s; }"#;
+const BASH_FN: &str = r#"() { local s=$?; builtin printf '\033]7701;%d\007' "$s"; [[ $PS0 == *7702* ]] || PS0=$'\e]7702\a'$PS0; export -n PROMPT_COMMAND; export -nf _lpm_pane_prompt; return $s; }"#;
 
 const BASH_FN_NAME: &str = "_lpm_pane_prompt";
 

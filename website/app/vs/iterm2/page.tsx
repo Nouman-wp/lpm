@@ -10,7 +10,7 @@ import { Faq, type FaqItem } from "@/components/vs/faq";
 import { QuickAnswer } from "@/components/vs/quick-answer";
 import { VS_REVIEWED, VS_REVIEWED_ISO } from "@/components/vs/reviewed";
 import { SectionVideo } from "@/components/vs/section-video";
-import { VerdictCards, type VerdictCard } from "@/components/vs/verdict-cards";
+import type { VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import {
   CONFIG_PATH,
@@ -207,6 +207,7 @@ export default function LpmVsIterm2Page() {
         jumpLabel="Jump to the iTerm2 rows"
         downloadSource="vs-iterm2-hero"
         macFocus
+        verdict={VERDICT_CARDS}
       />
 
       <ComparisonBasis
@@ -282,8 +283,6 @@ export default function LpmVsIterm2Page() {
           a project file accepts is in the config reference.
         </p>
       </QuickAnswer>
-
-      <VerdictCards cards={VERDICT_CARDS} />
 
       <KeepGiveUp />
 

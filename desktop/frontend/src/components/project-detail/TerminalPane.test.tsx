@@ -41,7 +41,7 @@ function PaneWithRowMenu() {
         services={[]}
         terminalTheme="default"
         fontSize={13}
-        paneStatus={{ running: new Set(), done: new Set(), waiting: new Set(), error: new Set(), agents: new Map() }}
+        paneStatus={{ running: new Set(), done: new Set(), waiting: new Set(), error: new Set(), agents: new Map(), providers: new Map() }}
         footerItems={model.footerItems}
         layout={model.layout}
         disabled={false}

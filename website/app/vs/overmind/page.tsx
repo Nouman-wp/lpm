@@ -8,7 +8,7 @@ import { Cta } from "@/components/vs/cta";
 import { Faq, type FaqItem } from "@/components/vs/faq";
 import { VS_REVIEWED, VS_REVIEWED_ISO } from "@/components/vs/reviewed";
 import { SectionVideo } from "@/components/vs/section-video";
-import { VerdictCards, type VerdictCard } from "@/components/vs/verdict-cards";
+import type { VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import { Answer } from "./_components/answer";
 import { CommandTranslation } from "./_components/command-translation";
@@ -211,6 +211,7 @@ export default function OvermindVsPage() {
         jumpHref="#procfile"
         jumpLabel="See the Procfile conversion"
         downloadSource="vs-overmind-hero"
+        verdict={VERDICT_CARDS}
       />
 
       <ComparisonBasis
@@ -238,8 +239,6 @@ export default function OvermindVsPage() {
       />
 
       <Answer />
-
-      <VerdictCards cards={VERDICT_CARDS} />
 
       <Procfile />
 

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { TerminalLine, type Line } from "@/components/terminal-line";
+import CalloutMark from "./callout-mark";
 import { STATE_TONE, type AgentState } from "./visual-data";
 
 type Tab = {
@@ -9,6 +10,7 @@ type Tab = {
   state?: AgentState;
   active?: boolean;
   display?: string;
+  callout?: number;
 };
 
 type Props = {
@@ -25,7 +27,7 @@ export default function VisualPane({ tabs, lines, className = "", children }: Pr
         {tabs.map((tab) => (
           <span
             key={tab.title}
-            className={`${tab.display ?? "flex"} min-w-0 max-w-[11rem] items-center gap-1.5 rounded-t-md px-2 py-1 text-[9px] sm:text-[10.5px] ${
+            className={`${tab.display ?? "flex"} min-w-0 ${tab.callout ? "max-w-[13rem]" : "max-w-[11rem]"} items-center gap-1.5 rounded-t-md px-2 py-1 text-[9px] sm:text-[10.5px] ${
               tab.active
                 ? "bg-[#1f1f1f] text-gray-100 ring-1 ring-inset ring-[#2d2d2d]"
                 : "text-gray-500"
@@ -35,6 +37,7 @@ export default function VisualPane({ tabs, lines, className = "", children }: Pr
             <span className={`truncate ${tab.state ? STATE_TONE[tab.state] : ""}`}>
               {tab.title}
             </span>
+            {tab.callout && <CalloutMark n={tab.callout} className="ml-1" />}
           </span>
         ))}
       </div>

@@ -101,4 +101,23 @@ export function isBetaOs(os: DesktopOs): boolean {
   return os !== "macos";
 }
 
+export type ReleaseSummary = {
+  version: string;
+  publishedAt: string | null;
+  sizes: Partial<Record<DownloadPlatform, number>>;
+};
+
+export function formatSize(bytes: number): string {
+  return `${(bytes / 1_000_000).toFixed(1)} MB`;
+}
+
+export function formatReleaseDate(value: string | null): string | null {
+  if (!value) return null;
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(value));
+}
+
 export const GIT_FOR_WINDOWS_URL = "https://git-scm.com/downloads/win";

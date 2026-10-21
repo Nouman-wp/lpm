@@ -6,7 +6,7 @@ import {
   STATUS_WAITING,
   type StatusEntry,
 } from "../types";
-import type { AgentState } from "../agentStatus";
+import { statusProvider, type AgentState, type StatusProvider } from "../agentStatus";
 
 export interface PaneAgentStatus {
   state: Exclude<AgentState, "idle">;
@@ -24,6 +24,9 @@ export interface PaneStatus {
   waiting: Set<string>;
   error: Set<string>;
   agents: Map<string, PaneAgentStatus>;
+  // Which agent reported each pane's status, so a tab whose agent was started
+  // by hand in a plain shell still knows who it is talking to.
+  providers: Map<string, StatusProvider>;
 }
 
 // Precedence when one pane carries several statuses: the most urgent one wins,
@@ -78,6 +81,7 @@ export function derivePaneStatus(
   const waiting = new Set<string>();
   const error = new Set<string>();
   const agents = new Map<string, PaneAgentStatus>();
+  const providers = new Map<string, StatusProvider>();
   const ranks = new Map<string, number>();
   for (const e of entries ?? []) {
     if (!e.paneID) continue;
@@ -91,8 +95,9 @@ export function derivePaneStatus(
     if (!status) continue;
     ranks.set(e.paneID, RANK[e.value]);
     agents.set(e.paneID, status);
+    providers.set(e.paneID, statusProvider(e.key));
   }
-  return { running, done, waiting, error, agents };
+  return { running, done, waiting, error, agents, providers };
 }
 
 /** The one status a terminal shows — null when the agent reports nothing (no

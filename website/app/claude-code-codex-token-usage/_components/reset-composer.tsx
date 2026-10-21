@@ -5,7 +5,7 @@ export default function ResetComposer({ empty }: { empty: boolean }) {
   return (
     <div className="rounded-xl border border-[var(--composer-border)] bg-[var(--composer-surface)] px-3 pb-2 pt-2.5">
       {empty ? (
-        <p className="font-mono text-[12.5px] leading-relaxed text-[var(--text-muted)]">{`Send to ${AGENT}…`}</p>
+        <p className="font-mono text-[12.5px] leading-relaxed text-[var(--text-muted)]">{`Reply to ${AGENT}…`}</p>
       ) : (
         <p className="line-clamp-2 font-mono text-[12.5px] leading-relaxed text-[var(--text-primary)]">{PROMPT}</p>
       )}

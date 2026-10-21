@@ -1,4 +1,5 @@
 import { HowItWorksSteps } from "@/components/home/how-it-works-steps";
+import { LESSONS_TOTAL_MINUTES } from "@/components/home/lesson-data";
 import { LessonPlayer } from "@/components/home/lesson-player";
 import { SectionHeader } from "@/components/section-header";
 import { YOUTUBE_PLAYLIST_URL } from "@/lib/youtube-lessons";
@@ -20,7 +21,8 @@ export function HowItWorks() {
             Watch it in the real app
           </h3>
           <p className="mt-1.5 text-pretty text-sm text-gray-500 dark:text-gray-400">
-            Six short video lessons. Pick one to play it.
+            Six lessons, {LESSONS_TOTAL_MINUTES} minutes in all. Pick one to
+            play it.
           </p>
         </div>
 

@@ -1,5 +1,5 @@
 import { ArrowUpRight } from "lucide-react";
-import type { DesktopOs } from "@/lib/downloads";
+import { formatSize, type DesktopOs } from "@/lib/downloads";
 import type { ReleaseVerification } from "@/lib/release-verification";
 import { SafetyDisclosure } from "./safety-disclosure";
 import { TrackedAssetLink } from "./tracked-asset-link";
@@ -10,10 +10,6 @@ function formatDate(value: string | null): string | null {
     dateStyle: "medium",
     timeZone: "UTC",
   }).format(new Date(value));
-}
-
-function formatSize(bytes: number): string {
-  return `${(bytes / 1_000_000).toFixed(1)} MB`;
 }
 
 const VERIFY_COMMANDS: { os: DesktopOs; label: string; command: string }[] = [

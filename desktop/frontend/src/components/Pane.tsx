@@ -155,6 +155,10 @@ export interface PaneHandle {
 
 interface PaneProps {
   label?: string;
+  // Before the label (a state dot), and a line added to its tooltip (the
+  // command the pane runs).
+  labelLead?: ReactNode;
+  labelHint?: string;
   onLabelClick?: () => void;
   labelActions?: ReactNode;
   output: string;
@@ -167,7 +171,7 @@ interface PaneProps {
   ref?: Ref<PaneHandle>;
 }
 
-export function Pane({ label, onLabelClick, labelActions, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride, sessionKey, cwd = "", ref }: PaneProps) {
+export function Pane({ label, labelLead, labelHint, onLabelClick, labelActions, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride, sessionKey, cwd = "", ref }: PaneProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const sessionRef = useRef<PaneSession | null>(null);
     const filterRef = useRef<FilterMirror | null>(null);
@@ -428,16 +432,20 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
             {onLabelClick ? (
               <button
                 onClick={onLabelClick}
-                title={`Open ${label} tab`}
+                title={labelHint ? `Open ${label} tab\n${labelHint}` : `Open ${label} tab`}
                 className="group -ml-1 flex min-w-0 flex-1 items-center gap-1 rounded px-1 text-left transition-colors hover:text-[var(--terminal-tab-active)]"
               >
+                {labelLead}
                 <span className="truncate">{label}</span>
                 <span className="shrink-0 opacity-50 transition-opacity group-hover:opacity-100">
                   <ChevronRightIcon />
                 </span>
               </button>
             ) : (
-              <span className="truncate">{label}</span>
+              <span className="flex min-w-0 items-center gap-1" title={labelHint}>
+                {labelLead}
+                <span className="truncate">{label}</span>
+              </span>
             )}
             {labelActions && (
               <span className="flex shrink-0 items-center gap-0.5">{labelActions}</span>

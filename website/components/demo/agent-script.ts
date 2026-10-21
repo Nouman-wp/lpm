@@ -20,6 +20,8 @@ export type Brand = {
   color: string;
   cmd: string;
   name: string;
+  // What the composer calls the agent, as the app does.
+  short: string;
   version: string;
   model: string;
   account: string;
@@ -32,6 +34,7 @@ export const BRAND: Record<AgentKind, Brand> = {
     color: "text-[#d97757]",
     cmd: "claude",
     name: "Claude Code",
+    short: "Claude",
     version: "v2.1.232",
     model: "Fable 5",
     account: "Claude Max",
@@ -42,6 +45,7 @@ export const BRAND: Record<AgentKind, Brand> = {
     color: "text-[#ffb242]",
     cmd: "codex",
     name: "Codex",
+    short: "Codex",
     version: "v0.147.0",
     model: "gpt-6-astra max",
     account: "",

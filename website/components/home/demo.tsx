@@ -11,6 +11,7 @@ import {
   type TourState,
 } from "@/components/demo/tour";
 import { DownloadLink } from "@/components/download-link";
+import { DemoCaption } from "@/components/home/demo-caption";
 import { DemoSteps } from "@/components/home/demo-steps";
 import { YouTubeVideo } from "@/components/youtube-video";
 import { MOBILE_PATH } from "@/lib/links";
@@ -328,49 +329,6 @@ function DemoStage({
   );
 }
 
-function DemoCaption({
-  heading,
-  blurb,
-  lesson,
-  headingId,
-}: {
-  heading: string;
-  blurb: string;
-  lesson: YouTubeLessonId;
-  headingId: string;
-}) {
-  return (
-    <div className="mb-4 flex flex-col items-center gap-2 text-center lg:mb-5 lg:flex-row lg:items-end lg:justify-between lg:gap-6 lg:text-left">
-      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 lg:justify-start">
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-gray-600 dark:bg-gray-800/60 dark:text-gray-300">
-          <span
-            className="relative hidden h-1.5 w-1.5 md:inline-flex"
-            aria-hidden="true"
-          >
-            <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-          </span>
-          <span className="md:hidden">See it in action</span>
-          <span className="hidden md:inline">Live interactive demo</span>
-        </span>
-        <h2 className="text-balance text-lg font-bold tracking-tight sm:text-xl md:hidden">
-          {LESSON_CAPTION[lesson].heading}
-        </h2>
-        <h2
-          id={headingId}
-          className="hidden text-balance text-lg font-bold tracking-tight sm:text-xl md:block"
-        >
-          {heading}
-        </h2>
-      </div>
-      <p className="max-w-md text-pretty text-[13px] leading-relaxed text-gray-500 lg:max-w-none lg:whitespace-nowrap lg:text-right dark:text-gray-400">
-        <span className="md:hidden">{LESSON_CAPTION[lesson].blurb}</span>
-        <span className="hidden md:inline">{blurb}</span>
-      </p>
-    </div>
-  );
-}
-
 // What a page's demo shows: the tour it walks through (see the tours defined
 // in components/demo/tour.ts, or build one with defineTour), the caption above
 // it, and the lesson a phone plays in its place.
@@ -386,7 +344,7 @@ export type PageDemo = {
 export function DemoSection({
   tour = HOME_TOUR,
   heading = "Start a project, then hand it to Claude Code or Codex — one click each",
-  blurb = "Click anything — it runs live in your browser.",
+  blurb = "Click a step to run it, or anything in the window. It all runs in your browser.",
   lesson = "sixty-seconds",
   posterPriority = false,
 }: PageDemo & { posterPriority?: boolean }) {
@@ -401,8 +359,10 @@ export function DemoSection({
         <DemoCaption
           heading={heading}
           blurb={blurb}
-          lesson={lesson}
+          phoneHeading={LESSON_CAPTION[lesson].heading}
+          phoneBlurb={LESSON_CAPTION[lesson].blurb}
           headingId={headingId}
+          steps={tour.steps.length}
         />
         <div data-nosnippet>
           <DemoStage

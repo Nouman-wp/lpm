@@ -461,6 +461,31 @@ mod tests {
         });
     }
 
+    /// The line lpm types is echoed twice, by the terminal and again by the
+    /// shell's prompt; neither belongs in the service's log.
+    #[test]
+    fn a_service_log_starts_at_its_own_output() {
+        if !shell_reports_prompts() {
+            return;
+        }
+        let session = SessionGuard::new("echo");
+        start_project_services(
+            &session.0,
+            ".",
+            &[service("web", "echo fir''st-line; sleep 30")],
+            None,
+        )
+        .unwrap();
+        let pane = list_pane_ids(&session.0).remove(0);
+        eventually("the service's output", || {
+            capture_pane(&pane, 100)
+                .unwrap_or_default()
+                .contains("first-line")
+        });
+        let log = capture_pane(&pane, 100).unwrap();
+        assert_eq!(log.trim_start().lines().next(), Some("first-line"), "{log}");
+    }
+
     #[test]
     fn stopping_a_service_clears_its_pane_and_leaves_the_shell_for_a_restart() {
         // The stop/restart contract: the pane is a shell that outlives the

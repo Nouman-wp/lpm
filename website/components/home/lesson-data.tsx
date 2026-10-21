@@ -6,6 +6,10 @@ export type LessonStep = {
   blurb: string;
   body: ReactNode;
   lesson: YouTubeLessonId;
+  // A frame from the lesson itself: the YouTube thumbnails are all the same
+  // title card, so they can't tell the lessons apart at row size.
+  thumbnail: string;
+  seconds: number;
 };
 
 export const LESSON_STEPS: LessonStep[] = [
@@ -21,6 +25,8 @@ export const LESSON_STEPS: LessonStep[] = [
       </>
     ),
     lesson: "add-project",
+    thumbnail: "/lessons/add-project.jpg",
+    seconds: 147,
   },
   {
     title: "Start a project",
@@ -33,6 +39,8 @@ export const LESSON_STEPS: LessonStep[] = [
       </>
     ),
     lesson: "start-project",
+    thumbnail: "/lessons/start-project.jpg",
+    seconds: 115,
   },
   {
     title: "Add an action",
@@ -45,6 +53,8 @@ export const LESSON_STEPS: LessonStep[] = [
       </>
     ),
     lesson: "add-action",
+    thumbnail: "/lessons/add-action.jpg",
+    seconds: 126,
   },
   {
     title: "Switch between profiles",
@@ -57,6 +67,8 @@ export const LESSON_STEPS: LessonStep[] = [
       </>
     ),
     lesson: "switch-profiles",
+    thumbnail: "/lessons/switch-profiles.jpg",
+    seconds: 107,
   },
   {
     title: "Run Claude Code and Codex in parallel",
@@ -70,6 +82,8 @@ export const LESSON_STEPS: LessonStep[] = [
       </>
     ),
     lesson: "parallel-agents",
+    thumbnail: "/lessons/parallel-agents.jpg",
+    seconds: 110,
   },
   {
     title: "lpm in 60 seconds",
@@ -81,5 +95,15 @@ export const LESSON_STEPS: LessonStep[] = [
       </>
     ),
     lesson: "sixty-seconds",
+    thumbnail: "/lessons/sixty-seconds.jpg",
+    seconds: 63,
   },
 ];
+
+export function formatLength(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+export const LESSONS_TOTAL_MINUTES = Math.round(
+  LESSON_STEPS.reduce((sum, step) => sum + step.seconds, 0) / 60,
+);

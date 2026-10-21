@@ -306,18 +306,20 @@ impl Parser {
     }
 
     /// OSC 0 (icon + title) and OSC 2 (title) are what a shell writes to name
-    /// its pane, and the prompt OSC is how it reports a finished command;
-    /// everything else here is for someone other than us.
+    /// its pane, the prompt OSC is how it reports a finished command, and the
+    /// exec OSC says it has started running the line lpm typed; everything else
+    /// here is for someone other than us.
     fn finish_osc(&mut self, grid: &mut Grid) {
         let payload = String::from_utf8_lossy(&self.osc);
-        if let Some((code, text)) = payload.split_once(';') {
-            if code == "0" || code == "2" {
-                grid.title = text.to_string();
-            } else if code == crate::panehook::PROMPT_OSC {
-                if let Ok(status) = text.trim().parse() {
-                    self.prompts.push(status);
-                }
+        let (code, text) = payload.split_once(';').unwrap_or((&payload, ""));
+        if code == "0" || code == "2" {
+            grid.title = text.to_string();
+        } else if code == crate::panehook::PROMPT_OSC {
+            if let Ok(status) = text.trim().parse() {
+                self.prompts.push(status);
             }
+        } else if code == crate::panehook::EXEC_OSC {
+            grid.cut_to_anchor();
         }
         self.osc.clear();
     }
@@ -496,6 +498,53 @@ mod tests {
         assert_eq!(parser.take_prompts(), vec![1, 0]);
         assert!(parser.take_prompts().is_empty());
         assert_eq!(grid.capture(10).trim(), "boom\n$");
+    }
+
+    /// What a pane sees when lpm types a line into a shell that isn't ready
+    /// yet: the terminal echoes it, the prompt draws it again, then the shell
+    /// says it is running it and the output follows.
+    const TYPED: &[u8] = b"cd '/srv/app' && npm run api\r\n$ cd '/srv/app' && npm run api\r\n\x1b]7702\x07listening on :4000\r\n";
+
+    #[test]
+    fn the_typed_line_and_its_echoes_are_dropped_once_it_runs() {
+        let mut grid = Grid::new(40, 6);
+        let mut parser = Parser::default();
+        parser.feed(b"last run's log\r\n", &mut grid);
+        grid.mark_anchor();
+        parser.feed(TYPED, &mut grid);
+        assert_eq!(
+            grid.capture(100).trim(),
+            "last run's log\nlistening on :4000"
+        );
+    }
+
+    #[test]
+    fn the_cut_reaches_rows_that_scrolled_into_history() {
+        let mut grid = Grid::new(16, 3);
+        let mut parser = Parser::default();
+        parser.feed(b"kept\r\n", &mut grid);
+        grid.mark_anchor();
+        parser.feed(TYPED, &mut grid);
+        parser.feed(b"GET / 200\r\n", &mut grid);
+        assert_eq!(
+            grid.capture(100).trim(),
+            "kept\nlistening on :4000\nGET / 200"
+        );
+    }
+
+    #[test]
+    fn without_a_typed_line_the_exec_mark_changes_nothing() {
+        assert_eq!(render(40, 6, TYPED).lines().count(), 3);
+    }
+
+    #[test]
+    fn a_full_screen_program_is_never_cut() {
+        let mut grid = Grid::new(40, 6);
+        let mut parser = Parser::default();
+        parser.feed(b"\x1b[?1049hmenu\r\n", &mut grid);
+        grid.mark_anchor();
+        parser.feed(b"typed\r\n\x1b]7702\x07", &mut grid);
+        assert_eq!(grid.capture(100).trim(), "menu\ntyped");
     }
 
     #[test]
