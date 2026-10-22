@@ -150,6 +150,17 @@ fn refresh(app: &AppHandle, key: &str) {
     let _ = app.emit("job-status", json!({ "project": project, "jobId": job_id }));
 }
 
+/// The question `id` of `project`/`job_id` as it stands now, wherever it sits.
+pub(crate) fn current(project: &str, job_id: &str, id: &str) -> Option<Ask> {
+    let f = {
+        let _g = state_lock().lock().unwrap();
+        load_state_file()
+    };
+    let st = f.jobs.get(&state_key(project, job_id))?;
+    let found = asks(st).map(|(_, a)| a).find(|a| a.id == id).cloned();
+    found
+}
+
 /// Put a question to the user on behalf of the run holding `token`.
 fn open(app: &AppHandle, token: &str, request: &Value) -> Result<Value, String> {
     let request = askform::parse_request(request)?;
@@ -178,7 +189,7 @@ fn open(app: &AppHandle, token: &str, request: &Value) -> Result<Value, String> 
             ASKED,
             &None,
             Some(ask.summary()),
-            SendOut::Report(Some(&ask.outline())),
+            SendOut::Asked(Some(&ask.outline()), &ask),
         );
     } else {
         // The agent is still ending its turn; the run announces the question

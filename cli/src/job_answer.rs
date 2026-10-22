@@ -35,6 +35,18 @@ pub struct AnswerArgs {
     json: bool,
 }
 
+/// A run never answers its own questions: inside one (`LPM_RUN_ID` set) the
+/// command stops with what to do instead. The app refuses it too; this only
+/// says so before asking.
+pub(crate) fn outside_run(run_id: Option<String>) -> Result<(), RunError> {
+    match run_id.filter(|id| !id.is_empty()) {
+        Some(_) => Err(RunError::Internal(
+            "an automation run can't answer, dismiss or reply to automation questions; the user answers in lpm, lpm Link or Telegram".into(),
+        )),
+        None => Ok(()),
+    }
+}
+
 /// The open question, and the project its run belongs to.
 fn waiting(ctx: &Ctx, target: &Target) -> Result<(String, Value), RunError> {
     control::require_app(ctx)?;
@@ -126,6 +138,7 @@ pub(crate) fn describe(ask: &Value) -> String {
 }
 
 pub fn answer(ctx: &Ctx, args: AnswerArgs) -> Result<(), RunError> {
+    outside_run(std::env::var("LPM_RUN_ID").ok())?;
     let job_id = &args.target.job_id;
     let (project, ask) = waiting(ctx, &args.target)?;
     let ask_id = value_text(&ask, "id").to_string();
@@ -225,5 +238,12 @@ mod tests {
         let text = describe(&ask);
         assert!(text.contains("Deploy?  [q1]\n  --yes (Ship)  or  --no (No)"));
         assert!(text.contains("--pick 'us'"));
+    }
+
+    #[test]
+    fn answering_is_refused_inside_a_run() {
+        assert!(outside_run(Some("abc123".into())).is_err());
+        assert!(outside_run(Some(String::new())).is_ok());
+        assert!(outside_run(None).is_ok());
     }
 }

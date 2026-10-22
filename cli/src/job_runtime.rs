@@ -304,6 +304,7 @@ pub(crate) fn reply(
     effort: Option<&str>,
     as_json: bool,
 ) -> Result<(), RunError> {
+    crate::job_answer::outside_run(std::env::var("LPM_RUN_ID").ok())?;
     let projects = projects(ctx, target)?;
     let (project, at) = conversation(ctx, &target.job_id, &projects, at)?;
     let mut rest = format!("{at} --message-hex={}", hex_encode(message));

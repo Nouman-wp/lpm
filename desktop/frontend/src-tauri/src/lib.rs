@@ -191,6 +191,7 @@ mod remote_upload;
 mod remotessh;
 mod remotestore;
 mod remotetls;
+mod runguard;
 #[cfg(windows)]
 mod runjob;
 mod send_later;
@@ -247,8 +248,12 @@ mod openaitts;
 mod secrets;
 mod sendto;
 mod telegram;
+mod telegramanswer;
+mod telegramask;
+mod telegramasks;
 mod telegramfmt;
 mod telegramlink;
+mod telegrampoll;
 mod telegramsync;
 mod tts;
 mod uninstall;
@@ -665,6 +670,10 @@ pub fn run() {
             // jobs on their schedule. Same sleep-survival model as the updater.
             jobs::start_scheduler(handle.clone());
 
+            // Answers to automation questions from Telegram: reads the bot
+            // while a question posted there is open.
+            telegrampoll::init(&handle);
+
             // Prompts scheduled to send later: owns the list and the clock that
             // marks each one due or missed; the main window does the sending.
             send_later::start(handle.clone());
@@ -707,6 +716,7 @@ pub fn run() {
                 peerclient::stop(&app.state::<peerclient::PeerClientHub>()); // drop peer client conns
                 tailnet::stop(); // take the built-in Tailscale node offline
                 keepawake::release(); // let this machine sleep again
+                telegrampoll::stop(); // stop reading Telegram for answers
                 socketsrv::release();
             }
             // Dock-icon click with no visible window restores the hidden main

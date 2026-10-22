@@ -1,0 +1,53 @@
+{
+  "requestDone": {
+    "youtube": {
+      "en": "You asked, we raced it: {A} vs {B} 👉 {link}",
+      "ru": "Вы просили — мы сравнили: {A} vs {B} 👉 {link}",
+      "uk": "Ви просили — ми порівняли: {A} vs {B} 👉 {link}",
+      "es": "Lo pediste y lo hicimos: {A} vs {B} 👉 {link}",
+      "pt": "Você pediu, nós fizemos: {A} vs {B} 👉 {link}",
+      "de": "Gewünscht, gemacht: {A} vs {B} 👉 {link}",
+      "fr": "Vous l'avez demandé, c'est fait : {A} vs {B} 👉 {link}",
+      "tr": "İstediniz, yarıştırdık: {A} vs {B} 👉 {link}"
+    },
+    "tiktok": {
+      "en": "You asked, we raced it {icon} {A} vs {B} is up on our profile now",
+      "ru": "Вы просили — мы сравнили {icon} {A} vs {B} уже в профиле",
+      "uk": "Ви просили — ми порівняли {icon} {A} vs {B} вже в профілі",
+      "es": "Lo pediste y lo hicimos {icon} {A} vs {B} ya está en nuestro perfil",
+      "pt": "Você pediu, nós fizemos {icon} {A} vs {B} já está no nosso perfil",
+      "de": "Gewünscht, gemacht {icon} {A} vs {B} ist jetzt auf unserem Profil",
+      "fr": "Vous l'avez demandé {icon} {A} vs {B} est sur notre profil",
+      "tr": "İstediniz, yarıştırdık {icon} {A} vs {B} profilimizde"
+    }
+  },
+  "alreadyMade": {
+    "youtube": {
+      "en": "Already raced: {A} vs {B} 👉 {link}",
+      "ru": "Уже есть: {A} vs {B} 👉 {link}",
+      "uk": "Вже є: {A} vs {B} 👉 {link}"
+    },
+    "tiktok": {
+      "en": "Already raced {icon} {A} vs {B} is on our profile",
+      "ru": "Уже есть {icon} {A} vs {B} — в профиле",
+      "uk": "Вже є {icon} {A} vs {B} — у профілі"
+    }
+  },
+  "answer": {
+    "ultracode": {
+      "en": "Ultracode isn't an effort level: it runs Claude Code's multi-agent workflow on top of the effort you pick.",
+      "ru": "Ultracode — это не уровень effort: это мультиагентный режим Claude Code поверх выбранного effort.",
+      "uk": "Ultracode — це не рівень effort: це мультиагентний режим Claude Code поверх обраного effort."
+    },
+    "effort_levels": {
+      "en": "Effort sets how long the model thinks before it answers: low, medium, high, xhigh, max.",
+      "ru": "Effort задаёт, сколько модель думает перед ответом: low, medium, high, xhigh, max.",
+      "uk": "Effort задає, скільки модель думає перед відповіддю: low, medium, high, xhigh, max."
+    },
+    "one_run_not_enough": {
+      "en": "Fair point: one run is one sample. Same prompt and settings on both sides, and both results shown in full.",
+      "ru": "Справедливо: один запуск — одна выборка. Промпт и настройки одинаковые, оба результата показаны целиком.",
+      "uk": "Справедливо: один запуск — одна вибірка. Промпт і налаштування однакові, обидва результати показані повністю."
+    }
+  }
+}

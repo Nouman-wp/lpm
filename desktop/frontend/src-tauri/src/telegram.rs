@@ -14,35 +14,74 @@ const API: &str = "https://api.telegram.org";
 /// in several.
 const MAX_MESSAGE_CHARS: usize = 4000;
 
-fn token() -> Result<String, String> {
+/// Where Bot API calls go. A debug build takes `LPM_TELEGRAM_API`, so a stand-in
+/// server can play Telegram in a test.
+fn api_base() -> String {
+    #[cfg(debug_assertions)]
+    if let Ok(base) = std::env::var("LPM_TELEGRAM_API") {
+        return base;
+    }
+    API.to_string()
+}
+
+pub(crate) fn token() -> Result<String, String> {
     secrets::get(secrets::TELEGRAM_BOT_TOKEN)?
         .ok_or_else(|| "Telegram isn't connected. Set it up in Settings → Notifications.".into())
 }
 
-/// One Bot API call. The token is part of the URL, so a transport error is
-/// reported without it.
-fn call(token: &str, method: &str, body: Value) -> Result<Value, String> {
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(20))
+/// A Bot API refusal as Telegram gave it: its error code and how long it asked
+/// for a pause, where it said.
+#[derive(Debug)]
+pub(crate) struct ApiError {
+    pub code: Option<i64>,
+    pub retry_after: Option<u64>,
+    pub text: String,
+}
+
+pub(crate) fn client(timeout: Duration) -> Result<reqwest::blocking::Client, String> {
+    reqwest::blocking::Client::builder()
+        .timeout(timeout)
         .user_agent("lpm")
         .build()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())
+}
+
+/// One Bot API call. The token is part of the URL, so a transport error is
+/// reported without it.
+pub(crate) fn api(
+    client: &reqwest::blocking::Client,
+    token: &str,
+    method: &str,
+    body: &Value,
+) -> Result<Value, ApiError> {
+    let failed = |text: String| ApiError {
+        code: None,
+        retry_after: None,
+        text,
+    };
     let resp = client
-        .post(format!("{API}/bot{token}/{method}"))
+        .post(format!("{}/bot{token}/{method}", api_base()))
         .header("content-type", "application/json")
         .body(body.to_string())
         .send()
-        .map_err(|e| format!("Couldn't reach Telegram: {}", e.without_url()))?;
+        .map_err(|e| failed(format!("Couldn't reach Telegram: {}", e.without_url())))?;
     let reply: Value = serde_json::from_str(&resp.text().unwrap_or_default())
-        .map_err(|_| "Telegram sent back something unreadable.".to_string())?;
+        .map_err(|_| failed("Telegram sent back something unreadable.".into()))?;
     if reply["ok"].as_bool() == Some(true) {
-        Ok(reply["result"].clone())
-    } else {
-        Err(match reply["description"].as_str() {
+        return Ok(reply["result"].clone());
+    }
+    Err(ApiError {
+        code: reply["error_code"].as_i64(),
+        retry_after: reply["parameters"]["retry_after"].as_u64(),
+        text: match reply["description"].as_str() {
             Some(d) => format!("Telegram said: {d}"),
             None => "Telegram turned the request down.".into(),
-        })
-    }
+        },
+    })
+}
+
+pub(crate) fn call(token: &str, method: &str, body: Value) -> Result<Value, String> {
+    api(&client(Duration::from_secs(20))?, token, method, &body).map_err(|e| e.text)
 }
 
 /// A blocking request dropped on an async command worker panics, so the
@@ -62,21 +101,35 @@ fn head(report: &Report) -> String {
 }
 
 /// Sends one message formatted, or as plain text when Telegram can't read the
-/// markup — an odd report is still worth delivering unformatted.
-fn send_message(token: &str, chat_id: i64, message: &telegramfmt::Message) -> Result<(), String> {
+/// markup — an odd report is still worth delivering unformatted. Returns the
+/// message's id and its text as Telegram stored it; `buttons` go under it
+/// either way.
+fn send_message(
+    token: &str,
+    chat_id: i64,
+    message: &telegramfmt::Message,
+    buttons: Option<&Value>,
+) -> Result<(i64, String), String> {
     let body = |text: &str, html: bool| {
         let mut body = json!({ "chat_id": chat_id, "text": text, "link_preview_options": { "is_disabled": true } });
         if html {
             body["parse_mode"] = json!("HTML");
         }
+        if let Some(buttons) = buttons {
+            body["reply_markup"] = buttons.clone();
+        }
         body
     };
-    match call(token, "sendMessage", body(&message.html, true)) {
+    let sent = match call(token, "sendMessage", body(&message.html, true)) {
         Err(e) if e.contains("can't parse entities") => {
-            call(token, "sendMessage", body(&message.plain, false)).map(drop)
+            call(token, "sendMessage", body(&message.plain, false))
         }
-        sent => sent.map(drop),
-    }
+        sent => sent,
+    }?;
+    Ok((
+        sent["message_id"].as_i64().unwrap_or_default(),
+        sent["text"].as_str().unwrap_or_default().to_string(),
+    ))
 }
 
 pub struct Telegram;
@@ -107,8 +160,31 @@ impl Destination for Telegram {
                 )
             }
         };
-        for message in telegramfmt::messages(&head(report), report.body.as_deref(), MAX_MESSAGE_CHARS) {
-            send_message(&token, chat_id, &message)?;
+        let kind = link.chat(target).map_or("", |c| c.kind.as_str());
+        let replies = kind != "channel";
+        let asking = report
+            .asking
+            .as_ref()
+            .filter(|a| crate::telegramask::supported(&a.ask));
+        let buttons = asking.map(|a| crate::telegramask::keyboard(&a.ask, &[], replies));
+        let messages =
+            telegramfmt::messages(&head(report), report.body.as_deref(), MAX_MESSAGE_CHARS);
+        let last = messages.len().saturating_sub(1);
+        for (i, message) in messages.iter().enumerate() {
+            let (id, text) = send_message(
+                &token,
+                chat_id,
+                message,
+                buttons.as_ref().filter(|_| i == last),
+            )?;
+            if let (true, Some(asking), Some(buttons)) = (i == last, asking, &buttons) {
+                let post = crate::telegramasks::Post {
+                    message: id,
+                    keyboard: buttons.clone(),
+                    text,
+                };
+                crate::telegramanswer::posted(asking, chat_id, kind, post);
+            }
         }
         Ok(())
     }
@@ -169,7 +245,7 @@ pub fn telegram_connect(token: String) -> Result<Value, String> {
 /// without a separate test.
 fn welcome(chat: &Chat) -> &'static str {
     if chat.kind == "private" {
-        "lpm is connected. Automations that send to Telegram will post their results in this chat."
+        "lpm is connected. Automations that send to Telegram will post their results in this chat, and you can answer their questions here."
     } else {
         "lpm will post automation results here."
     }
@@ -180,21 +256,26 @@ fn welcome(chat: &Chat) -> &'static str {
 /// Returns the chats that are new, often none.
 #[tauri::command(async)]
 pub fn telegram_find_chats() -> Result<Vec<Value>, String> {
-    off_worker(|| {
-        let token = token()?;
-        let mut link = Link::load();
-        let mut body = json!({ "timeout": 0 });
-        if let Some(offset) = link.offset {
-            body["offset"] = json!(offset + 1);
-        }
-        let updates = call(&token, "getUpdates", body)?;
-        let added = link.take_updates(&updates);
-        link.save()?;
+    off_worker(|| Ok(crate::telegrampoll::look()?.iter().map(chat_json).collect()))
+}
+
+/// The bot's updates, read once by whoever is reading them (telegrampoll), go
+/// to linking here: a chat that tapped Start or got the bot added becomes one
+/// lpm sends to, and is greeted. telegram.json is only written when a chat
+/// joined, since every write of it is synced.
+pub(crate) fn take_new_chats(token: &str, updates: &Value) -> Vec<Chat> {
+    let mut link = Link::load();
+    let added = link.take_updates(updates);
+    if !added.is_empty() && link.save().is_ok() {
         for chat in &added {
-            let _ = call(&token, "sendMessage", json!({ "chat_id": chat.chat_id, "text": welcome(chat) }));
+            let _ = call(
+                token,
+                "sendMessage",
+                json!({ "chat_id": chat.chat_id, "text": welcome(chat) }),
+            );
         }
-        Ok(added.iter().map(chat_json).collect())
-    })
+    }
+    added
 }
 
 #[tauri::command(async)]
@@ -206,8 +287,9 @@ pub fn telegram_test(key: Option<String>) -> Result<(), String> {
                 mark: "",
                 title: "lpm is connected.".into(),
                 body: Some(
-                    "Automations that send to this chat will post their results here.".into(),
+                    "Automations that send to this chat will post their results here, and you can answer their questions here.".into(),
                 ),
+                asking: None,
             },
         )
     })
@@ -252,6 +334,7 @@ mod tests {
             mark,
             title: "\"Watch\" is done.".into(),
             body: None,
+            asking: None,
         };
         assert_eq!(head(&report("✅")), "✅ \"Watch\" is done.");
         assert_eq!(head(&report("")), "\"Watch\" is done.");

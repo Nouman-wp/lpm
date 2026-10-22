@@ -201,6 +201,7 @@ pub(crate) fn replay_remote(app: &AppHandle, frames: &str) {
 
 fn handle_client(stream: UnixStream, store: &StatusStore, app: &AppHandle, restricted: bool) {
     let _ = stream.set_read_timeout(Some(Duration::from_secs(30)));
+    let peer = crate::ipc::peer_pid(&stream);
     let Ok(mut writer) = stream.try_clone() else {
         return;
     };
@@ -219,6 +220,8 @@ fn handle_client(stream: UnixStream, store: &StatusStore, app: &AppHandle, restr
             .to_lowercase();
         let write_result = if restricted && !remote_allowed(&first) {
             writeln!(writer, "ERROR: not allowed on remote socket")
+        } else if crate::runguard::refused(&first) && crate::runguard::from_run(peer) {
+            writeln!(writer, "{}", crate::runguard::refusal(&first))
         } else if first == "duplicate_project" || first == "duplicate_worktree" {
             cmd_duplicate_project(&line, app, &mut writer, first == "duplicate_worktree")
         } else {

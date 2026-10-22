@@ -250,7 +250,7 @@ export const ROWS = {
     id: "notifications.telegram",
     reach: "any",
     label: "Telegram",
-    description: "Send automation results to a Telegram chat",
+    description: "Send automation results to a Telegram chat and answer their questions there",
     keywords: ["telegram", "bot", "chat", "automation", "job", "send to", "message"],
   },
   "notifications.sendToRequest": {

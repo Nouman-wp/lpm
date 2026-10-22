@@ -21,7 +21,7 @@ The lpm app runs automations on their schedule while it is running. Each run goe
 3. The run itself: `--cmd`, `--action`, or `--prompt`. It times out after an hour, not counting time spent waiting on an answer.
 4. `--verify` (optional) runs afterwards. Exit 0 means the checks passed. It times out after 15 minutes.
 
-Every step gets `LPM_JOB_ID`, `LPM_PROJECT_NAME`, `LPM_RUN_ROOT` (where the run happens), `LPM_IS_COPY` (`1` in a copy), `LPM_TRIGGER` (`schedule`, `manual`, or `reply`), and, when known, `LPM_SCHEDULED_FOR` and `LPM_LAST_RUN_AT` (Unix seconds). The run itself also gets `LPM_RUN_ID`, which `lpm ask` uses to put a question to the user: a `cmd` waits for the answer, an AI prompt ends its turn and is resumed with it. While a question is open, the automation's scheduled runs are skipped and Run now is refused. SSH projects can't have automations.
+Every step gets `LPM_JOB_ID`, `LPM_PROJECT_NAME`, `LPM_RUN_ROOT` (where the run happens), `LPM_IS_COPY` (`1` in a copy), `LPM_TRIGGER` (`schedule`, `manual`, or `reply`), and, when known, `LPM_SCHEDULED_FOR` and `LPM_LAST_RUN_AT` (Unix seconds). The run itself also gets `LPM_RUN_ID`, which `lpm ask` uses to put a question to the user: a `cmd` waits for the answer, an AI prompt ends its turn and is resumed with it. The user answers in lpm, lpm Link, or Telegram when the automation sends there (its buttons, or a reply to the message), never the run itself. While a question is open, the automation's scheduled runs are skipped and Run now is refused. SSH projects can't have automations.
 
 ## Where it lives
 
@@ -102,7 +102,7 @@ A headless run has no one to answer its questions, so write the prompt as a comp
   - `--reinstall-deps` reinstalls dependencies in the copy or worktree.
   - `--pull-latest false` stops a copy from pulling the latest commits first.
   - `--exclude-uncommitted` leaves uncommitted changes out of a copy.
-- `--send-to lpm,telegram` sets where results go: `lpm` (the default), `telegram`, or `telegram:<target>`.
+- `--send-to lpm,telegram` sets where results go: `lpm` (the default), `telegram`, or `telegram:<target>`. A question asked one at a time can be answered from Telegram too.
 
 ## Edit
 

@@ -9,7 +9,7 @@ const { sleep } = shared("words");
 class TikTokStage extends AppStage {
   constructor(app, capture, opts = {}) {
     super(app, capture, opts);
-    this.pointer = [];
+    this.moves = [];
     this.labels = [];
     this.cuts = [];
     this.payoffMs = null;
@@ -29,7 +29,7 @@ class TikTokStage extends AppStage {
   // the pointer out of a push-in.
   // A re-glide the stage makes on its own (a click whose target shifted).
   async glideTo(x, y, ms) {
-    this.pointer.push({ startMs: this.now(), ms: Math.max(ms, 150), x, y });
+    this.moves.push({ startMs: this.now(), ms: Math.max(ms, 150), x, y });
     await super.glideTo(x, y, ms);
   }
 
@@ -37,8 +37,9 @@ class TikTokStage extends AppStage {
     const p = await this.point(sel, opts.at);
     const ms = opts.ms ?? 600;
     if (opts.cue) await this.holdUntil(this.cueMs(opts.cue) - ms - (opts.pause ?? 0));
-    this.pointer.push({ startMs: this.now(), ms, x: p.x, y: p.y });
+    this.moves.push({ startMs: this.now(), ms, x: p.x, y: p.y });
     await this.control.evaluate((x, y, ms) => window.__lc.moveTo(x, y, ms), p.x, p.y, ms);
+    this.pointer = p;
     if (this.mouse === "real") this.realMove(p.x, p.y);
     else await this.control.evaluate((x, y) => window.__lc.hover(x, y), p.x, p.y);
     if (opts.after) await sleep(opts.after);
@@ -114,7 +115,7 @@ class TikTokStage extends AppStage {
 
   timelineExtras() {
     return {
-      pointer: this.pointer,
+      pointer: this.moves,
       labels: this.labels,
       cuts: this.cuts,
       payoffMs: this.payoffMs,

@@ -186,9 +186,118 @@ pub fn process_table() -> Vec<(u32, u32)> {
     out
 }
 
+/// Every process as (pid, parent pid, start time). With the pid, the start
+/// time names one process, not a later one that reused the pid. Its unit is
+/// the platform's own, so starts are only compared with each other.
+#[cfg(target_os = "macos")]
+pub fn process_starts() -> Vec<(u32, u32, u64)> {
+    let mut pids = vec![0 as libc::pid_t; 16_384];
+    let bytes = (pids.len() * std::mem::size_of::<libc::pid_t>()) as libc::c_int;
+    let n = unsafe { libc::proc_listallpids(pids.as_mut_ptr() as *mut libc::c_void, bytes) };
+    pids.truncate(n.max(0) as usize);
+    pids.into_iter()
+        .filter(|&pid| pid > 0)
+        .filter_map(|pid| parent_and_start(pid as u32).map(|(ppid, start)| (pid as u32, ppid, start)))
+        .collect()
+}
+
+#[cfg(target_os = "linux")]
+pub fn process_starts() -> Vec<(u32, u32, u64)> {
+    let Ok(dir) = std::fs::read_dir("/proc") else {
+        return Vec::new();
+    };
+    dir.flatten()
+        .filter_map(|entry| {
+            let pid: u32 = entry.file_name().to_str()?.parse().ok()?;
+            parent_and_start(pid).map(|(ppid, start)| (pid, ppid, start))
+        })
+        .collect()
+}
+
+#[cfg(windows)]
+pub fn process_starts() -> Vec<(u32, u32, u64)> {
+    process_table()
+        .into_iter()
+        .map(|(pid, ppid)| (pid, ppid, crate::procwin::created(pid).unwrap_or(0)))
+        .collect()
+}
+
+/// When `pid` started, in process_starts' unit; None when no process has it
+/// (or it is another user's we may not read).
+pub fn start_of(pid: u32) -> Option<u64> {
+    #[cfg(unix)]
+    return parent_and_start(pid).map(|(_, start)| start);
+    #[cfg(windows)]
+    return crate::procwin::created(pid);
+}
+
+#[cfg(target_os = "macos")]
+fn parent_and_start(pid: u32) -> Option<(u32, u64)> {
+    let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
+    let size = std::mem::size_of::<libc::proc_bsdinfo>() as libc::c_int;
+    let got = unsafe {
+        libc::proc_pidinfo(
+            pid as libc::c_int,
+            libc::PROC_PIDTBSDINFO,
+            0,
+            &mut info as *mut _ as *mut libc::c_void,
+            size,
+        )
+    };
+    (got == size).then(|| {
+        (
+            info.pbi_ppid,
+            info.pbi_start_tvsec * 1_000_000 + info.pbi_start_tvusec,
+        )
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn parent_and_start(pid: u32) -> Option<(u32, u64)> {
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    // The command name can hold spaces and parentheses; the fields after its
+    // closing parenthesis can't.
+    let fields: Vec<&str> = stat[stat.rfind(')')? + 2..].split_whitespace().collect();
+    Some((fields.get(1)?.parse().ok()?, fields.get(19)?.parse().ok()?))
+}
+
+/// The session `pid` is in: its session leader's pid, which outlives the
+/// leader. Windows has no such sessions.
+pub fn session_of(pid: u32) -> Option<u32> {
+    #[cfg(unix)]
+    {
+        let sid = unsafe { libc::getsid(pid as libc::pid_t) };
+        (sid > 0).then_some(sid as u32)
+    }
+    #[cfg(windows)]
+    {
+        let _ = pid;
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_process_has_one_start_time() {
+        let me = std::process::id();
+        let start = start_of(me).expect("this process");
+        assert_eq!(process_starts().iter().find(|p| p.0 == me).map(|p| p.2), Some(start));
+        assert_eq!(start_of(u32::MAX - 7), None);
+    }
+
+    #[test]
+    fn the_table_holds_this_process_and_its_parent() {
+        let table = process_starts();
+        let me = table
+            .iter()
+            .find(|p| p.0 == std::process::id())
+            .expect("this process");
+        assert!(me.1 > 0);
+        assert!(table.iter().any(|p| p.0 == me.1));
+    }
 
     #[test]
     fn this_process_is_alive() {

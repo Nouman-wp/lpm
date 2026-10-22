@@ -73,10 +73,14 @@ impl Link {
     }
 
     pub fn load() -> Link {
+        Link::try_load().unwrap_or_default()
+    }
+
+    /// The link as saved, or None when the file is missing or unreadable.
+    pub fn try_load() -> Option<Link> {
         std::fs::read(path())
             .ok()
             .and_then(|bytes| Link::parse(&bytes).ok())
-            .unwrap_or_default()
     }
 
     pub fn parse(bytes: &[u8]) -> Result<Link, String> {
@@ -159,7 +163,7 @@ impl Link {
 
 impl Link {
     /// Whether `user` is someone lpm already writes to privately — the user.
-    fn is_owner(&self, user: i64) -> bool {
+    pub(crate) fn is_owner(&self, user: i64) -> bool {
         self.chats.iter().any(|c| c.kind == "private" && c.chat_id == user)
     }
 

@@ -1,6 +1,6 @@
 ---
 name: lesson
-version: 4.1.0
+version: 4.1.1
 argument-hint: "\"<title>\" [-- <text>]"
 description: "Make a narrated lesson video about lpm from the real desktop app, recorded on a pristine data directory. Title and optional narration text in, MP4 with OpenAI voice out, audio in sync with the clicks. Use when the user asks for a video lesson, tutorial, screencast, or YouTube video about lpm."
 ---

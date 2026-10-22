@@ -53,3 +53,4 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-pu
 - Claude vs Muse: Opus 5.5 high vs Muse Wonder build a 3D game
 - Claude vs Gemini: Opus 5.5 high vs Gemini 4 Argon high build a 3D game
 - Opus 5.5 high vs Gemini 4 Argon high: the giraffe test
+- Claude vs ChatGPT: Sonnet 5.5 high vs GPT-6.1 Sol high, the giraffe test

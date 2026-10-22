@@ -160,7 +160,7 @@ function installStage({ cursorSvg, hotspot, hiddenText, scale }) {
     if (el && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) {
       const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
       Object.getOwnPropertyDescriptor(proto, "value").set.call(el, el.value + text);
-      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new InputEvent("input", { bubbles: true, data: text, inputType: "insertText" }));
       return true;
     }
     return document.execCommand("insertText", false, text);

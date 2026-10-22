@@ -269,8 +269,8 @@ class AppStage extends Timing {
   // usually the terminal the take was started from, where "return" submits.
   // The lesson app is brought back once, else the take stops before typing.
   // Matched by pid: the user's own lpm is also called lpm-desktop.
-  async ensureFrontmost(what = "typing") {
-    if (this.mouse !== "real" || this.app.input) return;
+  async ensureFrontmost(what = "typing", always = false) {
+    if ((this.mouse !== "real" && !always) || this.app.input) return;
     const front = () => {
       try {
         const out = execFileSync("osascript", ["-e", 'tell application "System Events" to tell (first application process whose frontmost is true) to return (unix id as text) & tab & name'], { encoding: "utf8" });
@@ -343,7 +343,7 @@ class AppStage extends Timing {
   // parts of the app that are not web content (the folder picker sheet).
   async keys(combo) {
     if (this.app.input) return this.app.input.keys(combo);
-    await this.ensureFrontmost();
+    await this.ensureFrontmost(`pressing ${combo}`, true);
     const parts = combo.toLowerCase().split("+");
     const key = parts.pop();
     const mods = parts.map((m) => ({ cmd: "command down", shift: "shift down", alt: "option down", ctrl: "control down" })[m]).filter(Boolean);

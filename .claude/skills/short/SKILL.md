@@ -1,6 +1,6 @@
 ---
 name: short
-version: 1.3.0
+version: 1.3.1
 argument-hint: "\"<topic>\" [-- <notes>]"
 description: "Make a short vertical (9:16) lpm lesson that feels native to TikTok, Reels and Shorts: a payoff-first hook, fast push-ins that follow the action, word-by-word burned-in captions, numbered step stickers, jump cuts over waiting, recorded from the real desktop app. Topic in, 1080x1920 MP4 + cover + post caption out. Use when the user asks for a TikTok, a Reel, a Short, or any vertical or short-form video about lpm."
 ---

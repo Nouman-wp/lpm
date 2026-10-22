@@ -54,10 +54,10 @@ const ASKED: &str = "asked";
 /// The whole reply a quiet job's agent gives when its run turned up nothing.
 const NOTHING_TO_REPORT: &str = "NOTHING_TO_REPORT";
 const QUIET_INSTRUCTION: &str = "If you find nothing new or worth reporting, reply with exactly NOTHING_TO_REPORT and nothing else.";
-const ASK_INSTRUCTION: &str = "If you can't go on without a decision or information only the user has, ask them with `lpm ask` (yes/no: `lpm ask \"Deploy to staging?\" --confirm`; a pick from a list: `lpm ask \"Which region?\" --choice us-east --choice eu-west`; free text: `lpm ask \"What should the release be called?\" --text`; `lpm ask --help` for more), then end your turn: their answer comes back as your next message. Don't ask about anything you can decide yourself.";
+const ASK_INSTRUCTION: &str = "If you can't go on without a decision or information only the user has, ask them with `lpm ask` (yes/no: `lpm ask \"Deploy to staging?\" --confirm`; a pick from a list: `lpm ask \"Which region?\" --choice us-east --choice eu-west`; free text: `lpm ask \"What should the release be called?\" --text`; `lpm ask --help` for more), then end your turn: their answer comes back as your next message. Only the user answers it; never answer or dismiss it yourself. Don't ask about anything you can decide yourself.";
 
 pub(crate) mod ask;
-mod askform;
+pub(crate) mod askform;
 
 // ---- config parsing ---------------------------------------------------------
 
@@ -1678,8 +1678,10 @@ fn wait_or_kill(
     key: Option<&str>,
 ) -> Result<WaitVerdict, String> {
     let pid = child.id() as i32;
+    let watch = crate::runguard::watch(child.id());
     let mut last = std::time::Instant::now();
     loop {
+        watch.sweep();
         if key.is_some_and(is_cancel_requested) {
             kill_group(pid);
             let _ = child.wait();
@@ -2957,8 +2959,10 @@ fn announce_end(
 ) {
     let (project, job_id) = split_key(key);
     let mut status = (entry.result.as_str(), detail, report);
+    let mut asking = None;
     if entry.result != CANCELED {
         if let Some(open) = entry.asks.iter().find(|a| a.is_open() && !a.blocking) {
+            asking = Some(open);
             let said = entry.output.as_deref().map(str::trim).unwrap_or_default();
             let body = [said, &open.outline()]
                 .into_iter()
@@ -2973,10 +2977,13 @@ fn announce_end(
     let (result, detail, body) = status;
     // A reply someone is reading in lpm isn't news to send out; the job's own
     // work resuming after an answer is.
-    let send_out = if entry.question.is_none() || entry.answer_to.is_some() {
-        SendOut::Report(body.as_deref())
-    } else {
-        SendOut::No
+    let send_out = match (
+        entry.question.is_none() || entry.answer_to.is_some(),
+        asking,
+    ) {
+        (false, _) => SendOut::No,
+        (true, Some(ask)) => SendOut::Asked(body.as_deref(), ask),
+        (true, None) => SendOut::Report(body.as_deref()),
     };
     emit_status_detail(app, project, job_id, result, &None, detail, send_out);
 }
@@ -3002,6 +3009,9 @@ fn emit_quiet(app: &AppHandle, key: &str, manual: bool) {
 enum SendOut<'a> {
     No,
     Report(Option<&'a str>),
+    /// The report of a run waiting on `Ask`, which a destination may let the
+    /// user answer.
+    Asked(Option<&'a str>, &'a askform::Ask),
 }
 
 fn emit_status(app: &AppHandle, project: &str, job_id: &str, result: &str, copy: &Option<String>) {
@@ -3038,9 +3048,12 @@ fn emit_status_detail(
     if in_lpm {
         notify_if_unattended(app, project, &label, result, detail.as_deref());
     }
-    let (Some(job), SendOut::Report(report), Some((_, verb, mark))) =
-        (job, send_out, outcome_words(result))
-    else {
+    let (report, asking) = match send_out {
+        SendOut::No => return,
+        SendOut::Report(report) => (report, None),
+        SendOut::Asked(report, ask) => (report, Some(ask)),
+    };
+    let (Some(job), Some((_, verb, mark))) = (job, outcome_words(result)) else {
         return;
     };
     sendto::deliver(
@@ -3050,6 +3063,11 @@ fn emit_status_detail(
             mark,
             title: format!("\"{label}\"{} {verb}.", project_suffix(project)),
             body: report.map(str::to_string).or(detail),
+            asking: asking.map(|ask| sendto::Asking {
+                project: project.to_string(),
+                job_id: job_id.to_string(),
+                ask: ask.clone(),
+            }),
         },
     );
 }
@@ -3257,22 +3275,17 @@ fn boot_epoch() -> u64 {
     now_secs().saturating_sub(uptime_ms / 1000)
 }
 
-/// The creation time that, with the pid, identifies a run's process on
-/// Windows, where no process group marks it as ours. Unix needs none.
+/// The start time that, with the pid, identifies a run's process: a pid that
+/// came back to someone else after the app quit never passes for the run.
 fn proc_start(pid: u32) -> Option<u64> {
-    #[cfg(windows)]
-    return crate::procwin::created(pid);
-    #[cfg(unix)]
-    {
-        let _ = pid;
-        None
-    }
+    crate::osproc::start_of(pid)
 }
 
 /// Whether the recorded run child is still alive and still ours: same boot,
-/// pid exists, and the pid still leads its own process group (what setsid gave
-/// it) — a recycled pid fails that test. Windows has no groups, so the pid's
-/// process must have been created when the recorded one was.
+/// and the pid's process started when the recorded one did, so a recycled pid
+/// (someone else's process) fails. On Unix the pid must also still lead its own
+/// process group (what setsid gave it), the only test state from a build that
+/// kept no start time there could pass.
 fn orphan_alive(run: &ActiveRun) -> bool {
     let same_boot = run
         .boot_at
@@ -3282,7 +3295,10 @@ fn orphan_alive(run: &ActiveRun) -> bool {
         return false;
     }
     #[cfg(unix)]
-    return unsafe { libc::kill(run.pid, 0) == 0 && libc::getpgid(run.pid) == run.pid };
+    return unsafe { libc::kill(run.pid, 0) == 0 && libc::getpgid(run.pid) == run.pid }
+        && run
+            .proc_start
+            .is_none_or(|start| proc_start(run.pid as u32) == Some(start));
     #[cfg(windows)]
     {
         run.pid > 0
@@ -3380,6 +3396,7 @@ fn adopt_orphan(app: AppHandle, key: String, run: ActiveRun) {
         .insert(key.clone(), run.started_at);
     ask::readopt(&key, &run.asks);
     std::thread::spawn(move || {
+        let watch = crate::runguard::watch(run.pid as u32);
         let held: u64 = run.asks.iter().map(|a| a.waited_secs(now_secs())).sum();
         let mut deadline = run.started_at + RUN_TIMEOUT.as_secs() + held;
         let mut timed_out = false;
@@ -3389,6 +3406,7 @@ fn adopt_orphan(app: AppHandle, key: String, run: ActiveRun) {
                 kill_group(run.pid);
                 break;
             }
+            watch.sweep();
             if !orphan_alive(&run) {
                 break;
             }

@@ -194,7 +194,7 @@ function resolveMuse(words, effort, spec) {
 // An effort is never swapped for another. The `-fast` variants are left out,
 // and so are the Claude, GPT and Muse models it lists, which run in their own
 // CLIs.
-function resolveCursor(words, effort, spec) {
+function resolveCursor(words, effort, spec, probe = true) {
   const models = cursorTable().filter((m) => !/^(claude|gpt|muse)-/.test(m.slug));
   const joined = words.join("-");
   const base = (slug) => slug.replace(/^cursor-/, "");
@@ -209,7 +209,7 @@ function resolveCursor(words, effort, spec) {
   }
   const efforts = levels.map((m) => base(m.slug).slice(joined.length + 1));
   let model = effort ? levels.find((m) => base(m.slug) === `${joined}-${effort}`)?.slug : bare?.slug;
-  if (!model && effort) {
+  if (!model && effort && probe) {
     const prefix = known.slug.startsWith("cursor-") ? "cursor-" : "";
     model = [...new Set([`${prefix}${joined}`, joined])].map((id) => `${id}[effort=${effort}]`).find(cursorAccepts);
   }
@@ -245,8 +245,10 @@ const isCodexModel = (word) =>
 const ULTRACODE = /\bult?ra[\s-]?code\b/;
 const ULTRACODE_FAMILIES = new Set(["fable", "opus", "sonnet"]);
 
-// `effort` is the race's own, for a side that names none.
-function resolve(spec, effort = null) {
+// `effort` is the race's own, for a side that names none. `probe: false` never
+// asks Cursor CLI about a level it doesn't list (that launches it and touches
+// the user's Cursor config); such a level is then unknown.
+function resolve(spec, effort = null, { probe = true } = {}) {
   const lower = spec.toLowerCase();
   const ultracode = ULTRACODE.test(lower);
   const raw = lower
@@ -270,7 +272,7 @@ function resolve(spec, effort = null) {
       ? resolveMuse(words, wanted, spec)
       : isCodexModel(words[0])
         ? resolveCodex(words, wanted, spec)
-        : resolveCursor(words, wanted, spec);
+        : resolveCursor(words, wanted, spec, probe);
   if (ultracode && !(r.cli === "claude" && ULTRACODE_FAMILIES.has(words[0]))) {
     throw new Error(`"${spec}": ultracode is Claude Code's, on Fable, Opus and Sonnet only`);
   }
@@ -316,7 +318,23 @@ function resolve(spec, effort = null) {
   };
 }
 
-module.exports = { resolve };
+// Every model a race can run right now, one row per model, from the same
+// tables `resolve` reads; a CLI that isn't installed is left out.
+function catalog() {
+  const rows = [];
+  const add = (cli, table, toRows) => {
+    try {
+      rows.push(...toRows(table()).map((r) => ({ cli, ...r })));
+    } catch {}
+  };
+  add("claude", claudeTable, (t) => t.models.map((m) => ({ id: m.id, name: m.name })));
+  add("codex", codexTable, (t) => t.filter((m) => !m.hidden).map((m) => ({ id: m.slug, name: codexName(m.slug) })));
+  add("muse", museTable, (t) => t.map((m) => ({ id: m.id, name: m.id })));
+  add("cursor", cursorTable, (t) => t.filter((m) => !/^(claude|gpt|muse)-/.test(m.slug)).map((m) => ({ id: m.slug, name: m.display })));
+  return rows;
+}
+
+module.exports = { resolve, catalog };
 
 if (require.main === module) {
   const args = process.argv.slice(2);

@@ -20,6 +20,15 @@ pub struct Report {
     pub title: String,
     /// What the run reported, when it said anything.
     pub body: Option<String>,
+    /// The question the run is waiting on, for destinations that can take an
+    /// answer.
+    pub asking: Option<Asking>,
+}
+
+pub struct Asking {
+    pub project: String,
+    pub job_id: String,
+    pub ask: crate::jobs::askform::Ask,
 }
 
 pub trait Destination: Sync {

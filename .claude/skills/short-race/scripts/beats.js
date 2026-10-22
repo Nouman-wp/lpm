@@ -411,7 +411,8 @@ module.exports = function compareBeats({ config, dir }) {
     await kit.focusWindow(s);
     await kit.clickUntil(s, MODEL_BUTTON, () => tagModelMenu(s, a.pickerModel.toLowerCase(), a.effort), { ms: 300 });
     if (a.effort) {
-      await s.moveTo(MENU_PICK(0), { at: [0.4, 0.5], ms: 300 });
+      await s.click(MENU_PICK(0), { at: [0.4, 0.5], ms: 300 });
+      await tagModelMenu(s, a.pickerModel.toLowerCase(), a.effort);
       await s.click(MENU_PICK(1), { at: [0.5, 0.5], ms: 300 });
     } else {
       await s.click(MENU_PICK(0), { at: [0.4, 0.5], ms: 300 });

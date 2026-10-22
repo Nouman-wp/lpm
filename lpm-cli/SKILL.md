@@ -1,6 +1,6 @@
 ---
 name: lpm-cli
-version: 1.8.0
+version: 1.8.1
 description: "Operate lpm-managed projects through the `lpm` CLI: start or stop projects and services, inspect logs and agent status, wait for readiness, run actions, create, edit, run, pause, and read scheduled automations, and duplicate projects into standalone copies or create linked Git worktrees. Use when the user asks to operate or inspect lpm runtime state or manage lpm automations. `LPM_PROJECT_NAME` selects the default project after the skill triggers; it is not a trigger by itself. For editing YAML configuration, use `lpm-config`."
 ---
 
@@ -54,7 +54,7 @@ Automations are tasks the app runs on a schedule: a shell command, a project act
 - `lpm automations test-check <id> [-p proj | --global] [--check CMD]` — run the check now and report whether a scheduled run would go ahead; it runs nothing else.
 - `lpm automations output <id> [-p proj | --global]` — live output of the run in progress.
 - `lpm automations reply <id> "message" [-p proj | --global] [--at TIMESTAMP] [--agent X] [--model X] [--effort X]` — continue an AI automation's conversation (the newest by default), fire-and-forget; then read `output` or `history`.
-- `lpm automations answer <id> [-p proj | --global] [--yes | --no | --pick LABEL… | --text "…" | --answers JSON | --dismiss]` — answer the question an automation is waiting on, which resumes its run; with no answer it prints the question and its choices. Answer only with what the user said.
+- `lpm automations answer <id> [-p proj | --global] [--yes | --no | --pick LABEL… | --text "…" | --answers JSON | --dismiss]` — answer the question an automation is waiting on, which resumes its run; with no answer it prints the question and its choices. Answer only with what the user said. It refuses inside an automation run, as does `reply`: a run never answers its own question.
 
 ### Asking the user from inside an automation run
 
