@@ -25,16 +25,26 @@ pub fn require_app(ctx: &Ctx) -> Result<(), RunError> {
 /// means the running app predates this verb.
 pub fn send_command(ctx: &Ctx, line: &str) -> Result<String, RunError> {
     let reply = statussock::request(&ctx.socket_path(), line).map_err(RunError::Internal)?;
-    if let Some(rest) = reply.strip_prefix("ERROR:") {
-        let msg = rest.trim();
-        if msg == "unknown command" {
-            return Err(RunError::Internal(
-                "the running lpm app doesn't support this command — restart the app with a newer build".into(),
-            ));
-        }
-        return Err(RunError::Internal(msg.to_string()));
+    app_reply(reply)
+}
+
+/// A reply as the app sent it, or the error its `ERROR: <msg>` stands for.
+pub fn app_reply(reply: String) -> Result<String, RunError> {
+    match reply.strip_prefix("ERROR:") {
+        Some(rest) => Err(app_error(rest.trim())),
+        None => Ok(reply),
     }
-    Ok(reply)
+}
+
+/// The error an app's `ERROR: <msg>` reply stands for.
+fn app_error(msg: &str) -> RunError {
+    if msg == "unknown command" {
+        return RunError::Internal(
+            "the running lpm app doesn't support this command — restart the app with a newer build"
+                .into(),
+        );
+    }
+    RunError::Internal(msg.to_string())
 }
 
 /// Read the reply of a verb that answers in JSON. Such a verb has no `OK` form,

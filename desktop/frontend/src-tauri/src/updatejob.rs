@@ -43,6 +43,15 @@ impl UpdateJob {
         })
     }
 
+    /// An install is running that a new one would have to wait for.
+    pub(crate) fn running(&self) -> bool {
+        match &*self.0.lock().unwrap() {
+            Stage::Preparing(flag) => !flag.load(Ordering::SeqCst),
+            Stage::Installing => true,
+            Stage::Idle => false,
+        }
+    }
+
     /// False when there is nothing left to cancel: no install is running, or it
     /// is already replacing the app.
     pub(crate) fn cancel(&self) -> bool {
@@ -138,6 +147,21 @@ mod tests {
         assert!(job.begin().is_err());
         drop(first);
         assert!(job.begin().is_ok());
+    }
+
+    #[test]
+    fn running_until_it_ends_or_is_cancelled() {
+        let job = UpdateJob::default();
+        assert!(!job.running());
+        let mut guard = job.begin().unwrap();
+        assert!(job.running());
+        guard.commit().unwrap();
+        assert!(job.running());
+        drop(guard);
+        assert!(!job.running());
+        let _cancelled = job.begin().unwrap();
+        job.cancel();
+        assert!(!job.running());
     }
 
     #[test]

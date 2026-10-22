@@ -1,10 +1,17 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { CancelUpdate, InstallUpdate, RollbackUpdate } from "../../bridge/commands";
+import {
+  CancelScheduledUpdate,
+  CancelUpdate,
+  InstallUpdate,
+  RollbackUpdate,
+  ScheduledUpdate,
+} from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import { useAppStore } from "../store/app";
 import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import {
   useUpdateInstallState,
+  type ScheduledUpdate as Scheduled,
   type UpdateInstallState,
   type UpdatePhase,
 } from "../store/updateInstall";
@@ -43,6 +50,7 @@ export interface UpdateInstall extends UpdateInstallState {
   /** Install the newest stable release over a newer Beta build. */
   rollback: () => void;
   cancel: () => void;
+  cancelScheduled: () => void;
   dismissError: () => void;
   dialogs: ReactNode;
 }
@@ -66,6 +74,13 @@ export function useUpdateInstall(): UpdateInstall {
       }),
     [],
   );
+  useEffect(() => {
+    const note = (scheduled: Scheduled | null) => setInstall({ scheduled: scheduled ?? null });
+    ScheduledUpdate().then(note, () => {});
+    return EventsOn("update-scheduled", note);
+  }, []);
+  // `lpm update` and the idle setting install with no caller here to tell.
+  useEffect(() => EventsOn("update-error", (error: string) => setInstall({ error })), []);
 
   const request = (run: Run) => {
     const places = busyAgentPlaces(
@@ -92,6 +107,7 @@ export function useUpdateInstall(): UpdateInstall {
     request: () => request(InstallUpdate),
     rollback: () => request(RollbackUpdate),
     cancel: () => void cancel(),
+    cancelScheduled: () => void CancelScheduledUpdate().catch(() => {}),
     dismissError: () => setInstall({ error: "" }),
     dialogs,
   };

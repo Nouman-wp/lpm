@@ -2042,7 +2042,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
       <SidebarSharedTabs />
 
-      {(updateInfo || update.active || update.error) && (
+      {(updateInfo || update.active || update.error || update.scheduled) && (
         <SidebarUpdateRow
           currentVersion={updateInfo?.currentVersion ?? ""}
           latestVersion={updateInfo?.latestVersion ?? ""}

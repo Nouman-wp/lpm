@@ -101,9 +101,14 @@ pub fn text_opt(name: &str, value: &str) -> String {
 /// trimmed). `Err` only on transport failure (socket absent, timeout); an
 /// `ERROR: ...` reply from the app is still `Ok` — the caller interprets it.
 pub fn request(socket_path: &Path, line: &str) -> Result<String, String> {
+    request_within(socket_path, line, REQUEST_TIMEOUT)
+}
+
+/// [`request`] for a verb that can take longer than a control round trip.
+pub fn request_within(socket_path: &Path, line: &str, timeout: Duration) -> Result<String, String> {
     let mut stream = UnixStream::connect(socket_path).map_err(|e| e.to_string())?;
-    let _ = stream.set_read_timeout(Some(REQUEST_TIMEOUT));
-    let _ = stream.set_write_timeout(Some(REQUEST_TIMEOUT));
+    let _ = stream.set_read_timeout(Some(timeout));
+    let _ = stream.set_write_timeout(Some(timeout));
     writeln!(stream, "{line}").map_err(|e| e.to_string())?;
     stream.flush().map_err(|e| e.to_string())?;
     let mut reader = BufReader::new(stream);

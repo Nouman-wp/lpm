@@ -16,7 +16,9 @@ import { UpdateChannelRow } from "../UpdateChannelRow";
 import { BTN_SECONDARY } from "../ui/buttons";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { useUpdateInstall } from "../useUpdateInstall";
+import { IdleUpdateRow } from "./IdleUpdateRow";
 import { RemovingOverlay } from "./RemovingOverlay";
+import { ServicesBuildRow } from "./ServicesBuildRow";
 import { Spinner } from "./Spinner";
 
 type UpdateStatus = "idle" | "checking" | "available" | "up-to-date" | "installing" | "error";
@@ -144,6 +146,8 @@ export function AboutSection() {
           )}
         </SettingsRow>
         {version !== "dev" && <UpdateChannelRow update={update} />}
+        {version !== "dev" && UPDATES_INSTALL_IN_APP && <IdleUpdateRow />}
+        <ServicesBuildRow appVersion={version} />
         <SettingsRow
           {...rowProps("general.agentTools")}
           details={

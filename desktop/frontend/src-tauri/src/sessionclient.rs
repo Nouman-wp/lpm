@@ -25,7 +25,7 @@ const STARTUP_WAIT: Duration = Duration::from_secs(15);
 
 /// A connection that closed without answering — the daemon is gone, rather than
 /// the request having failed.
-const NO_REPLY: &str = "session daemon: no reply";
+pub(crate) const NO_REPLY: &str = "session daemon: no reply";
 
 /// Nothing was listening. Callers that treat an absent daemon as a valid answer
 /// compare against this rather than sniffing the error text.

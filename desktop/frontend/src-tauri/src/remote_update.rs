@@ -85,7 +85,7 @@ fn check(force: bool) -> Value {
 }
 
 /// A cached answer stands only for the update channel it was asked on.
-fn recent_check(force: bool) -> Result<UpdateInfo, String> {
+pub(crate) fn recent_check(force: bool) -> Result<UpdateInfo, String> {
     if !force {
         if let Some((at, info)) = &*LAST_CHECK.lock().unwrap() {
             if at.elapsed() < CHECK_MAX_AGE && info.channel == Channel::current().as_str() {

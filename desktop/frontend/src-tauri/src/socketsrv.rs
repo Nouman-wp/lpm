@@ -224,6 +224,8 @@ fn handle_client(stream: UnixStream, store: &StatusStore, app: &AppHandle, restr
             writeln!(writer, "{}", crate::runguard::refusal(&first))
         } else if first == "duplicate_project" || first == "duplicate_worktree" {
             cmd_duplicate_project(&line, app, &mut writer, first == "duplicate_worktree")
+        } else if first == "update_install" {
+            crate::updatesocket::cmd_update_install(&shell_split(&line)[1..], app, &mut writer)
         } else {
             writeln!(writer, "{}", process_command(&line, store, app))
         };
@@ -284,6 +286,10 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "remote_pair" => cmd_remote_pair(args, app),
         "remote_state" => cmd_remote_state(app),
         "remote_revoke" => cmd_remote_revoke(args, app),
+        "update_check" => crate::updatesocket::cmd_update_check(),
+        "update_cancel" => crate::updatesocket::cmd_update_cancel(app),
+        "services_build" => crate::updatesocket::cmd_services_build(),
+        "restart_services" => crate::updatesocket::cmd_restart_services(app),
         _ => "ERROR: unknown command".into(),
     }
 }

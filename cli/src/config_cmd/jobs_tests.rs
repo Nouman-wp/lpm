@@ -35,6 +35,9 @@ jobs:
   cron: { schedule: { cron: "0 18 * * 5" }, run: { cmd: x }, sendTo: "telegram:releases" }
   daily: { schedule: { cron: "@daily" }, run: { cmd: x } }
   manual: { schedule: { manual: true }, run: { cmd: x }, enabled: false }
+  ordered: { schedule: { manual: true }, run: { cmd: x }, machines: [this, Studio, any] }
+  one: { schedule: { manual: true }, run: { cmd: x }, machines: aabbccdd }
+  every: { schedule: { manual: true }, run: { cmd: x }, machines: [] }
 "#;
     assert_eq!(errors(ConfigKind::Project, source), Vec::<String>::new());
 }
@@ -80,6 +83,7 @@ fn rejects_what_the_app_would_refuse() {
         ("jobs:\n  a: { schedule: { manual: true }, run: { cmd: x }, duplicate: { mode: clone } }", "config.jobs.a.duplicate.mode", "expected one of: copy, worktree"),
         ("jobs:\n  a: { schedule: { manual: true }, run: { cmd: x }, sendTo: slack }", "config.jobs.a.sendTo", "expected lpm, telegram or telegram:<target>"),
         ("jobs:\n  a: { schedule: { manual: true }, run: { cmd: x }, enabled: yes }", "config.jobs.a.enabled", "expected true or false"),
+        ("jobs:\n  a: { schedule: { manual: true }, run: { cmd: x }, machines: [this, 2] }", "config.jobs.a.machines", "expected a list of computers"),
     ];
     for (jobs, error_path, message) in cases {
         let source = format!("root: /tmp\n{jobs}\n");

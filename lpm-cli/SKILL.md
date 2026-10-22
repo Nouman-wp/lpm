@@ -1,6 +1,6 @@
 ---
 name: lpm-cli
-version: 1.8.1
+version: 1.9.0
 description: "Operate lpm-managed projects through the `lpm` CLI: start or stop projects and services, inspect logs and agent status, wait for readiness, run actions, create, edit, run, pause, and read scheduled automations, and duplicate projects into standalone copies or create linked Git worktrees. Use when the user asks to operate or inspect lpm runtime state or manage lpm automations. `LPM_PROJECT_NAME` selects the default project after the skill triggers; it is not a trigger by itself. For editing YAML configuration, use `lpm-config`."
 ---
 
@@ -33,6 +33,7 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 - `lpm run [action | --command CMD] [--prompt TEXT] [-p proj]` — queue in a new app terminal, fire-and-forget.
 - `lpm set-status <key> <value>` / `lpm clear-status <key>` — report status to the app UI.
 - `lpm refresh-label [action] [-p proj]` — rerun the `$(…)` commands in an action's labels and emoji (with its menu items' and options') now and redraw labels built from git; no action refreshes every label in the project. Use it after changing what a dynamic label shows, such as at the end of a release script.
+- `lpm update --check [--json]` — installed and available lpm versions, an install waiting to start, and whether services still run on an older lpm (`services.current: false`). `lpm update [--stable]` installs the newest release (`--stable`: back from a Beta build to the latest stable one) once no agent is mid-turn and no background action runs — including you, so inside an lpm terminal it installs after your turn ends; it returns at once with `state: "scheduled"`. Never pass `--now` from an lpm terminal: installing restarts lpm, which closes every terminal (agents reopen in their conversations, services keep running). `lpm update --cancel` calls off a waiting install. Services stay on the lpm they started on through an update; `lpm update --restart-services` stops and starts them all on the current one — only when the user asks, since every dev server restarts. Update only when the user asks.
 - `lpm auto-pull [project] [--set on|off|default]` / `lpm auto-pull --all` — whether the app fast-forwards a project from origin by itself, and why. `--set` changes the project's own `autoPull` key through the running app, like `start`/`stop`; `default` removes it, so a duplicate or worktree follows its parent, else the Settings mode (Off / Chosen / All, changed only in the app). Change it only when the user asks.
 
 ### Automations

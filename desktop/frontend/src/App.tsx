@@ -38,6 +38,7 @@ import { useGlobalAgentStatusSync } from "./hooks/useGlobalTerminalStatus";
 import { GLOBAL_TERMINALS_KEY } from "./terminals";
 import { useAppEvents } from "./hooks/useAppEvents";
 import { useSshStatusWarnings } from "./hooks/useSshStatusWarnings";
+import { useUpdateNote } from "./hooks/useUpdateNote";
 import { useActionErrorToasts } from "./hooks/useActionErrorToasts";
 import { useProjectWatcher } from "./hooks/useProjectWatcher";
 import { useOriginStatusPoller } from "./hooks/useOriginStatusPoller";
@@ -157,6 +158,7 @@ export default function App() {
   usePeerFileSaveNotices();
   usePeerRemovedNotices();
   useSshStatusWarnings();
+  useUpdateNote();
   useActionErrorToasts();
   const isFullscreen = useIsFullscreen();
 

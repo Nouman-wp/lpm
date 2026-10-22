@@ -7,6 +7,8 @@ import { STATUS_RUNNING, type ProjectInfo } from "../types";
 const bridge = vi.hoisted(() => ({
   install: vi.fn<() => Promise<void>>(),
   cancel: vi.fn<() => Promise<boolean>>(),
+  scheduled: vi.fn<() => Promise<unknown>>(),
+  cancelScheduled: vi.fn<() => Promise<boolean>>(),
   listeners: new Map<string, (payload: unknown) => void>(),
   projects: [] as ProjectInfo[],
 }));
@@ -14,6 +16,8 @@ const bridge = vi.hoisted(() => ({
 vi.mock("../../bridge/commands", () => ({
   InstallUpdate: bridge.install,
   CancelUpdate: bridge.cancel,
+  ScheduledUpdate: bridge.scheduled,
+  CancelScheduledUpdate: bridge.cancelScheduled,
 }));
 vi.mock("../../bridge/runtime", () => ({
   EventsOn: (name: string, cb: (payload: unknown) => void) => {
@@ -85,6 +89,8 @@ beforeEach(() => {
     () => new Promise<void>((resolve, reject) => (settleInstall = { resolve, reject })),
   );
   bridge.cancel.mockReset().mockResolvedValue(true);
+  bridge.scheduled.mockReset().mockResolvedValue(null);
+  bridge.cancelScheduled.mockReset().mockResolvedValue(true);
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -160,6 +166,28 @@ describe("useUpdateInstall with the sidebar row", () => {
     await click(button("Cancel update"));
     expect(text()).toContain("Downloading 0.6.16");
     expect(button("Cancel update")).toBeDefined();
+  });
+
+  it("shows an install `lpm update` scheduled, and calls it off", async () => {
+    emit("update-scheduled", { version: "0.6.16", waiting: "2 agents in api" });
+    expect(text()).toContain("0.6.16 installs when agents finish");
+    expect(document.querySelector('[title^="Installs once these finish"]')?.getAttribute("title")).toBe(
+      "Installs once these finish: 2 agents in api",
+    );
+
+    await click(button("Cancel scheduled update"));
+    expect(bridge.cancelScheduled).toHaveBeenCalledTimes(1);
+    emit("update-scheduled", null);
+    expect(text()).not.toContain("installs when agents finish");
+    expect(row()).not.toBeNull();
+  });
+
+  it("picks up an install scheduled before the window loaded", async () => {
+    act(() => root.unmount());
+    bridge.scheduled.mockResolvedValue({ version: "0.6.16", waiting: "" });
+    root = createRoot(host);
+    await act(async () => root.render(<Harness />));
+    expect(text()).toContain("0.6.16 installs when agents finish");
   });
 
   it("shows a failed install in the row, with Retry and Dismiss", async () => {

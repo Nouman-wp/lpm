@@ -67,6 +67,11 @@ pub fn watch(app: &AppHandle, project: &str, pane_id: &str, session_id: &str, pi
     });
 }
 
+/// Whether the tab brings its agent back after a restart.
+pub fn resumes(pane_id: &str) -> bool {
+    watched().lock().unwrap().contains_key(pane_id)
+}
+
 /// Quitting kills every terminal's processes, agents included; that is not the
 /// user ending them, so nothing is reported from here on.
 pub fn stop() {

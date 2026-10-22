@@ -208,6 +208,22 @@ export const ROWS = {
     description: "Beta gets new versions first. They may be less stable",
     keywords: ["beta", "stable", "pre-release", "early access", "roll back", "rollback", "downgrade"],
   },
+  "general.idleUpdates": {
+    kind: "row",
+    tab: "general",
+    id: "general.idleUpdates",
+    label: "Install updates when idle",
+    description: "Once you've been away for 10 minutes and nothing is running",
+    keywords: ["automatic", "auto update", "upgrade", "away", "background", "unattended"],
+  },
+  "general.servicesBuild": {
+    kind: "row",
+    tab: "general",
+    id: "general.servicesBuild",
+    label: "Services",
+    description: "Services keep running through an update, on the version they started on",
+    keywords: ["restart services", "old version", "outdated", "daemon", "update"],
+  },
   "general.agentTools": {
     kind: "row",
     tab: "general",

@@ -1,4 +1,4 @@
-import { ArrowRight, ExternalLink, LoaderCircle, X } from "lucide-react";
+import { ArrowRight, Clock, ExternalLink, LoaderCircle, X } from "lucide-react";
 import { UPDATES_INSTALL_IN_APP } from "../releasePage";
 import type { UpdateInstall } from "./useUpdateInstall";
 
@@ -87,6 +87,29 @@ export function SidebarUpdateRow({ currentVersion, latestVersion, update, onUpda
         <span title={update.error} className="line-clamp-2 text-[11px] text-[var(--text-muted)]">
           {update.error}
         </span>
+      </div>
+    );
+  }
+
+  if (update.scheduled) {
+    const { version, waiting } = update.scheduled;
+    return (
+      <div
+        title={waiting ? `Installs once these finish: ${waiting}` : undefined}
+        className={`flex items-center gap-2 ${ROW} ${TINT}`}
+      >
+        <Clock size={12} className="shrink-0 text-[var(--accent-green-text)]" />
+        <span className="min-w-0 truncate text-xs text-[var(--text-primary)]">
+          {version} installs when agents finish
+        </span>
+        <button
+          onClick={update.cancelScheduled}
+          aria-label="Cancel scheduled update"
+          title="Cancel scheduled update"
+          className={`ml-auto ${ICON_BUTTON}`}
+        >
+          <X size={12} />
+        </button>
       </div>
     );
   }

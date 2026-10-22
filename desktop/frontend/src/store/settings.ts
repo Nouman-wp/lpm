@@ -90,6 +90,9 @@ export interface Settings {
   // Put Linux hosts on this app's release once nothing is running on them.
   // Unset means on.
   autoUpdateHosts?: boolean;
+  // Install this app's updates by itself once nobody is at the Mac and nothing
+  // would be cut off. Unset means off.
+  installUpdatesWhenIdle?: boolean;
   // Which releases this app updates to. Unset means stable.
   updateChannel?: UpdateChannel;
   experimentalTTS?: boolean;
@@ -199,6 +202,7 @@ function normalize(s: main.Settings): Settings {
     checkOrigin: s.checkOrigin,
     autoPull: s.autoPull === undefined ? undefined : normalizeAutoPullMode(s.autoPull),
     autoUpdateHosts: s.autoUpdateHosts,
+    installUpdatesWhenIdle: s.installUpdatesWhenIdle || undefined,
     updateChannel: s.updateChannel === "beta" ? "beta" : undefined,
     experimentalTTS: s.experimentalTTS,
     ttsEnabled: s.ttsEnabled,

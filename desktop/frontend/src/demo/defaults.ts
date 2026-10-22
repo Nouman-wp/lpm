@@ -73,11 +73,12 @@ const EMPTY_LIST: string[] = [
   "list_port_forwards", "list_system_sounds", "list_templates", "message_history_folders",
   "message_history_query", "notes_list_chats", "notes_list_messages", "notes_search",
   "openai_voices", "read_clipboard_files", "remote_take_restore_requests",
-  "remote_take_run_actions", "search_branches", "telegram_find_chats",
+  "remote_take_run_actions", "restart_services", "scheduled_update", "search_branches",
+  "take_update_note", "telegram_find_chats",
 ];
 
 const FALSE: string[] = [
-  "cancel_ai_generate", "cancel_update", "check_ghcli", "check_kokoro_installed",
+  "cancel_ai_generate", "cancel_scheduled_update", "cancel_update", "check_ghcli", "check_kokoro_installed",
   "focus_detached_window", "git_push_rebasing", "has_openai_key", "is_terminal_remote",
   "peer_cancel_mac_update", "save_text_file", "voice_to_text_available",
 ];
@@ -103,7 +104,7 @@ const ZERO: string[] = [
 ];
 
 const EMPTY_MAP: string[] = [
-
+  "services_build",
 ];
 
 export const DEFAULTS: Record<string, unknown> = Object.fromEntries([

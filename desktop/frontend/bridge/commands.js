@@ -388,6 +388,21 @@ export function RollbackUpdate() {
 export function CancelUpdate() {
   return invoke("cancel_update");
 }
+export function ScheduledUpdate() {
+  return invoke("scheduled_update");
+}
+export function CancelScheduledUpdate() {
+  return invoke("cancel_scheduled_update");
+}
+export function TakeUpdateNote() {
+  return invoke("take_update_note");
+}
+export function ServicesBuild() {
+  return invoke("services_build");
+}
+export function RestartServices() {
+  return invoke("restart_services");
+}
 export function IsTerminalRemote(id) {
   return invoke("is_terminal_remote", { id });
 }

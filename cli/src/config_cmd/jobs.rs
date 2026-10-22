@@ -7,7 +7,7 @@ use super::{
 // exists, and whether a cron line keeps runs 5 minutes apart, depend on more
 // than this file: `lpm automations list` shows those as invalid rows.
 
-const JOB_FIELDS: [&str; 10] = [
+const JOB_FIELDS: [&str; 11] = [
     "label",
     "emoji",
     "schedule",
@@ -18,6 +18,7 @@ const JOB_FIELDS: [&str; 10] = [
     "enabled",
     "projects",
     "sendTo",
+    "machines",
 ];
 const RUN_FIELDS: [&str; 9] = [
     "action", "cmd", "prompt", "agent", "model", "effort", "access", "quiet", "memory",
@@ -135,6 +136,15 @@ fn validate_job(map: &Mapping, kind: ConfigKind, path: &str, report: &mut Report
     }
     if let Some(value) = map.get(Value::String("sendTo".into())) {
         validate_send_to(value, &format!("{path}.sendTo"), report);
+    }
+    if let Some(value) = map.get(Value::String("machines".into())) {
+        let names = match value {
+            Value::Sequence(list) => list.iter().all(|v| v.as_str().is_some()),
+            other => other.as_str().is_some(),
+        };
+        if !names {
+            report.error(&format!("{path}.machines"), "expected a list of computers");
+        }
     }
     if let Some(value) = map.get(Value::String("projects".into())) {
         let field = format!("{path}.projects");

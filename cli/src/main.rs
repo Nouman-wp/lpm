@@ -39,6 +39,7 @@ mod stop;
 mod style;
 mod terminals;
 mod sessions;
+mod update;
 mod util;
 mod wait;
 mod waitagent;
@@ -71,7 +72,8 @@ Config transactions (need the app running): `config get`, `config apply`. Contro
 through the running app. \
 Inside an automation run, `ask` puts a question to the user and waits for the answer. \
 Connection commands (for a machine with no UI in front of it): `pair`, `connections`, \
-and `mobile` for the iOS companion app. \
+and `mobile` for the iOS companion app. `update` checks for and installs lpm updates \
+through the running app. \
 `wait` polls client-side, except its `--agent` mode which queries the app. Inside an lpm \
 terminal or a project directory the project name \
 may be omitted — it is inferred from LPM_PROJECT_NAME or the current directory.\n\n\
@@ -378,6 +380,34 @@ automation reports to, and the first answer from any of them wins."
         #[arg(long)]
         json: bool,
     },
+    /// Check for and install lpm updates through the running app.
+    ///
+    /// Without --now the install waits until no agent is mid-turn and no
+    /// background action is running — run from an agent, that includes the
+    /// agent itself. Installing restarts lpm, which closes its terminals;
+    /// agents come back in their conversations, services keep running.
+    Update {
+        /// Report the installed and available versions, and whether services
+        /// still run on an older lpm, without installing anything.
+        #[arg(long, conflicts_with_all = ["now", "stable", "cancel", "restart_services"])]
+        check: bool,
+        /// Install right away, even if agents are mid-turn.
+        #[arg(long)]
+        now: bool,
+        /// From a Beta build, install the latest stable release instead.
+        #[arg(long)]
+        stable: bool,
+        /// Call off an install that is waiting, or still downloading.
+        #[arg(long, conflicts_with_all = ["now", "stable", "restart_services"])]
+        cancel: bool,
+        /// Stop every service and start it again on this lpm. Services keep
+        /// running through an update, on the build they started on.
+        #[arg(long, conflicts_with_all = ["now", "stable"])]
+        restart_services: bool,
+        /// Emit machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Rerun an action's label commands now (or every one in the project) and
     /// redraw labels built from git, via the running app.
     RefreshLabel {
@@ -553,6 +583,24 @@ fn main() -> ExitCode {
             all,
             json,
         } => auto_pull::run(&ctx, name.as_deref(), set, all, json),
+        Commands::Update {
+            check,
+            now,
+            stable,
+            cancel,
+            restart_services,
+            json,
+        } => update::run(
+            &ctx,
+            update::Args {
+                check,
+                now,
+                stable,
+                cancel,
+                restart_services,
+                json,
+            },
+        ),
         Commands::RefreshLabel { action, project } => {
             refreshlabel::run(&ctx, action.as_deref(), project.as_deref())
         }

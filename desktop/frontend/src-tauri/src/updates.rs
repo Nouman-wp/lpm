@@ -33,7 +33,7 @@ use tauri::Emitter;
 use tauri::Manager;
 use tauri::{AppHandle, State};
 
-const DEV_BUILD: &str = "Updates aren't available in development builds.";
+pub(crate) const DEV_BUILD: &str = "Updates aren't available in development builds.";
 
 /// Hears an install's `update-status` and `update-progress` steps besides this
 /// app's own windows: the paired Mac that asked for it (peerupdate.rs).
@@ -71,7 +71,7 @@ struct Check {
 /// What an install moves to: this channel's newest release, or back to the
 /// newest stable one.
 #[derive(Clone, Copy, PartialEq)]
-enum Target {
+pub(crate) enum Target {
     Newest,
     Stable,
 }
@@ -349,19 +349,45 @@ pub(crate) fn install_for_peer(
     app: &AppHandle,
     observer: Option<Observer>,
 ) -> Result<bool, String> {
+    install_observed(app, observer, Target::Newest)
+}
+
+/// [`install_for_peer`] to either target: what `lpm update` and an install
+/// waiting for idle run.
+#[cfg(target_os = "macos")]
+pub(crate) fn install_observed(
+    app: &AppHandle,
+    observer: Option<Observer>,
+    target: Target,
+) -> Result<bool, String> {
     if current_version() == "dev" {
         return Err(DEV_BUILD.into());
     }
     let state = app.state::<UpdateState>();
     let mut job = state.job.begin()?;
-    let result = install(app, &mut job, &reporter(app, observer), Target::Newest);
+    let result = install(app, &mut job, &reporter(app, observer), target);
     let _ = app.emit("update-status", "idle");
     crate::remote_update::relay(app, "update-status", &Value::from("idle"));
     match result {
         Err(_) if job.cancelled() => Ok(true),
-        Err(e) => Err(e),
+        Err(e) => {
+            // No install of this window's is waiting to show why it failed.
+            let _ = app.emit("update-error", &e);
+            Err(e)
+        }
         Ok(()) => Ok(false),
     }
+}
+
+/// The version `target` would install, or None when this build is already the
+/// newest on its channel.
+#[cfg(target_os = "macos")]
+pub(crate) fn pending_version(target: Target) -> Result<Option<String>, String> {
+    let check = do_check()?;
+    if target == Target::Newest && !check.info.update_avail {
+        return Ok(None);
+    }
+    check.target(target).map(|(version, _)| Some(version))
 }
 
 #[cfg(target_os = "macos")]
@@ -379,6 +405,10 @@ fn reporter(app: &AppHandle, observer: Option<Observer>) -> Observer {
 #[tauri::command]
 pub fn cancel_update(state: State<'_, UpdateState>) -> bool {
     state.job.cancel()
+}
+
+pub(crate) fn installing(state: &UpdateState) -> bool {
+    state.job.running()
 }
 
 #[cfg(target_os = "macos")]

@@ -57,9 +57,14 @@ pub enum Request {
     /// Tear down a session. `wait` reaps the process trees before replying, so
     /// a restart can't race a still-bound port.
     KillSession { session: String, wait: bool },
-    /// Tear every session down and retire the daemon. Uninstall, and nothing
-    /// else — stopping the app must never end the work it started.
+    /// Tear every session down and retire the daemon. Uninstall, and moving
+    /// services onto a newer build — stopping the app must never end the work
+    /// it started.
     Shutdown,
+    /// The lpm build the daemon runs, and its sessions. It outlives app
+    /// updates, so it can be an older build; one from before this op closes
+    /// the connection unanswered.
+    Version,
 }
 
 /// One pane as the daemon reports it. The fields mirror what tmux's
@@ -103,6 +108,8 @@ pub struct Response {
     pub panes: Option<Vec<PaneInfo>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
 }
 
 impl Response {
@@ -146,10 +153,12 @@ pub fn write_line<W: Write, T: Serialize>(w: &mut W, value: &T) -> std::io::Resu
 }
 
 pub fn read_line<R: Read, T: for<'de> Deserialize<'de>>(r: &mut BufReader<R>) -> Option<T> {
+    serde_json::from_str(read_text(r)?.trim()).ok()
+}
+
+/// One raw line, or None at the end of the stream.
+pub fn read_text<R: Read>(r: &mut BufReader<R>) -> Option<String> {
     let mut line = String::new();
     let read = r.by_ref().take(MAX_LINE).read_line(&mut line).ok()?;
-    if read == 0 {
-        return None;
-    }
-    serde_json::from_str(line.trim()).ok()
+    (read > 0).then_some(line)
 }

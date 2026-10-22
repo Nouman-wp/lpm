@@ -47,6 +47,7 @@ pub fn load_settings() -> Value {
 pub fn save_settings(s: Value) -> Result<(), String> {
     config::save_settings(&s)?;
     crate::hostautoupdate::nudge();
+    crate::updateidle::nudge();
     Ok(())
 }
 

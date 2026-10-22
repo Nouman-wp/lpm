@@ -197,6 +197,7 @@ mod runjob;
 mod send_later;
 mod send_later_model;
 mod services;
+mod servicesbuild;
 mod sessionclient;
 mod sessiond;
 mod sessionpane;
@@ -257,11 +258,15 @@ mod telegrampoll;
 mod telegramsync;
 mod tts;
 mod uninstall;
+mod updatebusy;
 mod updatechannel;
+mod updateidle;
 mod updatejob;
+mod updatenote;
 #[cfg(any(not(target_os = "macos"), test))]
 mod updatenotice;
 mod updates;
+mod updatesocket;
 mod upload;
 mod vault;
 #[cfg(target_os = "macos")]
@@ -370,6 +375,7 @@ use remote_agents::remote_set_agent_options;
 use remote::*;
 use send_later::*;
 use services::*;
+use servicesbuild::{restart_services, services_build};
 use session_memory_files::{
     delete_memory_session, read_memory_sessions, rename_memory_session, write_memory_session,
 };
@@ -385,6 +391,8 @@ use transfer::*;
 use telegram::*;
 use tts::*;
 use uninstall::*;
+use updateidle::{cancel_scheduled_update, scheduled_update};
+use updatenote::take_update_note;
 use updates::*;
 use upload::*;
 use voicetotext::*;
@@ -664,6 +672,7 @@ pub fn run() {
             // A lesson recording must not surface an update banner mid-video.
             if chores {
                 updates::start_auto_check(handle.clone());
+                updateidle::start(handle.clone());
             }
 
             // Scheduled-jobs runner: a wall-clock tick that fires per-project

@@ -14,7 +14,7 @@
 use crate::daemonize;
 use crate::ipc::{UnixListener, UnixStream};
 use crate::sessionpane::Pane;
-use crate::sessionproto::{read_line, write_line, PaneInfo, PaneSpec, Request, Response};
+use crate::sessionproto::{read_text, write_line, PaneInfo, PaneSpec, Request, Response};
 use std::collections::HashMap;
 use std::io::{BufReader, BufWriter};
 use std::path::PathBuf;
@@ -48,10 +48,21 @@ fn lock_path() -> PathBuf {
     socket_path().with_extension("lock")
 }
 
+/// Wait for a daemon told to shut down to be gone. It holds its lock for its
+/// whole life, and a client that starts the next one before it has let go
+/// would see that one lose the lock and quit.
+pub fn wait_retired(timeout: Duration) {
+    let deadline = std::time::Instant::now() + timeout;
+    while daemonize::acquire(&lock_path()).is_none() && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(25));
+    }
+}
+
 /// The argument that turns this binary into the daemon instead of the app.
-/// Re-execing ourselves rather than shipping a second binary means the daemon
-/// and the app can never disagree about the protocol, and there is nothing
-/// extra to install, sign or find on PATH.
+/// Re-execing ourselves rather than shipping a second binary means a daemon the
+/// app starts speaks its protocol, and there is nothing extra to install, sign
+/// or find on PATH. One started before an app update keeps running the build it
+/// started as (`Request::Version`).
 pub const DAEMON_ARG: &str = "--session-daemon";
 
 #[derive(Default)]
@@ -351,6 +362,11 @@ fn handle(request: Request) -> Response {
             teardown(&panes, wait);
             Response::ok()
         }
+        Request::Version => Response {
+            version: Some(crate::updates::current_version()),
+            sessions: Some(registry().lock().unwrap().sessions.keys().cloned().collect()),
+            ..Response::ok()
+        },
     }
 }
 
@@ -381,10 +397,16 @@ fn serve(stream: UnixStream) {
     };
     let mut reader = BufReader::new(stream);
     let mut writer = BufWriter::new(write_half);
-    while let Some(request) = read_line::<_, Request>(&mut reader) {
+    while let Some(line) = read_text(&mut reader) {
         // Held across the reply too: the write is part of serving the request.
         let _busy = Busy::new();
-        if write_line(&mut writer, &handle(request)).is_err() {
+        // An op from a newer app gets an answer: a hang-up reads as the daemon
+        // going away.
+        let reply = match serde_json::from_str::<Request>(line.trim()) {
+            Ok(request) => handle(request),
+            Err(_) => Response::error("unknown request"),
+        };
+        if write_line(&mut writer, &reply).is_err() {
             return;
         }
     }

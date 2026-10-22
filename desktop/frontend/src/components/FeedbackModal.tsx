@@ -1,119 +1,25 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
-import {
-  Bug,
-  CircleHelp,
-  ExternalLink,
-  Lightbulb,
-  type LucideIcon,
-} from "lucide-react";
+import { Check, ExternalLink } from "lucide-react";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { GetPlatform, GetVersion } from "../../bridge/commands";
-import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { useAppStore } from "../store/app";
 import { XIcon } from "./icons";
 import { Modal } from "./ui/Modal";
 import { newIssueUrl } from "../githubIssue";
+import { feedbackTitle, guessFeedbackKind, type FeedbackKind } from "./feedbackDraft";
 
-type FieldDef = {
-  key: string;
-  label: string;
-  placeholder?: string;
-  rows?: number;
-};
-
-type KindDef = {
-  value: "bug" | "suggestion" | "question";
-  title: string;
-  description: string;
-  label: string;
-  icon: LucideIcon;
-  titleHint: string;
-  fields: FieldDef[];
-};
-
-const KINDS: KindDef[] = [
-  {
-    value: "bug",
-    title: "Bug",
-    description: "Something isn't working",
-    label: "bug",
-    icon: Bug,
-    titleHint: "Short summary of the bug",
-    fields: [
-      {
-        key: "what",
-        label: "What happened?",
-        rows: 3,
-        placeholder: "Describe what went wrong…",
-      },
-      {
-        key: "steps",
-        label: "Steps to reproduce",
-        rows: 4,
-        placeholder: "1. \n2. \n3. ",
-      },
-      {
-        key: "expected",
-        label: "Expected",
-        placeholder: "What you thought would happen",
-      },
-      {
-        key: "actual",
-        label: "Actual",
-        placeholder: "What actually happened",
-      },
-    ],
-  },
-  {
-    value: "suggestion",
-    title: "Idea",
-    description: "Suggest an improvement",
-    label: "enhancement",
-    icon: Lightbulb,
-    titleHint: "One-line summary of the idea",
-    fields: [
-      {
-        key: "what",
-        label: "What would you like to see?",
-        rows: 5,
-        placeholder: "Paint the picture…",
-      },
-    ],
-  },
-  {
-    value: "question",
-    title: "Question",
-    description: "Ask how something works",
-    label: "question",
-    icon: CircleHelp,
-    titleHint: "Your question in one line",
-    fields: [
-      {
-        key: "question",
-        label: "What would you like to know?",
-        rows: 5,
-        placeholder: "Give us enough context to help…",
-      },
-    ],
-  },
+const KINDS: { value: FeedbackKind; title: string; label: string }[] = [
+  { value: "bug", title: "Bug", label: "bug" },
+  { value: "suggestion", title: "Idea", label: "enhancement" },
+  { value: "question", title: "Question", label: "question" },
 ];
-
-function composeBody(kind: KindDef, values: Record<string, string>) {
-  return kind.fields
-    .map((field) => {
-      const value = (values[field.key] || "").trim();
-      return `**${field.label}**\n${value || "_(no details)_"}`;
-    })
-    .join("\n\n");
-}
-
 
 export function FeedbackModal() {
   const open = useAppStore((state) => state.feedbackOpen);
   const setFeedbackOpen = useAppStore((state) => state.setFeedbackOpen);
-  const [kind, setKind] = useState<KindDef | null>(null);
-  const [title, setTitle] = useState("");
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [text, setText] = useState("");
+  // The user's own pick; until there is one, the kind follows the text.
+  const [picked, setPicked] = useState<FeedbackKind | null>(null);
   const [version, setVersion] = useState("");
   const [platform, setPlatform] = useState("");
 
@@ -121,37 +27,23 @@ export function FeedbackModal() {
 
   useEffect(() => {
     if (!open) {
-      setKind(null);
-      setTitle("");
-      setValues({});
+      setText("");
+      setPicked(null);
       return;
     }
     GetVersion().then(setVersion).catch(() => setVersion(""));
     GetPlatform().then(setPlatform).catch(() => setPlatform(""));
   }, [open]);
 
-  const pickKind = (next: KindDef) => {
-    setKind(next);
-    setValues({});
-  };
-
-  useKeyboardShortcut(
-    KINDS.map((_, index) => ({
-      key: String(index + 1),
-      meta: false,
-      alt: false,
-    })),
-    (_event, matched) => pickKind(KINDS[Number(matched.key) - 1]),
-    open && !kind,
-  );
+  const kind = picked ?? guessFeedbackKind(text);
+  const title = feedbackTitle(text);
+  const isValid = !!kind && title.length > 0;
 
   const handleSubmit = () => {
-    if (!kind || !title.trim()) return;
-    const body = composeBody(kind, values);
+    if (!isValid) return;
+    const label = KINDS.find((option) => option.value === kind)!.label;
     const footer = `\n\n---\nlpm ${version || "dev"} · ${platform || navigator.platform}`;
-    BrowserOpenURL(
-      newIssueUrl({ title: title.trim(), body: body + footer, labels: [kind.label] }),
-    );
+    BrowserOpenURL(newIssueUrl({ title, body: text.trim() + footer, labels: [label] }));
     onClose();
   };
 
@@ -161,8 +53,6 @@ export function FeedbackModal() {
       handleSubmit();
     }
   };
-
-  const isValid = !!kind && title.trim().length > 0;
 
   return (
     <Modal
@@ -199,103 +89,49 @@ export function FeedbackModal() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
-          <fieldset>
-            <legend className="mb-2 text-[11px] font-medium text-[var(--text-secondary)]">
-              Feedback type
-            </legend>
-            <div className="grid grid-cols-3 gap-2">
-              {KINDS.map((option, index) => {
-                const Icon = option.icon;
-                const selected = kind?.value === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => pickKind(option)}
-                    aria-pressed={selected}
-                    className={`flex min-w-0 flex-col items-start rounded-xl border p-3 text-left transition-colors ${
-                      selected
-                        ? "border-[var(--text-secondary)] bg-[var(--bg-active)]"
-                        : "border-[var(--border)] hover:border-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
-                    }`}
-                  >
-                    <div className="flex w-full items-center justify-between">
-                      <Icon
-                        size={16}
-                        strokeWidth={1.8}
-                        className="text-[var(--text-secondary)]"
-                      />
-                      <span className="font-mono text-[9px] text-[var(--text-muted)]">
-                        {index + 1}
-                      </span>
-                    </div>
-                    <span className="mt-2 text-[12px] font-medium text-[var(--text-primary)]">
-                      {option.title}
-                    </span>
-                    <span className="mt-0.5 truncate text-[10px] text-[var(--text-muted)]">
-                      {option.description}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
+          <label
+            htmlFor="feedback-text"
+            className="mb-1.5 block text-[11px] font-medium text-[var(--text-secondary)]"
+          >
+            What's on your mind?
+          </label>
+          <textarea
+            id="feedback-text"
+            autoFocus
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            placeholder="What happened, what you'd like, or what you want to know…"
+            rows={6}
+            className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-3 text-[12px] leading-relaxed text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
+          />
 
-          {kind && (
-            <div className="mt-5 space-y-4 border-t border-[var(--border)] pt-5">
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <label className="text-[11px] font-medium text-[var(--text-secondary)]">
-                    Title
-                  </label>
-                  <span className="font-mono text-[9px] text-[var(--text-muted)]">
-                    {title.length}/120
-                  </span>
-                </div>
-                <input
-                  autoFocus
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  placeholder={kind.titleHint}
-                  maxLength={120}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
-                />
-              </div>
+          <div role="group" aria-label="Feedback type" className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[11px] text-[var(--text-muted)]">Sounds like</span>
+            {KINDS.map((option) => {
+              const selected = kind === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setPicked(option.value)}
+                  aria-pressed={selected}
+                  className={`flex items-center gap-1 rounded-full border px-2.5 py-[3px] text-[11px] font-medium transition-colors ${
+                    selected
+                      ? "border-[var(--text-secondary)] bg-[var(--bg-active)] text-[var(--text-primary)]"
+                      : "border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  {selected && <Check size={10} strokeWidth={2.6} />}
+                  {option.title}
+                </button>
+              );
+            })}
+          </div>
 
-              {kind.fields.map((field) => (
-                <div key={field.key}>
-                  <label className="mb-1.5 block text-[11px] font-medium text-[var(--text-secondary)]">
-                    {field.label}
-                  </label>
-                  {(field.rows ?? 0) > 0 ? (
-                    <textarea
-                      value={values[field.key] || ""}
-                      onChange={(event) =>
-                        setValues((current) => ({
-                          ...current,
-                          [field.key]: event.target.value,
-                        }))
-                      }
-                      placeholder={field.placeholder}
-                      rows={field.rows}
-                      className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-3 text-[12px] leading-relaxed text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
-                    />
-                  ) : (
-                    <input
-                      value={values[field.key] || ""}
-                      onChange={(event) =>
-                        setValues((current) => ({
-                          ...current,
-                          [field.key]: event.target.value,
-                        }))
-                      }
-                      placeholder={field.placeholder}
-                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-secondary)]"
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
+          {title && (
+            <p className="mt-3.5 truncate text-[11px] text-[var(--text-muted)]">
+              Title: <span className="text-[var(--text-secondary)]">{title}</span>
+            </p>
           )}
         </div>
 

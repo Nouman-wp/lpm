@@ -68,6 +68,17 @@ fn reap_stale_runs(runs: &mut HashMap<String, BackgroundRun>) {
     runs.retain(|_, r| r.running || now - r.done_at < BG_DONE_TTL_SECS);
 }
 
+/// The project of each background action still running.
+pub fn running_background_projects() -> Vec<String> {
+    background_runs()
+        .lock()
+        .unwrap()
+        .values()
+        .filter(|r| r.running)
+        .map(|r| r.project.clone())
+        .collect()
+}
+
 /// Append a streamed line to a run's retained buffer, head-trimming on a char
 /// boundary once it exceeds the cap.
 fn append_run_output(run_id: &str, line: &str) {
