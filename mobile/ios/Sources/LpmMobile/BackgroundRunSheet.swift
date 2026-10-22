@@ -31,10 +31,7 @@ struct BackgroundRunSheet: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding()
                     } else {
-                        Text(text)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        LogText(text: text)
                             .padding()
                     }
                 }
