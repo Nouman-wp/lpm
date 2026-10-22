@@ -148,6 +148,14 @@ pub struct JobFields {
         help = "Where results go: lpm (default), telegram, telegram:<target>"
     )]
     pub send_to: Option<Vec<String>>,
+    #[arg(
+        long,
+        value_name = "MACHINES",
+        value_delimiter = ',',
+        help_heading = STEPS,
+        help = "Computers it runs on, best first: this, a paired computer's name, or any (any other one that's on); the first one on runs it. Default: this one; empty: every computer that has it"
+    )]
+    pub machines: Option<Vec<String>>,
 }
 
 impl JobFields {
@@ -205,6 +213,7 @@ impl JobFields {
             .iter()
             .all(|value| value.is_none())
             && self.send_to.is_none()
+            && self.machines.is_none()
     }
 
     /// Writes the given fields into `job` in the order the app writes them, so a
@@ -244,6 +253,17 @@ impl JobFields {
                     job.insert("sendTo".into(), Value::Sequence(destinations));
                 }
             }
+        }
+        // The app turns names into hostIds, and reads an empty list as every
+        // computer that has the automation.
+        if let Some(machines) = &self.machines {
+            let machines: Vec<Value> = machines
+                .iter()
+                .map(|m| m.trim())
+                .filter(|m| !m.is_empty())
+                .map(|m| Value::String(m.to_string()))
+                .collect();
+            job.insert("machines".into(), Value::Sequence(machines));
         }
         Ok(())
     }

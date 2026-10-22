@@ -1,6 +1,6 @@
 ---
 name: short-game
-version: 1.2.1
+version: 1.3.0
 argument-hint: "\"<model A>\" vs \"<model B>\" [game: runner|racer|flappy|snake|shooter|breakout|gta] [title: …]"
 description: "Make a short vertical (9:16) video where two AI models build the same self-playing game in lpm, one above the other, and both games then play live in lpm's browser. It is a short-race whose prompt comes from a ready game catalog (3D endless runner, 3D racer, Flappy Bird, Snake, space shooter, Breakout, a GTA-style police chase), with the hook, headline, title and caption written around the game and the brand pair people search for (\"Claude vs Gemini: build a 3D game 🎮\"). Models in, 1080x1920 MP4 + cover + post caption out. Use when the user asks for a TikTok, Reel or Short where models build a game, such as \"opus 5.5 high vs gemini 3.1 pro build a 3D game\", \"Claude vs GPT 6: Opus 5.5 high vs Astra high build a 3D game\" or \"claude vs grok make flappy bird\". A race on any other prompt is short-race."
 ---
@@ -51,6 +51,8 @@ short-race records every race, real or dry, in a narrow, tall 570x1000 window wi
    - `compare.json`: `game` and `timeoutMin: 40`, or the game's own `timeoutMin` (GTA: 60, since Opus 5.5 high took 37:25 on it).
 
    The slug is `<A>-vs-<B>-<game>`. `--slug` and `--force` work as in short-race.
+
+   `--game-file <game.json>` races a game that isn't in `games.js`: the same fields as an entry there plus its `key`, or its whole `prompt` in place of build, play, layout and restart. short-daily's `formats.js new` writes one for the formats it invents. A game meant to stay goes into `games.js`.
 
    **Effort.** A Claude side with no effort is raced at high, and the script says so. Otherwise it would run at the user's saved default: Opus 5.5 at xhigh on the runner thought for 21 minutes, hit Claude Code's output cap, resumed, and still had no page at the 40-minute limit. When the user asks for xhigh or max, run it, but warn them it may time out. Gemini 3.1 Pro has one fixed level and takes no effort. A Muse model runs in Meta's Muse Code at its default (high) when none is given, and like a Cursor model it is always model B: "Muse Wonder vs GPT-6 Astra" is written as `new.js "gpt 6 astra" "muse wonder"`. A model name in `--pair` that the voice transcript mishears fails the dropped-words check: see short-race's Traps.
 

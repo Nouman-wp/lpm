@@ -43,7 +43,7 @@ Automations are tasks the app runs on a schedule: a shell command, a project act
 - `lpm automations show <id> [-p proj | --global] [--json]` — the current definition.
 - `lpm automations open <id> [-p proj | --global]` — bring the app forward on that automation's page in the project's Automations tab, showing its runs there; with `--global`, on the app-wide Automations page. Use it when the user asks to see or open an automation in the app.
 - `lpm automations add <id> [-p proj | --projects a,b | --every-project | --no-project] <schedule> <run> [options]` — create one. Flags cover every field; see the reference.
-- `lpm automations edit <id> [-p proj | --global] [flags]` — change only the fields given; `--projects`, `--every-project`, or `--no-project` change where it runs.
+- `lpm automations edit <id> [-p proj | --global] [flags]` — change only the fields given; `--projects`, `--every-project`, or `--no-project` change where it runs, `--machines` which paired computers may run it.
 - `lpm automations remove <id> [-p proj | --global] [--delete-copies]` — delete it and its run history; `--delete-copies` also removes the copies its runs worked in. Only when the user asks.
 - `lpm automations run <id> [-p proj | --global]` — start a run now, fire-and-forget. It can edit code, make copies, and cost money; run one only when the user asks.
 - `lpm automations stop <id> [-p proj | --global]` — stop the current run.

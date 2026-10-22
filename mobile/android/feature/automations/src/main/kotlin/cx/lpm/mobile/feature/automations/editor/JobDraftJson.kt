@@ -9,6 +9,7 @@ import cx.lpm.mobile.core.model.int
 import cx.lpm.mobile.core.model.obj
 import cx.lpm.mobile.core.model.string
 import cx.lpm.mobile.core.model.trimmingWhitespace
+import cx.lpm.mobile.feature.automations.format.AutomationMachines
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -25,7 +26,8 @@ fun JobEditorDraft.Companion.from(body: JsonObject): JobEditorDraft {
         emoji = body.string("emoji") ?: "",
         check = body.string("check") ?: "",
         verify = body.string("verify") ?: "",
-        sendTo = body["sendTo"]
+        sendTo = body["sendTo"],
+        machines = AutomationMachines.read(body["machines"])
     )
     val options = body.obj("duplicate")
     if (body.bool("duplicate") == true) {
@@ -125,6 +127,11 @@ fun JobEditorDraft.buildJob(writesProjects: Boolean): JsonObject = buildJsonObje
     buildDuplicate()?.let { put("duplicate", it) }
     put("run", buildRun())
     sendTo?.let { put("sendTo", it) }
+    if (machines.isNotEmpty()) {
+        putJsonArray("machines") {
+            machines.forEach { add(JsonPrimitive(it)) }
+        }
+    }
     if (writesProjects) putJsonArray("projects") { targets.forEach { add(JsonPrimitive(it)) } }
 }
 

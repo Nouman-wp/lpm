@@ -58,6 +58,7 @@ const ASK_INSTRUCTION: &str = "If you can't go on without a decision or informat
 
 pub(crate) mod ask;
 pub(crate) mod askform;
+pub(crate) mod machines;
 
 // ---- config parsing ---------------------------------------------------------
 
@@ -94,6 +95,10 @@ struct JobDef {
     /// Where the job's results go (see sendto.rs); absent = lpm alone.
     #[serde(default, rename = "sendTo")]
     send_to: Option<SendToValue>,
+    /// The Macs that may run the job, by hostId, best first (see
+    /// jobs/machines.rs); absent = every Mac that has it.
+    #[serde(default)]
+    machines: Option<machines::MachinesValue>,
 }
 
 /// `sendTo: telegram` or `sendTo: [lpm, telegram]`.
@@ -330,6 +335,7 @@ struct JobResolved {
     run: RunTarget,
     enabled: bool,
     send_to: Vec<String>,
+    machines: Option<machines::Machines>,
 }
 
 fn parse_every_secs(v: &EveryValue) -> Result<u64, String> {
@@ -671,6 +677,7 @@ fn resolve_job(project: &str, id: &str, def: &JobDef) -> Result<JobResolved, Str
         run,
         enabled: def.enabled.unwrap_or(true),
         send_to: resolve_send_to(def.send_to.as_ref())?,
+        machines: machines::parse(def.machines.as_ref()),
     })
 }
 
@@ -1109,6 +1116,17 @@ impl JobState {
     fn is_on(&self, configured: bool) -> bool {
         self.enabled_override.unwrap_or(configured)
     }
+
+    /// A job that names its Macs is one job across all of them, so its switch
+    /// lives in the config they share — though one paused here before it named
+    /// them stays paused.
+    fn job_on(&self, job: &JobResolved) -> bool {
+        if job.machines.is_some() {
+            job.enabled && self.enabled_override != Some(false)
+        } else {
+            self.is_on(job.enabled)
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -1174,6 +1192,10 @@ struct HistoryEntry {
     /// the answer already, so the views don't repeat it as a message.
     #[serde(default, rename = "answerTo", skip_serializing_if = "Option::is_none")]
     answer_to: Option<String>,
+    /// The Mac that made this run, when it wasn't this one: another of the
+    /// job's Macs ran it while this one was off.
+    #[serde(default, rename = "ranOn", skip_serializing_if = "Option::is_none")]
+    ran_on: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -2523,6 +2545,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                     verify_output,
                     asks: Vec::new(),
                     answer_to,
+                    ran_on: None,
                 };
                 close_run(&app2, &key2, entry, detail, report);
             });
@@ -3365,6 +3388,7 @@ fn orphan_entry(
         count: None,
         asks: Vec::new(),
         answer_to: run.answer_to.clone(),
+        ran_on: None,
     }
 }
 
@@ -3511,7 +3535,7 @@ fn overdue_by(project: &str, id: &str, job: &JobResolved, now: u64) -> Option<u6
         }
     };
 
-    if !st.is_on(job.enabled) {
+    if !st.job_on(job) {
         return None;
     }
     let seed = job_seed(project, id);
@@ -3576,20 +3600,26 @@ fn tick(app: &AppHandle) {
     ask::expire_due(app);
     let now = now_secs();
     let mut due: Vec<(String, JobResolved, u64)> = Vec::new();
+    let mut shared: Vec<(String, machines::Machines)> = Vec::new();
+    let mut consider = |project: &str, id: &str, job: JobResolved| {
+        if let Some(m) = &job.machines {
+            shared.push((state_key(project, id), m.clone()));
+        }
+        if let Some(waited) = overdue_by(project, id, &job, now) {
+            due.push((project.to_string(), job, waited));
+        }
+    };
     for project in config::project_names() {
         for (id, _source, res) in resolve_jobs(&project) {
             let Ok(job) = res else { continue };
-            if let Some(waited) = overdue_by(&project, &id, &job, now) {
-                due.push((project.clone(), job, waited));
-            }
+            consider(&project, &id, job);
         }
     }
     for (id, res) in resolve_standalone_jobs() {
         let Ok(job) = res else { continue };
-        if let Some(waited) = overdue_by("", &id, &job, now) {
-            due.push((String::new(), job, waited));
-        }
+        consider("", &id, job);
     }
+    machines::pull(app, shared);
 
     // Longest-waiting first. The scan walks projects in a fixed order, so
     // taking them as they come would starve the same late-in-the-alphabet jobs
@@ -3597,7 +3627,14 @@ fn tick(app: &AppHandle) {
     due.sort_by(|a, b| b.2.cmp(&a.2));
 
     let cap = max_concurrent();
-    for (project, job, _) in due {
+    for (project, job, waited) in due {
+        let key = state_key(&project, &job.id);
+        if !matches!(
+            machines::plan(app, &key, &job, now, now.saturating_sub(waited)),
+            machines::Plan::Run
+        ) {
+            continue;
+        }
         if under_way() >= cap {
             record_capacity_skip(app, &project, &job);
             continue;
@@ -3692,7 +3729,13 @@ fn schedule_json(schedule: &Schedule) -> Value {
 /// One aggregated row for a global-layer job — every-project, project-scoped, or
 /// standalone — with run state folded across the folders it runs in, so a shared
 /// job shows as a single list entry instead of one per project.
-fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Value {
+fn global_job_row(
+    id: &str,
+    def: &JobDef,
+    projects: &[String],
+    now: u64,
+    names: &machines::Names,
+) -> Value {
     let standalone = matches!(job_targets(def), JobTargets::Standalone);
     let existing: HashSet<&str> = projects.iter().map(String::as_str).collect();
     let targets: Vec<String> = match job_targets(def) {
@@ -3739,7 +3782,7 @@ fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Valu
             }
         }
         let job_enabled = match &resolved {
-            Ok(job) => st.is_on(job.enabled),
+            Ok(job) => st.job_on(job),
             Err(_) => st.is_on(false),
         };
         enabled = enabled || job_enabled;
@@ -3806,6 +3849,7 @@ fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Valu
                 row["model"] = json!(model);
                 row["effort"] = json!(effort);
             }
+            names.add_row_fields(&mut row, &job);
             row
         }
         Err(e) => json!({
@@ -3830,9 +3874,10 @@ fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Valu
 pub fn list_all_jobs() -> Result<Vec<Value>, String> {
     let now = now_secs();
     let projects = config::project_names();
+    let names = machines::Names::load();
     let mut out: Vec<Value> = Vec::new();
     for project in &projects {
-        for mut row in list_jobs(project.clone())? {
+        for mut row in project_job_rows(project, &names) {
             if row.get("source") == Some(&json!(SOURCE_GLOBAL)) {
                 continue;
             }
@@ -3844,7 +3889,7 @@ pub fn list_all_jobs() -> Result<Vec<Value>, String> {
     }
     for (id, def) in load_jobs_yaml(&config::global_path()) {
         out.push(match def {
-            Ok(d) => global_job_row(&id, &d, &projects, now),
+            Ok(d) => global_job_row(&id, &d, &projects, now, &names),
             Err(e) => json!({
                 "id": id,
                 "valid": false,
@@ -3863,15 +3908,19 @@ pub fn list_all_jobs() -> Result<Vec<Value>, String> {
 
 #[tauri::command(async)]
 pub fn list_jobs(project: String) -> Result<Vec<Value>, String> {
+    Ok(project_job_rows(&project, &machines::Names::load()))
+}
+
+fn project_job_rows(project: &str, names: &machines::Names) -> Vec<Value> {
     let now = now_secs();
-    let out = resolve_jobs(&project)
+    resolve_jobs(project)
         .into_iter()
         .map(|(id, source, res)| {
             let key = state_key(&project, &id);
             let st = load_job_state(&key);
             match res {
                 Ok(job) => {
-                    let enabled = st.is_on(job.enabled);
+                    let enabled = st.job_on(&job);
                     // A job the scheduler hasn't anchored yet (created moments
                     // ago) predicts from now — the anchor the next tick writes.
                     let next = next_fire_at(
@@ -3914,6 +3963,7 @@ pub fn list_jobs(project: String) -> Result<Vec<Value>, String> {
                         row["model"] = json!(model);
                         row["effort"] = json!(effort);
                     }
+                    names.add_row_fields(&mut row, &job);
                     row
                 }
                 Err(e) => json!({
@@ -3925,8 +3975,7 @@ pub fn list_jobs(project: String) -> Result<Vec<Value>, String> {
                 }),
             }
         })
-        .collect();
-    Ok(out)
+        .collect()
 }
 
 /// Dry-run a job's `check` command from the editor so the user can confirm it
@@ -3952,7 +4001,7 @@ pub fn test_job_check(project: String, check: String) -> Result<Value, String> {
 pub fn run_job_now(app: AppHandle, project: String, job_id: String) -> Result<(), String> {
     let job = resolve_one(&project, &job_id)?;
     let st = load_job_state(&state_key(&project, &job_id));
-    if !st.is_on(job.enabled) {
+    if !st.job_on(&job) {
         return Err("This automation is off. Turn it on to run it.".into());
     }
     if ask::open_in(&st).is_some() {
@@ -4117,11 +4166,11 @@ fn start_followup(
     let thread_full = entries.iter().any(|e| e.result == CONTEXT_FULL);
     // Resuming is only sound when the newest message itself carries the
     // session — a thread that continued past it (another agent answered)
-    // would lose that exchange.
+    // would lose that exchange. A session another computer ran is there.
     let resume = tail
         .session
         .clone()
-        .filter(|_| agent == "claude" && !thread_full);
+        .filter(|_| agent == "claude" && !thread_full && tail.ran_on.is_none());
     let reply_env = run_env(
         project,
         job_id,
@@ -4506,6 +4555,8 @@ pub fn save_job_value(
         .get_mut("jobs")
         .and_then(serde_norway::Value::as_mapping_mut)
         .ok_or_else(|| "The config file isn't valid.".to_string())?;
+    let mut body = body;
+    machines::Names::load().settle_body(&mut body, jobs.get(id.as_str()));
     jobs.insert(id.as_str().into(), body);
     write_yaml_doc(&path, &doc)
 }
@@ -4547,6 +4598,7 @@ pub fn delete_job_body(
 
 #[tauri::command(async)]
 pub fn set_job_enabled(project: String, job_id: String, enabled: bool) -> Result<(), String> {
+    machines::write_switch(&project, &job_id, enabled)?;
     with_state(|f| {
         let st = f.jobs.entry(state_key(&project, &job_id)).or_default();
         st.enabled_override = Some(enabled);
@@ -4703,6 +4755,9 @@ pub fn job_history(project: String, job_id: String) -> Result<Vec<Value>, String
             }
             if let Some(a) = &h.answer_to {
                 o["answerTo"] = json!(a);
+            }
+            if let Some(m) = &h.ran_on {
+                o["ranOn"] = json!(m);
             }
             o
         })

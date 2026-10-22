@@ -39,6 +39,7 @@
     <string name="detail_agent">Agent</string>
     <string name="detail_fresh_copy">Works in a fresh copy of the project</string>
     <string name="detail_runs_in">Runs in</string>
+    <string name="detail_runs_on">Runs on</string>
     <string name="detail_live_output">Live output</string>
     <string name="detail_waiting_output">Waiting for output…</string>
     <string name="detail_history">Run history</string>
@@ -98,6 +99,8 @@
     <string name="editor_name">Name this automation</string>
     <string name="editor_emoji">Emoji (optional)</string>
     <string name="editor_runs_in">Runs in</string>
+    <string name="editor_runs_on">Runs on</string>
+    <string name="editor_any_machine">Any available Mac</string>
     <string name="editor_every_project">Every project</string>
     <string name="editor_standalone_footer">No project selected — runs on its own in your home folder.</string>
     <string name="editor_target_footer">Runs in the selected project.</string>

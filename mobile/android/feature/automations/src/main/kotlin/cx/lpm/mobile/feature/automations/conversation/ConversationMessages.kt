@@ -108,6 +108,7 @@ private fun MessageMeta(message: MessageUi) {
     ) {
         StatusDot(color = message.tone.color(), size = 7.dp)
         Text(message.label, style = style, color = color)
+        message.ranOn?.let { Text(it, style = style, color = color) }
         message.duration?.let { Text(it, style = style, color = color) }
         message.cost?.let { Text(it, style = style, color = color) }
         if (message.condensed) {

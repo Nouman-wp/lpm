@@ -104,6 +104,17 @@ A headless run has no one to answer its questions, so write the prompt as a comp
   - `--exclude-uncommitted` leaves uncommitted changes out of a copy.
 - `--send-to lpm,telegram` sets where results go: `lpm` (the default), `telegram`, or `telegram:<target>`. A question asked one at a time can be answered from Telegram too.
 
+## Which computer runs it
+
+Config sync copies an automation to every paired computer, but only one of them runs each scheduled run. `--machines` lists the ones that may, best first: `this` (the computer the app runs on), a paired computer's name as Settings → Connections shows it, or `any` for any other computer that has it and is on. The first one in the list that is on runs it; the next takes over a few minutes after it goes offline, and the first one pulls those runs into its own history when it's back.
+
+- A new automation runs only on the computer it was made on: `--machines this` is the default.
+- `--machines "this,Studio"`: this computer, or Studio while this one is off.
+- `--machines this,any`: this computer, or any other that's on.
+- `--machines ""` goes back to every computer that has it running it on its own, which is how automations made before this setting behave.
+
+`show` prints the list as hostIds. Pausing one that lists its computers pauses it on all of them.
+
 ## Edit
 
 ```bash
@@ -118,7 +129,7 @@ Run `show` first to see the current definition. `edit` changes only the fields y
 - `--cmd` replaces the whole run. `--action` drops the AI settings. `--prompt` on its own keeps the current action or agent settings. To turn an action into an AI prompt, pass `--action "" --prompt "..."`.
 - `--projects`, `--every-project`, and `--no-project` change where it runs, and the automation moves to where that is kept (see [Where it lives](#where-it-lives)), keeping its runs: `--projects web` on one in `global.yml` moves it into `web`'s config, and `--projects web,api` on one of `web`'s moves it to `global.yml`. An automation in the project's `.lpm.yml` travels with the folder, so change where it runs there instead.
 
-Pause and resume with `lpm automations disable|enable` instead of editing; the app keeps that choice separately.
+Pause and resume with `lpm automations disable|enable` instead of editing; the app keeps that choice separately, except for an automation that lists its computers, whose pause is written into its definition so every computer sees it.
 
 ## Remove
 

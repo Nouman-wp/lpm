@@ -22,6 +22,9 @@ final class AppModel {
     var mentions: [String: [MentionEntry]] = [:] // project -> @-mention targets
     var history: [String: [HistoryRow]] = [:] // project -> recent sent prompts
     var automations: [AutomationJob] = []
+    /// This Mac and the computers paired with it: what the editor offers to run
+    /// an automation on.
+    var automationMachines: [AutomationMachine] = []
     var automationsLoaded = false
     var automationHistory: [String: [AutomationHistoryEntry]] = [:]
     var automationHistoryLoading: Set<String> = []
@@ -1242,6 +1245,7 @@ final class AppModel {
         mentions = [:]
         history = [:]
         automations = []
+        automationMachines = []
         automationsLoaded = false
         automationHistory = [:]
         automationHistoryLoading = []
@@ -2824,11 +2828,14 @@ final class AppModel {
     }
 
     private func wireAutomations(_ c: LpmClient) {
-        c.onJobs = { [weak self] jobs, error in
+        c.onJobs = { [weak self] jobs, machines, error in
             guard let self else { return }
             self.automationsLoaded = true
             if let error { self.automationError = error }
-            else { self.automations = jobs }
+            else {
+                self.automations = jobs
+                self.automationMachines = machines
+            }
         }
         c.onJobHistory = { [weak self] project, jobId, entries, error in
             guard let self else { return }

@@ -9,7 +9,9 @@ import cx.lpm.mobile.core.data.projects.ProjectsState
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
+import cx.lpm.mobile.core.model.AutomationMachine
 import cx.lpm.mobile.core.model.SessionKey
+import cx.lpm.mobile.feature.automations.format.AutomationMachines
 import cx.lpm.mobile.feature.automations.format.automationScheduleText
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -53,7 +55,13 @@ data class AutomationEditorUiState(
     val mutationError: String? = null,
     val configError: String? = null,
     /** The Mac wrote it: the sheet goes. */
-    val done: Boolean = false
+    val done: Boolean = false,
+    /** This Mac and the computers paired with it, what "Runs on" offers. */
+    val machines: List<AutomationMachine> = emptyList(),
+    /** How the job names the computers it lists, for any not among [machines]. */
+    val machineNames: List<AutomationMachine> = emptyList(),
+    /** Like the desktop, "Runs on" shows once there's another computer to name. */
+    val showsMachines: Boolean = false
 )
 
 /**
@@ -94,7 +102,12 @@ class AutomationEditorViewModel @AssistedInject constructor(
         when (target) {
             is AutomationEditorTarget.Create -> {
                 s?.clearJobConfig()
-                target.project?.let { draft.value = JobEditorDraft(targets = listOf(it)) }
+                // A new automation runs on this Mac until others are picked.
+                val here = s?.state?.value?.machines?.firstOrNull { it.here }
+                draft.value = JobEditorDraft(
+                    targets = listOfNotNull(target.project),
+                    machines = listOfNotNull(here?.id)
+                )
             }
 
             is AutomationEditorTarget.Edit -> if (s != null) {
@@ -141,7 +154,16 @@ class AutomationEditorViewModel @AssistedInject constructor(
             global = source == "global",
             mutationError = a.mutationError,
             configError = a.jobConfigError,
-            done = pendingToken?.let { a.mutationDoneToken > it } == true
+            done = pendingToken?.let { a.mutationDoneToken > it } == true,
+            machines = a.machines,
+            machineNames = editingJob?.machines.orEmpty(),
+            showsMachines = a.machines.size > 1 ||
+                AutomationMachines.listed(d.machines).any { id ->
+                    a.machines.none {
+                        it.id == id &&
+                            it.here
+                    }
+                }
         )
     }
 

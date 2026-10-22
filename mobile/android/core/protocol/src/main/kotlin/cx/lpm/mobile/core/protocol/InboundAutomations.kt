@@ -3,6 +3,7 @@ package cx.lpm.mobile.core.protocol
 import cx.lpm.mobile.core.model.AutomationHistoryEntry
 import cx.lpm.mobile.core.model.AutomationJob
 import cx.lpm.mobile.core.model.AutomationLiveOutput
+import cx.lpm.mobile.core.model.AutomationMachine
 import cx.lpm.mobile.core.model.list
 import cx.lpm.mobile.core.model.obj
 
@@ -10,7 +11,8 @@ internal val automationParsers = parsers {
     put("jobs") { o ->
         Inbound.Jobs(
             jobs = if (o.ok) o.list("jobs", AutomationJob::parse) else emptyList(),
-            error = o.failure("Couldn't load automations.")
+            error = o.failure("Couldn't load automations."),
+            machines = o.list("machines", AutomationMachine::parse)
         )
     }
     put("jobHistory") { o ->

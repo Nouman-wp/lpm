@@ -40,7 +40,7 @@ internal fun LpmClientCallbacks.route(frame: Inbound) {
 
         is Inbound.Status -> onStatus?.invoke(frame.project, frame.entries)
 
-        is Inbound.Jobs -> onJobs?.invoke(frame.jobs, frame.error)
+        is Inbound.Jobs -> onJobs?.invoke(frame.jobs, frame.machines, frame.error)
 
         is Inbound.JobHistory ->
             onJobHistory?.invoke(frame.project, frame.jobId, frame.entries, frame.error)

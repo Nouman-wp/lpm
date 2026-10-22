@@ -61,7 +61,14 @@ data class AutomationJob(
     /** Runs that landed since this automation was last read, folded across its projects. */
     val unread: Int,
     /** The question the automation is waiting on the user to answer. */
-    val ask: AutomationAsk? = null
+    val ask: AutomationAsk? = null,
+    /**
+     * The computers that may run it, best first; the first one that's on runs it.
+     * Empty on a job every computer that has it runs.
+     */
+    val machines: List<AutomationMachine> = emptyList(),
+    /** After [machines], any other computer that has it and is on. */
+    val anyMachine: Boolean = false
 ) {
     val key: String get() = runProject + "\n" + id
     val displayName: String get() = label.ifEmpty { id }
@@ -134,9 +141,22 @@ data class AutomationJob(
                 runningCount = o.int("runningCount") ?: 0,
                 standalone = o.bool("standalone") ?: false,
                 unread = o.int("unread") ?: 0,
-                ask = AutomationAsk.parse(o["ask"])?.takeIf { it.isOpen }
+                ask = AutomationAsk.parse(o["ask"])?.takeIf { it.isOpen },
+                machines = o.list("machines", AutomationMachine::parse),
+                anyMachine = o.bool("anyMachine") ?: false
             )
         }
+    }
+}
+
+/** A computer an automation runs on, named as the Mac knows it. */
+data class AutomationMachine(val id: String, val name: String, val here: Boolean) {
+    companion object {
+        fun parse(o: JsonObject): AutomationMachine = AutomationMachine(
+            id = o.string("id").orEmpty(),
+            name = o.string("name").orEmpty(),
+            here = o.bool("here") ?: false
+        )
     }
 }
 
@@ -167,7 +187,9 @@ data class AutomationHistoryEntry(
      * The question this entry's message answered — the entry that asked shows the
      * answer, so it isn't repeated as a message.
      */
-    val answerTo: String = ""
+    val answerTo: String = "",
+    /** The computer that made this run when it wasn't this Mac. */
+    val ranOn: String = ""
 ) {
     val id: Long get() = at
 
@@ -191,7 +213,8 @@ data class AutomationHistoryEntry(
             verified = o.bool("verified"),
             unread = o.bool("unread") ?: false,
             asks = (o["asks"] as? JsonArray).orEmpty().mapNotNull(AutomationAsk::parse),
-            answerTo = o.string("answerTo").orEmpty()
+            answerTo = o.string("answerTo").orEmpty(),
+            ranOn = o.string("ranOn").orEmpty()
         )
     }
 }

@@ -237,6 +237,7 @@ private struct AutomationMessageMeta: View {
         HStack(spacing: 7) {
             Circle().fill(automationEntryColor(entry)).frame(width: 7, height: 7)
             Text(automationEntryLabel(entry))
+            if !entry.ranOn.isEmpty { Text("on \(entry.ranOn)") }
             if let duration = entry.durationSecs { Text(automationDurationText(duration)) }
             if let cost = entry.costUsd { Text(cost.formatted(.currency(code: "USD"))) }
             if entry.compacted { Text("Condensed") }

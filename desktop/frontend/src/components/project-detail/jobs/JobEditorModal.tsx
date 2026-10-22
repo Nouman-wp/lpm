@@ -32,6 +32,7 @@ import {
   readJobPayloadFrom,
 } from "../../../jobsConfig";
 import { useJobHost } from "./useJobHost";
+import { listedMachines } from "../../../jobsMachines";
 import { saveJobDraft, scopeProject } from "../../../jobsSave";
 import {
   defaultJobDraft,
@@ -192,9 +193,28 @@ export function JobEditorModal({
     };
   }, [open, editing, newProject]);
 
+  // A new job runs where it's saved until other computers are picked.
+  useEffect(() => {
+    if (!open || editing || !machine.hostId) return;
+    setDraft((d) => (d.machines.length > 0 ? d : { ...d, machines: [machine.hostId] }));
+  }, [open, editing, machine.hostId]);
+
   const patch = (values: Partial<JobDraft>) => {
     setTouched(true);
     setDraft((prev) => ({ ...prev, ...values }));
+  };
+
+  // A new job is saved on the first computer it runs on that this one can
+  // reach, else here; its projects are that computer's, so they go with it.
+  const setMachines = (next: string[]) => {
+    patch({ machines: next });
+    if (editing) return;
+    const first = machine.choices.find((c) => c.id === listedMachines(next)[0]);
+    const host = first?.slug && first.connected ? first.slug : undefined;
+    if (host !== machine.host) {
+      machine.setHost(host);
+      setScope([]);
+    }
   };
 
   const set = <K extends keyof JobDraft>(key: K, value: JobDraft[K]) => {
@@ -483,16 +503,15 @@ export function JobEditorModal({
                     value: p,
                     label: displayNameForProjectName(p, storeProjects),
                   }))}
-                  machine={
-                    machine.shown
+                  machines={
+                    machine.choices.length > 1 ||
+                    listedMachines(draft.machines).some((id) => id !== machine.myId)
                       ? {
-                          value: machine.host ?? "",
-                          options: machine.options,
-                          // Its projects are that machine's, so they go with it.
-                          onChange: (value) => {
-                            machine.setHost(value || undefined);
-                            setScope([]);
-                          },
+                          value: draft.machines,
+                          choices: machine.choices,
+                          names: editing?.job.machines,
+                          myId: machine.myId,
+                          onChange: setMachines,
                         }
                       : undefined
                   }

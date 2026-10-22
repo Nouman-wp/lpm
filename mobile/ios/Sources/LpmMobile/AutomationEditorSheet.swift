@@ -73,6 +73,7 @@ private struct JobEditorDraft {
     var memory = true               // each run recalls and saves the job's memory (set on the Mac)
     var sendTo: Any?                // where results go (set on the Mac); nil = lpm alone
     var targets: [String] = []      // "runs in"; empty = standalone
+    var machines: [String] = []     // "runs on": hostIds, best first, "any" last; empty = every Mac that has it
     /// A schedule set on the Mac that this editor has no controls for (several
     /// times a day, dates of the month, a one-off date, an interval held to some
     /// hours, a cron line). It is written back exactly as read, never rebuilt
@@ -150,6 +151,13 @@ struct AutomationEditorSheet: View {
     }
 
     private var isStandalone: Bool { editingJob == nil && draft.targets.isEmpty }
+
+    // Like the desktop, only once there's another computer to name.
+    private var showsMachines: Bool {
+        let here = model.automationMachines.first { $0.here }?.id
+        return model.automationMachines.count > 1
+            || AutomationMachines.listed(draft.machines).contains { $0 != here }
+    }
 
     private var loading: Bool {
         context.isEditing && !seeded && model.jobConfigError == nil
@@ -250,6 +258,11 @@ struct AutomationEditorSheet: View {
     private var form: some View {
         Form {
             nameSection
+            if showsMachines {
+                AutomationMachinesSection(machines: $draft.machines,
+                                          choices: model.automationMachines,
+                                          names: editingJob?.machines ?? [])
+            }
             scopeSection
             runSection
             frequencySection
@@ -708,6 +721,10 @@ struct AutomationEditorSheet: View {
         switch context {
         case .create(let project):
             if let project { draft.targets = [project] }
+            // A new automation runs on this Mac until others are picked.
+            if let here = model.automationMachines.first(where: { $0.here }) {
+                draft.machines = [here.id]
+            }
             model.jobConfigBody = nil
             seeded = true
         case .edit(let job):
@@ -795,6 +812,7 @@ struct AutomationEditorSheet: View {
         if let check = body["check"] as? String { d.check = check }
         if let verify = body["verify"] as? String { d.verify = verify }
         d.sendTo = body["sendTo"]
+        d.machines = AutomationMachines.read(body["machines"])
         if let projects = body["projects"] as? [Any] {
             d.targets = projects.map { String(describing: $0) }
             scopeHasProjectsKey = true
@@ -834,6 +852,7 @@ struct AutomationEditorSheet: View {
         if let duplicate = buildDuplicate() { payload["duplicate"] = duplicate }
         payload["run"] = buildRun()
         if let sendTo = draft.sendTo { payload["sendTo"] = sendTo }
+        if !draft.machines.isEmpty { payload["machines"] = draft.machines }
         // The "runs in" list lives only on global-layer jobs; a project/repo job
         // is bound to its file. An every-project global job (scope read-only)
         // keeps that meaning by omitting `projects`.

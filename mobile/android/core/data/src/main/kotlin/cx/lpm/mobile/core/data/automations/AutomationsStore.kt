@@ -41,12 +41,12 @@ class AutomationsStore(private val session: MacSession) : SessionStore {
 
     override fun wire(client: LpmClient) {
         val c = client
-        c.onJobs = { jobs, error ->
+        c.onJobs = { jobs, machines, error ->
             mutable.update {
                 if (error != null) {
                     it.copy(loaded = true, error = error)
                 } else {
-                    it.copy(jobs = jobs, loaded = true)
+                    it.copy(jobs = jobs, machines = machines, loaded = true)
                 }
             }
         }

@@ -7,6 +7,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { ProjectInfo } from "../types";
+import type { JobInfo } from "../jobsFormat";
+import { oneRowPerJob } from "../jobsMachines";
 import { prefixName } from "./markers";
 import { beginPeerStart, claimPeerTerminal, endPeerStart } from "./hostTerminals";
 import {
@@ -186,7 +188,8 @@ function cachedPeerList(slug: string): ProjectInfo[] {
 
 // Every automation there is: this Mac's own and each connected host's, which
 // that host lists itself. A host that doesn't answer in time is left out of this
-// listing rather than holding back the rest.
+// listing rather than holding back the rest. An automation config sync put on
+// several of them is listed once, from the one that runs it.
 async function routedListAllJobs(): Promise<unknown[]> {
   ensureRegistry();
   const listing = invoke("list_all_jobs") as Promise<unknown[] | null>;
@@ -199,7 +202,7 @@ async function routedListAllJobs(): Promise<unknown[]> {
       return (await Promise.race([call, delay(PEER_LIST_WAIT_MS).then(() => null)]).catch(() => null)) ?? [];
     }),
   );
-  return [...((await listing) ?? []), ...peerRows.flat()];
+  return oneRowPerJob([...(((await listing) ?? []) as JobInfo[]), ...(peerRows.flat() as JobInfo[])]);
 }
 
 // "Mark all as read" reads every machine's automations, as the list shows them.

@@ -50,6 +50,7 @@ export function JobRunRow({
   const snippet = jobOutputSnippet(tail.output, 320);
   const replies = thread.replies.length;
   const stats = [
+    root.ranOn ? `on ${root.ranOn}` : "",
     replies > 0 ? `${replies} ${replies === 1 ? "reply" : "replies"}` : "",
     root.durationSecs !== undefined && root.durationSecs > 0
       ? formatDuration(root.durationSecs)

@@ -3,6 +3,7 @@ package cx.lpm.mobile.core.data.automations
 import cx.lpm.mobile.core.model.AutomationHistoryEntry
 import cx.lpm.mobile.core.model.AutomationJob
 import cx.lpm.mobile.core.model.AutomationLiveOutput
+import cx.lpm.mobile.core.model.AutomationMachine
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -11,6 +12,8 @@ import kotlinx.serialization.json.JsonObject
  */
 data class AutomationsState(
     val jobs: List<AutomationJob> = emptyList(),
+    /** This Mac and the computers paired with it: what the editor offers to run on. */
+    val machines: List<AutomationMachine> = emptyList(),
     /** False until the first list arrives. */
     val loaded: Boolean = false,
     /** The last request the Mac refused ("Couldn't update automation"). */

@@ -12,6 +12,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
+const { load } = require("./catalog");
 
 const MODELS_JS = path.join(__dirname, "../../short-race/scripts/models.js");
 const MODEL = "haiku";
@@ -25,7 +26,9 @@ const CONTEXT_MAX = 200;
 const KINDS = ["request", "question", "opinion", "praise", "spam", "abusive", "other"];
 const TOPICS = ["none", "effort_levels", "ultracode", "one_run_not_enough", "old_vs_new", "flagship_vs_lightweight", "winner_pick", "cost", "how_it_works", "lpm_tool", "off_topic"];
 const FLAGS = ["link", "contact_or_dm", "personal_data", "profanity", "insult", "hate", "sexual", "impersonation", "instructions_to_ai", "self_promo", "bot_like", "fake_data"];
-const FORMATS = ["none", "giraffe", "website", "runner", "racer", "flappy", "snake", "shooter", "breakout", "gta", "other"];
+// Every format in the catalog, so a viewer can ask for one the run invented.
+const CATALOG = load().formats;
+const FORMATS = ["none", ...CATALOG.map((f) => f.id), "other"];
 const EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
 const LANGS = ["en", "ru", "uk", "be", "kk", "uz", "es", "pt", "de", "fr", "it", "pl", "tr", "id", "vi", "hi", "ar", "fa", "ja", "ko", "zh", "und"];
 
@@ -54,7 +57,7 @@ Fields:
 - kind: request (asks us to race named models or make a format), question (a genuine question to us), opinion, praise, spam, abusive, other.
 - isRequest: true only when the comment asks for a new race. Naming the winner of this video is an opinion.
 - sides: the models the viewer wants raced, at most 3, in the order written, each {model, effort, ultracode}. model is the lowercase Latin family, version and variant only, as in "opus 5.5", "sonnet 5.5", "fable 5.1", "haiku 5.5", "gpt 6.1 sol", "gpt 6 astra", "gemini 3.8 flash", "gemini 4 argon", "grok 4.7", "glm 5.3", "mimo 2.6 pro". Transliterate Cyrillic: сонет/соннет sonnet, опус opus, хаику haiku, гемини/джемини gemini, грок grok, мимо mimo, гпт gpt, сол sol. Letters, digits, spaces, dots and hyphens only, at most 40 characters, never any other word. effort is the level named (xhigh for "extra high"), else none; ultracode is true when "ultracode" is named. A side implied by the video title or the parent comment counts (usesContext true), as in "now compare it with Gemini 4 Argon" under an Opus vs Gemini video. Empty when isRequest is false.
-- format: the race prompt asked for, if any.
+- format: the race prompt asked for: ${CATALOG.map((f) => `${f.id} (${f.subject})`).join(", ")}; other for any prompt not listed; none when no prompt is named.
 - language: the ISO 639-1 code of the comment text (Ukrainian is uk, not ru); und for emoji only or no words.
 - topic: what a question or opinion is about.
 - flags: every one that applies. profanity includes Russian mat. impersonation includes celebrity or "official" handles.

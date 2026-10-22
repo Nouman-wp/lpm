@@ -1,20 +1,19 @@
-import { useCallback, useEffect, useState } from "react";
-import { MACHINE } from "../../../machineWords";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { peerSlugOf } from "../../../peer/markers";
-import { peerAlias, usePeerState, type PeerClient } from "../../../peer/usePeerState";
+import { usePeerState, type PeerClient } from "../../../peer/usePeerState";
+import { machineChoices, type MachineChoice } from "../../../peer/machineChoices";
 import type { JobInfo } from "../../../jobsFormat";
 
-const THIS_MACHINE = "";
-
 export interface JobHost {
-  /// The paired machine the job runs on, by slug; undefined = this Mac.
+  /// The paired machine the job lives on, by slug; undefined = this Mac.
   host: string | undefined;
   peer: PeerClient | undefined;
-  /// The machines a job can be put on, "" standing for this Mac. Only the one
-  /// it is on while editing: a job's runs and history stay where it ran.
-  options: { value: string; label: string }[];
-  /// Whether there is another machine to put a job on at all.
-  shown: boolean;
+  /// This computer and the paired ones a job can run on.
+  choices: MachineChoice[];
+  /// This computer's hostId.
+  myId: string;
+  /// The hostId of the machine the job lives on; empty while unknown.
+  hostId: string;
   setHost: (host: string | undefined) => void;
   /// Whether `name` is a project on the job's machine.
   onHost: (name: string) => boolean;
@@ -37,18 +36,15 @@ export function useJobHost(
   }, [open, editing, newProject]);
 
   const onHost = useCallback((name: string) => (peerSlugOf(name) ?? undefined) === host, [host]);
+  const choices = useMemo(() => machineChoices(state), [state]);
+  const peer = host ? state.peers.find((p) => p.slug === host) : undefined;
 
-  const machines = [
-    { value: THIS_MACHINE, label: MACHINE.ThisMachineTitle },
-    ...state.peers
-      .filter((p) => p.connected || p.slug === host)
-      .map((p) => ({ value: p.slug, label: peerAlias(state.peers, p.slug) })),
-  ];
   return {
     host,
-    peer: host ? state.peers.find((p) => p.slug === host) : undefined,
-    options: editing ? machines.filter((m) => m.value === (host ?? THIS_MACHINE)) : machines,
-    shown: machines.length > 1,
+    peer,
+    choices,
+    myId: state.host.hostId,
+    hostId: host ? (peer?.hostId ?? "") : state.host.hostId,
     setHost,
     onHost,
   };

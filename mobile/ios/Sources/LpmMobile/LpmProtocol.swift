@@ -587,7 +587,7 @@ enum Wire {
         case upload(id: String, reqId: String, path: String)
         case uploadStep(UploadStep)
         case status(project: String, [StatusEntry])
-        case jobs([AutomationJob], error: String?)
+        case jobs([AutomationJob], machines: [AutomationMachine], error: String?)
         case jobHistory(project: String, jobId: String, entries: [AutomationHistoryEntry], error: String?)
         case jobLiveOutput(project: String, jobId: String, live: AutomationLiveOutput?, error: String?)
         case automationMutation(project: String, jobId: String, error: String?)
@@ -847,6 +847,7 @@ enum Wire {
             case "jobs":
                 let ok = obj["ok"] as? Bool ?? false
                 return .jobs(ok ? (obj["jobs"] as? [[String: Any]] ?? []).map(AutomationJob.init) : [],
+                             machines: (obj["machines"] as? [[String: Any]] ?? []).map(AutomationMachine.init),
                              error: ok ? nil : (obj["error"] as? String ?? "Couldn't load automations."))
             case "jobHistory":
                 let ok = obj["ok"] as? Bool ?? false
@@ -1351,6 +1352,11 @@ struct AutomationJob: Identifiable {
     let unread: Int
     /// The question the automation is waiting on the user to answer.
     let ask: AutomationAsk?
+    /// The computers that may run it, best first; the first one that's on
+    /// runs it. Empty on a job every computer that has it runs.
+    let machines: [AutomationMachine]
+    /// After `machines`, any other computer that has it and is on.
+    let anyMachine: Bool
 
     init(_ o: [String: Any]) {
         id = o["id"] as? String ?? ""
@@ -1396,6 +1402,8 @@ struct AutomationJob: Identifiable {
         runningCount = o["runningCount"] as? Int ?? 0
         standalone = o["standalone"] as? Bool ?? false
         ask = AutomationAsk(o["ask"]).flatMap { $0.isOpen ? $0 : nil }
+        machines = (o["machines"] as? [[String: Any]] ?? []).map(AutomationMachine.init)
+        anyMachine = o["anyMachine"] as? Bool ?? false
     }
 
     var key: String { runProject + "\n" + id }
@@ -1417,6 +1425,25 @@ struct AutomationJob: Identifiable {
     /// editor all resolve per project, and a global-layer row carries only its
     /// `targets`, never a `project` of its own.
     var runProject: String { runTargets.first ?? "" }
+}
+
+/// A computer an automation runs on, named as the Mac knows it.
+struct AutomationMachine: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let here: Bool
+
+    init(_ o: [String: Any]) {
+        id = o["id"] as? String ?? ""
+        name = o["name"] as? String ?? ""
+        here = o["here"] as? Bool ?? false
+    }
+
+    init(id: String, name: String, here: Bool) {
+        self.id = id
+        self.name = name
+        self.here = here
+    }
 }
 
 struct AutomationHistoryEntry: Identifiable {
@@ -1442,9 +1469,12 @@ struct AutomationHistoryEntry: Identifiable {
     /// The question this entry's message answered — the entry that asked shows
     /// the answer, so it isn't repeated as a message.
     let answerTo: String
+    /// The computer that made this run when it wasn't this Mac.
+    let ranOn: String
 
     init(_ o: [String: Any]) {
         at = o["at"] as? Int ?? 0
+        ranOn = o["ranOn"] as? String ?? ""
         asks = (o["asks"] as? [Any] ?? []).compactMap(AutomationAsk.init)
         answerTo = o["answerTo"] as? String ?? ""
         result = o["result"] as? String ?? ""

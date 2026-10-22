@@ -1,7 +1,10 @@
 #!/usr/bin/env node
-// node new.js "<model A>" "<model B>" [--game runner] [--pair "Claude vs GPT 6"] [--title "…"] [--slug s] [--force] [--dry <scratch dir>] [--list]
+// node new.js "<model A>" "<model B>" [--game runner | --game-file <game.json>] [--pair "Claude vs GPT 6"] [--title "…"] [--slug s] [--force] [--dry <scratch dir>] [--list]
 // Writes a short-race lesson whose prompt is a self-playing game from games.js,
 // then rewrites its copy around the game: hook, headline, title and caption.
+// --game-file takes a game that isn't in games.js (a format in short-daily's
+// catalog): the same fields, or its whole `prompt` in place of build, play,
+// layout and restart.
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -15,7 +18,7 @@ const DRY_PROMPT =
   "Write index.html at the project root: a page with one red square centered on a white background. One file. Don't open it. Don't run or test it. No questions, just write it.";
 
 const args = process.argv.slice(2);
-const VALUE_FLAGS = ["--game", "--pair", "--title", "--slug", "--dry"];
+const VALUE_FLAGS = ["--game", "--game-file", "--pair", "--title", "--slug", "--dry"];
 const opt = (name) => {
   const i = args.indexOf(name);
   return i >= 0 ? args[i + 1] : undefined;
@@ -26,12 +29,30 @@ if (args.includes("--list")) {
   process.exit(0);
 }
 
+const COPY_FIELDS = ["key", "slug", "subject", "noun", "headline", "caption", "what"];
+function readGame(file) {
+  let g;
+  try {
+    g = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (e) {
+    console.error(`--game-file ${file}: ${e.message}`);
+    process.exit(1);
+  }
+  const needs = [...COPY_FIELDS, ...(g.prompt ? [] : ["build", "play", "layout", "restart"])].filter((k) => typeof g[k] !== "string" || !g[k].trim());
+  if (needs.length) {
+    console.error(`--game-file ${file}: needs ${needs.join(", ")}`);
+    process.exit(1);
+  }
+  return g;
+}
+
 const specs = args.filter((a, i) => !a.startsWith("--") && !VALUE_FLAGS.includes(args[i - 1]));
-const gameKey = opt("--game") || "runner";
-const game = GAMES[gameKey];
+const gameFile = opt("--game-file");
+const game = gameFile ? readGame(gameFile) : GAMES[opt("--game") || "runner"];
+const gameKey = gameFile ? game.key : opt("--game") || "runner";
 if (specs.length !== 2 || !game) {
   if (!game) console.error(`no game "${gameKey}"; pick one of ${Object.keys(GAMES).join(", ")} (or add it to games.js)`);
-  console.error('usage: node new.js "opus 5.5 high" "gpt 6 astra high" [--game runner] [--pair "Claude vs GPT 6"] [--title "…"] [--slug s] [--force] [--dry <dir>]');
+  console.error('usage: node new.js "opus 5.5 high" "gpt 6 astra high" [--game runner | --game-file <game.json>] [--pair "Claude vs GPT 6"] [--title "…"] [--slug s] [--force] [--dry <dir>]');
   process.exit(1);
 }
 
@@ -86,7 +107,7 @@ if (dryRoot) {
 
 const timeoutMin = game.timeoutMin || TIMEOUT_MIN;
 const slug = opt("--slug") || `${sides.map((s) => s.dir).join("-vs-")}-${game.slug}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-const { out, dir } = race({ slug, racePrompt: prompt(game), subject: game.subject });
+const { out, dir } = race({ slug, racePrompt: game.prompt || prompt(game), subject: game.subject });
 
 const lessonFile = path.join(dir, "lesson.json");
 const compareFile = path.join(dir, "compare.json");

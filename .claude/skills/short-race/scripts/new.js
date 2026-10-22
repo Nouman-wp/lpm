@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// node new.js "<model A>" "<model B>" [--effort e] [--prompt "…"] [--subject "…"] [--slug s] [--force]
+// node new.js "<model A>" "<model B>" [--effort e] [--prompt "…"] [--subject "…"] [--noun n] [--emoji e] [--slug s] [--force]
 // Writes a ready-to-record vertical lesson for short's make.js:
 // lesson.json (narration, headline, post), compare.json (models and prompt),
 // beats.js (this skill's shared beats) and take.sh.
@@ -7,12 +7,11 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { resolve } = require("./models");
+const { GIRAFFE: DEFAULT_PROMPT } = require("./prompt");
 
 const SKILL = path.resolve(__dirname, "..");
 const MAKER = path.resolve(SKILL, "..", "short");
 const ROOT = process.env.LPM_TIKTOK_DIR || path.join(process.env.LPM_LESSONS_DIR || path.join(os.homedir(), "Movies/lpm-lessons"), "tiktok");
-const DEFAULT_PROMPT =
-  "Build a giraffe flying a one-seat propeller plane, its neck sticking out the top, in index.html at the project root. One file, no libraries or images. It's shown in a panel a bit wider than tall, of any size. Lay the scene out on a 900x700 stage: the plane spans about 40% of the stage's width, centered, with its body about halfway down, and the giraffe's head reaches about 10% from the top. Scale the whole stage to fit the panel, centered, never cropped; the sky fills the rest. No scrolling. Animate forever. Don't open it. Don't run or test it. No questions, just write it.";
 // A narrow, tall window, so each row takes about half the frame. The wide shot
 // scales it to 982x1723 px and sits 6 px below centre, so at the payoff,
 // trimmed to the colour bars, the top bar clears TikTok's tabs (y 150) and the
@@ -29,14 +28,14 @@ const ARG_PROMPT = new Set(["cursor", "muse"]);
 const BRAND_TAG = { muse: "metaai" };
 
 const args = process.argv.slice(2);
-const VALUE_FLAGS = ["--effort", "--prompt", "--subject", "--slug"];
+const VALUE_FLAGS = ["--effort", "--prompt", "--subject", "--noun", "--emoji", "--slug"];
 const opt = (name) => {
   const i = args.indexOf(name);
   return i >= 0 ? args[i + 1] : undefined;
 };
 const specs = args.filter((a, i) => !a.startsWith("--") && !VALUE_FLAGS.includes(args[i - 1]));
 if (specs.length !== 2) {
-  console.error('usage: node new.js "opus 5.5 max" "gpt 6 astra ultra" [--effort e] [--prompt "…"] [--subject "…"] [--slug s] [--force]');
+  console.error('usage: node new.js "opus 5.5 max" "gpt 6 astra ultra" [--effort e] [--prompt "…"] [--subject "…"] [--noun n] [--emoji e] [--slug s] [--force]');
   process.exit(1);
 }
 
@@ -115,8 +114,11 @@ if (!ARG_PROMPT.has(b.cli)) {
     process.exit(1);
   }
 }
+// A prompt with a name of its own ("pelican") gets the giraffe's copy: "the
+// pelican test" in the title, "Which pelican wins?" at the end.
+const noun = giraffe ? "giraffe" : opt("--noun")?.trim().replace(/[.!]+$/, "") || null;
 const slugify = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-const topic = giraffe ? "giraffe" : slugify(subject).split("-").slice(0, 3).join("-");
+const topic = noun ? slugify(noun) : slugify(subject).split("-").slice(0, 3).join("-");
 const slug = opt("--slug") || slugify([`${a.dir}-vs-${b.dir}`, topic].filter(Boolean).join("-"));
 const dir = path.join(ROOT, slug);
 if (fs.existsSync(dir) && !args.includes("--force")) {
@@ -127,7 +129,7 @@ if (fs.existsSync(dir) && !args.includes("--force")) {
 const sameModel = a.name === b.name;
 const effortWord = (m) => m.spokenEffort || "default";
 const upper = (t) => t.charAt(0).toUpperCase() + t.slice(1);
-const emoji = giraffe ? " 🦒" : "";
+const emoji = giraffe ? " 🦒" : opt("--emoji") ? ` ${opt("--emoji").trim()}` : "";
 // A hook over 2.5 s loses the scroll: name the brands viewers search for when
 // they differ ("Claude or ChatGPT?", "Claude or Grok?"), families when those
 // differ ("Opus or Fable?"), full names only when they don't.
@@ -161,7 +163,7 @@ const narration = [
   },
   { id: "reveal", text: "Here's what they *built*.", caption: false },
   // Viewers name the next pair in the comments.
-  { id: "wrap", text: `Which ${giraffe ? "giraffe" : "one"} *wins*? Comment two models to race *next*.`, caption: false },
+  { id: "wrap", text: `Which ${noun || "one"} *wins*? Comment two models to race *next*.`, caption: false },
 ];
 
 const clis = new Set([a.cli, b.cli]);
@@ -174,7 +176,7 @@ const hashtags = [
 ].filter(Boolean);
 const what = giraffe ? "a giraffe flying a one-seat plane, built as an animated web page" : `${subject}, built as a web page`;
 const lesson = {
-  title: `${a.headline} vs ${b.headline}${giraffe ? ": the giraffe test" : ", same prompt"}`,
+  title: `${a.headline} vs ${b.headline}${noun ? `: the ${noun} test` : ", same prompt"}`,
   ...TALL,
   open: 2,
   slam: sameModel ? { a: a.label, b: b.label } : { a: a.name, b: b.name },
@@ -182,7 +184,7 @@ const lesson = {
   cta: false,
   narration,
   post: {
-    caption: `${branded ? `${a.brand} vs ${b.brand} for coding: ` : `${a.brand} `}${a.headline} vs ${b.headline} on the same prompt: ${what}, side by side in lpm's terminal. ${giraffe ? "Which giraffe wins?" : "Which one wins?"} Comment the two models you want me to race next.`,
+    caption: `${branded ? `${a.brand} vs ${b.brand} for coding: ` : `${a.brand} `}${a.headline} vs ${b.headline} on the same prompt: ${what}, side by side in lpm's terminal. Which ${noun || "one"} wins? Comment the two models you want me to race next.`,
     hashtags: hashtags.slice(0, 5),
   },
 };

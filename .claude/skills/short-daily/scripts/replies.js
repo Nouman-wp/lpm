@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// node replies.js draft <labels.json> --template requestDone|alreadyMade --key <request key> --a <A headline> --b <B headline> [--format giraffe|website|game] [--youtube <shorts url>] [--max 3] [--out <file>]
+// node replies.js draft <labels.json> --template requestDone|alreadyMade --key <request key> --a <A headline> --b <B headline> [--format <format id>|game] [--youtube <shorts url>] [--max 3] [--out <file>]
 // node replies.js answer <labels.json> --topic <topic> [--max 3] [--out <file>]
 // node replies.js fill <approved replies.json> --youtube <shorts url> [--out <file>]
 // node replies.js snippet <replies.json> <ref> [--check]
@@ -13,12 +13,15 @@
 // step}, so the agent never reads a comment thread.
 const fs = require("fs");
 const path = require("path");
+const { load } = require("./catalog");
 
 const TEMPLATES = JSON.parse(fs.readFileSync(path.join(__dirname, "templates.json"), "utf8"));
 const REF = /^(yt|tt):([A-Za-z0-9_-]{11}|\d{15,25}):([A-Za-z0-9_-]{20,40}(\.[A-Za-z0-9_-]{10,40})?|\d{15,25})$/;
 const NAME = /^[A-Za-z0-9][A-Za-z0-9 .·-]{0,39}$/;
 const SHORTS = /^https:\/\/www\.youtube\.com\/shorts\/[A-Za-z0-9_-]{11}$/;
-const ICONS = { giraffe: "🦒", website: "🌐", game: "🎮" };
+const ICONS = { game: "🎮" };
+// The catalog of the state folder labels.json is in, with the run's own formats.
+const iconOf = (format) => ICONS[format] || load(path.dirname(path.resolve(file))).byId.get(format)?.emoji;
 const ME = { youtube: "@lpmcx", tiktok: "lpm06557" };
 const TOPICS = Object.keys(TEMPLATES.answer);
 
@@ -80,8 +83,8 @@ function draft(labels) {
   const B = opt("--b");
   if (!NAME.test(A || "") || !NAME.test(B || "")) fail('--a and --b take a models.js headline such as "Opus 5.5 high"');
   const format = opt("--format") || "giraffe";
-  if (!ICONS[format]) fail("--format is giraffe, website or game");
-  const slots = { A, B, icon: ICONS[format], link: link() || undefined };
+  const icon = iconOf(format) || fail("--format is a format id from formats.js list, or game");
+  const slots = { A, B, icon, link: link() || undefined };
   return pick(labels, (c) => c.request?.key === key).map((c) => row(c, template, render(TEMPLATES[template], platformOf(c.ref), c.language, slots)));
 }
 

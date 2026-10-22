@@ -41,6 +41,7 @@ fun EditorForm(
     onDelete: () -> Unit
 ) {
     NameSection(state.draft, onEdit)
+    if (state.showsMachines) MachinesSection(state, onEdit)
     ScopeSection(state, onEdit)
     RunSection(state, onEdit)
     FrequencySection(state, onEdit)

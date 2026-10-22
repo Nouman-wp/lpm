@@ -101,6 +101,7 @@ struct AutomationHistoryRow: View {
 
     private var meta: String {
         var parts = [automationClockText(entry.at)]
+        if !thread.root.ranOn.isEmpty { parts.append("on \(thread.root.ranOn)") }
         if let duration = entry.durationSecs, duration > 0 {
             parts.append(automationDurationText(duration))
         }

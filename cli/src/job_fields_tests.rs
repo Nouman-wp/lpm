@@ -172,3 +172,16 @@ fn emptiness_and_targets() {
     assert!(fields(&["--action", "deploy"]).run_target_given());
     assert!(fields(&["--days", "mon"]).schedule_given());
 }
+
+#[test]
+fn machines_are_a_list_the_app_resolves() {
+    assert_eq!(
+        applied("{}", &["--machines", "this, Studio,any"]).unwrap(),
+        "machines:\n- this\n- Studio\n- any\n"
+    );
+    assert_eq!(
+        applied("machines: [abc]\n", &["--machines", ""]).unwrap(),
+        "machines: []\n"
+    );
+    assert!(!fields(&["--machines", "any"]).is_empty());
+}

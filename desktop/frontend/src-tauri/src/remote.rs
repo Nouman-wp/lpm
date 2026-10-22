@@ -2492,7 +2492,11 @@ fn handle_msg(
             });
         }
         "jobs" => match crate::jobs::list_all_jobs() {
-            Ok(jobs) => send(ws, json!({ "t": "jobs", "ok": true, "jobs": jobs }))?,
+            Ok(jobs) => send(
+                ws,
+                json!({ "t": "jobs", "ok": true, "jobs": jobs,
+                "machines": crate::jobs::machines::known_machines() }),
+            )?,
             Err(e) => send(ws, json!({ "t": "jobs", "ok": false, "error": e }))?,
         },
         "jobHistory" => {

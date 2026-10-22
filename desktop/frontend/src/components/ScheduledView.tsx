@@ -12,16 +12,15 @@ import { useAppStore } from "../store/app";
 import { useContentZoom } from "../hooks/useContentZoom";
 import { useJobCommands } from "../hooks/useJobCommands";
 import { useAutomationOpenRequest } from "../hooks/useAutomationOpenRequest";
+import { useJobScopeLabel } from "../hooks/useJobScopeLabel";
 import { ClockIcon, PlusIcon } from "./icons";
 import { EmptyState } from "./ui/EmptyState";
 import { AutomationsHeader, type AutomationsViewMode } from "./AutomationsHeader";
 import { clearJobStateGlobal, deleteJob, deleteJobGlobal } from "../jobsConfig";
-import { peerSlugOf } from "../peer/markers";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
 import type { JobInfo } from "../jobsFormat";
 import {
   isUnread,
-  jobScopeLabel,
   rowProject,
   sortJobsForList,
   targetsOfRow,
@@ -91,6 +90,12 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
 
   const { runNow, stopRun, toggleEnabled } = useJobCommands(refetch);
 
+  // A computer coming or going changes which copy of an automation shows, so a
+  // gone one's row doesn't linger in place of this one's.
+  const connectedPeers = peerState.peers
+    .filter((p) => p.connected)
+    .map((p) => p.slug)
+    .join(" ");
   useEffect(() => {
     if (!visible) return;
     void refetch();
@@ -98,7 +103,7 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
     return () => {
       if (typeof cancel === "function") cancel();
     };
-  }, [visible, refetch]);
+  }, [visible, refetch, connectedPeers]);
 
   // In a project's tab a shared job opens on this project's own runs.
   const rowProjectOf = useCallback(
@@ -154,16 +159,7 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
     (name: string) => displayNameForProjectName(name, projects),
     [projects],
   );
-  // A job's scope is counted against its own machine's projects, and a paired
-  // machine's job says which machine it runs on.
-  const scopeLabelFor = useCallback(
-    (job: ScheduledJob) => {
-      const onMachine = projects.filter((p) => (peerSlugOf(p.name) ?? undefined) === job.host);
-      const scope = jobScopeLabel(job, onMachine.length, projectLabel);
-      return job.host ? `${scope} · ${peerAlias(peerState.peers, job.host)}` : scope;
-    },
-    [projects, projectLabel, peerState.peers],
-  );
+  const scopeLabelFor = useJobScopeLabel(projects, projectLabel, peerState);
   // Stable so the board's memoised layout survives a render that changed
   // nothing about the jobs themselves.
   const rowKeyOf = useCallback(

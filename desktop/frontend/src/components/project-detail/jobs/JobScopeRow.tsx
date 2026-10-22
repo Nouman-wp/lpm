@@ -1,9 +1,10 @@
+import type { ComponentProps } from "react";
 import { Bell, BellOff, Lock, LockOpen } from "lucide-react";
 import { RowSelect } from "./RowSelect";
 import { JobRunsInMenu } from "./JobRunsInMenu";
+import { JobMachinesMenu } from "./JobMachinesMenu";
 import { JobSendToMenu } from "./JobSendToMenu";
 import { JobMemoryToggle } from "./JobMemoryToggle";
-import { LaptopIcon } from "../../connections/LaptopIcon";
 import type { JobDraft } from "../../../jobsFormat";
 import {
   LPM_DESTINATION,
@@ -38,7 +39,7 @@ export function JobScopeRow({
   skippedCopies,
   problem,
   onConnect,
-  machine,
+  machines,
   host,
 }: {
   draft: JobDraft;
@@ -54,12 +55,8 @@ export function JobScopeRow({
   onConnect: (service: string, intent: ConnectIntent) => void;
   // The machine the job runs on: a connected one's slug, or null for this one.
   host: string | null;
-  // The machine the job runs on, where there is more than one to pick from.
-  machine?: {
-    value: string;
-    options: { value: string; label: string }[];
-    onChange: (value: string) => void;
-  };
+  // The computers the job runs on, where there is more than one to pick from.
+  machines?: ComponentProps<typeof JobMachinesMenu>;
 }) {
   const links = useSendToLinks(host);
   const unready = draft.sendTo.filter((id) => sendToReady(id, links) === false);
@@ -87,16 +84,7 @@ export function JobScopeRow({
             onChange={(memory) => patch({ memory })}
           />
         )}
-        {machine && (
-          <RowSelect
-            variant="pill"
-            icon={<LaptopIcon size={13} />}
-            ariaLabel="Runs on"
-            value={machine.value}
-            onChange={machine.onChange}
-            options={machine.options}
-          />
-        )}
+        {machines && <JobMachinesMenu {...machines} />}
         <JobRunsInMenu
           targets={draft.targets}
           onTargets={onScope}

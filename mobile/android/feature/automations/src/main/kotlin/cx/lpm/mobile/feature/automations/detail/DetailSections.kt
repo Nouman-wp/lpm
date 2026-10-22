@@ -158,6 +158,7 @@ fun SetupGroup(
         }
     }
     setup.runsIn?.let { GroupValueRow(stringResource(AutomationsR.string.detail_runs_in), it) }
+    setup.runsOn?.let { GroupValueRow(stringResource(AutomationsR.string.detail_runs_on), it) }
 }
 
 /** Every run, newest first; the first few until asked for the rest. */

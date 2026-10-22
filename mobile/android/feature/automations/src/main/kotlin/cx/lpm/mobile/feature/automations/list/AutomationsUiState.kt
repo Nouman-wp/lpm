@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import cx.lpm.mobile.core.data.automations.AutomationsState
 import cx.lpm.mobile.core.model.AutomationJob
 import cx.lpm.mobile.feature.automations.format.AutomationClock
+import cx.lpm.mobile.feature.automations.format.AutomationMachines
 import cx.lpm.mobile.feature.automations.format.AutomationTone
 import cx.lpm.mobile.feature.automations.format.automationRowStatusText
 import cx.lpm.mobile.feature.automations.format.automationScopeLabel
@@ -14,7 +15,10 @@ import cx.lpm.mobile.feature.automations.format.automationsSortedForList
 @Immutable
 data class AutomationRowUi(
     val job: AutomationJob,
-    /** The projects it runs in, in a tag; empty when the page's project says it already. */
+    /**
+     * The projects it runs in, in a tag, then the computers; empty when the page's
+     * project says it already and there's no other computer to name.
+     */
     val scope: String,
     val status: String,
     val statusTone: AutomationTone
@@ -38,7 +42,8 @@ data class AutomationsUiState(
 
 /**
  * One flat feed rather than a directory. A project's page lists only the jobs that
- * run in it, and a job that runs only there needs no scope tag.
+ * run in it, and a job that runs only there needs no scope tag. The computers a job
+ * runs on follow, once there's more than one to name.
  */
 internal fun AutomationsState.listState(
     project: String?,
@@ -49,11 +54,12 @@ internal fun AutomationsState.listState(
     val rows = automationsSortedForList(shown).map { job ->
         AutomationRowUi(
             job = job,
-            scope = if (project != null && job.runsIn.size <= 1) {
-                ""
-            } else {
-                automationScopeLabel(job, projectCount)
-            },
+            scope = listOfNotNull(
+                automationScopeLabel(job, projectCount).takeUnless {
+                    project != null && job.runsIn.size <= 1
+                },
+                AutomationMachines.label(job, machines)
+            ).joinToString(" · "),
             status = automationRowStatusText(job, clock),
             statusTone = automationStatusTone(job)
         )

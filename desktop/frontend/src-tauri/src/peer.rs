@@ -786,6 +786,25 @@ pub(crate) fn paired_connected(app: &AppHandle) -> bool {
         .is_some_and(|hub| hub.inner.clients.lock().unwrap().values().any(|c| !c.guest))
 }
 
+/// The machines that connect to this one, by hostId, with their names and
+/// whether each is connected now. One paired before hostIds were sent has none
+/// and is left out.
+pub(crate) fn paired_devices(app: &AppHandle) -> Vec<(String, String, bool)> {
+    let Some(hub) = app.try_state::<PeerHub>() else {
+        return Vec::new();
+    };
+    let devices = hub.inner.config.lock().unwrap().host.devices.clone();
+    let clients = hub.inner.clients.lock().unwrap();
+    devices
+        .into_iter()
+        .filter(|d| !d.host_id.is_empty())
+        .map(|d| {
+            let connected = clients.values().any(|c| !c.guest && c.device_id == d.id);
+            (d.host_id, d.name, connected)
+        })
+        .collect()
+}
+
 fn broadcast(hub: &PeerHub, val: Value) {
     let payload = val.to_string();
     let clients = hub.inner.clients.lock().unwrap();
@@ -2186,6 +2205,8 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
         // This machine's Claude accounts in one answer (hostclaude.rs).
         crate::hostclaude::READ_CMD => Some(Ok(crate::hostclaude::read())),
         crate::hostjobs::DELETE_CMD => Some(crate::hostjobs::delete(app, args)),
+        // Whether this machine has, runs or ran a job another one is about to.
+        crate::jobs::machines::RUNS_CMD => Some(crate::jobs::machines::answer(args)),
         "stop_terminal" => {
             let id = s("id");
             Some(pty::stop_terminal(app.clone(), state, id.clone()).map(|_| {

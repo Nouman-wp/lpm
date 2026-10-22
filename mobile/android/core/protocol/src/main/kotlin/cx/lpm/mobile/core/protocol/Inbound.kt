@@ -8,6 +8,7 @@ import cx.lpm.mobile.core.model.AutoPullMode
 import cx.lpm.mobile.core.model.AutomationHistoryEntry
 import cx.lpm.mobile.core.model.AutomationJob
 import cx.lpm.mobile.core.model.AutomationLiveOutput
+import cx.lpm.mobile.core.model.AutomationMachine
 import cx.lpm.mobile.core.model.BackgroundRunSummary
 import cx.lpm.mobile.core.model.ClaudeAccounts as ClaudeAccountsReply
 import cx.lpm.mobile.core.model.ComposerAction
@@ -103,7 +104,11 @@ sealed interface Inbound {
     data class Upload(val id: String, val reqId: String, val path: String) : Inbound
     data class UploadStep(val step: UploadReply) : Inbound
     data class Status(val project: String, val entries: List<StatusEntry>) : Inbound
-    data class Jobs(val jobs: List<AutomationJob>, val error: String?) : Inbound
+    data class Jobs(
+        val jobs: List<AutomationJob>,
+        val error: String?,
+        val machines: List<AutomationMachine> = emptyList()
+    ) : Inbound
 
     data class JobHistory(
         val project: String,

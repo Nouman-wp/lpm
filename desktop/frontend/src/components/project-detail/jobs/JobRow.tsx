@@ -87,7 +87,7 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
       >
         <span className="flex min-w-0 items-baseline gap-2">
           <span
-            className={`min-w-0 truncate text-[14.5px] ${
+            className={`min-w-0 max-w-[70%] shrink-0 truncate text-[14.5px] ${
               enabled || !job.valid ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
             } ${unread > 0 ? "font-semibold" : "font-medium"}`}
           >

@@ -8,6 +8,7 @@ import cx.lpm.mobile.core.model.AutoPullMode
 import cx.lpm.mobile.core.model.AutomationHistoryEntry
 import cx.lpm.mobile.core.model.AutomationJob
 import cx.lpm.mobile.core.model.AutomationLiveOutput
+import cx.lpm.mobile.core.model.AutomationMachine
 import cx.lpm.mobile.core.model.BackgroundRunSummary
 import cx.lpm.mobile.core.model.ClaudeAccounts
 import cx.lpm.mobile.core.model.ComposerAction
@@ -81,7 +82,9 @@ abstract class LpmClientCallbacks {
     var onMentions: ((project: String, entries: List<MentionEntry>) -> Unit)? = null
     var onHistory: ((project: String, rows: List<HistoryRow>) -> Unit)? = null
     var onStatus: ((project: String, entries: List<StatusEntry>) -> Unit)? = null
-    var onJobs: ((jobs: List<AutomationJob>, error: String?) -> Unit)? = null
+    var onJobs: (
+        (jobs: List<AutomationJob>, machines: List<AutomationMachine>, error: String?) -> Unit
+    )? = null
     var onJobHistory: (
         (
             project: String,

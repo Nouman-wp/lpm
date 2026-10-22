@@ -489,6 +489,7 @@ function EntryHeader({
   quiet?: boolean;
 }) {
   const stats = [
+    entry.ranOn ? `on ${entry.ranOn}` : "",
     entry.durationSecs !== undefined && entry.durationSecs > 0
       ? formatDuration(entry.durationSecs)
       : "",

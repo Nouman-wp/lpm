@@ -1153,6 +1153,26 @@ impl PeerClientHub {
         self.require_feature(slug, |c| c.supports_git_follow.load(Ordering::Relaxed))
     }
 
+    /// The machines this one connects to, by hostId: slug, name, and whether it
+    /// is enabled and connected now. One paired before hostIds were sent has
+    /// none and is left out.
+    pub(crate) fn paired_hosts(&self) -> Vec<(String, String, String, bool)> {
+        let peers = self.inner.config.lock().unwrap().peers.clone();
+        let conns = self.inner.conns.lock().unwrap();
+        peers
+            .into_iter()
+            .filter(|p| !p.host_id.is_empty())
+            .map(|p| {
+                let up = p.enabled
+                    && conns.get(&p.slug).is_some_and(|c| {
+                        !c.guest.load(Ordering::Relaxed) && c.connected.load(Ordering::Relaxed)
+                    });
+                let name = if p.alias.trim().is_empty() { p.host } else { p.alias };
+                (p.host_id, p.slug, name, up)
+            })
+            .collect()
+    }
+
     /// Whether this peer will tell us when a followed folder changes, which is what
     /// lets the poll drop to a heartbeat. Not a guard: a peer that cannot is polled
     /// at the old cadence rather than refused.

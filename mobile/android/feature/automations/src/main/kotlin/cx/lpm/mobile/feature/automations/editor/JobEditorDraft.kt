@@ -62,6 +62,8 @@ data class JobEditorDraft(
     val sendTo: JsonElement? = null,
     /** "Runs in"; empty is standalone. */
     val targets: List<String> = emptyList(),
+    /** "Runs on": hostIds, best first, "any" last; empty is every Mac that has it. */
+    val machines: List<String> = emptyList(),
     /** The body had a `projects` list, so a global job's scope can be edited. */
     val hasProjectsKey: Boolean = false,
     /**

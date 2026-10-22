@@ -47,7 +47,7 @@ final class LpmClient: NSObject {
     var onMentions: ((_ project: String, _ entries: [MentionEntry]) -> Void)?
     var onHistory: ((_ project: String, _ rows: [HistoryRow]) -> Void)?
     var onStatus: ((_ project: String, _ entries: [StatusEntry]) -> Void)?
-    var onJobs: ((_ jobs: [AutomationJob], _ error: String?) -> Void)?
+    var onJobs: ((_ jobs: [AutomationJob], _ machines: [AutomationMachine], _ error: String?) -> Void)?
     var onJobHistory: ((_ project: String, _ jobId: String, _ entries: [AutomationHistoryEntry], _ error: String?) -> Void)?
     var onJobLiveOutput: ((_ project: String, _ jobId: String, _ live: AutomationLiveOutput?, _ error: String?) -> Void)?
     var onAutomationMutation: ((_ project: String, _ jobId: String, _ error: String?) -> Void)?
@@ -1384,7 +1384,7 @@ final class LpmClient: NSObject {
             case .mentions(let proj, let entries): self.onMentions?(proj, entries)
             case .history(let proj, let rows): self.onHistory?(proj, rows)
             case .status(let proj, let s): self.onStatus?(proj, s)
-            case .jobs(let jobs, let error): self.onJobs?(jobs, error)
+            case .jobs(let jobs, let machines, let error): self.onJobs?(jobs, machines, error)
             case .jobHistory(let project, let jobId, let entries, let error):
                 self.onJobHistory?(project, jobId, entries, error)
             case .jobLiveOutput(let project, let jobId, let live, let error):

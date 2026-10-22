@@ -28,6 +28,8 @@ data class MessageUi(
     val quiet: Boolean,
     val label: String,
     val tone: AutomationTone,
+    /** The computer that made this run when it wasn't this Mac. */
+    val ranOn: String? = null,
     val duration: String?,
     val cost: String?,
     val condensed: Boolean,
@@ -103,6 +105,7 @@ private fun AutomationHistoryEntry.message(isRoot: Boolean, clock: AutomationClo
     quiet = !isRoot && result == "completed",
     label = automationEntryLabel(this),
     tone = automationEntryTone(this),
+    ranOn = ranOn.ifEmpty { null }?.let { "on $it" },
     duration = durationSecs?.let(::automationDurationText),
     cost = costUsd?.let(::automationCurrencyText),
     condensed = compacted,

@@ -7,6 +7,7 @@ import type { ComposerValue } from "./composerValue";
 import { isOpenAsk, WAITING_LABEL, type JobAsk } from "./jobAsk";
 import { describeCronText } from "./cronDescribe";
 import { DEFAULT_SEND_TO, readSendTo, writeSendTo } from "./sendTo";
+import { readMachines } from "./jobsMachines";
 import {
   dateRulePhrase,
   hasDateRule,
@@ -117,6 +118,20 @@ export interface JobInfo {
   lastMessage?: string;
   // The question the job is waiting on the user to answer.
   ask?: JobAsk;
+  // The computers the job may run on, best first, named as the computer
+  // listing it knows them, and whether any other one may after them. Absent
+  // on a job every computer that has it runs.
+  machines?: JobMachine[];
+  anyMachine?: boolean;
+  // The hostId of the computer this row comes from, on a job that names its
+  // computers.
+  machineId?: string;
+}
+
+export interface JobMachine {
+  id: string;
+  name: string;
+  here?: boolean;
 }
 
 export const STANDALONE_PROJECT_LABEL = "No project";
@@ -171,6 +186,9 @@ export interface JobHistoryEntry {
   // The question this entry's message answered — the entry that asked shows
   // the answer, so it isn't repeated as a message.
   answerTo?: string;
+  // The computer that made this run when it wasn't this one: another of the
+  // job's computers ran it while this one was off.
+  ranOn?: string;
 }
 
 // One run and the conversation that grew out of it: the scheduled (or manual)
@@ -647,6 +665,10 @@ export interface JobDraft {
   // never sets it — the picker only names concrete projects.
   targets: string[];
   everyProject: boolean;
+  // The computers the job may run on, by hostId, best first; "any" last lets
+  // any other one run it after them. Empty = every computer that has it, the
+  // way automations ran before they named their computers.
+  machines: string[];
 }
 
 export function defaultJobDraft(): JobDraft {
@@ -698,6 +720,7 @@ export function defaultJobDraft(): JobDraft {
     sendTo: [...DEFAULT_SEND_TO],
     targets: [],
     everyProject: false,
+    machines: [],
   };
 }
 
@@ -805,6 +828,7 @@ export function buildJobPayload(draft: JobDraft): Record<string, unknown> {
   payload.run = buildRunBlock(draft);
   const sendTo = writeSendTo(draft.sendTo);
   if (sendTo) payload.sendTo = sendTo;
+  if (draft.machines.length > 0) payload.machines = [...draft.machines];
   return payload;
 }
 
@@ -818,6 +842,7 @@ export function payloadToDraft(payload: Record<string, unknown>): JobDraft {
   if (typeof payload.verify === "string") draft.verify = payload.verify;
   readDuplicateInto(draft, payload.duplicate);
   draft.sendTo = readSendTo(payload.sendTo);
+  draft.machines = readMachines(payload.machines);
 
   const schedule = payload.schedule;
   if (schedule && typeof schedule === "object") {

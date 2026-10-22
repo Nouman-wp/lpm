@@ -163,7 +163,8 @@ struct AutomationDetailView: View {
     private func setup(_ job: AutomationJob) -> some View {
         let showsAgent = job.runKind == "prompt"
         let showsTargets = job.runsIn.count > 1
-        if !job.summary.isEmpty || showsAgent || job.duplicate || showsTargets {
+        let runsOn = AutomationMachines.label(job, choices: model.automationMachines)
+        if !job.summary.isEmpty || showsAgent || job.duplicate || showsTargets || runsOn != nil {
             DisclosureGroup(isExpanded: $setupOpen) {
                 if !job.summary.isEmpty {
                     Text(job.summary)
@@ -180,6 +181,9 @@ struct AutomationDetailView: View {
                 }
                 if showsTargets {
                     LabeledContent("Runs in", value: job.runsIn.joined(separator: ", "))
+                }
+                if let runsOn {
+                    LabeledContent("Runs on", value: runsOn)
                 }
             } label: {
                 // Open, the full prompt sits right below — the stand-in would only

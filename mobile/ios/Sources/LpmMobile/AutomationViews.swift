@@ -83,13 +83,20 @@ struct AutomationsView: View {
     }
 
     /// In a project's page the project is the context: a job that runs only here
-    /// needs no scope tag, and a shared one opens on this project's runs.
+    /// needs no scope tag, and a shared one opens on this project's runs. The
+    /// computers it runs on follow, once there's more than one to name.
+    private func scopeText(_ job: AutomationJob) -> String {
+        let scope = project != nil && job.runsIn.count <= 1
+            ? "" : automationScopeLabel(job, projectCount: model.projects.count)
+        let machines = AutomationMachines.label(job, choices: model.automationMachines)
+        return [scope, machines ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
     private func row(_ job: AutomationJob) -> some View {
         NavigationLink {
             AutomationDetailView(project: project ?? job.runProject, jobId: job.id)
         } label: {
-            AutomationRow(job: job, scope: project != nil && job.runsIn.count <= 1
-                          ? "" : automationScopeLabel(job, projectCount: model.projects.count))
+            AutomationRow(job: job, scope: scopeText(job))
         }
         .contextMenu {
             Button {

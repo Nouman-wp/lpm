@@ -6,6 +6,7 @@ import cx.lpm.mobile.core.data.automations.automationKey
 import cx.lpm.mobile.core.model.AUTOMATION_WAITING_LABEL
 import cx.lpm.mobile.core.model.AutomationJob
 import cx.lpm.mobile.feature.automations.format.AutomationClock
+import cx.lpm.mobile.feature.automations.format.AutomationMachines
 import cx.lpm.mobile.feature.automations.format.AutomationThread
 import cx.lpm.mobile.feature.automations.format.AutomationTone
 import cx.lpm.mobile.feature.automations.format.automationAgentText
@@ -37,7 +38,9 @@ data class SetupUi(
     val firstLine: String,
     val agent: String?,
     val duplicate: Boolean,
-    val runsIn: String?
+    val runsIn: String?,
+    /** The computers it runs on, once there's more than one to name. */
+    val runsOn: String? = null
 )
 
 /** One run (with its replies) in the history. */
@@ -125,7 +128,7 @@ internal fun AutomationsState.detailState(
                 tone = automationResultTone(job.lastResult)
             )
         },
-        setup = job.setup(),
+        setup = job.setup(AutomationMachines.label(job, machines)),
         live = if (job.running) liveOutput[key]?.text.orEmpty() else null,
         askWhen = job.ask?.let {
             automationAskWhen(it, clock.now.epochSecond, clock::clock)
@@ -135,17 +138,22 @@ internal fun AutomationsState.detailState(
     )
 }
 
-private fun AutomationJob.setup(): SetupUi? {
+private fun AutomationJob.setup(runsOn: String?): SetupUi? {
     val showsAgent = runKind == "prompt"
     val showsTargets = runsIn.size > 1
-    if (summary.isEmpty() && !showsAgent && !duplicate && !showsTargets) return null
+    if (summary.isEmpty() && !showsAgent && !duplicate && !showsTargets &&
+        runsOn == null
+    ) {
+        return null
+    }
     return SetupUi(
         summary = summary,
         monospace = runKind == "cmd",
         firstLine = automationFirstLine(summary).orEmpty(),
         agent = if (showsAgent) automationAgentText(this) else null,
         duplicate = duplicate,
-        runsIn = if (showsTargets) runsIn.joinToString(", ") else null
+        runsIn = if (showsTargets) runsIn.joinToString(", ") else null,
+        runsOn = runsOn
     )
 }
 
@@ -153,6 +161,7 @@ private fun AutomationThread.row(previews: Boolean, clock: AutomationClock): Run
     val entry = tail
     val meta = buildList {
         add(clock.clock(entry.at))
+        if (root.ranOn.isNotEmpty()) add("on ${root.ranOn}")
         entry.durationSecs?.takeIf { it > 0 }?.let { add(automationDurationText(it)) }
         entry.costUsd?.takeIf { it > 0 }?.let { add(automationUsdText(it)) }
         if (entry.count > 1) add("×${entry.count}")
