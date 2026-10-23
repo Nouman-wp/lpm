@@ -374,11 +374,13 @@ mod tests {
 
     /// bash reports how each command ended from PROMPT_COMMAND and, where it
     /// has PS0 (4.4+), names the line from history before running it. The
-    /// first prompt stops the hooks reaching the shell's children.
+    /// first prompt stops the hooks reaching the shell's children. PS0 is
+    /// printed to stderr, so the shell writes both streams into one pipe, as
+    /// it would into a tab's terminal.
     #[test]
     fn bash_names_each_command_and_stops_exporting_the_hooks() {
         use crate::cmdmarks::Mark::{End, Start};
-        use std::io::Write;
+        use std::io::{Read, Write};
         if Command::new("bash").arg("-c").arg("true").status().is_err() {
             return;
         }
@@ -390,6 +392,7 @@ mod tests {
             .status()
             .unwrap()
             .success();
+        let (mut output, shell_out) = std::io::pipe().unwrap();
         let mut child = Command::new("bash")
             .args(["--noprofile", "--norc", "-i"])
             .env(
@@ -399,19 +402,23 @@ mod tests {
             .envs(BASH_COMMAND_HOOKS.map(|(name, def)| (format!("BASH_FUNC_{name}%%"), def)))
             .env("HISTFILE", "/dev/null")
             .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
+            .stdout(shell_out.try_clone().unwrap())
+            .stderr(shell_out)
             .spawn()
             .unwrap();
         child
             .stdin
             .take()
             .unwrap()
-            .write_all(b"echo hi\n(exit 4)\nenv | grep -c -e _lpm_tab -e PROMPT_COMMAND\nexit\n")
+            .write_all(
+                b"echo hi\n(exit 4)\necho hooks=$(env | grep -c -e _lpm_tab -e PROMPT_COMMAND)\nexit\n",
+            )
             .unwrap();
-        let out = child.wait_with_output().unwrap();
-        let text = String::from_utf8_lossy(&out.stdout).to_string();
-        let found = marks(&out.stdout);
+        let mut out = Vec::new();
+        output.read_to_end(&mut out).unwrap();
+        child.wait().unwrap();
+        let text = String::from_utf8_lossy(&out).to_string();
+        let found = marks(&out);
         let expected = if has_ps0 {
             vec![
                 End(0),
@@ -419,16 +426,16 @@ mod tests {
                 End(0),
                 Start("(exit 4)".into()),
                 End(4),
-                Start("env | grep -c -e _lpm_tab -e PROMPT_COMMAND".into()),
-                End(1),
+                Start("echo hooks=$(env | grep -c -e _lpm_tab -e PROMPT_COMMAND)".into()),
+                End(0),
                 Start("exit".into()),
             ]
         } else {
-            vec![End(0), End(0), End(4), End(1)]
+            vec![End(0), End(0), End(4), End(0)]
         };
         assert_eq!(found, expected, "{text}");
         // grep counted no hook left in the environment after the first prompt.
-        assert!(text.contains("\u{7}0\n"), "{text}");
+        assert!(text.contains("hooks=0\n"), "{text}");
     }
 
     #[test]
