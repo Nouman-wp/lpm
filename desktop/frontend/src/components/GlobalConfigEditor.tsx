@@ -1,22 +1,23 @@
 import { useCallback, useMemo } from "react";
 import { GLOBAL_MODEL_URI } from "../monaco-setup";
+import type { SettingsMachine } from "../settingsMachine";
 import { globalLayerOf, saveLayer } from "../yamlQueue";
-import type { MachineScope } from "./settings/machineCommands";
 import { YamlConfigEditor } from "./YamlConfigEditor";
 
-export function GlobalConfigEditor({ machine, onBack }: { machine: MachineScope; onBack: () => void }) {
-  const layer = useMemo(() => globalLayerOf(machine.slug), [machine.slug]);
+export function GlobalConfigEditor({ machine }: { machine: SettingsMachine }) {
+  const slug = machine.kind === "peer" ? machine.slug : null;
+  const name = machine.kind === "peer" ? machine.name : null;
+  const layer = useMemo(() => globalLayerOf(slug), [slug]);
   const save = useCallback((content: string) => saveLayer(layer, content), [layer]);
   return (
     <YamlConfigEditor
-      title={machine.name ? `Global config · ${machine.name}` : "Global config"}
+      title={name ? `Global config · ${name}` : "Global config"}
       description={`Actions and terminals defined here are available in every project${
-        machine.name ? ` on ${machine.name}` : ""
+        name ? ` on ${name}` : ""
       }.`}
       modelUri={GLOBAL_MODEL_URI}
       load={layer.read}
       save={save}
-      onBack={onBack}
       docsUrl="https://lpm.cx/config#global-config"
     />
   );

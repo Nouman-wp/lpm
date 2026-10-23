@@ -1554,8 +1554,13 @@ enum Dispatch {
 
 /// The same interactive-login-shell wrapper actions use, run headless with all
 /// streams detached and its own session (so an app launched from a terminal
-/// doesn't stop the shell with SIGTTIN).
-fn shell_command(cwd: &str, cmd: &str, env: &[(String, String)]) -> Command {
+/// doesn't stop the shell with SIGTTIN), on the project's Claude account.
+fn shell_command(
+    cwd: &str,
+    cmd: &str,
+    env: &[(String, String)],
+    claude: &config::ClaudeEnv,
+) -> Command {
     let script = format!(
         "cd {} && {}",
         config::shell_quote(&crate::shellpath::shell_path(Path::new(cwd))),
@@ -1566,6 +1571,7 @@ fn shell_command(cwd: &str, cmd: &str, env: &[(String, String)]) -> Command {
     for (k, v) in env {
         c.env(k, v);
     }
+    claude.apply(&mut c);
     c.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -1579,8 +1585,14 @@ fn shell_command(cwd: &str, cmd: &str, env: &[(String, String)]) -> Command {
 /// `shell_command` for a captured run. An agent's prompt is an argv word, which
 /// Git Bash would rewrite into a Windows path when it starts with `/`; a plain
 /// command keeps the rewrite its author may rely on.
-fn captured_command(cwd: &str, line: &str, env: &[(String, String)], agent: bool) -> Command {
-    let mut c = shell_command(cwd, line, env);
+fn captured_command(
+    cwd: &str,
+    line: &str,
+    env: &[(String, String)],
+    claude: &config::ClaudeEnv,
+    agent: bool,
+) -> Command {
+    let mut c = shell_command(cwd, line, env, claude);
     if agent {
         crate::shellpath::verbatim_args(&mut c, line);
     }
@@ -1747,6 +1759,7 @@ fn run_check(
     timeout: Duration,
     key: Option<&str>,
     env: &[(String, String)],
+    claude: &config::ClaudeEnv,
 ) -> Result<CheckOutcome, String> {
     // Jobs check concurrently, so the file has to be unique per call — a shared
     // one would hand a job another job's output.
@@ -1759,7 +1772,7 @@ fn run_check(
         let _ = std::fs::create_dir_all(dir);
     }
     let _ = std::fs::remove_file(&log_path);
-    let mut child = shell_command(root, &captured_shell_line(check, &log_path), env)
+    let mut child = shell_command(root, &captured_shell_line(check, &log_path), env, claude)
         .spawn()
         .map_err(|e| e.to_string())?;
     if let Some(k) = key {
@@ -2429,11 +2442,16 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
     let token = uuid::Uuid::new_v4().simple().to_string();
     env.push(("LPM_RUN_ID".to_string(), token.clone()));
     let env2 = env.clone();
+    // The project's fixed Claude account, as a scheduled terminal gets; a
+    // resumed session goes back to the account holding its transcript.
+    let target = copy.as_deref().unwrap_or(split_key(key).0);
+    let claude =
+        crate::claude_pool::spawn_env(target, resumed.as_deref().map(|sid| (root, sid)), false).env;
     let log_path = logs.join(format!("{}-{}.log", key.replace('/', "_"), now_secs()));
     let cmdline = capture_cmdline(agent.as_deref(), &cmdline, &log_path);
     let is_agent = agent.is_some();
     let line = captured_shell_line(&cmdline, &log_path);
-    match captured_command(root, &line, &env, is_agent).spawn() {
+    match captured_command(root, &line, &env, &claude, is_agent).spawn() {
         Ok(mut child) => {
             let started = now_secs();
             active_runs()
@@ -2477,6 +2495,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                             &root2,
                             &captured_shell_line(&fb, &log2),
                             &env2,
+                            &claude,
                             is_agent,
                         )
                         .spawn()
@@ -2511,7 +2530,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                 // waiting to be resumed with an answer hasn't finished its work.
                 let (verified, verify_output) = match &verify {
                     Some(cmd) if result == COMPLETED && !ask::resumes(&live_asks(&key2)) => {
-                        match run_check(&root2, cmd, VERIFY_TIMEOUT, None, &env2) {
+                        match run_check(&root2, cmd, VERIFY_TIMEOUT, None, &env2, &claude) {
                             Ok(v) => (Some(v.work), v.output),
                             Err(e) => (
                                 Some(false),
@@ -2738,6 +2757,7 @@ fn pipeline_body(
             CHECK_TIMEOUT,
             Some(key),
             &context(&root, false),
+            &crate::claude_pool::spawn_env(project, None, false).env,
         ) {
             Ok(check) if check.work => {}
             Ok(check) => {
@@ -3993,7 +4013,8 @@ pub fn test_job_check(project: String, check: String) -> Result<Value, String> {
         Ok((_, true)) => return Err("Scheduled jobs aren't available on SSH projects.".into()),
         _ => return Err("This project has no local folder to run the check in.".into()),
     };
-    let outcome = run_check(&root, check, Duration::from_secs(60), None, &[])?;
+    let claude = crate::claude_pool::spawn_env(&project, None, false).env;
+    let outcome = run_check(&root, check, Duration::from_secs(60), None, &[], &claude)?;
     Ok(json!({ "work": outcome.work, "output": outcome.output }))
 }
 
@@ -5653,6 +5674,7 @@ mod tests {
             Duration::from_secs(30),
             None,
             &env,
+            &config::ClaudeEnv::Inherit,
         )
         .unwrap();
         assert!(found.work);
@@ -5666,6 +5688,7 @@ mod tests {
             Duration::from_secs(30),
             None,
             &env,
+            &config::ClaudeEnv::Inherit,
         )
         .unwrap();
         assert!(!quiet.work);
@@ -5678,6 +5701,7 @@ mod tests {
             Duration::from_secs(30),
             None,
             &env,
+            &config::ClaudeEnv::Inherit,
         )
         .unwrap();
         assert_eq!(
@@ -5704,7 +5728,14 @@ mod tests {
     fn check_times_out_and_is_killed() {
         let root = std::env::temp_dir().to_string_lossy().into_owned();
         let start = std::time::Instant::now();
-        let res = run_check(&root, "sleep 5", Duration::from_secs(1), None, &[]);
+        let res = run_check(
+            &root,
+            "sleep 5",
+            Duration::from_secs(1),
+            None,
+            &[],
+            &config::ClaudeEnv::Inherit,
+        );
         assert!(res.is_err(), "a check that outlives its timeout must error");
         assert!(
             start.elapsed() < Duration::from_secs(4),
@@ -5715,7 +5746,9 @@ mod tests {
     #[test]
     fn wait_or_kill_times_out() {
         let root = std::env::temp_dir().to_string_lossy().into_owned();
-        let mut child = shell_command(&root, "sleep 30", &[]).spawn().unwrap();
+        let mut child = shell_command(&root, "sleep 30", &[], &config::ClaudeEnv::Inherit)
+            .spawn()
+            .unwrap();
         let start = std::time::Instant::now();
         let verdict = wait_or_kill(
             &mut child,
@@ -5739,8 +5772,9 @@ mod tests {
                 .and_then(|(_, v)| v)
                 .map(|v| v.to_string_lossy().into_owned())
         };
-        let agent = captured_command("/tmp", line, &env, true);
-        let plain = captured_command("/tmp", line, &env, false);
+        let account = config::ClaudeEnv::Dir("/acct".into());
+        let agent = captured_command("/tmp", line, &env, &account, true);
+        let plain = captured_command("/tmp", line, &env, &account, false);
         assert_eq!(excl(&plain), None);
         if cfg!(windows) {
             assert_eq!(excl(&agent).as_deref(), Some("/review"));
@@ -5750,13 +5784,18 @@ mod tests {
         assert!(agent
             .get_envs()
             .any(|(k, v)| k == "LPM_JOB_ID" && v == Some("nightly".as_ref())));
+        assert!(agent
+            .get_envs()
+            .any(|(k, v)| k == config::CLAUDE_CONFIG_DIR_ENV && v == Some("/acct".as_ref())));
     }
 
     #[test]
     fn wait_or_kill_honors_stop_request() {
         let key = "test-cancel/job";
         let root = std::env::temp_dir().to_string_lossy().into_owned();
-        let mut child = shell_command(&root, "sleep 30", &[]).spawn().unwrap();
+        let mut child = shell_command(&root, "sleep 30", &[], &config::ClaudeEnv::Inherit)
+            .spawn()
+            .unwrap();
         canceled_keys().lock().unwrap().insert(key.to_string());
         let start = std::time::Instant::now();
         let verdict = wait_or_kill(

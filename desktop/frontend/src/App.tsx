@@ -7,7 +7,6 @@ import { StatsView } from "./components/StatsView";
 import { UsageModal } from "./components/UsageModal";
 import { ScheduledView } from "./components/ScheduledView";
 import { Settings } from "./components/Settings";
-import { GlobalConfigEditor } from "./components/GlobalConfigEditor";
 import { ClaudeStatusLineView } from "./components/ClaudeStatusLineView";
 import { CodexStatusLineView } from "./components/CodexStatusLineView";
 import { TemplateEditor } from "./components/TemplateEditor";
@@ -138,6 +137,7 @@ export default function App() {
   const isScheduledView = view === "scheduled";
   // Settings and the pages it opens take the project sidebar's place.
   const settingsShown = isSettingsView(view);
+  const settingsLayoutShown = view === "settings" || view === "global-config";
   useTrackSettingsReturn(view);
   const isMobileSettings = view === "settings" && settingsTab === "mobile";
   const selectedProject = projects.find((p) => p.name === selected) || null;
@@ -319,7 +319,7 @@ export default function App() {
         />
         <main
           className={`flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6 ${
-            settingsShown && view !== "settings" ? "pt-5 native-chrome:pt-0" : ""
+            settingsShown && !settingsLayoutShown ? "pt-5 native-chrome:pt-0" : ""
           }`}
         >
           <MainTopBar
@@ -339,7 +339,7 @@ export default function App() {
               />
             </div>
           )}
-          {view === "settings" && <Settings onNavigate={navigateSettings} />}
+          {settingsLayoutShown && <Settings onNavigate={navigateSettings} />}
           {isFleetView && (
             <FleetView
               onExit={() => setView("projects")}
@@ -349,9 +349,6 @@ export default function App() {
           {isStatsView && <StatsView />}
           {isScheduledView && <ScheduledView />}
           {view === "shared" && <SharedTabView />}
-          {view === "global-config" && (
-            <GlobalConfigEditor machine={settingsMachine} onBack={backToSettings} />
-          )}
           {view === "claude-statusline" && (
             <ClaudeStatusLineView machine={settingsMachine} onBack={backToSettings} />
           )}

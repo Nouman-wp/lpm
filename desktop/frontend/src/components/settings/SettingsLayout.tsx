@@ -15,6 +15,7 @@ import { useAppStore, type SettingsTab, type View } from "../../store/app";
 import { settingsReturnLabel, useSettingsReturn } from "../../store/settingsReturn";
 import { useSettingsStore } from "../../store/settings";
 import { applyTheme } from "../../theme";
+import { GlobalConfigEditor } from "../GlobalConfigEditor";
 import { NAV_ICONS } from "./navIcons";
 import { SettingsNav } from "./SettingsNav";
 import { SettingsPageHeader } from "./SettingsPageHeader";
@@ -52,6 +53,8 @@ export function SettingsLayout({
   const setActiveTab = useAppStore((s) => s.setSettingsTab);
   const setUsageOpen = useAppStore((s) => s.setUsageOpen);
   const setView = useAppStore((s) => s.setView);
+  const view = useAppStore((s) => s.view);
+  const onGlobalConfig = view === "global-config";
   const returnView = useSettingsReturn((s) => s.from);
   const [query, setQuery] = useState("");
   const [pendingRevealId, setPendingRevealId] = useState<string | null>(null);
@@ -68,6 +71,11 @@ export function SettingsLayout({
   const searchResults = useMemo(() => matchSettings(searchEntries, query), [searchEntries, query]);
   const tab = shownTab(navGroups, activeTab);
 
+  const selectTab = (next: SettingsTab) => {
+    setActiveTab(next);
+    if (onGlobalConfig) onNavigate("settings");
+  };
+
   const activateEntry = (entry: SettingsSearchEntry) => {
     setQuery("");
     if (entry.kind === "view") {
@@ -75,7 +83,7 @@ export function SettingsLayout({
     } else if (entry.kind === "modal") {
       if (entry.modal === "usage") setUsageOpen(true);
     } else {
-      setActiveTab(entry.tab);
+      selectTab(entry.tab);
       setPendingRevealId(entry.id);
     }
   };
@@ -116,31 +124,38 @@ export function SettingsLayout({
         picker={picker}
         groups={navGroups}
         activeTab={tab}
+        activeView={onGlobalConfig ? view : undefined}
         query={query}
         results={searchResults}
         onQueryChange={setQuery}
         onActivate={activateEntry}
-        onSelectTab={setActiveTab}
+        onSelectTab={selectTab}
         onNavigate={onNavigate}
       />
 
-      <div className="flex-1 overflow-y-auto">
-        <div key={tab} className="settings-pane-in mx-auto max-w-2xl px-10 pt-8 pb-10">
-          <SettingsPageHeader
-            icon={NAV_ICONS[tab]}
-            title={TAB_TITLES[tab]}
-            description={PAGE_SUBTITLES[tab]}
-            machineName={machine.kind === "peer" ? machine.name : undefined}
-          />
-          {target ? (
-            <SettingsTargetContext.Provider value={target}>
-              <SettingsPanes tab={tab} onNavigate={onNavigate} />
-            </SettingsTargetContext.Provider>
-          ) : (
-            notice
-          )}
+      {onGlobalConfig ? (
+        <div className="settings-pane-in flex min-w-0 flex-1 flex-col px-8 pt-2 pb-6">
+          <GlobalConfigEditor machine={machine} />
         </div>
-      </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto">
+          <div key={tab} className="settings-pane-in mx-auto max-w-2xl px-10 pt-8 pb-10">
+            <SettingsPageHeader
+              icon={NAV_ICONS[tab]}
+              title={TAB_TITLES[tab]}
+              description={PAGE_SUBTITLES[tab]}
+              machineName={machine.kind === "peer" ? machine.name : undefined}
+            />
+            {target ? (
+              <SettingsTargetContext.Provider value={target}>
+                <SettingsPanes tab={tab} onNavigate={onNavigate} />
+              </SettingsTargetContext.Provider>
+            ) : (
+              notice
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

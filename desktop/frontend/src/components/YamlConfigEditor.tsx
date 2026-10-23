@@ -12,7 +12,7 @@ interface YamlConfigEditorProps {
   modelUri: string;
   load: () => Promise<string>;
   save: (content: string) => Promise<void>;
-  onBack: () => void;
+  onBack?: () => void;
   docsUrl?: string;
 }
 
@@ -39,13 +39,15 @@ export function YamlConfigEditor({
   return (
     <div className="flex flex-1 flex-col pt-6">
       <div className="flex items-center gap-3">
-        <button
-          onClick={onBack}
-          className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          title="Back"
-        >
-          <ChevronLeftIcon />
-        </button>
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            title="Back"
+          >
+            <ChevronLeftIcon />
+          </button>
+        )}
         <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
         {docsUrl && (
           <button

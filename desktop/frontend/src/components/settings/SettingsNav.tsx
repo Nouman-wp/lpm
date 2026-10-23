@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { isMac } from "../../platform";
 import type { SettingsNavGroup, SettingsSearchEntry } from "../../settings-registry";
 import type { SettingsTab, View } from "../../store/app";
@@ -12,6 +12,7 @@ export function SettingsNav({
   picker,
   groups,
   activeTab,
+  activeView,
   query,
   results,
   onQueryChange,
@@ -26,6 +27,8 @@ export function SettingsNav({
   picker: ReactNode;
   groups: SettingsNavGroup[];
   activeTab: SettingsTab;
+  /// A page from the nav shown in place of the tabs, such as Global config.
+  activeView?: View;
   query: string;
   results: SettingsSearchEntry[];
   onQueryChange: (query: string) => void;
@@ -65,28 +68,14 @@ export function SettingsNav({
               {group.title}
             </div>
             {group.items.map((item) => {
-              const Icon = NAV_ICONS[item.kind === "view" ? item.view : item.tab];
-              const active = item.kind === "tab" && activeTab === item.tab;
-              return item.kind === "view" ? (
+              const key = item.kind === "view" ? item.view : item.tab;
+              const Icon = NAV_ICONS[key];
+              const active =
+                item.kind === "view" ? activeView === item.view : !activeView && activeTab === item.tab;
+              return (
                 <button
-                  key={item.view}
-                  onClick={() => onNavigate(item.view)}
-                  className="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-[13px] text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
-                >
-                  {Icon && (
-                    <Icon
-                      size={15}
-                      strokeWidth={1.75}
-                      className="shrink-0 text-[var(--text-muted)] transition-colors group-hover:text-[var(--text-secondary)]"
-                    />
-                  )}
-                  <span className="flex-1 truncate">{item.label}</span>
-                  <ChevronRight size={13} className="shrink-0 opacity-50" />
-                </button>
-              ) : (
-                <button
-                  key={item.tab}
-                  onClick={() => onSelectTab(item.tab)}
+                  key={key}
+                  onClick={() => (item.kind === "view" ? onNavigate(item.view) : onSelectTab(item.tab))}
                   className={`group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-[13px] transition-colors ${
                     active
                       ? "bg-[var(--bg-active)] font-medium text-[var(--text-primary)]"
