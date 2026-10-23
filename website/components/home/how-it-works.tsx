@@ -16,7 +16,10 @@ export function HowItWorks() {
 
         <HowItWorksSteps />
 
-        <div className="mt-14 mb-6 text-center sm:mt-16 sm:mb-8">
+        <div
+          id="lessons"
+          className="mt-14 mb-6 scroll-mt-20 text-center sm:mt-16 sm:mb-8"
+        >
           <h3 className="text-balance text-lg font-semibold tracking-tight text-gray-900 sm:text-xl dark:text-gray-100">
             Watch it in the real app
           </h3>

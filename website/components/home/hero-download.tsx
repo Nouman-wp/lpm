@@ -53,7 +53,7 @@ export function HeroDownload({ source = "hero", macFocus = false }: Props) {
         detected={isDownloadPlatform(platform) ? platform : null}
         release={release}
         source={source}
-        className="px-6 py-3.5 text-[15px] sm:px-7 sm:text-[16px]"
+        className="px-6 py-2 text-[15px] sm:px-7 sm:text-[16px]"
       />
       <HeroTrustLine os={primary.os} downloads={downloads} />
     </div>

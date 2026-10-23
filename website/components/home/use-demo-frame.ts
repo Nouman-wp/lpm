@@ -103,6 +103,7 @@ export function useDemoFrame({
         post({ source: SOURCE, type: "run", index: pending });
       } else if (
         !armedRef.current &&
+        !script.invite &&
         window.matchMedia("(prefers-reduced-motion: reduce)").matches
       ) {
         armedRef.current = true;
@@ -113,12 +114,12 @@ export function useDemoFrame({
     return () => window.removeEventListener("message", onMessage);
   }, [iframeRef, post]);
 
-  // Parking the frame cues the tour. Scrolling away mid-tour lands what it was
-  // heading for, so the visitor comes back to a finished demo rather than a
-  // project half set up.
+  // Parking the frame cues the tour, unless it waits for the visitor. Scrolling
+  // away mid-tour lands what it was heading for, so the visitor comes back to
+  // a finished demo rather than a project half set up.
   useEffect(() => {
     if (!ready || !tourConfigRef.current) return;
-    if (parked && !armedRef.current) {
+    if (parked && !armedRef.current && !tourConfigRef.current.invite) {
       armedRef.current = true;
       playingRef.current = true;
       post({ source: SOURCE, type: "play" });

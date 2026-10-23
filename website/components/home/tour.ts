@@ -35,10 +35,16 @@ export type TourStep = TourAction &
     beatMs: number;
   };
 
+// A control the visitor is asked to click first, named by its label on screen,
+// and the line that asks. A tour with one waits for the visitor instead of
+// playing itself.
+export type TourInvite = { button: string; hint: string };
+
 export type Tour = {
   steps: TourStep[];
   // The pill's opening line, up while the tour gets going.
   hint: TourHint;
+  invite?: TourInvite;
   // Seeded projects this frame leaves out, so a tour can add one of those
   // folders as a new project.
   omitProjects?: string[];
@@ -176,12 +182,18 @@ export type TourStepInput =
 // played. A step may override the catalog's copy or timing for that page.
 export function defineTour(
   steps: TourStepInput[],
-  opts: { hint?: TourHint; omitProjects?: string[]; done?: string } = {},
+  opts: {
+    hint?: TourHint;
+    invite?: TourInvite;
+    omitProjects?: string[];
+    done?: string;
+  } = {},
 ): Tour {
   let clock = 0;
   return {
     hint: opts.hint ?? OPENING_HINT,
     done: opts.done ?? DONE_LINE,
+    ...(opts.invite ? { invite: opts.invite } : {}),
     ...(opts.omitProjects ? { omitProjects: opts.omitProjects } : {}),
     steps: steps.map((input) => {
       const step: TourAction & Partial<TourStepCopy> =
@@ -194,9 +206,16 @@ export function defineTour(
 }
 
 // The home page's tour: boot a project, then put both agents to work on it.
+// The visitor makes the first click themselves, so they try instead of watch.
 export const HOME_TOUR = defineTour(
   ["start", "agent", "prompt", "codex", "codexPrompt"],
-  { done: "You ran the whole loop: services up, two agents on one project." },
+  {
+    done: "You ran the whole loop: services up, two agents on one project.",
+    invite: {
+      button: "Start",
+      hint: "Click Start. saas-app boots right here, in your browser.",
+    },
+  },
 );
 
 // How many steps have happened in the window, whoever did them, and whether

@@ -13,6 +13,8 @@ type Props = {
   // The left half of a split button: square right edge, and no lift of its
   // own, since the two halves have to move as one.
   joined?: boolean;
+  // Build, size and version, under a short label at every width.
+  details?: string;
 };
 
 const SHAPE = {
@@ -26,25 +28,28 @@ export function PrimaryDownload({
   source,
   className,
   joined = false,
+  details,
 }: Props) {
   const beta = isBetaOs(entry.os);
   return (
     <a
       href={entry.href}
-      aria-label={entry.ariaLabel}
+      aria-label={details ? `${entry.ariaLabel} (${details})` : entry.ariaLabel}
       onClick={() =>
         trackDownload({ source, platform: entry.platform, href: entry.href })
       }
       className={`group inline-flex items-center justify-center gap-3 whitespace-nowrap bg-gray-900 font-medium tracking-tight text-white transition-[background-color,box-shadow,transform] duration-200 ease-out hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 dark:focus-visible:ring-white dark:focus-visible:ring-offset-gray-950 ${SHAPE[joined ? "joined" : "alone"]} ${className}`}
     >
       <OsIcon os={entry.os} className="-mt-0.5 h-5 w-5 flex-shrink-0" />
-      <span className="flex flex-col items-start text-left leading-tight sm:hidden">
+      <span
+        className={`flex flex-col items-start text-left leading-tight ${details ? "" : "sm:hidden"}`}
+      >
         <span>Download for {OS_NAMES[entry.os]}</span>
         <span className="text-[12px] font-normal opacity-70">
-          {entry.choiceLabel}
+          {details ?? entry.choiceLabel}
         </span>
       </span>
-      <span className="hidden sm:inline">{entry.label}</span>
+      {!details && <span className="hidden sm:inline">{entry.label}</span>}
       {beta && (
         <BetaTag className="border-white/35 text-white/80 dark:border-gray-900/30 dark:text-gray-700" />
       )}

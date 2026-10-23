@@ -5,7 +5,7 @@ import { Play } from "lucide-react";
 import { AppStoreButton } from "@/components/app-store-button";
 import { useRelease } from "@/components/release-context";
 import type { AppStoreSource, DownloadSource } from "@/lib/analytics";
-import { DEMO_ANCHOR } from "@/lib/links";
+import { DEMO_ANCHOR, LESSONS_ANCHOR } from "@/lib/links";
 import {
   isDownloadPlatform,
   isMobilePlatform,
@@ -14,6 +14,7 @@ import {
 } from "@/lib/use-platform";
 import { DownloadSplitButton } from "./download-split-button";
 import { HeroTrustLine } from "./hero-trust-line";
+import { formatLength, OVERVIEW_LESSON } from "./lesson-data";
 import { NoDownloadCard } from "./no-download-card";
 import { SendLinkButton } from "./send-link-button";
 
@@ -23,16 +24,27 @@ import { SendLinkButton } from "./send-link-button";
 const SHELL =
   "flex w-full flex-col items-center gap-4 min-h-[208px] sm:min-h-[99px]";
 
-function DemoLink() {
+const SECONDARY =
+  "items-center justify-center gap-2 rounded-full border border-gray-300 px-6 py-[13px] text-[15px] font-medium text-gray-700 transition-colors duration-200 hover:border-gray-400 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:border-gray-500 dark:hover:text-white";
+
+// From md up the interactive demo already sits under the hero, so the second
+// button offers what isn't on screen yet: the one-minute video. Narrower
+// windows play that video in the demo's place.
+function TourLink() {
   return (
-    <a
-      href={DEMO_ANCHOR}
-      className="inline-flex items-center justify-center gap-2 rounded-full border border-gray-300 px-6 py-[13px] text-[15px] font-medium text-gray-700 transition-colors duration-200 hover:border-gray-400 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:border-gray-500 dark:hover:text-white"
-    >
-      <Play className="h-3.5 w-3.5" aria-hidden />
-      <span className="md:hidden">Watch the demo</span>
-      <span className="hidden md:inline">Try the interactive demo</span>
-    </a>
+    <>
+      <a href={DEMO_ANCHOR} className={`inline-flex md:hidden ${SECONDARY}`}>
+        <Play className="h-3.5 w-3.5" aria-hidden />
+        Watch the demo
+      </a>
+      <a href={LESSONS_ANCHOR} className={`hidden md:inline-flex ${SECONDARY}`}>
+        <Play className="h-3.5 w-3.5" aria-hidden />
+        Watch the 1-minute tour
+        <span className="font-mono text-[13px] tabular-nums opacity-70">
+          {formatLength(OVERVIEW_LESSON.seconds)}
+        </span>
+      </a>
+    </>
   );
 }
 
@@ -87,9 +99,9 @@ export function HeroCta({
           detected={isDownloadPlatform(platform) ? platform : null}
           release={release}
           source={source}
-          className="px-6 py-3.5 text-[15px] sm:px-7 sm:text-[16px]"
+          className="px-6 py-2 text-[15px] sm:px-7 sm:text-[16px]"
         />
-        {secondary ?? <DemoLink />}
+        {secondary ?? <TourLink />}
       </div>
       <HeroTrustLine os={primary.os} downloads={downloads} />
     </div>

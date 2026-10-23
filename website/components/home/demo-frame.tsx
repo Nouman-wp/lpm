@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ReactNode, type Ref } from "react";
 import { DemoHintPill } from "./demo-hint-pill";
+import { DemoInvite } from "./demo-invite";
 import { WINDOW_FRAME } from "./demo-window";
 import type { Tour, TourHandle, TourState } from "./tour";
 import { useDemoFrame } from "./use-demo-frame";
@@ -43,14 +44,22 @@ export function DemoFrame({
   const [loaded, setLoaded] = useState(false);
   const parked = useParked(frameRef);
   const pill = useTourHint(tour);
+  // Up until the visitor does anything in the window or the step list.
+  const [invited, setInvited] = useState(Boolean(tour?.invite));
   const ready = useDemoFrame({
     iframeRef,
     tour,
     parked,
     tourRef,
     onTour,
-    onStage: pill.advance,
-    onInteract: pill.hide,
+    onStage: (stage) => {
+      pill.advance(stage);
+      if (stage > 0) setInvited(false);
+    },
+    onInteract: () => {
+      pill.hide();
+      setInvited(false);
+    },
   });
   // An empty workspace has no tour to take, so loading is enough.
   const shown = ready || (!tour && loaded);
@@ -79,6 +88,13 @@ export function DemoFrame({
             <span className="text-[13px] text-[#5c5c5c]">Loading demo…</span>
           )}
         </div>
+      )}
+      {tour?.invite && (
+        <DemoInvite
+          iframeRef={iframeRef}
+          invite={tour.invite}
+          hidden={!shown || !parked || !invited}
+        />
       )}
       {pill.hint.text && (
         <DemoHintPill

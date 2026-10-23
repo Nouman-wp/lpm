@@ -38,7 +38,7 @@ export default async function HomePage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
-      <DemoSection posterPriority />
+      <DemoSection posterPriority blurb="It all runs in your browser." />
       <BeforeAfter />
       <CtaBand />
       <HowItWorks />

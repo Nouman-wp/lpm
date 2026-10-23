@@ -31,8 +31,8 @@ import {
   vsPath,
 } from "@/lib/links";
 import { FooterFollow } from "./footer-follow";
+import { FooterRelease } from "./footer-release";
 import { FooterYouTubeCard } from "./footer-youtube-card";
-import { GitHubStarButton } from "./github-star-button";
 import { TelegramIcon } from "./telegram-icon";
 
 const COMPARE_LABELS: Record<(typeof VS_SLUGS)[number], string> = {
@@ -112,6 +112,7 @@ export function Footer() {
   return (
     <footer className="border-t border-gray-200 dark:border-gray-800 py-14">
       <div data-nosnippet className="max-w-5xl mx-auto px-6">
+        <FooterRelease />
         <div className="grid grid-cols-2 gap-x-5 gap-y-10 sm:gap-x-8 lg:grid-cols-4">
           {GROUPS.map((group) => (
             <div key={group.heading}>
@@ -156,7 +157,6 @@ export function Footer() {
 
         <div className="mt-8 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-            <GitHubStarButton />
             <a
               href={TELEGRAM_URL}
               target="_blank"

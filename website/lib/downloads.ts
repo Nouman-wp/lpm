@@ -111,6 +111,22 @@ export function formatSize(bytes: number): string {
   return `${(bytes / 1_000_000).toFixed(1)} MB`;
 }
 
+// A download button's second line: the build, then its size and version once
+// the release has loaded.
+export function downloadDetails(
+  entry: DownloadEntry,
+  release: ReleaseSummary | null,
+): string {
+  const size = release?.sizes[entry.platform];
+  return [
+    entry.choiceLabel,
+    size !== undefined && formatSize(size),
+    release && `v${release.version}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export function formatReleaseDate(value: string | null): string | null {
   if (!value) return null;
   return new Intl.DateTimeFormat("en", {

@@ -6,12 +6,13 @@ import type { Tour, TourHint } from "./tour";
 type HintStage = "invite" | "next";
 
 // The pill's line: the tour's opening one, then the one the last step to have
-// happened carries.
+// happened carries. A tour that waits for the visitor has nothing to open
+// with: its invite sits on the control instead.
 export function useTourHint(tour: Tour | undefined) {
   const [hint, setHint] = useState<{
     text: TourHint | undefined;
     stage: HintStage;
-  }>({ text: tour?.hint, stage: "invite" });
+  }>({ text: tour?.invite ? undefined : tour?.hint, stage: "invite" });
   // Visibility is held apart from the line so the pill keeps drawing the line
   // it was showing all the way through its half-second fade.
   const [visible, setVisible] = useState(true);

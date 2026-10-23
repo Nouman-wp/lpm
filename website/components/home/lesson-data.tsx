@@ -102,6 +102,9 @@ export const LESSON_STEPS: LessonStep[] = [
   },
 ];
 
+// The one-minute tour, which leads the series.
+export const OVERVIEW_LESSON = LESSON_STEPS[0];
+
 export function formatLength(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }

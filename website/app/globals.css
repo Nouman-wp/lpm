@@ -409,6 +409,25 @@ html {
   }
 }
 
+/* The ring on the control a demo asks the visitor to click first. */
+@keyframes demo-invite-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(96 165 250 / 0.55);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 9px rgb(96 165 250 / 0);
+  }
+}
+.demo-invite-ring {
+  animation: demo-invite-pulse 2s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .demo-invite-ring {
+    animation: none;
+  }
+}
+
 /* Before/After: a state chip under the slider rings the rows in that state. */
 .ba-state {
   transition: box-shadow 0.2s ease;

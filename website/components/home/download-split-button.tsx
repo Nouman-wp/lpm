@@ -5,6 +5,7 @@ import { ArrowRight, ChevronDown } from "lucide-react";
 import { trackDownload, type DownloadSource } from "@/lib/analytics";
 import {
   DOWNLOADS_BY_OS,
+  downloadDetails,
   formatReleaseDate,
   formatSize,
   isBetaOs,
@@ -75,6 +76,7 @@ export function DownloadSplitButton({
         source={source}
         className={className}
         joined
+        details={downloadDetails(primary, release)}
       />
       <button
         ref={toggleRef}
