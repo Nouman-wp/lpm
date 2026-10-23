@@ -394,6 +394,9 @@ export function ScheduledUpdate() {
 export function CancelScheduledUpdate() {
   return invoke("cancel_scheduled_update");
 }
+export function ScheduleUpdate() {
+  return invoke("schedule_update");
+}
 export function TakeUpdateNote() {
   return invoke("take_update_note");
 }

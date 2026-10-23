@@ -14,7 +14,7 @@ const WORKFLOWS: Workflow[] = [
       <>
         Select your project in the sidebar and click Start: the full stack
         boots in one window, one service per tab. Point Claude Code at it for
-        the feature work. For the second agent, choose New Worktree from the
+        the feature work. For the second agent, choose New worktree from the
         project&rsquo;s menu. You get a real Git checkout on its own branch,
         with its own services, listed right under the original. Point Codex at
         that. If both copies run a dev server on the same port, lpm catches

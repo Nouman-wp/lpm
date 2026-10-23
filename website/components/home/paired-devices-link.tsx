@@ -17,19 +17,14 @@ const CAPSULE_BODY = (
 );
 
 // Two separate connectors on purpose: one base element with sm: overrides
-// shifted the line over the Mac window. Each hairline must touch both devices.
+// shifted the line over the Mac window. The hairline must touch both devices.
+// On a phone the iPhone overlaps the Mac, so the capsule sits under the Mac
+// with no line.
 export function SyncLink({ animate }: { animate: boolean }) {
   return (
     <>
-      <div className="relative flex h-20 w-full items-center justify-center overflow-hidden sm:hidden">
-        <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-300 dark:bg-[#3a3a3c]" />
-        {animate && (
-          <>
-            <span className="absolute left-1/2 h-5 w-px -translate-x-1/2 rounded-full bg-gradient-to-b from-transparent to-emerald-400 [animation:pd-spine-down_2.4s_ease-in-out_infinite]" />
-            <span className="absolute left-1/2 h-5 w-px -translate-x-1/2 rounded-full bg-gradient-to-t from-transparent to-emerald-400/70 [animation:pd-spine-up_2.4s_ease-in-out_infinite]" />
-          </>
-        )}
-        <div className={`relative z-10 ${CAPSULE}`}>{CAPSULE_BODY}</div>
+      <div className={`absolute left-1 top-[22rem] z-10 sm:hidden ${CAPSULE}`}>
+        {CAPSULE_BODY}
       </div>
       <div className="relative z-10 hidden h-72 w-36 shrink-0 overflow-hidden sm:-ml-4 sm:block">
         <div className="absolute left-0 right-0 top-1/2 h-px bg-gray-300 dark:bg-[#3a3a3c]" />

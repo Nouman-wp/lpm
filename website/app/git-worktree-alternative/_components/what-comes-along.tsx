@@ -23,7 +23,7 @@ export default function WhatComesAlong() {
           edits stay behind, and by default Git refuses a branch that&apos;s
           already checked out elsewhere. A copy of the project folder brings all
           three, on the same branch. lpm makes that copy with Duplicate, and
-          real worktrees with New Worktree.
+          real worktrees with New worktree.
         </p>
 
         <figure className="mt-8 sm:mt-10">

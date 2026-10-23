@@ -10,6 +10,7 @@ import {
   filesTabLabel,
   makeFiles,
   terminalOriginLabel,
+  forkLabel,
   type PaneLeaf,
   type PaneNode,
   type PaneHeaderItem,
@@ -231,5 +232,31 @@ describe("filesTabLabel", () => {
   it("keeps a name the user gave the tab", () => {
     const renamed = applyManualTerminalRename(makeFiles("f1"), "Mine");
     expect(filesTabLabel(renamed, true)).toBe("Mine");
+  });
+});
+
+describe("forked tabs", () => {
+  const fork = { label: "Claude", at: 1 };
+
+  it("names a fork after its source, once", () => {
+    expect(forkLabel("Claude")).toBe("Claude · fork");
+    expect(forkLabel("Claude · fork")).toBe("Claude · fork");
+    expect(forkLabel("Claude · fork 2")).toBe("Claude · fork");
+  });
+
+  it("keeps reading as a fork once the conversation title takes over", () => {
+    const tab = { id: "t", label: "Claude · fork", sessionTitle: "Regenerate the API docs", forkOf: fork };
+    expect(terminalDisplayLabel(tab)).toBe("Regenerate the API docs · fork");
+    expect(terminalDisplayLabel({ ...tab, sessionTitle: undefined })).toBe("Claude · fork");
+  });
+
+  it("shows the user's own name as typed", () => {
+    const tab = { id: "t", label: "Experiment", sessionTitle: "Regenerate", sessionTitleSource: "manual" as const, forkOf: fork };
+    expect(terminalDisplayLabel(tab)).toBe("Experiment");
+  });
+
+  it("names the action a forked action tab came from without the mark", () => {
+    const tab = { id: "t", label: "Claude · fork", actionName: "claude", sessionTitle: "Regenerate", forkOf: fork };
+    expect(terminalOriginLabel(tab)).toBe("Claude");
   });
 });

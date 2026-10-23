@@ -10,6 +10,7 @@ declare global {
 export type { DownloadPlatform } from "@/lib/downloads";
 export type DownloadSource =
   | "hero"
+  | "demo-done"
   | "home-cta"
   | "config-cta"
   | "downloads"

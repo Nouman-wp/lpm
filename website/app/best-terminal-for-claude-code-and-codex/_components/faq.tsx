@@ -52,7 +52,7 @@ const FAQS: QA[] = [
         </Link>{" "}
         (dependencies,{" "}
         <code className="text-xs">.env</code>{" "}
-        files, and uncommitted work included), and New Worktree checks out a real Git worktree on its own
+        files, and uncommitted work included), and New worktree checks out a real Git worktree on its own
         branch. Either way you can create up to 50 at once and queue the same
         prompt in each. The guide to{" "}
         <Link href={PARALLEL_PATH} className={LINK}>
@@ -66,7 +66,7 @@ const FAQS: QA[] = [
       </>
     ),
     answerText:
-      "Yes. Each agent works in its own copy of the repo, so they never edit the same files. Duplicate clones the project folder (dependencies, .env files, and uncommitted work included), and New Worktree checks out a real Git worktree on its own branch. Either way you can create up to 50 at once and queue the same prompt in each. See lpm.cx/run-claude-code-in-parallel for the walkthrough and lpm.cx/git-worktree-for-ai-agents for which of the two to reach for.",
+      "Yes. Each agent works in its own copy of the repo, so they never edit the same files. Duplicate clones the project folder (dependencies, .env files, and uncommitted work included), and New worktree checks out a real Git worktree on its own branch. Either way you can create up to 50 at once and queue the same prompt in each. See lpm.cx/run-claude-code-in-parallel for the walkthrough and lpm.cx/git-worktree-for-ai-agents for which of the two to reach for.",
   },
   {
     question: "Does lpm support Gemini CLI, Cursor CLI, and OpenCode?",

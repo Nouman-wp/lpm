@@ -89,6 +89,7 @@ export function DemoWorkspace() {
             <DemoSteps
               steps={HOME_TOUR.steps}
               tour={tour}
+              done={HOME_TOUR.done}
               onRun={runStep}
               onRestart={() => pick("sample")}
             />

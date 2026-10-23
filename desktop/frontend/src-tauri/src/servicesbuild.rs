@@ -14,6 +14,8 @@ use tauri::{AppHandle, Emitter, State};
 pub struct ServicesBuild {
     /// Some project has services in the daemon.
     pub running: bool,
+    /// How many projects have them.
+    pub projects: usize,
     /// The build the daemon runs; empty for one from before daemons said.
     pub version: String,
     /// The daemon runs this app's build, or there is none to be behind.
@@ -25,31 +27,33 @@ pub fn services_build() -> ServicesBuild {
     build_of(
         client::query(&Request::Version),
         &crate::updates::current_version(),
-        || !crate::sessions::running_sessions().is_empty(),
+        || crate::sessions::running_sessions().len(),
     )
 }
 
-/// `old_running` asks a daemon from before `Version` whether it holds anything.
+/// `old_sessions` asks a daemon from before `Version` how many sessions it holds.
 fn build_of(
     reply: Result<crate::sessionproto::Response, String>,
     app: &str,
-    old_running: impl FnOnce() -> bool,
+    old_sessions: impl FnOnce() -> usize,
 ) -> ServicesBuild {
     match reply {
         Ok(reply) => {
             let version = reply.version.unwrap_or_default();
-            let running = reply.sessions.is_some_and(|s| !s.is_empty());
+            let projects = reply.sessions.map_or(0, |s| s.len());
             ServicesBuild {
-                running,
-                current: !running || version == app,
+                running: projects > 0,
+                projects,
+                current: projects == 0 || version == app,
                 version,
             }
         }
         Err(error) if error == client::NO_REPLY => {
-            let running = old_running();
+            let projects = old_sessions();
             ServicesBuild {
-                running,
-                current: !running,
+                running: projects > 0,
+                projects,
+                current: projects == 0,
                 ..Default::default()
             }
         }
@@ -137,9 +141,14 @@ mod tests {
 
     #[test]
     fn a_daemon_on_another_build_is_behind() {
-        let build = build_of(reply("0.7.31", &["web"]), "0.7.32", || unreachable!());
+        let build = build_of(
+            reply("0.7.31", &["web", "api"]),
+            "0.7.32",
+            || unreachable!(),
+        );
         assert!(build.running && !build.current);
         assert_eq!(build.version, "0.7.31");
+        assert_eq!(build.projects, 2);
     }
 
     #[test]
@@ -150,9 +159,10 @@ mod tests {
 
     #[test]
     fn a_daemon_from_before_versions_is_behind() {
-        let build = build_of(Err(client::NO_REPLY.into()), "0.7.32", || true);
+        let build = build_of(Err(client::NO_REPLY.into()), "0.7.32", || 3);
         assert!(build.running && !build.current);
         assert_eq!(build.version, "");
+        assert_eq!(build.projects, 3);
     }
 
     #[test]

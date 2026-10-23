@@ -125,6 +125,7 @@ export function RollbackUpdate(...args: any[]): Promise<any>;
 export function CancelUpdate(...args: any[]): Promise<boolean>;
 export function ScheduledUpdate(...args: any[]): Promise<any>;
 export function CancelScheduledUpdate(...args: any[]): Promise<boolean>;
+export function ScheduleUpdate(...args: any[]): Promise<any>;
 export function TakeUpdateNote(...args: any[]): Promise<any>;
 export function ServicesBuild(...args: any[]): Promise<any>;
 export function RestartServices(...args: any[]): Promise<any>;

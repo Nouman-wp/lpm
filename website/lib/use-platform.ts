@@ -114,6 +114,11 @@ export function isMacDownloadPlatform(
   return platform === "mac-arm" || platform === "mac-intel";
 }
 
+// A phone or tablet, which can't install lpm.
+export function isMobilePlatform(platform: Platform): boolean {
+  return platform === "unsupported" || platform === "ipad";
+}
+
 export function isDownloadPlatform(
   platform: Platform,
 ): platform is Extract<DetectedPlatform, DownloadPlatform> {

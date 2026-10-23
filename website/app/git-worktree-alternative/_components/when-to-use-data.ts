@@ -54,6 +54,6 @@ export const DUPLICATE_LIMITS: {
   {
     icon: ServerOff,
     title: "Some projects can't be duplicated",
-    body: "SSH projects can't. A project that is itself a linked Git worktree uses New Worktree instead.",
+    body: "SSH projects can't. A project that is itself a linked Git worktree uses New worktree instead.",
   },
 ];

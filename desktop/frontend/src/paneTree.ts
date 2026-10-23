@@ -10,6 +10,14 @@ export const ALL_SERVICES = "__lpm_all__";
 
 export type SessionTitleSource = "vendor" | "manual";
 
+// Where a forked session came from: the tab's name at the time and when.
+export interface TabFork {
+  label: string;
+  at: number;
+}
+
+const FORK_SUFFIX = " · fork";
+
 export interface TerminalInstance {
   id: string;
   label: string;
@@ -58,6 +66,9 @@ export interface TerminalInstance {
   // under its name, like a tab of its own. One that didn't say so relaunches it
   // itself, and restoring it here as well would run it twice.
   restoreHere?: boolean;
+  // Set on a tab forked from another one. The fork keeps reading as one after
+  // the agent's conversation title, which the fork shares, takes over the label.
+  forkOf?: TabFork;
   // Absent == terminal; the other kinds render in-pane views without a PTY.
   kind?: "terminal" | "browser" | "memory" | "toolkit" | "files" | "automations";
 }
@@ -124,6 +135,7 @@ export function makeTerminal(
     peerAdopted?: boolean;
     fromHost?: boolean;
     restoreHere?: boolean;
+    forkOf?: TabFork;
   },
 ): TerminalInstance {
   return {
@@ -145,12 +157,24 @@ export function makeTerminal(
     ...(opts?.peerAdopted ? { peerAdopted: true } : {}),
     ...(opts?.fromHost ? { fromHost: true } : {}),
     ...(opts?.restoreHere ? { restoreHere: true } : {}),
+    ...(opts?.forkOf ? { forkOf: opts.forkOf } : {}),
   };
 }
 
 export function terminalDisplayLabel(t: TerminalInstance): string {
   if (!followsAgentTitle(t)) return t.label;
-  return t.sessionTitle || t.label;
+  if (!t.sessionTitle) return t.label;
+  return t.forkOf ? `${t.sessionTitle}${FORK_SUFFIX}` : t.sessionTitle;
+}
+
+// The name a fork launches under: its source's name, marked as a fork once.
+export function forkLabel(label: string): string {
+  return `${withoutForkSuffix(label)}${FORK_SUFFIX}`;
+}
+
+function withoutForkSuffix(label: string): string {
+  const at = label.lastIndexOf(FORK_SUFFIX);
+  return at >= 0 && /^( \d+)?$/.test(label.slice(at + FORK_SUFFIX.length)) ? label.slice(0, at) : label;
 }
 
 // False once the user names a tab themselves — their label outranks whatever
@@ -166,7 +190,7 @@ export function followsAgentTitle(t: TerminalInstance): boolean {
 // itself — the one piece of the origin a rename can't erase.
 export function terminalOriginLabel(t: TerminalInstance): string | undefined {
   if (!t.actionName) return undefined;
-  const original = (followsAgentTitle(t) ? t.label.trim() : "") || t.actionName;
+  const original = (followsAgentTitle(t) ? withoutForkSuffix(t.label).trim() : "") || t.actionName;
   return original !== terminalDisplayLabel(t) ? original : undefined;
 }
 

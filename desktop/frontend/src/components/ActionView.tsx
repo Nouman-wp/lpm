@@ -11,9 +11,11 @@ import { formatShortcut, parseShortcut } from "../shortcutParse";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 import { refreshLabelOnHover } from "../labelHover";
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
+import { actionRunKey } from "../store/actionRunMarks";
+import { ActionRunMarkBadge } from "./ActionRunMarkBadge";
 
 const FLAT_BASE =
-  "flex cursor-grab select-none items-center rounded-md border px-2.5 text-[11px] font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40";
+  "relative flex cursor-grab select-none items-center rounded-md border px-2.5 text-[11px] font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40";
 const FLAT_HEADER_TONE =
   "border-[var(--border)] bg-[var(--action-tint,var(--bg-secondary))] text-[var(--text-secondary)] hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--text-primary)]";
 const FLAT_FOOTER_TONE =
@@ -52,6 +54,7 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
       />
     );
   }
+  const runKey = actionRunKey(scope ?? GLOBAL_TERMINALS_KEY, action.name);
   const displayLabel = withEmoji(action.emoji, action.label);
   const shownLabel = <EmojiLabel emoji={action.emoji} label={action.label} />;
   const parsedShortcut =
@@ -67,9 +70,11 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
         disabled={disabled}
         title={title}
         style={actionButtonStyle(action.color)}
+        data-action-run={runKey}
         className={FLAT_SIZE_CLASSES[size]}
       >
         {shownLabel}
+        <ActionRunMarkBadge runKey={runKey} />
       </button>
     );
   }
@@ -82,6 +87,7 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
       variant="secondary"
       label={shownLabel}
       color={action.color}
+      runKey={runKey}
     />
   );
   if (!shortcutLabel) return button;

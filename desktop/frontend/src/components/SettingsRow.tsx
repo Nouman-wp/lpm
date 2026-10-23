@@ -12,7 +12,7 @@ export function SettingsRow({
 }: {
   id?: string;
   label: string;
-  description: string;
+  description: ReactNode;
   children: ReactNode;
   details?: ReactNode;
   below?: ReactNode;

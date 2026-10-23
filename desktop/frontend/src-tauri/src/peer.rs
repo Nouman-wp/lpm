@@ -146,6 +146,8 @@ const FORWARDED_EVENTS: &[&str] = &[
     // ...and that it was quit, so that tab stops resuming it.
     crate::agentexit::ENDED_EVENT,
     crate::remote::TERMINALS_CHANGED_EVENT,
+    // The command a terminal here runs and how it ended, for its tab on a Mac.
+    crate::cmdmarks::EVENT,
     // What a coding agent prints while it generates something a paired Mac asked
     // for (aigen.rs), shown under the control that started it.
     "commit-msg-progress",

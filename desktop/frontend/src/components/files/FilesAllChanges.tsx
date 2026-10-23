@@ -11,6 +11,7 @@ interface FilesAllChangesProps {
   // Reader zoom as a factor of the configured editor font size.
   zoom: number;
   sideBySide: boolean;
+  wordWrap: boolean;
   active: boolean;
   // The file at the top of the viewport as the stack is scrolled, so the rail
   // can follow along.
@@ -32,6 +33,7 @@ export const FilesAllChanges = memo(function FilesAllChanges({
   files,
   zoom,
   sideBySide,
+  wordWrap,
   active,
   onActiveFileChange,
   authority = "files",
@@ -58,6 +60,7 @@ export const FilesAllChanges = memo(function FilesAllChanges({
       baseBranch=""
       fontSize={baseFontSize * zoom}
       sideBySide={sideBySide}
+      wordWrap={wordWrap}
       active={active}
       authority={authority}
       selected={selected}

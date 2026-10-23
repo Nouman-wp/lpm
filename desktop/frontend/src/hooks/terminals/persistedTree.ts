@@ -202,6 +202,7 @@ async function reifyTree(
           peerAdopted: adopted && !isPeerMarked(id),
           fromHost: t.fromHost,
           restoreHere: adopted && t.restoreHere,
+          forkOf: t.forkOf,
         }),
       );
     });
@@ -293,6 +294,7 @@ export function treeToPersisted(node: PaneNode): PersistedPaneNode {
           ...(t.pinned ? { pinned: true } : {}),
           ...(t.emoji ? { emoji: t.emoji } : {}),
           ...(t.color ? { color: t.color } : {}),
+          ...(t.forkOf ? { forkOf: t.forkOf } : {}),
         })),
     };
   }

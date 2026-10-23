@@ -33,6 +33,14 @@ import { isLinux, isMac, isWindows } from "../platform";
 import { ConsoleContextMenu } from "./terminal/ConsoleContextMenu";
 import { ArrowDownIcon } from "./terminal/icons";
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
+import {
+  runFind,
+  watchFindResults,
+  type FindDirection,
+  type FindOptions,
+  type FindOutcome,
+  type FindResults,
+} from "./terminal/terminalFind";
 import { deliverInput, IMAGE_EXT_RE } from "./terminal/deliverInput";
 import { stripAnsi } from "./terminal/filterLines";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
@@ -115,8 +123,8 @@ if (IS_MIRROR_WINDOW) {
 
 export interface InteractivePaneHandle {
   clear: () => void;
-  findNext: (query: string) => boolean;
-  findPrevious: (query: string) => boolean;
+  find: (query: string, direction: FindDirection, options: FindOptions) => FindOutcome;
+  watchFind: (onResults: (results: FindResults) => void) => () => void;
   clearSearch: () => void;
   setFilter: (query: string | null, onCount?: (count: number) => void) => void;
   scrollToBottom: () => void;
@@ -1451,11 +1459,11 @@ export function InteractivePane({
     clear() {
       clearConsole();
     },
-    findNext(query: string) {
-      return sessionRef.current?.search?.findNext(query) ?? false;
+    find(query: string, direction: FindDirection, options: FindOptions) {
+      return runFind(sessionRef.current?.search, query, direction, options);
     },
-    findPrevious(query: string) {
-      return sessionRef.current?.search?.findPrevious(query) ?? false;
+    watchFind(onResults: (results: FindResults) => void) {
+      return watchFindResults(sessionRef.current?.search, onResults);
     },
     clearSearch() {
       sessionRef.current?.search?.clearDecorations();

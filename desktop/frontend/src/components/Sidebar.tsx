@@ -17,6 +17,7 @@ import { StatusDot, dotKind } from "./StatusDot";
 import { crashSummary, projectUp } from "../serviceExit";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
+import { useTabShares } from "../store/tabShares";
 import { openClaudeAccountSettings, setClaudeAccountChoice } from "../store/claudeAccountPin";
 import { useClaudePoolStore } from "../store/claudePool";
 import { useTerminalTitles } from "../store/terminalTitles";
@@ -104,6 +105,8 @@ import { workStatusNote, type WorkStatusInput } from "../workStatus";
 import { RenameModal } from "./RenameModal";
 import { ProjectRenameModal } from "./ProjectRenameModal";
 import { SelectionContextMenu } from "./SelectionContextMenu";
+import { SidebarSelectionBar } from "./SidebarSelectionBar";
+import type { AgentTabAction } from "./SidebarAgentMenu";
 import { useSideBySideMenu } from "../hooks/useSideBySideMenu";
 import { useSideBySide, useSideBySideColumns } from "../store/sideBySide";
 import { MAX_SIDE_BY_SIDE } from "../sideBySide";
@@ -280,6 +283,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // Anchor row for shift-click range selection; range spans anchor → clicked.
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
   const [confirmBatch, setConfirmBatch] = useState(false);
+  const [selectionBarMenu, setSelectionBarMenu] = useState(false);
   const [removingCopy, setRemovingCopy] = useState<{ project: string; macName: string } | null>(
     null,
   );
@@ -306,6 +310,25 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       else onSelect(projectName);
     },
     [focusProjectTerminal, onSelect],
+  );
+  // The rest of a tab's menu, from its agent row: the same requests a phone or
+  // another Mac sends by terminal id, which mount the project if it wasn't.
+  const agentAction = useCallback(
+    (projectName: string, agent: SidebarAgentRow, action: AgentTabAction, at: { x: number; y: number }) => {
+      const id = agent.terminalId;
+      if (!id) return;
+      if (action === "share") {
+        useTabShares.getState().openShareDialog({
+          terminalId: id,
+          project: projectName,
+          label: agent.title,
+          anchor: { left: at.x, top: at.y, right: at.x, bottom: at.y },
+        });
+        return;
+      }
+      useAppStore.getState().triggerRemoteTerminalOp(projectName, action, id, "", []);
+    },
+    [],
   );
 
   // Remote (peer) projects render in their Mac's own section, never as folder
@@ -632,6 +655,34 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     setSelectedForDelete(new Set());
     setSelectionAnchor(null);
   };
+  const scopeNames = visualProjectNames.filter((n) => peerSlugOf(n) === selectScope);
+  const allSelected = scopeNames.length > 0 && scopeNames.every((n) => selectedForDelete.has(n));
+  const selectionGroups = selectScope ? (selectionHostFolders?.groups ?? null) : groups;
+  const selectionInGroup = [...selectedForDelete].some((n) =>
+    selectScope ? Boolean(selectionHostFolders && groupOf(selectionHostFolders, n)) : memberOf.has(n),
+  );
+  const openSelectionSideBySide =
+    selectedForDelete.size >= 2 && selectedForDelete.size <= MAX_SIDE_BY_SIDE
+      ? () => {
+          openSideBySide([...selectedForDelete]);
+          exitSelectMode();
+        }
+      : undefined;
+  const removeSelection = () => {
+    if (selectedForDelete.size > 0) setConfirmBatch(true);
+  };
+  const moveSelectionToGroup = (groupId: string | null) => {
+    const names = [...selectedForDelete];
+    if (selectScope) names.forEach((name) => fileHostProject(selectScope, name, groupId));
+    else if (names.length > 0) onMoveProjectsToGroup(names, groupId);
+    exitSelectMode();
+  };
+  const createGroupWithSelection = () => {
+    const members = [...selectedForDelete];
+    if (selectScope) useHostFolderDialogs.setState({ creating: { slug: selectScope, members } });
+    else setCreateFolder({ initialMembers: members });
+    exitSelectMode();
+  };
   const toggleSelected = (name: string) =>
     setSelectedForDelete((prev) => {
       const next = new Set(prev);
@@ -677,7 +728,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
   // Escape leaves select mode, but only when no menu is open (the open menu's
   // own Escape handler closes it first).
-  useKeyboardShortcut({ key: "Escape" }, exitSelectMode, selectMode && !contextMenu && !groupMenu);
+  useKeyboardShortcut(
+    { key: "Escape" },
+    exitSelectMode,
+    selectMode && !contextMenu && !groupMenu && !selectionBarMenu,
+  );
 
   const { renameShortcut, deleteShortcut } = useSidebarProjectKeys({
     selected,
@@ -1228,6 +1283,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             // keep publishing whichever tab they were left on.
             activeTerminalId={isSelected ? focusedTerminals[project.name] ?? null : null}
             onOpenAgent={openAgent}
+            onAgentAction={agentAction}
           />
         )}
       </>
@@ -1654,9 +1710,12 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           Projects
         </h2>
         {selectMode ? (
-          <span className="text-[11px] font-medium text-[var(--text-muted)]">
-            {selectedForDelete.size} selected
-          </span>
+          <button
+            onClick={() => setSelectedForDelete(new Set(allSelected ? [] : scopeNames))}
+            className="rounded px-1 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            {allSelected ? "Select none" : "Select all"}
+          </button>
         ) : (
           <button
             onClick={onAddProject}
@@ -1698,6 +1757,25 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           </DndContext>
         )}
       </nav>
+      {selectMode && (
+        <SidebarSelectionBar
+          count={selectedForDelete.size}
+          busy={removingNames.size > 0}
+          width={width}
+          onSideBySide={openSelectionSideBySide}
+          folders={
+            selectionGroups && {
+              groups: selectionGroups,
+              anyInGroup: selectionInGroup,
+              onMoveToGroup: moveSelectionToGroup,
+              onCreateGroupWith: createGroupWithSelection,
+            }
+          }
+          onRemove={removeSelection}
+          onDone={exitSelectMode}
+          onMenuOpenChange={setSelectionBarMenu}
+        />
+      )}
       {contextMenu &&
         (selectMode ? (
           <SelectionContextMenu
@@ -1705,34 +1783,13 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             y={contextMenu.y}
             count={selectedForDelete.size}
             busy={removingNames.size > 0}
-            groups={selectScope ? (selectionHostFolders?.groups ?? null) : groups}
-            anyInGroup={[...selectedForDelete].some((n) =>
-              selectScope ? Boolean(selectionHostFolders && groupOf(selectionHostFolders, n)) : memberOf.has(n),
-            )}
-            onOpenSideBySide={
-              selectedForDelete.size >= 2 && selectedForDelete.size <= MAX_SIDE_BY_SIDE
-                ? () => {
-                    openSideBySide([...selectedForDelete]);
-                    exitSelectMode();
-                  }
-                : undefined
-            }
-            onDelete={() => {
-              if (selectedForDelete.size > 0) setConfirmBatch(true);
-            }}
+            groups={selectionGroups}
+            anyInGroup={selectionInGroup}
+            onOpenSideBySide={openSelectionSideBySide}
+            onDelete={removeSelection}
             deleteShortcut={deleteShortcut}
-            onMoveToGroup={(groupId) => {
-              const names = [...selectedForDelete];
-              if (selectScope) names.forEach((name) => fileHostProject(selectScope, name, groupId));
-              else if (names.length > 0) onMoveProjectsToGroup(names, groupId);
-              exitSelectMode();
-            }}
-            onCreateGroupWith={() => {
-              const members = [...selectedForDelete];
-              if (selectScope) useHostFolderDialogs.setState({ creating: { slug: selectScope, members } });
-              else setCreateFolder({ initialMembers: members });
-              exitSelectMode();
-            }}
+            onMoveToGroup={moveSelectionToGroup}
+            onCreateGroupWith={createGroupWithSelection}
             onCancel={exitSelectMode}
             onClose={() => setContextMenu(null)}
           />

@@ -83,6 +83,7 @@ export function Downloads({
               recommended={isDownloadPlatform(platform) ? platform : null}
               release={release}
               phoneOs={phoneOs}
+              detected={detectedOs(platform)}
             />
           </div>
         )}

@@ -27,7 +27,7 @@ const WORKFLOWS: Workflow[] = [
     body: (
       <>
         Your team lead asks for a quick review on a branch you haven&rsquo;t
-        touched. Choose New Worktree on the project: lpm makes a separate
+        touched. Choose New worktree on the project: lpm makes a separate
         checkout with its own services, listed under the original in the
         sidebar. Check out the review branch there, start just the services
         you need to test the change (lpm flags any port the original is still

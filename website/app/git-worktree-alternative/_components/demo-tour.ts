@@ -49,7 +49,7 @@ export const WORKTREE_ALT_DEMO: PageDemo = {
       project: "saas-app",
       mode: "worktree",
       title: "Now add a Git worktree",
-      body: "New Worktree, one row down, opens the same dialog and can start Codex too. The worktree starts clean on a new lpm/ branch.",
+      body: "New worktree, one row down, opens the same dialog and can start Codex too. The worktree starts clean on a new lpm/ branch.",
       leadMs: 6400,
       hint: {
         short: "One copy, one worktree",

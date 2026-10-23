@@ -22,6 +22,7 @@ const LOCAL_ONLY_EXACT = new Set<string>([
   "rollback_update",
   "cancel_update",
   "scheduled_update",
+  "schedule_update",
   "cancel_scheduled_update",
   "take_update_note",
   "services_build",
@@ -112,6 +113,7 @@ export const GLOBAL_PEER_EVENTS = new Set<string>([
   "duplicate-done",
   "agent-session",
   "agent-session-ended",
+  "terminal-command",
   "terminals-changed",
   "job-status",
   "job-seen",
@@ -374,6 +376,13 @@ export function translatePeerEventPayload(
             paneId: prefixName(slug, p.paneId),
           };
         }
+      }
+      return payload;
+    case "terminal-command":
+      // { id, … } — the host's pty id, which a peer tab's id prefixes.
+      if (payload && typeof payload === "object") {
+        const p = payload as { id?: unknown };
+        if (typeof p.id === "string") return { ...(payload as object), id: prefixName(slug, p.id) };
       }
       return payload;
     default:

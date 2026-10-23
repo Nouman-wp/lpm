@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
+import { FaqAsk } from "@/components/home/faq-ask";
 import { SectionHeader } from "@/components/section-header";
 import {
   LINUX_HOST_PATH,
@@ -206,6 +207,7 @@ export function HomeFaq() {
             </li>
           ))}
         </ul>
+        <FaqAsk />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}

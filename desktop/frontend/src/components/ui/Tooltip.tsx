@@ -29,6 +29,20 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
   const showTimer = useRef<number | null>(null);
   const [visible, setVisible] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  // A trigger whose own popover or menu is open (aria-expanded) keeps its
+  // tooltip down, so the tooltip can't cover what the click just opened.
+  const [expanded, setExpanded] = useState(false);
+  const suppressed = disabled || expanded;
+
+  useEffect(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const read = () => setExpanded(trigger.querySelector('[aria-expanded="true"]') !== null);
+    read();
+    const observer = new MutationObserver(read);
+    observer.observe(trigger, { attributes: true, attributeFilter: ["aria-expanded"], subtree: true });
+    return () => observer.disconnect();
+  }, []);
 
   const clearShowTimer = useCallback(() => {
     if (showTimer.current !== null) {
@@ -40,7 +54,7 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
   // Reveal after the dwell delay (or immediately when delay is 0); leaving the
   // trigger before it elapses cancels the pending show.
   const show = useCallback(() => {
-    if (disabled) return;
+    if (suppressed) return;
     if (delay <= 0) {
       setVisible(true);
       return;
@@ -50,7 +64,7 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
       showTimer.current = null;
       setVisible(true);
     }, delay);
-  }, [delay, clearShowTimer, disabled]);
+  }, [delay, clearShowTimer, suppressed]);
 
   const hide = useCallback(() => {
     clearShowTimer();
@@ -61,8 +75,8 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
   useEffect(() => clearShowTimer, [clearShowTimer]);
 
   useEffect(() => {
-    if (disabled) hide();
-  }, [disabled, hide]);
+    if (suppressed) hide();
+  }, [suppressed, hide]);
 
   const updatePosition = useCallback(() => {
     const trigger = triggerRef.current;
@@ -115,7 +129,7 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
         // Immediate (no dwell) on keyboard focus; :focus-visible keeps mouse
         // clicks from pinning the tooltip until blur.
         onFocus={(e) => {
-          if (!disabled && e.target.matches(":focus-visible")) setVisible(true);
+          if (!suppressed && e.target.matches(":focus-visible")) setVisible(true);
         }}
         onBlur={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget)) hide();

@@ -90,7 +90,7 @@ describe("PeerSettings", () => {
       "Shortcuts",
       "AI & Integrations",
       "Templates",
-      "Global Config",
+      "Global config",
       "Mobile devices",
     ]);
     expect(buttonNamed("Remove")).toBeUndefined();
@@ -142,7 +142,7 @@ describe("PeerSettings", () => {
       "Notifications",
       "AI & Integrations",
       "Templates",
-      "Global Config",
+      "Global config",
       "Mobile devices",
     ]);
     expect(toggle("Check for new commits")).toBeTruthy();

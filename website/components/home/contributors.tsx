@@ -1,7 +1,9 @@
 import Image from "next/image";
 import { GithubLink } from "@/components/github-link";
 import { SectionHeader } from "@/components/section-header";
+import { fetchRecentFixes } from "@/lib/github-fixes";
 import { fetchContributors, type Contributor } from "@/lib/github-stats";
+import { RecentFixes } from "./recent-fixes";
 
 function avatarSrc(url: string, size: number): string {
   const u = new URL(url);
@@ -43,7 +45,10 @@ function ContributorCard({ contributor }: { contributor: Contributor }) {
 }
 
 export async function Contributors() {
-  const contributors = await fetchContributors();
+  const [contributors, fixes] = await Promise.all([
+    fetchContributors(),
+    fetchRecentFixes(),
+  ]);
   if (contributors.length === 0) return null;
 
   return (
@@ -60,6 +65,7 @@ export async function Contributors() {
             <ContributorCard key={c.login} contributor={c} />
           ))}
         </ul>
+        <RecentFixes fixes={fixes} />
         <div className="mt-8 text-center">
           <GithubLink
             source="home-contributors"

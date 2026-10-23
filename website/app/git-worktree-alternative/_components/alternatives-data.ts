@@ -195,11 +195,11 @@ export const ALTERNATIVE_GROUPS: AlternativeGroup[] = [
         link: { href: "#how-it-works", label: "See the Duplicate dialog" },
       },
       {
-        name: "lpm New Worktree",
+        name: "lpm New worktree",
         icon: GitBranch,
         tone: "blue",
         mechanisms: [
-          { kind: "menu", steps: ["Right-click a project", "New Worktree"] },
+          { kind: "menu", steps: ["Right-click a project", "New worktree"] },
         ],
         gets: "Real Git worktrees on new lpm/<name> branches from the commit you're on, up to 50 at a time.",
         chips: {

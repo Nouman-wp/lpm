@@ -8,12 +8,14 @@ import type { AppStoreSource, DownloadSource } from "@/lib/analytics";
 import { DEMO_ANCHOR } from "@/lib/links";
 import {
   isDownloadPlatform,
+  isMobilePlatform,
   primaryDownload,
   usePlatform,
 } from "@/lib/use-platform";
 import { DownloadSplitButton } from "./download-split-button";
 import { HeroTrustLine } from "./hero-trust-line";
 import { NoDownloadCard } from "./no-download-card";
+import { SendLinkButton } from "./send-link-button";
 
 // The homepage keeps the demo frame in the first viewport, so this row reserves
 // its height: platform detection only runs after hydration and must not shove
@@ -34,8 +36,9 @@ function DemoLink() {
   );
 }
 
-// Pages that pass an App Store source turn the phone and tablet branch into
-// the iPhone companion's install button instead of a no-download dead end.
+// Pages that pass an App Store source turn the phone and tablet branch into a
+// way to get the desktop app onto the visitor's computer, with the iPhone
+// companion second, instead of a no-download dead end.
 export function HeroCta({
   source = "hero",
   secondary,
@@ -47,22 +50,19 @@ export function HeroCta({
 }) {
   const platform = usePlatform();
   const { release, downloads } = useRelease();
-  const onMobile = platform === "ipad" || platform === "unsupported";
+  const onMobile = isMobilePlatform(platform);
   const trust = <HeroTrustLine os={null} downloads={downloads} />;
 
   if (onMobile && appStoreSource) {
     return (
       <div className={SHELL}>
-        <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-5">
-          <AppStoreButton source={appStoreSource} />
-          <p className="max-w-sm text-pretty text-center text-[13px] leading-relaxed text-gray-500 sm:max-w-xs sm:text-left dark:text-gray-400">
-            <span className="font-medium text-gray-800 dark:text-gray-200">
-              lpm link
-            </span>{" "}
-            follows your computer&apos;s terminals and agents from iPhone or
-            iPad. Get the desktop app by opening lpm.cx on your Mac or PC.
+        <div className="flex w-full flex-col items-center gap-2">
+          <SendLinkButton variant="primary" label="Send lpm to my computer" />
+          <p className="text-pretty text-center text-[13px] text-gray-500 dark:text-gray-400">
+            AirDrop it to your Mac, or message the link to yourself.
           </p>
         </div>
+        <AppStoreButton source={appStoreSource} variant="outline" />
         {trust}
       </div>
     );

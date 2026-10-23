@@ -86,6 +86,7 @@ import {
 } from "../../shortcutParse";
 import { shortcutRequirementHint } from "../../shortcutRecord";
 import { AIActionModal } from "./AIActionModal";
+import { ConfigLayerMenu } from "./ConfigLayerMenu";
 import { ModeButton } from "./ModeButton";
 import {
   ActionPreviewPanel,
@@ -305,6 +306,8 @@ interface ChildDraft {
 interface ActionWizardProps {
   open: boolean;
   projectName: string;
+  // How the project reads in the app (a copy's or a peer's display name).
+  projectLabel?: string;
   // When set, the wizard runs in edit mode: prefill from this action and
   // submit a patch to its YAML key instead of appending a new entry.
   editing?: ActionInfo | null;
@@ -462,26 +465,6 @@ function parsePorts(raw: string): number[] {
     .filter(Boolean)
     .map((part) => Number.parseInt(part, 10))
     .filter((n) => Number.isFinite(n) && n >= 1 && n <= 65535);
-}
-
-const CONFIG_LAYER_OPTIONS: Array<{
-  value: ActionConfigLayer;
-  label: string;
-  hint: string;
-}> = [
-  { value: "project", label: "User", hint: "Just for you on this project" },
-  { value: "repo", label: "Repo", hint: "Shared with your team via git" },
-  {
-    value: "global",
-    label: "Global",
-    hint: "Available across all your projects",
-  },
-];
-
-function configLayerLabel(layer: ActionConfigLayer): string {
-  return (
-    CONFIG_LAYER_OPTIONS.find((opt) => opt.value === layer)?.label ?? "User"
-  );
 }
 
 function buildChildMap(children: ChildDraft[]): Record<string, unknown> {
@@ -768,6 +751,7 @@ function collectTakenShortcuts(
 export function ActionWizard({
   open,
   projectName,
+  projectLabel = projectName,
   editing,
   actions = [],
   existingActionKeys = [],
@@ -1298,6 +1282,7 @@ export function ActionWizard({
                     {isEditing ? (
                       editSource ? (
                         <ConfigLayerMenu
+                          project={projectLabel}
                           value={moveTarget ?? editSource}
                           onChange={(next) =>
                             setMoveTarget(next === editSource ? null : next)
@@ -1311,6 +1296,7 @@ export function ActionWizard({
                       )
                     ) : (
                       <ConfigLayerMenu
+                        project={projectLabel}
                         value={configLayer}
                         onChange={(next) => updateField("configLayer", next)}
                       />
@@ -1700,75 +1686,6 @@ export function ActionWizard({
       />
       {dialog}
     </>
-  );
-}
-
-function ConfigLayerMenu({
-  value,
-  onChange,
-}: {
-  value: ActionConfigLayer;
-  onChange: (next: ActionConfigLayer) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
-
-  const choose = (next: ActionConfigLayer) => {
-    setOpen(false);
-    if (next !== value) onChange(next);
-  };
-
-  return (
-    <div ref={ref} className="relative inline-block">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={`inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 -mx-1.5 text-[11px] transition-colors ${
-          open
-            ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
-            : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
-        }`}
-      >
-        <FolderIcon />
-        <span>
-          Saves to{" "}
-          <span className="text-[var(--text-secondary)]">
-            {configLayerLabel(value)}
-          </span>{" "}
-          config
-        </span>
-        <ChevronDownIcon />
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full z-50 mt-1.5 min-w-[260px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-2xl">
-          {CONFIG_LAYER_OPTIONS.map((opt) => {
-            const active = opt.value === value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => choose(opt.value)}
-                className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
-              >
-                <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[var(--text-primary)]">
-                  {active && <CheckIcon />}
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span
-                    className={`text-[12px] font-medium ${active ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}
-                  >
-                    {opt.label}
-                  </span>
-                  <span className="text-[11px] text-[var(--text-muted)]">
-                    {opt.hint}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
   );
 }
 

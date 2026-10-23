@@ -30,7 +30,7 @@ const WORKFLOWS: Workflow[] = [
         <Link href={WORKTREE_ALTERNATIVE_PATH} className={LINK}>
           Duplicate
         </Link>{" "}
-        and New Worktree flows spawn throwaway copies of a project to{" "}
+        and New worktree flows spawn throwaway copies of a project to{" "}
         <Link href={PARALLEL_PATH} className={LINK}>
           run agents in parallel
         </Link>

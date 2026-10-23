@@ -661,7 +661,7 @@ export function BulkDuplicateDialog({
         </div>
         <div className="min-w-0">
           <h3 className="text-[15px] font-semibold leading-tight text-[var(--text-primary)]">
-            {isWorktree ? "New Worktree" : "Duplicate"}
+            {isWorktree ? "New worktree" : "Duplicate"}
           </h3>
           <p className="mt-1 text-[12px] leading-snug text-[var(--text-muted)]">
             {isWorktree

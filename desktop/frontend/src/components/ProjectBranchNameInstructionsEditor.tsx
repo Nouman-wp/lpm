@@ -25,7 +25,7 @@ export function ProjectBranchNameInstructionsEditor({
 
   return (
     <InstructionsEditor
-      title="Branch Name Instructions"
+      title="Branch name instructions"
       description="Custom instructions for this project's AI branch names. Leave blank to use the global default."
       placeholder={DEFAULT_BRANCH_NAME_INSTRUCTIONS}
       load={load}

@@ -1,8 +1,9 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { AGENT_STATE_LABEL, AGENT_STATE_TONE } from "../agentStatus";
 import type { SidebarAgentRow } from "../sidebarAgents";
 import { AgentStateIcon, MARK_SLOT } from "./AgentStateIcon";
 import { SidebarAgentElapsed } from "./SidebarAgentElapsed";
+import { SidebarAgentMenu, type AgentTabAction } from "./SidebarAgentMenu";
 
 export interface SidebarAgentRowsProps {
   projectName: string;
@@ -20,6 +21,13 @@ export interface SidebarAgentRowsProps {
    *  being looked at. The row that owns it is marked as where the user is. */
   activeTerminalId?: string | null;
   onOpenAgent: (projectName: string, agent: SidebarAgentRow) => void;
+  /** A right-click menu action on the row's tab, at the point it was asked. */
+  onAgentAction?: (
+    projectName: string,
+    agent: SidebarAgentRow,
+    action: AgentTabAction,
+    at: { x: number; y: number },
+  ) => void;
 }
 
 // Where the user is, in the only currency the row has left: a wash under it and
@@ -47,14 +55,21 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
   underNav,
   activeTerminalId,
   onOpenAgent,
+  onAgentAction,
 }: SidebarAgentRowsProps) {
   const lead = indented ? "pl-[25px]" : underNav ? "pl-3" : "pl-2.5";
+  const [menu, setMenu] = useState<{ agent: SidebarAgentRow; x: number; y: number } | null>(null);
   return (
     <div className="mb-0.5 flex flex-col">
       {agents.map((agent) => (
         <button
           key={agent.key}
           onClick={() => onOpenAgent(projectName, agent)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setMenu({ agent, x: e.clientX, y: e.clientY });
+          }}
           onPointerDown={(e) => e.stopPropagation()}
           // Padding + mark + gap add up to the project row's own text offset,
           // so a task's name sits directly under the project's.
@@ -92,6 +107,20 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
           <SidebarAgentElapsed agent={agent} />
         </button>
       ))}
+      {menu && (
+        <SidebarAgentMenu
+          x={menu.x}
+          y={menu.y}
+          projectName={projectName}
+          agent={menu.agent}
+          onOpen={() => onOpenAgent(projectName, menu.agent)}
+          onAction={
+            onAgentAction &&
+            ((action) => onAgentAction(projectName, menu.agent, action, { x: menu.x, y: menu.y }))
+          }
+          onClose={() => setMenu(null)}
+        />
+      )}
     </div>
   );
 });

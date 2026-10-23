@@ -1,6 +1,6 @@
 import { LoadTerminals, SaveTerminals } from "../bridge/commands";
 import { main } from "../bridge/models";
-import type { SessionTitleSource } from "./paneTree";
+import type { SessionTitleSource, TabFork } from "./paneTree";
 import { disambiguateLabelAgainst } from "./terminalLabels";
 import type { TerminalMemoryRef } from "./terminalMemory";
 
@@ -33,6 +33,7 @@ export interface PersistedTab {
   fromHost?: boolean;
   // A peer opened it here and leaves bringing it back to us (see TerminalInstance).
   restoreHere?: boolean;
+  forkOf?: TabFork;
 }
 
 // Mirrors the Go binding (main.PaneNode) so it round-trips through the

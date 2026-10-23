@@ -111,7 +111,7 @@ export const STEPS: Steps = {
   addProject: async (step, ctx) => {
     if (step.folder) queueFolder(step.folder);
     await ctx.click(await button("Add project"));
-    await ctx.click(await menuItem(/^Local Folder/));
+    await ctx.click(await menuItem(/^Local folder/));
   },
   addSshHost: async (step, ctx) => {
     await ctx.click(await button("Add project"));
@@ -168,13 +168,13 @@ export const STEPS: Steps = {
     const action = project(ctx.project)?.actions.find((a) => a.name === step.action);
     await ctx.click(await button(actionName(action?.label ?? step.action)));
     if (action?.confirm) await confirm(ctx);
-    // Its output panel reports back, then closes the way a person would close it.
-    await waitFor(() => byLabel("completed", document, "div"), 8000);
-    press(document.body, "Escape");
+    // Its result card reports back, then closes the way a person would close it.
+    const card = await waitFor(() => find('[data-action-run-card]:not([data-run-state="running"])'), 8000);
+    await ctx.click(await waitFor(() => find("button", "Close", card)));
   }),
   copy: async (step, ctx) => {
     await ctx.click(await waitFor(() => byLabel(step.project, sidebar())), 2);
-    await ctx.click(await menuItem(step.mode === "worktree" ? /^New Worktree/ : /^Duplicate/));
+    await ctx.click(await menuItem(step.mode === "worktree" ? /^New worktree/ : /^Duplicate/));
     await confirm(ctx);
   },
 };

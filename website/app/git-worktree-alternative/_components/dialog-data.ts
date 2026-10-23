@@ -134,7 +134,7 @@ export const HOW_STEPS: readonly { title: string; body: StepPart[] }[] = [
   {
     title: "Right-click, Duplicate",
     body: [
-      "Right-click the project in lpm's sidebar and choose Duplicate. New Worktree, right below it, opens the same dialog but makes linked worktrees on fresh branches.",
+      "Right-click the project in lpm's sidebar and choose Duplicate. New worktree, right below it, opens the same dialog but makes linked worktrees on fresh branches.",
     ],
   },
   {

@@ -353,6 +353,15 @@ describe("a host project's files", () => {
     expect(GLOBAL_PEER_EVENTS.has("memory-changed")).toBe(true);
     expect(translatePeerEventPayload("memory-changed", SLUG, "web")).toBe(prefixName(SLUG, "web"));
   });
+
+  it("names the host terminal a command ran in as its tab here", () => {
+    expect(GLOBAL_PEER_EVENTS.has("terminal-command")).toBe(true);
+    expect(translatePeerEventPayload("terminal-command", SLUG, { id: "web-3", command: "pnpm test", at: 5 })).toEqual({
+      id: prefixName(SLUG, "web-3"),
+      command: "pnpm test",
+      at: 5,
+    });
+  });
 });
 
 describe("GLOBAL_PEER_EVENTS", () => {

@@ -42,7 +42,11 @@ export type Tour = {
   // Seeded projects this frame leaves out, so a tour can add one of those
   // folders as a new project.
   omitProjects?: string[];
+  // The line that replaces the steps once all of them have happened.
+  done: string;
 };
+
+const DONE_LINE = "That's the whole tour. Try it on your own projects next.";
 
 const OPENING_HINT: TourHint = {
   short: "Booting saas-app…",
@@ -172,11 +176,12 @@ export type TourStepInput =
 // played. A step may override the catalog's copy or timing for that page.
 export function defineTour(
   steps: TourStepInput[],
-  opts: { hint?: TourHint; omitProjects?: string[] } = {},
+  opts: { hint?: TourHint; omitProjects?: string[]; done?: string } = {},
 ): Tour {
   let clock = 0;
   return {
     hint: opts.hint ?? OPENING_HINT,
+    done: opts.done ?? DONE_LINE,
     ...(opts.omitProjects ? { omitProjects: opts.omitProjects } : {}),
     steps: steps.map((input) => {
       const step: TourAction & Partial<TourStepCopy> =
@@ -189,13 +194,10 @@ export function defineTour(
 }
 
 // The home page's tour: boot a project, then put both agents to work on it.
-export const HOME_TOUR = defineTour([
-  "start",
-  "agent",
-  "prompt",
-  "codex",
-  "codexPrompt",
-]);
+export const HOME_TOUR = defineTour(
+  ["start", "agent", "prompt", "codex", "codexPrompt"],
+  { done: "You ran the whole loop: services up, two agents on one project." },
+);
 
 // How many steps have happened in the window, whoever did them, and whether
 // the mimed tour is still doing them.

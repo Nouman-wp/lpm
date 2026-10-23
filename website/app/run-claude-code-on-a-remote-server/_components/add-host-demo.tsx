@@ -131,9 +131,7 @@ function HostRow({ connected }: { connected: boolean }) {
             style={{ backgroundColor: connected ? "#4ade80" : "#fbbf24" }}
           />
           <span className={`truncate ${MUTED}`}>
-            {connected
-              ? "Connected"
-              : `Connecting over SSH to ${TARGET}…`}
+            {connected ? "Connected" : `Connecting over SSH to ${TARGET}…`}
           </span>
         </span>
       </span>
@@ -145,7 +143,8 @@ function HostRow({ connected }: { connected: boolean }) {
   );
 }
 
-export default function AddHostDemo() {
+// The card alone, for the home page's "Linux server" tab.
+export function AddHostCard() {
   const { ref, inView } = useInView<HTMLDivElement>();
   const { step, typed, checks, reduced } = useAddHostSequence(inView);
 
@@ -153,110 +152,114 @@ export default function AddHostDemo() {
   const busy = step === "installing";
 
   return (
-    <section className="pb-4 sm:pb-8">
-      <div ref={ref} className="max-w-3xl mx-auto px-6">
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-[#161616] p-5 shadow-2xl shadow-gray-200/60 sm:p-7 dark:border-[#2e2e2e] dark:shadow-black/40">
-          <p
-            className={`mb-3 text-[11px] font-medium uppercase tracking-[0.15em] ${MUTED}`}
-          >
-            Linux hosts you connect to
-          </p>
+    <div
+      ref={ref}
+      className="overflow-hidden rounded-2xl border border-gray-200 bg-[#161616] p-5 shadow-2xl shadow-gray-200/60 sm:p-7 dark:border-[#2e2e2e] dark:shadow-black/40"
+    >
+      <p
+        className={`mb-3 text-[11px] font-medium uppercase tracking-[0.15em] ${MUTED}`}
+      >
+        Linux hosts you connect to
+      </p>
 
-          {/* The form never unmounts, so the only height the card can gain is
+      {/* The form never unmounts, so the only height the card can gain is
               the host row. Reserving it here — and letting the card sit at the
               bottom — turns the wait into plain spacing instead of a hole, and
               keeps the page below from jumping. */}
-          <div className="flex flex-col justify-end sm:min-h-[200px]">
-            <div className={`overflow-hidden rounded-xl border ${BORDER}`}>
-              {showRow && <HostRow connected={step === "connected"} />}
+      <div className="flex flex-col justify-end sm:min-h-[200px]">
+        <div className={`overflow-hidden rounded-xl border ${BORDER}`}>
+          {showRow && <HostRow connected={step === "connected"} />}
 
-              <div className="flex items-center gap-3 px-4 py-3.5">
-                <span
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-dashed ${BORDER} ${MUTED}`}
-                >
-                  <Plus size={16} aria-hidden />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className={`block text-sm font-medium ${PRIMARY}`}>
-                    Add a Linux host
-                  </span>
-                  <span
-                    className={`mt-0.5 block truncate text-[12px] ${MUTED}`}
-                  >
-                    Type what you&rsquo;d type after ssh — lpm installs and
-                    pairs itself there.
-                  </span>
-                </span>
-              </div>
-
-              <div
-                className={`flex flex-wrap items-center gap-2 border-t ${BORDER} px-4 py-3`}
-              >
-                <span
-                  className={`flex min-w-0 flex-1 items-center rounded-lg border ${BORDER} bg-[#1e1e1e] px-3 py-1.5 font-mono text-[13px] ${PRIMARY}`}
-                >
-                  <span className="truncate">{typed || " "}</span>
-                  {step === "typing" && (
-                    <span className="animate-caret-blink ml-px inline-block h-[15px] w-[1.5px] bg-[#ededed] align-middle" />
-                  )}
-                </span>
-                <span
-                  className={`shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-300 ${
-                    busy
-                      ? "bg-[#2a2a2a] text-[#8a8a8a]"
-                      : "bg-[#22d3ee] text-[#0b1a1d]"
-                  }`}
-                >
-                  {busy ? "Connecting…" : "Connect"}
-                </span>
-              </div>
-
-              {busy && (
-                <div className={`border-t ${BORDER} px-4 py-3`}>
-                  <p className={`text-[12px] ${MUTED}`}>
-                    Setting up build-server. Installing can take a few minutes.
-                  </p>
-                </div>
-              )}
-            </div>
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <span
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-dashed ${BORDER} ${MUTED}`}
+            >
+              <Plus size={16} aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className={`block text-sm font-medium ${PRIMARY}`}>
+                Add a Linux host
+              </span>
+              <span className={`mt-0.5 block truncate text-[12px] ${MUTED}`}>
+                Type what you&rsquo;d type after ssh — lpm installs and pairs
+                itself there.
+              </span>
+            </span>
           </div>
 
-          {/* Outside the card on purpose: the pane above mirrors the real
+          <div
+            className={`flex flex-wrap items-center gap-2 border-t ${BORDER} px-4 py-3`}
+          >
+            <span
+              className={`flex min-w-0 flex-1 items-center rounded-lg border ${BORDER} bg-[#1e1e1e] px-3 py-1.5 font-mono text-[13px] ${PRIMARY}`}
+            >
+              <span className="truncate">{typed || " "}</span>
+              {step === "typing" && (
+                <span className="animate-caret-blink ml-px inline-block h-[15px] w-[1.5px] bg-[#ededed] align-middle" />
+              )}
+            </span>
+            <span
+              className={`shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-300 ${
+                busy
+                  ? "bg-[#2a2a2a] text-[#8a8a8a]"
+                  : "bg-[#22d3ee] text-[#0b1a1d]"
+              }`}
+            >
+              {busy ? "Connecting…" : "Connect"}
+            </span>
+          </div>
+
+          {busy && (
+            <div className={`border-t ${BORDER} px-4 py-3`}>
+              <p className={`text-[12px] ${MUTED}`}>
+                Setting up build-server. Installing can take a few minutes.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Outside the card on purpose: the pane above mirrors the real
               Settings screen, and lpm does not report per-step progress. This
               is the page explaining the steps, not the app showing them. */}
-          <div className={`mt-5 border-t ${BORDER} pt-4`}>
-            <p className={`text-[11px] uppercase tracking-[0.15em] ${MUTED}`}>
-              What lpm does with that one line
-            </p>
-            <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
-              {CHECKS.map((label, index) => {
-                const done = index < checks;
-                return (
-                  <li
-                    key={label}
-                    className="flex items-center gap-2 text-[12px]"
-                  >
-                    {done ? (
-                      <Check
-                        size={12}
-                        className="shrink-0 text-[#4ade80]"
-                        aria-hidden
-                      />
-                    ) : (
-                      <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-[#3a3a3a]" />
-                    )}
-                    <span className={done ? PRIMARY : MUTED}>{label}</span>
-                  </li>
-                );
-              })}
-            </ul>
-            <p className={`mt-4 text-[12px] leading-relaxed ${MUTED}`}>
-              {reduced
-                ? "Settings → Connections in lpm on your Mac: a Linux server added over SSH, connected and running the current release."
-                : "Settings → Connections in lpm on your Mac. One field, and lpm does the install, the pairing, and the tunnel."}
-            </p>
-          </div>
-        </div>
+      <div className={`mt-5 border-t ${BORDER} pt-4`}>
+        <p className={`text-[11px] uppercase tracking-[0.15em] ${MUTED}`}>
+          What lpm does with that one line
+        </p>
+        <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
+          {CHECKS.map((label, index) => {
+            const done = index < checks;
+            return (
+              <li key={label} className="flex items-center gap-2 text-[12px]">
+                {done ? (
+                  <Check
+                    size={12}
+                    className="shrink-0 text-[#4ade80]"
+                    aria-hidden
+                  />
+                ) : (
+                  <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-[#3a3a3a]" />
+                )}
+                <span className={done ? PRIMARY : MUTED}>{label}</span>
+              </li>
+            );
+          })}
+        </ul>
+        <p className={`mt-4 text-[12px] leading-relaxed ${MUTED}`}>
+          {reduced
+            ? "Settings → Connections in lpm on your Mac: a Linux server added over SSH, connected and running the current release."
+            : "Settings → Connections in lpm on your Mac. One field, and lpm does the install, the pairing, and the tunnel."}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default function AddHostDemo() {
+  return (
+    <section className="pb-4 sm:pb-8">
+      <div className="max-w-3xl mx-auto px-6">
+        <AddHostCard />
       </div>
     </section>
   );

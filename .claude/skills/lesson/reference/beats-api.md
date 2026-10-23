@@ -98,8 +98,8 @@ With `"guest": { "browser": true, "labels", "window" }` the right-hand window is
 
 - Agents: the seeded header actions are `HEADER("Claude")` / `HEADER("Codex")`; a click opens the agent in its own tab. The composer is open on a fresh install: type into `COMPOSER_INPUT`, click `SEND` (a Send click reads better than a key), then `s.waitForAgentReply(root, { since, prompt })` so the "and Claude answers" line starts with the answer on screen. Claude runs with the user's real login: its plan line, statusline, cost and effort label show.
 - Folder trust: Claude looks for trust up through the parents but never past a git root. The preflight trusts the workspace root (covers plain folders); a git folder (a clone, a `writeProject` with `gitInit`) is trusted by the `neutralShell` wrapper when the agent starts, else the first launch shows the trust prompt.
-- Local Folder: the open panel is a sheet inside the window. `s.keys("cmd+shift+g")`, `s.type(path)`, `s.keys("return")`, type-ahead the folder name, `s.keys("return")`. Its sidebar shows the user's own Favorites and home folder name.
-- A "Clone Repository" beat performs a real `git clone`; use a small public repository.
+- Local folder: the open panel is a sheet inside the window. `s.keys("cmd+shift+g")`, `s.type(path)`, `s.keys("return")`, type-ahead the folder name, `s.keys("return")`. Its sidebar shows the user's own Favorites and home folder name.
+- A "Clone repository" beat performs a real `git clone`; use a small public repository.
 - A right-click menu: `s.control.evaluate` a `contextmenu` MouseEvent at the target's centre.
 - Zooms after the take: the mux log lists `zooms: title#1 add#1 …`; `lesson.json` `"zooms": { "add#1": { "scale": 1.5 } }` changes the scale, `at` re-aims inside the recorded target, `ms` changes the ease (same end), `drop` removes it.
 - Takes can be started from inside a Claude Code session: the lesson app never inherits that session's markers, a pinned account's `CLAUDE_CONFIG_DIR`, or API keys.

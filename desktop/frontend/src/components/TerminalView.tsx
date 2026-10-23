@@ -22,7 +22,11 @@ import {
   type AdoptedTabOpts,
 } from "../paneTree";
 import { agentSessionOf } from "../agentSession";
+import { copyLastAnswer } from "../hooks/useCopyLastAnswer";
 import { remoteTabOf, sameRemoteTabs, type RemoteTab } from "../remoteTabs";
+import { useShallow } from "zustand/react/shallow";
+import { listenForTerminalCommands, useTerminalCommands } from "../store/terminalCommands";
+import { terminalStripLabel } from "../tabCommand";
 import { scanMemoryInvocation } from "../terminalMemory";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
@@ -63,6 +67,7 @@ import type { ActionInfo } from "../types";
 import { agentTabCommand, type RemoteAgentLaunch } from "../remoteAgentTabs";
 import { useNewTabRequest } from "../hooks/terminals/useNewTabRequest";
 import { NewTerminalButton } from "./terminal/NewTerminalButton";
+import type { FindDirection, FindOptions, FindOutcome, FindResults } from "./terminal/terminalFind";
 import { isPeerName } from "../peer/markers";
 import { retainPeerSession } from "../peer/retainedSessions";
 import { useHostFollows } from "../peer/useHostFollows";
@@ -136,6 +141,8 @@ export interface TerminalViewHandle {
   remoteRestartTerminal(id: string): void;
   // Bring one of this project's terminals on screen, addressed by terminal id.
   focusTerminalById(id: string): void;
+  // Copy the last answer of the agent in this tab, from the sidebar's agent row.
+  copyLastAnswer(id: string): void;
   // Agent conversations live in this project's tabs, as session id → terminal id.
   liveAgentSessions(): Map<string, string>;
   // Open (or focus) the session-memory tab, from the sidebar context menu.
@@ -168,6 +175,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
   // can be re-opened after the tab was navigated back to its list.
   const [memoryTarget, setMemoryTarget] = useState<{ name: string; seq: number } | null>(null);
   const [focusRequest, setFocusRequest] = useState<string | null>(null);
+  const [copyRequest, setCopyRequest] = useState<string | null>(null);
   const [serviceFocusRequest, setServiceFocusRequest] = useState<{ paneId: string; name: string } | null>(null);
   // Per pane and per utility tab (⌘⇧M memory, ⌘⇧K toolkit, ⌘⇧J automations):
   // the header entry the toggle was opened from, so the closing press lands
@@ -419,6 +427,15 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     interactiveKeysRef.current = next;
   }, [tree]);
 
+  // A shell's running command names its tab here too, so phones and paired
+  // Macs read the same name as the strip. Only the labels are selected, so a
+  // command that leaves its tab's name alone doesn't re-render the view.
+  useEffect(listenForTerminalCommands, []);
+  const terminalTabs = useMemo(() => (tree ? collectTerminals(tree).filter(isTerminalTab) : []), [tree]);
+  const stripLabels = useTerminalCommands(
+    useShallow((s) => terminalTabs.map((t) => terminalStripLabel(t, s.byId[t.id]))),
+  );
+
   // Project-wide terminal list ({id,label}) for the composer's "@" mention. The
   // tree gets a fresh reference every drag frame, which would churn each
   // composer's mention memos, so reuse the prior array while the id/label set is
@@ -428,15 +445,13 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
   // churn.
   const allTerminalsRef = useRef<RemoteTab[]>([]);
   const allTerminals = useMemo(() => {
-    const next = tree
-      ? collectTerminals(tree)
-          .filter(isTerminalTab)
-          .map((t) => remoteTabOf(t, { localSessions, sessionsReachable }))
-      : [];
+    const next = terminalTabs.map((t, i) =>
+      remoteTabOf(t, { localSessions, sessionsReachable, label: stripLabels[i] }),
+    );
     if (sameRemoteTabs(allTerminalsRef.current, next)) return allTerminalsRef.current;
     allTerminalsRef.current = next;
     return next;
-  }, [tree, localSessions, sessionsReachable]);
+  }, [terminalTabs, localSessions, sessionsReachable, stripLabels]);
 
   // Mirror the live id -> {label, cli} mapping to the remote server so paired
   // phones show the same terminal names and offer the same slash commands. It is
@@ -633,6 +648,16 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     focusTerminal(at.paneId, at.tabIdx);
   }, [focusRequest, tree, focusTerminal]);
 
+  // Waits for the restored tree, like a focus request, before reading the tab.
+  useEffect(() => {
+    if (!copyRequest || !tree) return;
+    setCopyRequest(null);
+    const tab = collectTerminals(tree).find((t) => t.id === copyRequest);
+    void copyLastAnswer(projectName, tab ? agentSessionOf(tab) : null).then(
+      (ok) => ok && toast.success("Copied the last answer"),
+    );
+  }, [copyRequest, tree, projectName]);
+
   useEffect(() => {
     if (!serviceFocusRequest || !tree) return;
     setServiceFocusRequest(null);
@@ -706,11 +731,14 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
   );
 
   const findInPane = useCallback(
-    (paneId: string, query: string, direction: "next" | "prev"): boolean => {
-      const handle = resolveActiveHandle(paneId);
-      if (!handle) return false;
-      return direction === "next" ? handle.findNext(query) : handle.findPrevious(query);
-    },
+    (paneId: string, query: string, direction: FindDirection, options: FindOptions): FindOutcome =>
+      resolveActiveHandle(paneId)?.find(query, direction, options) ?? "none",
+    [resolveActiveHandle],
+  );
+
+  const watchFindInPane = useCallback(
+    (paneId: string, onResults: (results: FindResults) => void) =>
+      resolveActiveHandle(paneId)?.watchFind(onResults) ?? (() => {}),
     [resolveActiveHandle],
   );
 
@@ -1146,6 +1174,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       remoteReorderTerminals,
       remoteRestartTerminal: restartTerminal,
       focusTerminalById,
+      copyLastAnswer: setCopyRequest,
       liveAgentSessions,
       openMemory,
       openAutomationsTab,
@@ -1246,6 +1275,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
             agentSessionsReadable={sessionsReachable}
             onRatioChange={setRatio}
             onFindInPane={findInPane}
+            onWatchFindInPane={watchFindInPane}
             onFilterInPane={filterInPane}
             onToggleFilterMode={toggleFilterMode}
             onCloseSearch={handleCloseSearch}

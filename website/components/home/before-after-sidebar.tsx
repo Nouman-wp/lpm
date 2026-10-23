@@ -2,7 +2,7 @@ import { MoreHorizontal, Plus } from "lucide-react";
 import { TerminalGlyph } from "@/components/home/terminal-glyph";
 import { ReplicaProjectRow, type Row } from "./before-after-project-row";
 
-const ROWS: Row[] = [
+export const ROWS: Row[] = [
   {
     name: "auth-service",
     running: true,

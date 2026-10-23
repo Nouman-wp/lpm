@@ -158,6 +158,7 @@ macro_rules! all_command_handlers {
             rollback_update,
             cancel_update,
             scheduled_update,
+            schedule_update,
             cancel_scheduled_update,
             take_update_note,
             services_build,

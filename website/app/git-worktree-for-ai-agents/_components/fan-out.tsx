@@ -25,7 +25,7 @@ const MODES = [
 ];
 
 const STEPS = [
-  "Right-click a project and choose Duplicate for standalone copies or New Worktree for linked worktrees, then set how many, up to 50.",
+  "Right-click a project and choose Duplicate for standalone copies or New worktree for linked worktrees, then set how many, up to 50.",
   "Label them, group them in the sidebar, and pick the action or command each one should run, with the prompt to send. Each copy can get its own.",
   "Watch every copy's agent status from the sidebar, review the diffs, and delete the copies you do not keep. Deleting is permanent.",
 ];

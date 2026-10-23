@@ -5,15 +5,8 @@ import type { SerializeAddon } from "@xterm/addon-serialize";
 import { handleCopyShortcut, handleNativeCopy } from "./copySelection";
 import { readOnlyTerminalYields } from "./terminalKeys";
 import { filterLines, stripAnsi } from "./filterLines";
+import { MATCH_DECORATIONS } from "./terminalFind";
 
-const MATCH_DECORATIONS = {
-  matchBackground: "#5c4a00",
-  matchBorder: "#7a6400",
-  matchOverviewRuler: "#7a6400",
-  activeMatchBackground: "#9e6a03",
-  activeMatchBorder: "#c98a08",
-  activeMatchColorOverviewRuler: "#c98a08",
-};
 
 const LIVE_DEBOUNCE_MS = 120;
 const RESIZE_DEBOUNCE_MS = 200;

@@ -40,6 +40,7 @@ import { usePaneToolbar } from "../hooks/usePaneToolbar";
 import type { PaneActionId } from "../paneActions";
 import type { UtilityTabKind } from "./terminal/utilityTabToggle";
 import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
+import type { FindDirection, FindOptions, FindOutcome, FindResults } from "./terminal/terminalFind";
 import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, BrainIcon, LayersIcon, FolderIcon, SourceControlIcon, ClockIcon } from "./icons";
 import { Columns2 } from "lucide-react";
 import { Tooltip } from "./ui/Tooltip";
@@ -90,6 +91,10 @@ import {
 } from "./terminal/usePaneStripOverflow";
 import { ServiceColumnActions } from "./terminal/ServiceColumnActions";
 import { ServiceStateDot } from "./terminal/ServiceStateDot";
+import { useShallow } from "zustand/react/shallow";
+import { pickCommands, useTerminalCommands } from "../store/terminalCommands";
+import { tabCommandDetails, tabCommandMark, terminalStripLabel } from "../tabCommand";
+import { CommandMarkIcon } from "./terminal/CommandMarkIcon";
 
 export type StatusKind = "Done" | "Waiting" | "Error";
 
@@ -251,7 +256,13 @@ export interface PaneViewProps {
   // paired machine the project is on. False for SSH-remote projects — hides the
   // terminal's copy-last-answer overlay.
   agentSessionsReadable: boolean;
-  onFindInPane: (paneId: string, query: string, direction: "next" | "prev") => boolean;
+  onFindInPane: (
+    paneId: string,
+    query: string,
+    direction: FindDirection,
+    options: FindOptions,
+  ) => FindOutcome;
+  onWatchFindInPane: (paneId: string, onResults: (results: FindResults) => void) => () => void;
   filterMode: boolean;
   matchCount: number;
   onFilterInPane: (paneId: string, query: string | null) => void;
@@ -317,6 +328,7 @@ function PaneViewImpl(props: PaneViewProps) {
     memoryTarget,
     agentSessionsReadable,
     onFindInPane,
+    onWatchFindInPane,
     filterMode,
     matchCount,
     onFilterInPane,
@@ -338,6 +350,10 @@ function PaneViewImpl(props: PaneViewProps) {
   const [renamingTabIdx, setRenamingTabIdx] = useState<number | null>(null);
 
   const hasMultipleServices = services.length > 1;
+  const browserServices = useMemo(
+    () => services.filter((s) => !s.exited).flatMap((s) => (s.ports ?? []).map((port) => ({ name: s.name, port }))),
+    [services],
+  );
   const isAllActive =
     pane.activeServiceName === ALL_SERVICES && hasMultipleServices;
   const namedServiceName =
@@ -429,6 +445,7 @@ function PaneViewImpl(props: PaneViewProps) {
   );
 
   const tabIds = useMemo(() => pane.tabs.map((t) => t.id), [pane.tabs]);
+  const tabCommands = useTerminalCommands(useShallow((s) => pickCommands(s.byId, tabIds)));
   const filesChangesOnly = useFilesView((s) => s.changesOnly);
 
   const { ref: scrollRef, canScrollLeft, canScrollRight } = useScrollFade<HTMLDivElement>([
@@ -589,9 +606,11 @@ function PaneViewImpl(props: PaneViewProps) {
                     label={
                       t.kind === "files"
                         ? filesTabLabel(t, filesChangesOnly[t.id] ?? false)
-                        : terminalDisplayLabel(t)
+                        : terminalStripLabel(t, tabCommands[t.id])
                     }
                     origin={terminalOriginLabel(t)}
+                    fork={t.forkOf}
+                    command={tabCommandDetails(t, tabCommands[t.id])}
                     icon={<TabIcon tab={t} />}
                     active={isActive}
                     stripKey={terminalStripKey(t.id)}
@@ -604,6 +623,7 @@ function PaneViewImpl(props: PaneViewProps) {
                     color={t.color}
                     trailing={
                       <>
+                        <CommandMarkIcon mark={tabCommandMark(t, tabCommands[t.id])} />
                         <SharedTabMark terminalId={t.id} />
                         <SendLaterTabMark historyKey={t.historyKey} />
                       </>
@@ -725,8 +745,8 @@ function PaneViewImpl(props: PaneViewProps) {
             key={`${pane.id}:${activeServiceName ?? activeTerm?.id ?? "empty"}`}
             filterMode={filterMode}
             matchCount={matchCount}
-            onFindNext={(query) => onFindInPane(pane.id, query, "next")}
-            onFindPrevious={(query) => onFindInPane(pane.id, query, "prev")}
+            onFind={(query, direction, options) => onFindInPane(pane.id, query, direction, options)}
+            onWatchResults={(onResults) => onWatchFindInPane(pane.id, onResults)}
             onFilterChange={(query) => onFilterInPane(pane.id, query)}
             onToggleFilterMode={onToggleFilterMode}
             onClose={onCloseSearch}
@@ -795,7 +815,12 @@ function PaneViewImpl(props: PaneViewProps) {
                 IS_MIRROR_WINDOW ? (
                   <BrowserMirrorPlaceholder />
                 ) : (
-                  <BrowserPane id={t.id} projectName={projectName} active={visible && isActive} />
+                  <BrowserPane
+                    id={t.id}
+                    projectName={projectName}
+                    active={visible && isActive}
+                    services={browserServices}
+                  />
                 )
               ) : t.kind === "memory" ? (
                 <MemoryView

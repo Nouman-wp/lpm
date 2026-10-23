@@ -6,7 +6,10 @@ import { HeroPoints } from "./hero-points";
 // stepping at width breakpoints.
 export function Hero() {
   return (
-    <section className="relative pt-[clamp(4.5rem,9.5vh,6.5rem)] pb-[clamp(1.25rem,3vh,2rem)] text-center">
+    <section
+      id="hero"
+      className="relative pt-[clamp(4.5rem,9.5vh,6.5rem)] pb-[clamp(1.25rem,3vh,2rem)] text-center"
+    >
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-grid"

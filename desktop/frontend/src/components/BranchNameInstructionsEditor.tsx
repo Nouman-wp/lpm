@@ -7,7 +7,7 @@ export function BranchNameInstructionsEditor({ machine, onBack }: { machine: Mac
   const { load, save } = useMachineInstructions(machine.commands, "branchName", DEFAULT_BRANCH_NAME_INSTRUCTIONS);
   return (
     <InstructionsEditor
-      title="Branch Name Instructions"
+      title="Branch name instructions"
       description={`Custom instructions for AI-generated branch names. ${instructionsScope(machine.name)}`}
       placeholder={DEFAULT_BRANCH_NAME_INSTRUCTIONS}
       load={load}

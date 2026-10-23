@@ -45,7 +45,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "What is the difference between lpm Worktree and lpm Duplicate?",
     answer:
-      "They are separate items in a project's right-click menu. New Worktree creates real linked Git worktrees, each on a new branch from your current commit, sharing your repository. Duplicate creates standalone folders with their own Git repository, starting from the project exactly as it is on disk. Both create up to 50 at a time, inherit the project's services, actions, and pinned Claude account, and can queue an action or command with a prompt on each one.",
+      "They are separate items in a project's right-click menu. New worktree creates real linked Git worktrees, each on a new branch from your current commit, sharing your repository. Duplicate creates standalone folders with their own Git repository, starting from the project exactly as it is on disk. Both create up to 50 at a time, inherit the project's services, actions, and pinned Claude account, and can queue an action or command with a prompt on each one.",
   },
   {
     question: "Does lpm Worktree copy my .env file and dependencies?",

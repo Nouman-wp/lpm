@@ -60,9 +60,10 @@ describe("app tips on macOS", () => {
 });
 
 describe("splitKeys", () => {
-  it("splits glyph labels per modifier", () => {
-    expect(splitKeys("⌘⇧D")).toEqual(["⌘", "⇧", "D"]);
-    expect(splitKeys("⌘+")).toEqual(["⌘", "+"]);
+  it("keeps a glyph label as one key group", () => {
+    expect(splitKeys("⌘⇧D")).toEqual(["⌘⇧D"]);
+    expect(splitKeys("⌘+")).toEqual(["⌘+"]);
+    expect(splitKeys("⇧↵")).toEqual(["⇧↵"]);
     expect(splitKeys("Esc")).toEqual(["Esc"]);
     expect(splitKeys("")).toEqual([]);
   });

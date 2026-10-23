@@ -1,7 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { ShieldCheck } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { ChevronDown, ShieldCheck } from "lucide-react";
 import {
   DOWNLOADS_BY_OS,
   GIT_FOR_WINDOWS_URL,
@@ -58,17 +58,80 @@ type Props = {
   release: ReleaseSummary | null;
   // Below sm only this system is shown; the tabs above the table pick it.
   phoneOs: DesktopOs;
+  // From sm up the detected system leads and the others fold into one row.
+  detected: DesktopOs | null;
 };
 
-export function DownloadTable({ recommended, release, phoneOs }: Props) {
+const SECTION_BORDER =
+  "[&:not(:first-child)]:border-t [&:not(:first-child)]:border-gray-200 dark:[&:not(:first-child)]:border-gray-800";
+
+function listOf(names: string[]): string {
+  return names.length > 1
+    ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+    : names.join("");
+}
+
+function FoldedRow({
+  others,
+  onOpen,
+}: {
+  others: DesktopOs[];
+  onOpen: () => void;
+}) {
+  const entries = others.flatMap((os) => DOWNLOADS_BY_OS[os]);
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-expanded={false}
+      className={`hidden w-full cursor-pointer items-center gap-x-2.5 bg-gray-50 px-4 py-3 text-left text-[13px] transition-colors hover:bg-gray-100 sm:flex sm:px-5 dark:bg-white/[0.03] dark:hover:bg-white/[0.05] ${SECTION_BORDER}`}
+    >
+      <span className="flex shrink-0 items-center gap-2 text-gray-800 dark:text-gray-200">
+        {others.map((os) => (
+          <OsIcon key={os} os={os} className="-mt-0.5 h-4 w-4" />
+        ))}
+      </span>
+      <span className="font-semibold text-gray-900 dark:text-gray-100">
+        {listOf(others.map((os) => OS_NAMES[os]))}
+      </span>
+      <span className="min-w-0 truncate text-gray-500 dark:text-gray-400">
+        {listOf(
+          entries.map((e) =>
+            e.choiceLabel.replace(/^Installer \((.+)\)$/, "$1"),
+          ),
+        )}
+      </span>
+      {others.some(isBetaOs) && (
+        <BetaTag className="shrink-0 border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-400" />
+      )}
+      <span className="ml-auto inline-flex shrink-0 items-center gap-1 font-medium text-gray-700 dark:text-gray-300">
+        Show {entries.length} downloads
+        <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+      </span>
+    </button>
+  );
+}
+
+export function DownloadTable({
+  recommended,
+  release,
+  phoneOs,
+  detected,
+}: Props) {
+  const [showAll, setShowAll] = useState(false);
+  const folded = detected !== null && !showAll;
+  const order = detected
+    ? [detected, ...DOWNLOAD_OS_ORDER.filter((os) => os !== detected)]
+    : DOWNLOAD_OS_ORDER;
+
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white text-left dark:border-gray-800 dark:bg-[#111]">
-      {DOWNLOAD_OS_ORDER.map((os) => (
+      {order.map((os) => (
         <section
           key={os}
           aria-label={OS_NAMES[os]}
-          className={`[&:not(:first-child)]:border-t [&:not(:first-child)]:border-gray-200 dark:[&:not(:first-child)]:border-gray-800 ${
-            os === phoneOs ? "" : "hidden sm:block"
+          className={`${SECTION_BORDER} ${os === phoneOs ? "block" : "hidden"} ${
+            folded && os !== detected ? "sm:hidden" : "sm:block"
           }`}
         >
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 bg-gray-50 px-4 py-2.5 text-[13px] sm:px-5 dark:bg-white/[0.03]">
@@ -104,6 +167,12 @@ export function DownloadTable({ recommended, release, phoneOs }: Props) {
           )}
         </section>
       ))}
+      {folded && (
+        <FoldedRow
+          others={order.filter((os) => os !== detected)}
+          onOpen={() => setShowAll(true)}
+        />
+      )}
     </div>
   );
 }

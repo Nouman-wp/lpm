@@ -1,5 +1,5 @@
 import { AnchoredSelect } from "./ui/AnchoredSelect";
-import { TERMINAL_FONT_FAMILY, terminalFontStack } from "./terminal-utils";
+import { TERMINAL_FONT_FAMILY, defaultTerminalFontName, terminalFontStack } from "./terminal-utils";
 
 const SAMPLE = "Il1 0O";
 
@@ -10,7 +10,8 @@ interface TerminalFontSelectProps {
 }
 
 export function TerminalFontSelect({ value, options, onChange }: TerminalFontSelectProps) {
-  const label = (family?: string) => family ?? "Default";
+  const resolved = defaultTerminalFontName(options);
+  const label = (family?: string) => family ?? (resolved ? `Default (${resolved})` : "Default");
   const stack = (family?: string) =>
     family ? terminalFontStack(family) : TERMINAL_FONT_FAMILY;
 

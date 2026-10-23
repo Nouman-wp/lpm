@@ -11,7 +11,7 @@ import { useProjectActions } from "../hooks/useProjectActions";
 import type { LaunchpadProject } from "../hooks/useLaunchpad";
 import { useGlobalTerminalStatus } from "../hooks/useGlobalTerminalStatus";
 import { ActionInputsModal } from "./project-detail/ActionInputsModal";
-import { ActionTerminal } from "./project-detail/ActionTerminal";
+import { ActionRunCard } from "./project-detail/ActionRunCard";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { TerminalIcon } from "./icons";
 import { GetProject } from "../../bridge/commands";
@@ -211,11 +211,15 @@ export function GlobalTerminalsView({
           onSubmit={modals.inputs.onSubmit}
         />
       )}
-      {modals.running.action && modals.running.run && (
-        <ActionTerminal
-          label={modals.running.action.label}
-          run={modals.running.run}
+      {modals.running.shown && (
+        <ActionRunCard
+          key={modals.running.shown.id}
+          label={modals.running.shown.action.label}
+          runKey={modals.running.shown.runKey}
+          run={modals.running.shown.run}
+          startedAt={modals.running.shown.startedAt}
           onClose={modals.running.onClose}
+          onRunAgain={modals.running.onRunAgain}
         />
       )}
     </div>

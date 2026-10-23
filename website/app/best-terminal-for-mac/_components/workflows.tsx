@@ -10,7 +10,7 @@ const WORKFLOWS: Workflow[] = [
     title: "Go from a fresh clone to a running stack",
     body: (
       <>
-        Paste the repo URL into Add a project and choose Clone Repository, or
+        Paste the repo URL into Add a project and choose Clone repository, or
         add a folder you already have. lpm reads the manifests and sets up the
         services, whether Rails, Next.js, Django, Go, Docker Compose, or a
         Procfile. Hit Start and every service streams live output side by

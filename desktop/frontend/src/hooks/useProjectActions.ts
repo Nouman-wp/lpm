@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { toast } from "sonner";
 import {
   CancelActionBackground,
@@ -21,6 +21,7 @@ import {
 import { trackBackgroundRun } from "../store/backgroundRuns";
 import type { ModelPick } from "../agentModelSwitch";
 import { captureActionRun, type ActionRunCapture } from "./actionRunCapture";
+import { actionRunKey, clearActionRun, markActionRun } from "../store/actionRunMarks";
 
 export interface UseProjectActionsOptions {
   projectName: string;
@@ -35,10 +36,19 @@ export interface ActionModalConfig<T> {
   onConfirm: T;
 }
 
+// A quick action's run, shown in its result card until closed.
+export interface ShownRun {
+  id: string;
+  action: ActionInfo;
+  run: ActionRunCapture;
+  startedAt: number;
+  runKey: string;
+}
+
 export interface ProjectActionsModals {
   confirm: ActionModalConfig<() => void>;
   inputs: { action: ActionInfo | null; onCancel: () => void; onSubmit: (values: Record<string, string>) => void };
-  running: { action: ActionInfo | null; run: ActionRunCapture | null; onClose: () => void };
+  running: { shown: ShownRun | null; onClose: () => void; onRunAgain: () => void };
 }
 
 export interface RunActionOpts {
@@ -61,10 +71,13 @@ export interface RunActionOpts {
 }
 
 export interface UseProjectActionsResult {
+  // The quick action still running, if any. Its card can stay up after it ends.
   runningAction: ActionInfo | null;
   handleRunAction: (action: ActionInfo, opts?: RunActionOpts) => void;
   modals: ProjectActionsModals;
 }
+
+const noSubscribe = () => () => {};
 
 export function useProjectActions({
   projectName,
@@ -72,8 +85,7 @@ export function useProjectActions({
   onSwitchToTerminal,
   onCloseRunning,
 }: UseProjectActionsOptions): UseProjectActionsResult {
-  const [runningAction, setRunningAction] = useState<ActionInfo | null>(null);
-  const [runningCapture, setRunningCapture] = useState<ActionRunCapture | null>(null);
+  const [shown, setShown] = useState<ShownRun | null>(null);
   const captureRef = useRef<ActionRunCapture | null>(null);
   const [confirmAction, setConfirmAction] = useState<ActionInfo | null>(null);
   const [inputsAction, setInputsAction] = useState<ActionInfo | null>(null);
@@ -90,17 +102,26 @@ export function useProjectActions({
     };
   }, []);
 
-  // A run that resolves after the view is gone has no modal to feed.
-  const showRun = (action: ActionInfo | null, capture: ActionRunCapture | null) => {
+  // Actions stay disabled while a run is going, not for as long as its card is
+  // up, and the button keeps how the run ended once the card has closed.
+  const done = useSyncExternalStore(
+    shown ? shown.run.subscribe : noSubscribe,
+    () => shown?.run.snapshot().done ?? null,
+  );
+  useEffect(() => {
+    if (shown && done) markActionRun(shown.runKey, done.success, shown.run.snapshot().endedAt);
+  }, [shown, done]);
+
+  // A run that resolves after the view is gone has no card to feed.
+  const showRun = (next: ShownRun | null) => {
     captureRef.current?.dispose();
     captureRef.current = null;
     if (!mountedRef.current) {
-      capture?.dispose();
+      next?.run.dispose();
       return;
     }
-    captureRef.current = capture;
-    setRunningCapture(capture);
-    setRunningAction(action);
+    captureRef.current = next?.run ?? null;
+    setShown(next);
   };
 
   const ensurePortFree = async (action: ActionInfo): Promise<boolean> => {
@@ -217,11 +238,14 @@ export function useProjectActions({
       return;
     }
     let capture: ActionRunCapture | null = null;
+    const runKey = actionRunKey(projectName, action.name);
+    clearActionRun(runKey);
     try {
       const runId = crypto.randomUUID();
+      const startedAt = Date.now();
       capture = await captureActionRun(runId);
       await RunAction(projectName, action.name, inputValues, runId);
-      showRun(action, capture);
+      showRun({ id: runId, action, run: capture, startedAt, runKey });
     } catch (err) {
       capture?.dispose();
       toast.error(`${action.label}: ${err}`);
@@ -258,7 +282,7 @@ export function useProjectActions({
   };
 
   return {
-    runningAction,
+    runningAction: shown && !done ? shown.action : null,
     handleRunAction,
     modals: {
       confirm: {
@@ -277,11 +301,13 @@ export function useProjectActions({
         onSubmit: handleInputsSubmit,
       },
       running: {
-        action: runningAction,
-        run: runningCapture,
+        shown,
         onClose: () => {
-          showRun(null, null);
+          showRun(null);
           onCloseRunning?.();
+        },
+        onRunAgain: () => {
+          if (shown) handleRunAction(shown.action);
         },
       },
     },

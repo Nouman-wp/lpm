@@ -18,8 +18,8 @@ const WIDE_SCREEN = "w-[400px]";
 const SETTINGS_SCREEN = "w-[600px]";
 
 export const NEW_PROJECT_SOURCES: IconListMenuItem<NewProjectKind>[] = [
-  { key: "local", icon: <FolderIcon />, color: "#facc15", label: "Local Folder", desc: "Pick a folder on disk" },
-  { key: "clone", icon: <CloudBranchIcon />, color: "#a78bfa", label: "Clone Repository", desc: "Clone from a Git repo URL into a local folder" },
+  { key: "local", icon: <FolderIcon />, color: "#facc15", label: "Local folder", desc: "Pick a folder on disk" },
+  { key: "clone", icon: <CloudBranchIcon />, color: "#a78bfa", label: "Clone repository", desc: "Clone from a Git repo URL into a local folder" },
 ];
 
 const SECTION_LABEL =
@@ -29,8 +29,8 @@ const SECTION_LABEL =
 // Mac. Servers and other computers are hidden.
 function remoteSources(alias: string): IconListMenuItem<NewProjectKind>[] {
   return [
-    { key: "local", icon: <FolderIcon />, color: "#facc15", label: "Local Folder", desc: `A folder already on ${alias}` },
-    { key: "clone", icon: <CloudBranchIcon />, color: "#a78bfa", label: "Clone Repository", desc: `Clone from a Git repo URL into a folder on ${alias}` },
+    { key: "local", icon: <FolderIcon />, color: "#facc15", label: "Local folder", desc: `A folder already on ${alias}` },
+    { key: "clone", icon: <CloudBranchIcon />, color: "#a78bfa", label: "Clone repository", desc: `Clone from a Git repo URL into a folder on ${alias}` },
   ];
 }
 
@@ -41,7 +41,7 @@ export function NewProjectPicker() {
   const target = useAppStore((s) => s.addProjectTarget);
   const start = useAppStore((s) => s.addProjectStart);
 
-  const { root, linuxHostStack } = useMemo(() => {
+  const { root, linuxHostStack, computerStack } = useMemo(() => {
     const installScreen: DrillScreen = { title: "Linux host", width: WIDE_SCREEN, render: () => <InstallLpmScreen /> };
     const computerScreen: DrillScreen = {
       title: "Another computer",
@@ -163,8 +163,10 @@ export function NewProjectPicker() {
         </div>
       ),
     };
-    return { root, linuxHostStack: [serverScreen, installScreen] };
+    return { root, linuxHostStack: [serverScreen, installScreen], computerStack: [computerScreen] };
   }, [onPick, target]);
+
+  const startStack = target || !start ? undefined : { "linux-host": linuxHostStack, computer: computerStack }[start];
 
   // Keyed by target so pairing a server from the Linux host screen lands on
   // that server's own root, not the screen the pairing started from.
@@ -173,7 +175,7 @@ export function NewProjectPicker() {
       <DrillMenu
         key={`${target?.slug ?? ""}:${start ?? ""}`}
         root={root}
-        initialStack={start === "linux-host" && !target ? linuxHostStack : undefined}
+        initialStack={startStack}
         onClose={onClose}
         widthClassName="w-[360px]"
       />

@@ -13,6 +13,7 @@ interface RunEvent {
 export interface ActionRunSnapshot {
   lines: string[];
   done: ActionDone | null;
+  endedAt?: number;
   // Lines dropped from the front to keep the newest MAX_LINES.
   dropped?: number;
 }
@@ -23,8 +24,8 @@ export interface ActionRunCapture {
   dispose: () => void;
 }
 
-// A run can print far more than the output modal can show: rebuilding the
-// whole list per line froze the webview for minutes on 50k lines. The modal
+// A run can print far more than its result card can show: rebuilding the
+// whole list per line froze the webview for minutes on 50k lines. The card
 // keeps the newest lines and redraws at most every NOTIFY_MS.
 export const MAX_LINES = 2000;
 const NOTIFY_MS = 50;
@@ -44,12 +45,13 @@ export function cleanOutputLine(line: string): string {
 
 // An inline action streams its output as global events straight from the
 // process, and a fast one is finished before RunAction even returns. Listening
-// only once the output modal mounts loses those events, leaving the modal on
-// "Running..." with no output, so the capture attaches before the run starts.
+// only once the result card mounts loses those events, leaving the card on
+// "Running" with no output, so the capture attaches before the run starts.
 export async function captureActionRun(runId: string): Promise<ActionRunCapture> {
   const lines: string[] = [];
   let dropped = 0;
   let done: ActionDone | null = null;
+  let endedAt: number | undefined;
   let snap: ActionRunSnapshot = { lines: [], done: null };
   let stale = false;
   const watchers = new Set<() => void>();
@@ -86,6 +88,7 @@ export async function captureActionRun(runId: string): Promise<ActionRunCapture>
     EventsOnReady("action-done", (data: RunEvent & ActionDone) => {
       if (!ours(data)) return;
       done = data;
+      endedAt = Date.now();
       stale = true;
       notifyNow();
     }),
@@ -94,7 +97,7 @@ export async function captureActionRun(runId: string): Promise<ActionRunCapture>
     snapshot: () => {
       if (stale) {
         stale = false;
-        snap = { lines: lines.slice(), done, ...(dropped ? { dropped } : {}) };
+        snap = { lines: lines.slice(), done, endedAt, ...(dropped ? { dropped } : {}) };
       }
       return snap;
     },

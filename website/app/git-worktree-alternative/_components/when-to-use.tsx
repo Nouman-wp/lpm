@@ -86,7 +86,7 @@ export default function WhenToUse() {
                 lpm makes real worktrees too
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
-                Right-click a project and choose New Worktree. It opens the same
+                Right-click a project and choose New worktree. It opens the same
                 dialog as Duplicate, but each result is a linked Git worktree on
                 a fresh <code className={INLINE_CODE}>lpm/&lt;name&gt;</code>{" "}
                 branch from the commit you&apos;re on. Removing one deletes its

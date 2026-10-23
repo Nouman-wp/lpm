@@ -5,6 +5,7 @@ import {
   InstallUpdate,
   RollbackUpdate,
   ScheduledUpdate,
+  ScheduleUpdate,
 } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import { useAppStore } from "../store/app";
@@ -50,6 +51,8 @@ export interface UpdateInstall extends UpdateInstallState {
   /** Install the newest stable release over a newer Beta build. */
   rollback: () => void;
   cancel: () => void;
+  /** Install once no agent is mid-turn, as `lpm update` does. */
+  schedule: () => void;
   cancelScheduled: () => void;
   dismissError: () => void;
   dialogs: ReactNode;
@@ -107,6 +110,11 @@ export function useUpdateInstall(): UpdateInstall {
     request: () => request(InstallUpdate),
     rollback: () => request(RollbackUpdate),
     cancel: () => void cancel(),
+    schedule: () =>
+      void ScheduleUpdate().then(
+        (scheduled: Scheduled) => setInstall({ scheduled, error: "" }),
+        (err: unknown) => setInstall({ error: String(err) }),
+      ),
     cancelScheduled: () => void CancelScheduledUpdate().catch(() => {}),
     dismissError: () => setInstall({ error: "" }),
     dialogs,

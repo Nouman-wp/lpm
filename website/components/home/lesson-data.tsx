@@ -13,7 +13,21 @@ export type LessonStep = {
   seconds: number;
 };
 
+// The overview leads: a newcomer wants the whole loop before the how-tos.
 export const LESSON_STEPS: LessonStep[] = [
+  {
+    title: "lpm in 60 seconds",
+    blurb: "Start, stop and switch projects, then hand one to Claude Code.",
+    body: (
+      <>
+        The whole loop in one take: start a project, stop it, switch to
+        another, and open Claude Code from the project header with one click.
+      </>
+    ),
+    lesson: "sixty-seconds",
+    thumbnail: "/lessons/sixty-seconds.jpg",
+    seconds: 63,
+  },
   {
     title: "Add a project",
     blurb: "Pick a folder or clone a repo. lpm fills in the dev servers it finds.",
@@ -86,19 +100,6 @@ export const LESSON_STEPS: LessonStep[] = [
     thumbnail: "/lessons/parallel-agents.jpg",
     seconds: 110,
   },
-  {
-    title: "lpm in 60 seconds",
-    blurb: "Start, stop and switch projects, then hand one to Claude Code.",
-    body: (
-      <>
-        The whole loop in one take: start a project, stop it, switch to
-        another, and open Claude Code from the project header with one click.
-      </>
-    ),
-    lesson: "sixty-seconds",
-    thumbnail: "/lessons/sixty-seconds.jpg",
-    seconds: 63,
-  },
 ];
 
 export function formatLength(seconds: number): string {
@@ -108,3 +109,16 @@ export function formatLength(seconds: number): string {
 export const LESSONS_TOTAL_MINUTES = Math.round(
   LESSON_STEPS.reduce((sum, step) => sum + step.seconds, 0) / 60,
 );
+
+// A lesson's own frame for a player that stands in for something else, such
+// as the demo on a phone. Lessons without a frame keep YouTube's thumbnail.
+export function lessonPoster(lesson: YouTubeLessonId) {
+  const step = LESSON_STEPS.find((s) => s.lesson === lesson);
+  if (!step) return undefined;
+  const kind = step.seconds < 90 ? "One-minute tour" : "Lesson";
+  return {
+    src: step.thumbnail,
+    label: `${kind} · ${formatLength(step.seconds)}`,
+    title: step.title,
+  };
+}

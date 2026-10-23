@@ -49,6 +49,14 @@ export function TerminalPane() {
 
   return (
     <SettingsSection>
+      <div className="p-3">
+        <TerminalThemePreview
+          theme={themePreview ?? theme}
+          fontSize={fontSize}
+          fontFamily={font.fontFamily}
+          lineHeight={font.lineHeight}
+        />
+      </div>
       <SettingsRow {...rowProps("terminal.fontFamily")}>
         <TerminalFontSelect
           value={font.family}
@@ -76,23 +84,13 @@ export function TerminalPane() {
           onIncrease={() => stepLineHeight(0.1)}
         />
       </SettingsRow>
-      <div>
-        <SettingsRow {...rowProps("terminal.theme")}>
-          <TerminalThemeSelect
-            value={theme}
-            onChange={(next) => void update({ terminalTheme: next })}
-            onHighlightChange={setThemePreview}
-          />
-        </SettingsRow>
-        <div className="px-4 pb-3">
-          <TerminalThemePreview
-            theme={themePreview ?? theme}
-            fontSize={fontSize}
-            fontFamily={font.fontFamily}
-            lineHeight={font.lineHeight}
-          />
-        </div>
-      </div>
+      <SettingsRow {...rowProps("terminal.theme")}>
+        <TerminalThemeSelect
+          value={theme}
+          onChange={(next) => void update({ terminalTheme: next })}
+          onHighlightChange={setThemePreview}
+        />
+      </SettingsRow>
       <SettingsRow {...rowProps("terminal.openInDefaultApp")}>
         <Toggle
           enabled={settings.terminalOpenInDefaultApp ?? false}

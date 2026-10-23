@@ -252,7 +252,7 @@ export function ProjectContextMenu({
         disabled={duplicateDisabled}
       />
       <ContextMenuItem
-        label="New Worktree"
+        label="New worktree"
         icon={<WorktreeIcon />}
         onClick={close(onWorktree)}
         disabled={duplicateDisabled}

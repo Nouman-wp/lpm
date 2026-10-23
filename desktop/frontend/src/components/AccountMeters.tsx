@@ -31,7 +31,7 @@ export function AccountMeters({ meters, className = "" }: { meters: UsageMeter[]
             >
               {meter.percentText}
             </span>
-            <span className="w-10 shrink-0 text-right tabular-nums">{meter.detail}</span>
+            <span className="w-12 shrink-0 whitespace-nowrap text-right tabular-nums">{meter.detail}</span>
           </span>
         );
       })}

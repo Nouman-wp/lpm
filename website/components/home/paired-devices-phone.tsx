@@ -13,6 +13,7 @@ import { PhoneHandoff } from "@/components/home/paired-devices-phone-handoff";
 import { PhoneLock } from "@/components/home/paired-devices-phone-lock";
 
 type Props = {
+  className?: string;
   open: boolean;
   controlled: boolean;
   notified: boolean;
@@ -29,6 +30,7 @@ const KEYS = ["esc", "tab", "⌃C", "⏎"];
 // arrives, then the terminal it opens, with the app's composer under it while
 // the phone is the one in control.
 export function PhoneReplica({
+  className = "",
   open,
   controlled,
   notified,
@@ -39,7 +41,7 @@ export function PhoneReplica({
   isTyping,
 }: Props) {
   return (
-    <div className="shrink-0">
+    <div className={`shrink-0 ${className}`}>
       <div className="relative aspect-[71.9/150] w-[14.5rem] rounded-[2.6rem] bg-gradient-to-b from-[#48484c] via-[#2b2b2e] to-[#48484c] p-[2px] shadow-xl shadow-gray-400/25 dark:shadow-black/70">
         {/* Side buttons */}
         <span className="absolute -left-[2px] top-24 h-5 w-[2px] rounded-l-sm bg-[#3a3a3c]" />

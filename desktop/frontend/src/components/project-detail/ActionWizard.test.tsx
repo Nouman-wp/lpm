@@ -234,10 +234,10 @@ describe("ActionWizard edit-mode editor seeding", () => {
   it("keeps the resolved config layer after a background refresh", async () => {
     const editing = makeEditing();
     await render({ editing, existingActionKeys: ["deploy"] });
-    expect(document.body.textContent).toContain("Saves to User config");
+    expect(document.body.textContent).toContain("Saves for just me, in demo");
 
     await render({ editing, existingActionKeys: ["deploy"] });
-    expect(document.body.textContent).toContain("Saves to User config");
+    expect(document.body.textContent).toContain("Saves for just me, in demo");
     expect(document.body.textContent).not.toContain("Locating config");
   });
 });

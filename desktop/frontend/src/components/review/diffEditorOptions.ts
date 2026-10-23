@@ -24,3 +24,7 @@ export const READ_HEAVY_DIFF_OPTIONS: monacoNs.editor.IStandaloneDiffEditorConst
     renderGutterMenu: false,
     editContext: false,
   };
+
+export function wrapOptions(on: boolean): monacoNs.editor.IDiffEditorOptions {
+  return { wordWrap: on ? "on" : "off", diffWordWrap: on ? "on" : "off" };
+}

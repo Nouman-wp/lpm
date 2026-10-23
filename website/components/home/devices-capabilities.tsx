@@ -1,37 +1,36 @@
-import {
-  Activity,
-  BellRing,
-  CalendarClock,
-  Gauge,
-  GitPullRequestArrow,
-  type LucideIcon,
-} from "lucide-react";
+import Image from "next/image";
 
-const CAPABILITIES: { icon: LucideIcon; title: string; body: string }[] = [
+// Real lpm Link screens from Demo Mode, cropped to their top 1206×1720.
+const SCREENS: { src: string; title: string; body: string; alt: string }[] = [
   {
-    icon: Activity,
-    title: "Activity",
-    body: "Claude Code, Codex, Gemini CLI and Cursor CLI sessions across your projects, needs-you first.",
+    src: "/lpm-link/projects.jpg",
+    title: "Every project",
+    body: "Which agent is working, done or waiting on you.",
+    alt: "lpm Link listing a Mac's projects, with a Claude Code session waiting and Codex running",
   },
   {
-    icon: CalendarClock,
+    src: "/lpm-link/agent.jpg",
+    title: "Answer an agent",
+    body: "A push opens the session. Reply, then pick it up at your desk.",
+    alt: "A Claude Code session in lpm Link, waiting for a reply, with the composer at the bottom",
+  },
+  {
+    src: "/lpm-link/diff.jpg",
+    title: "Git review",
+    body: "Read the diff, commit with an AI-written message, open a PR.",
+    alt: "The Changes screen in lpm Link showing a diff of four changed files",
+  },
+  {
+    src: "/lpm-link/automation.jpg",
     title: "Automations",
     body: "Run, pause or edit scheduled tasks and read every run.",
+    alt: "An automation in lpm Link with its schedule and run history",
   },
   {
-    icon: GitPullRequestArrow,
-    title: "Git review",
-    body: "Read the diff, commit with an AI-written message, open a GitHub PR.",
-  },
-  {
-    icon: BellRing,
-    title: "Push notifications",
-    body: "When Claude Code, Codex, Gemini CLI or Cursor CLI needs you or finishes, and when automations end.",
-  },
-  {
-    icon: Gauge,
+    src: "/lpm-link/usage.jpg",
     title: "Usage limits",
-    body: "Claude and Codex 5\u2011hour and weekly windows, and your pace.",
+    body: "Claude and Codex 5‑hour and weekly windows, and your pace.",
+    alt: "The Usage screen in lpm Link with weekly and 5-hour meters for two Claude accounts",
   },
 ];
 
@@ -41,22 +40,28 @@ export function DevicesCapabilities() {
       <h3 className="text-center text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
         Also in the iPhone app
       </h3>
-      {/* Five items: two plain columns of labels on a phone, then three over
-          two (the pair centred on a six-track grid), then one row. */}
-      <ul className="mx-auto mt-5 grid max-w-xs grid-cols-2 gap-x-4 gap-y-3 sm:mt-6 sm:max-w-none sm:grid-cols-6 sm:gap-x-6 sm:gap-y-6 lg:grid-cols-5">
-        {CAPABILITIES.map(({ icon: Icon, title, body }) => (
+      {/* A row that scrolls sideways until all five fit side by side. */}
+      <ul className="scrollbar-none -mx-4 mt-6 flex snap-x snap-mandatory gap-5 overflow-x-auto px-4 pb-2 sm:mt-7 lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-visible lg:px-0">
+        {SCREENS.map(({ src, title, body, alt }) => (
           <li
-            key={title}
-            className="flex items-center gap-2 sm:col-span-2 sm:items-start sm:gap-3 sm:nth-4:col-start-2 lg:col-span-1 lg:nth-4:col-start-auto"
+            key={src}
+            className="flex w-[9.5rem] shrink-0 snap-center flex-col items-center gap-3.5 text-center lg:w-auto"
           >
-            <span className="flex shrink-0 items-center justify-center text-gray-500 sm:h-8 sm:w-8 sm:rounded-lg sm:bg-white sm:text-gray-700 sm:ring-1 sm:ring-gray-200 dark:text-gray-400 sm:dark:bg-white/[0.06] sm:dark:text-gray-300 sm:dark:ring-white/[0.08]">
-              <Icon className="h-4 w-4" aria-hidden="true" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-[13px] font-semibold text-gray-900 sm:text-sm dark:text-gray-100">
+            <div className="w-[9.5rem] rounded-[1.6rem] bg-[#111] p-1 shadow-[0_18px_40px_-18px_rgba(17,24,39,0.45)] ring-1 ring-black/10 dark:shadow-black/60 dark:ring-white/10 lg:w-[10.25rem]">
+              <Image
+                src={src}
+                alt={alt}
+                width={360}
+                height={514}
+                sizes="164px"
+                className="h-auto w-full rounded-[1.35rem]"
+              />
+            </div>
+            <span className="block max-w-[12.5rem]">
+              <span className="block text-sm font-semibold text-gray-900 dark:text-gray-100">
                 {title}
               </span>
-              <span className="mt-0.5 hidden text-[13px] leading-snug text-gray-600 sm:block dark:text-gray-400">
+              <span className="mt-1 block text-[13px] leading-snug text-gray-600 dark:text-gray-400">
                 {body}
               </span>
             </span>

@@ -103,6 +103,23 @@ pub fn schedule(app: &AppHandle, target: Target, version: String, places: Vec<Bu
     scheduled
 }
 
+/// The Update button's "When agents finish": what `lpm update` does while an
+/// agent is mid-turn. With none busy it installs on the next look.
+#[cfg(target_os = "macos")]
+#[tauri::command(async)]
+pub fn schedule_update(app: AppHandle) -> Result<Scheduled, String> {
+    let version = crate::updates::pending_version(Target::Newest)?
+        .ok_or_else(|| "You're already on the latest version.".to_string())?;
+    let places = updatebusy::busy(&app, false);
+    Ok(schedule(&app, Target::Newest, version, places))
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command(async)]
+pub fn schedule_update(_app: AppHandle) -> Result<Scheduled, String> {
+    Err("lpm updates itself only on macOS.".into())
+}
+
 pub fn cancel(app: &AppHandle) -> bool {
     let had = PENDING.lock().unwrap().is_some();
     publish(app, None);

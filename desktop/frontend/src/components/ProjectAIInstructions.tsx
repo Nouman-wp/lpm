@@ -4,31 +4,36 @@ import { ProjectCommitInstructionsEditor } from "./ProjectCommitInstructionsEdit
 import { ProjectPRInstructionsEditor } from "./ProjectPRInstructionsEditor";
 import { ProjectBranchNameInstructionsEditor } from "./ProjectBranchNameInstructionsEditor";
 import { BTN_SECONDARY } from "./ui/buttons";
+import { useProjectInstructionStates } from "./useProjectInstructionStates";
 
 interface Section {
   id: string;
   label: string;
   description: string;
+  keys: string[];
   Editor: ComponentType<{ projectName: string; onBack: () => void }>;
 }
 
 const SECTIONS: Section[] = [
   {
     id: "commit",
-    label: "Commit Instructions",
-    description: "Custom instructions for this project's AI commit messages",
+    label: "Commit instructions",
+    description: "How AI writes this project's commit messages",
+    keys: ["commit"],
     Editor: ProjectCommitInstructionsEditor,
   },
   {
     id: "pr",
-    label: "PR Instructions",
-    description: "Custom instructions for this project's AI pull request titles and descriptions",
+    label: "PR instructions",
+    description: "How AI writes this project's pull request titles and descriptions",
+    keys: ["pr-title", "pr-description"],
     Editor: ProjectPRInstructionsEditor,
   },
   {
     id: "branch",
-    label: "Branch Name Instructions",
-    description: "Custom instructions for this project's AI branch names",
+    label: "Branch name instructions",
+    description: "How AI names this project's branches",
+    keys: ["branch-name"],
     Editor: ProjectBranchNameInstructionsEditor,
   },
 ];
@@ -42,6 +47,7 @@ export function ProjectAIInstructions({
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const active = SECTIONS.find((s) => s.id === activeId);
+  const states = useProjectInstructionStates(projectName, SECTIONS, !active);
 
   if (active) {
     const { Editor } = active;
@@ -69,19 +75,43 @@ export function ProjectAIInstructions({
       </p>
 
       <div className="mt-4 divide-y divide-[var(--border)] rounded-lg border border-[var(--border)]">
-        {SECTIONS.map((s) => (
-          <div key={s.id} className="flex items-center justify-between gap-4 px-4 py-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-[var(--text-primary)]">{s.label}</p>
-              <p className="text-[11px] text-[var(--text-muted)]">{s.description}</p>
+        {SECTIONS.map((s) => {
+          const state = states[s.id];
+          return (
+            <div key={s.id} className="flex items-center justify-between gap-4 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-[var(--text-primary)]">{s.label}</p>
+                  {state?.custom && (
+                    <span className="rounded-full bg-[var(--accent-cyan)]/10 px-1.5 text-[10px] font-medium leading-4 text-[var(--accent-cyan-text)]">
+                      Custom
+                    </span>
+                  )}
+                </div>
+                {state?.custom ? (
+                  <p className="truncate text-[11px] italic text-[var(--text-secondary)]" title={state.firstLine}>
+                    “{state.firstLine}”
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-[var(--text-muted)]">{s.description}</p>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-3">
+                {state && !state.custom && (
+                  <span
+                    className="text-[11px] text-[var(--text-muted)]"
+                    title="Settings › AI & Integrations"
+                  >
+                    Using your default
+                  </span>
+                )}
+                <button onClick={() => setActiveId(s.id)} className={BTN_SECONDARY}>
+                  {state && !state.custom ? "Customize" : "Edit"}
+                </button>
+              </div>
             </div>
-            <div className="shrink-0">
-              <button onClick={() => setActiveId(s.id)} className={BTN_SECONDARY}>
-                Edit
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

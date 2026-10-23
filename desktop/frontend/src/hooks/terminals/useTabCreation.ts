@@ -35,6 +35,7 @@ import {
   firstPaneId,
   mapPane,
   terminalDisplayLabel,
+  forkLabel,
 } from "../../paneTree";
 import { useTabScroll } from "../../store/tabScroll";
 import { useAppStore } from "../../store/app";
@@ -319,7 +320,7 @@ export function useTabCreation({
         return;
       }
       addTerminal(
-        makeTerminal(id, tab.label, {
+        makeTerminal(id, forkLabel(tab.label), {
           startCmd: tab.startCmd,
           resumeCmd: launch.resumeCmd,
           actionName: tab.actionName,
@@ -327,6 +328,7 @@ export function useTabCreation({
           color: tab.color,
           // A fork carries on the same conversation, memory session included.
           memory: tab.memory,
+          forkOf: { label: terminalDisplayLabel(tab), at: Date.now() },
         }),
         paneId,
       );
@@ -358,7 +360,7 @@ export function useTabCreation({
             {
               kind: "fork",
               command: launch.cmd,
-              label: tab.label,
+              label: forkLabel(tab.label),
               startCmd: tab.startCmd,
               resumeCmd: launch.resumeCmd,
               actionName: tab.actionName,

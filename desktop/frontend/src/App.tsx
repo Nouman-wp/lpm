@@ -392,7 +392,7 @@ export default function App() {
             />
           )}
           {view === "projects" && !selectedProject && !selectedPeerGone && projects.length === 0 && (
-            <EmptyStateNoProjects onAdd={addProject} />
+            <EmptyStateNoProjects />
           )}
           {view === "projects" && !selectedProject && !selectedPeerGone && projects.length > 0 && (
             <EmptyState />

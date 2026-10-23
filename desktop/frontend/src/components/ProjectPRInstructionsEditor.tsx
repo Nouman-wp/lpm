@@ -41,7 +41,7 @@ export function ProjectPRInstructionsEditor({
         >
           <ChevronLeftIcon />
         </button>
-        <h1 className="text-lg font-semibold tracking-tight">PR Instructions</h1>
+        <h1 className="text-lg font-semibold tracking-tight">PR instructions</h1>
       </div>
       <p className="mt-1 text-[11px] text-[var(--text-muted)]">
         Custom instructions for this project's AI pull request titles and descriptions. Leave blank to use the global default.

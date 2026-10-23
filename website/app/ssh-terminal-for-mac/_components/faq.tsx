@@ -124,7 +124,7 @@ const FAQS: QA[] = [
   {
     question: "Can I duplicate an SSH project or make a worktree of it?",
     answer:
-      "Not yet. Duplicate and New Worktree aren't available for SSH projects, and services are not auto-detected for SSH projects: a new one starts with a single login-shell service that you edit in the config editor.",
+      "Not yet. Duplicate and New worktree aren't available for SSH projects, and services are not auto-detected for SSH projects: a new one starts with a single login-shell service that you edit in the config editor.",
   },
   {
     question: "Is lpm a good iTerm2 or Warp alternative for SSH work specifically?",

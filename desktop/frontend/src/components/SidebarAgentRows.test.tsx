@@ -124,6 +124,51 @@ describe("SidebarAgentRows", () => {
   });
 });
 
+describe("SidebarAgentRows menu", () => {
+  const onAgentAction = vi.fn();
+  const openMenu = (over: Partial<SidebarAgentRow> = {}, actions = true) => {
+    act(() => {
+      root.render(
+        <SidebarAgentRows
+          projectName="crypto-portfolio"
+          agents={[agent(over)]}
+          onOpenAgent={vi.fn()}
+          onAgentAction={actions ? onAgentAction : undefined}
+        />,
+      );
+    });
+    act(() => {
+      container.querySelector("button")?.dispatchEvent(
+        new MouseEvent("contextmenu", { bubbles: true, clientX: 40, clientY: 80 }),
+      );
+    });
+    return [...document.querySelectorAll(".menu-pop button")].map((b) => b.textContent);
+  };
+
+  it("offers the tab's actions and hands them back with the row", () => {
+    expect(openMenu()).toEqual(["Open", "Copy last answer", "Fork session", "Share tab…", "Close tab"]);
+    expect(document.querySelector(".menu-pop")?.textContent).toContain("Claude Code · Needs you");
+    act(() => {
+      [...document.querySelectorAll<HTMLButtonElement>(".menu-pop button")]
+        .find((b) => b.textContent === "Close tab")
+        ?.click();
+    });
+    expect(onAgentAction).toHaveBeenCalledWith(
+      "crypto-portfolio",
+      expect.objectContaining({ terminalId: "%1" }),
+      "close",
+      { x: 40, y: 80 },
+    );
+    expect(document.querySelector(".menu-pop")).toBeNull();
+  });
+
+  it("only opens a row that has no tab yet, or no one to act on it", () => {
+    expect(openMenu({ terminalId: null })).toEqual(["Open"]);
+    act(() => document.querySelector<HTMLButtonElement>(".menu-pop button")?.click());
+    expect(openMenu({}, false)).toEqual(["Open"]);
+  });
+});
+
 describe("SidebarAgentSummary", () => {
   it("names the state it is given", () => {
     act(() => root.render(<SidebarAgentSummary agent={agent({ state: "error" })} />));

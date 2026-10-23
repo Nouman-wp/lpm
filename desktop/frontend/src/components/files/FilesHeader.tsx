@@ -1,5 +1,5 @@
 import { Fragment, useRef, useState } from "react";
-import { PanelLeft, PanelLeftClose, PanelRight, PanelRightClose } from "lucide-react";
+import { PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, WrapText } from "lucide-react";
 import type { ContentZoom } from "../../hooks/useContentZoom";
 import { basename } from "../../path";
 import type { FilesTreeSide } from "../../store/settings";
@@ -35,6 +35,8 @@ interface FilesHeaderProps {
   // False while the stack is too narrow for Split (it renders inline then).
   canSplit: boolean;
   onSideBySide: (sideBySide: boolean) => void;
+  wordWrap: boolean;
+  onWordWrap: (wordWrap: boolean) => void;
   dirty: boolean;
   saving: boolean;
   readOnly: boolean;
@@ -66,6 +68,8 @@ export function FilesHeader({
   sideBySide,
   canSplit,
   onSideBySide,
+  wordWrap,
+  onWordWrap,
   dirty,
   saving,
   readOnly,
@@ -167,13 +171,30 @@ export function FilesHeader({
         />
       )}
       {allChanges ? (
-        <SegmentedControl
-          value={sideBySide && canSplit ? "split" : "unified"}
-          options={canSplit ? LAYOUT_OPTIONS : NARROW_LAYOUT_OPTIONS}
-          onChange={(layout) => onSideBySide(layout === "split")}
-          variant="subtle"
-          ariaLabel="Diff layout"
-        />
+        <>
+          <SegmentedControl
+            value={sideBySide && canSplit ? "split" : "unified"}
+            options={canSplit ? LAYOUT_OPTIONS : NARROW_LAYOUT_OPTIONS}
+            onChange={(layout) => onSideBySide(layout === "split")}
+            variant="subtle"
+            ariaLabel="Diff layout"
+          />
+          <Tooltip content="Wrap long lines" side="bottom">
+            <button
+              type="button"
+              onClick={() => onWordWrap(!wordWrap)}
+              aria-pressed={wordWrap}
+              className={`flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium transition-colors hover:text-[var(--text-primary)] ${
+                wordWrap
+                  ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                  : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
+              }`}
+            >
+              <WrapText size={13} strokeWidth={1.9} />
+              Wrap
+            </button>
+          </Tooltip>
+        </>
       ) : (
         viewOptions && (
           <SegmentedControl

@@ -24,7 +24,11 @@ describe("captureActionRun", () => {
     const run = await captureActionRun("run-1");
     handlers.get("action-output")?.({ line: "quick-out" });
     handlers.get("action-done")?.({ success: true, error: "" });
-    expect(run.snapshot()).toEqual({ lines: ["quick-out"], done: { success: true, error: "" } });
+    expect(run.snapshot()).toEqual({
+      lines: ["quick-out"],
+      done: { success: true, error: "" },
+      endedAt: expect.any(Number),
+    });
   });
 
   // Every window and paired Mac hears every run; a modal shows only its own.

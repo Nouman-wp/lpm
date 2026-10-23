@@ -394,6 +394,7 @@ export function ProjectDetail({
     else if (op === "fork") terminalRef.current?.remoteForkTerminal(id);
     else if (op === "forkCopy") terminalRef.current?.remoteForkIntoCopy(id);
     else if (op === "closeOthers") terminalRef.current?.remoteCloseOthers(id);
+    else if (op === "copyAnswer") terminalRef.current?.copyLastAnswer(id);
   }, [pendingRemoteTerminalOp, project.name, clearPendingRemoteTerminalOp]);
 
   // A cross-project view asked to put one of our terminals on screen. The store
@@ -924,6 +925,7 @@ export function ProjectDetail({
         <ActionWizard
           open={actionWizardOpen}
           projectName={project.name}
+          projectLabel={displayName}
           actions={project.actions}
           existingActionKeys={existingActionKeys}
           nextPosition={newActionPosition}

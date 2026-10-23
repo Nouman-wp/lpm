@@ -121,7 +121,8 @@ export type RemoteTerminalOp =
   | "restart"
   | "fork"
   | "forkCopy"
-  | "closeOthers";
+  | "closeOthers"
+  | "copyAnswer";
 
 export type View =
   | "projects"
@@ -209,8 +210,9 @@ interface AppState {
   // paired it, so the picker can say so.
   addProjectTarget: { slug: string; alias: string; connected?: boolean } | null;
   // Where the picker opens: "linux-host" goes straight to setting up a server
-  // as a Linux host (from the SSH project form's hint), null to its first screen.
-  addProjectStart: "linux-host" | null;
+  // as a Linux host (from the SSH project form's hint), "computer" to pairing
+  // another computer (from the first-launch screen), null to its first screen.
+  addProjectStart: "linux-host" | "computer" | null;
   remoteFolderPickerOpen: boolean;
   sshModalOpen: boolean;
   addingSSHProject: boolean;
@@ -264,6 +266,7 @@ interface AppState {
   addProject: () => void;
   addProjectForPeer: (slug: string, alias: string, connected?: boolean) => void;
   setUpLinuxHost: () => void;
+  connectComputer: () => void;
   openSSHProject: () => void;
   closeAddProjectPicker: () => void;
   closeRemoteFolderPicker: () => void;
@@ -1117,6 +1120,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setUpLinuxHost: () =>
     set({ sshModalOpen: false, addProjectTarget: null, addProjectStart: "linux-host", addProjectPickerOpen: true }),
+
+  connectComputer: () =>
+    set({ addProjectTarget: null, addProjectStart: "computer", addProjectPickerOpen: true }),
 
   openSSHProject: () =>
     set({ sshModalOpen: true, addProjectPickerOpen: false, addProjectTarget: null, addProjectStart: null }),

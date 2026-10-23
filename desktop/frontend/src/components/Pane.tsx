@@ -14,6 +14,14 @@ import { installLinkHoverRefresh } from "./terminal/linkHoverRefresh";
 import { useTerminalFont } from "../hooks/useTerminalFont";
 import { ChevronRightIcon } from "./icons";
 import { ConsoleContextMenu } from "./terminal/ConsoleContextMenu";
+import {
+  runFind,
+  watchFindResults,
+  type FindDirection,
+  type FindOptions,
+  type FindOutcome,
+  type FindResults,
+} from "./terminal/terminalFind";
 import "@xterm/xterm/css/xterm.css";
 
 const labelBarClass = "flex items-center justify-between gap-1 border-b border-[var(--terminal-header-hover)] bg-[var(--terminal-header)] px-3 py-0.5 font-mono text-[10px] font-medium text-[var(--terminal-header-text)]";
@@ -145,8 +153,8 @@ export function disposePaneSession(key: string): void {
 
 export interface PaneHandle {
   clear: () => void;
-  findNext: (query: string) => boolean;
-  findPrevious: (query: string) => boolean;
+  find: (query: string, direction: FindDirection, options: FindOptions) => FindOutcome;
+  watchFind: (onResults: (results: FindResults) => void) => () => void;
   clearSearch: () => void;
   setFilter: (query: string | null, onCount?: (count: number) => void) => void;
   scrollToBottom: () => void;
@@ -194,11 +202,11 @@ export function Pane({ label, labelLead, labelHint, onLabelClick, labelActions, 
         if (!session) return;
         clearPaneSession(session);
       },
-      findNext(query: string) {
-        return sessionRef.current?.search?.findNext(query) ?? false;
+      find(query: string, direction: FindDirection, options: FindOptions) {
+        return runFind(sessionRef.current?.search, query, direction, options);
       },
-      findPrevious(query: string) {
-        return sessionRef.current?.search?.findPrevious(query) ?? false;
+      watchFind(onResults: (results: FindResults) => void) {
+        return watchFindResults(sessionRef.current?.search, onResults);
       },
       clearSearch() {
         sessionRef.current?.search?.clearDecorations();

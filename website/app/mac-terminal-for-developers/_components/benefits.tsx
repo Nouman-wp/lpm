@@ -20,7 +20,7 @@ const OUTCOMES: Outcome[] = [
   },
   {
     title: "Hand AI agents a copy, not your checkout.",
-    body: "Duplicate or New Worktree gives each agent its own files, terminals, and services, so it can run servers and tests without touching your working copy. Copies use the same port numbers as the original, and lpm flags a clash when you press Start instead of letting one server crash.",
+    body: "Duplicate or New worktree gives each agent its own files, terminals, and services, so it can run servers and tests without touching your working copy. Copies use the same port numbers as the original, and lpm flags a clash when you press Start instead of letting one server crash.",
   },
 ];
 

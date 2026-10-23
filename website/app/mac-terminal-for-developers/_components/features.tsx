@@ -71,7 +71,7 @@ const FEATURES: Feature[] = [
     title: "A copy of the project for each AI agent",
     body: (
       <>
-        Give each agent its own copy with Duplicate or New Worktree, so agents
+        Give each agent its own copy with Duplicate or New worktree, so agents
         never edit the same files, and lpm warns you when two copies want the
         same port. See how to{" "}
         <Link href={PARALLEL_PATH} className={LINK}>

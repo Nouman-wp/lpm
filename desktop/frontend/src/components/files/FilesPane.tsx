@@ -357,6 +357,8 @@ export function FilesPane({
         sideBySide={git.sideBySide}
         canSplit={splitFits}
         onSideBySide={git.showSideBySide}
+        wordWrap={git.wordWrap}
+        onWordWrap={git.showWordWrap}
         dirty={buffer.draft !== null}
         saving={buffer.saving}
         readOnly={buffer.readOnly}
@@ -386,6 +388,7 @@ export function FilesPane({
                 files={git.files}
                 zoom={zoom.zoom}
                 sideBySide={git.sideBySide}
+                wordWrap={git.wordWrap}
                 active={active && git.allChanges}
                 onActiveFileChange={setStackPath}
                 authority={review ? "commit" : "files"}

@@ -8,6 +8,7 @@ import {
 import { MacHandoff } from "@/components/home/paired-devices-mac-handoff";
 
 type Props = {
+  className?: string;
   controlled: boolean;
   taking: boolean;
   visible: Line[];
@@ -19,6 +20,7 @@ type Props = {
 // tabs, and the Claude Code session with its own composer — or, while the
 // phone holds the terminal, the app's "Active in iPhone" placeholder.
 export function MacReplica({
+  className = "",
   controlled,
   taking,
   visible,
@@ -26,7 +28,9 @@ export function MacReplica({
   working,
 }: Props) {
   return (
-    <div className="relative w-full min-w-0 max-w-[32rem] lg:max-w-[38rem]">
+    <div
+      className={`relative w-full min-w-0 max-w-[32rem] lg:max-w-[38rem] ${className}`}
+    >
       <div className="mx-auto w-[94%] overflow-hidden rounded-t-xl bg-[#111113] p-1.5 pb-0 shadow-2xl shadow-gray-300/60 ring-1 ring-black/15 dark:shadow-black/60 dark:ring-[#3a3a3c]">
         <div className="flex h-[20rem] flex-col overflow-hidden rounded-t-md bg-[#1a1a1a] lg:h-[22rem]">
           <div className="relative flex h-7 shrink-0 items-center border-b border-[#2d2d2d] px-2.5">

@@ -571,6 +571,8 @@ drops and the client re-syncs):
 `sidebar-changed`, `job-status`, `job-seen`, `memory-changed`, `clone-done`,
 `duplicate-done`, `terminals-changed`, `agent-session` and `agent-session-ended`
 (a terminal's agent conversation started or was quit, `{ project, paneId, … }`),
+`terminal-command` (the line a terminal's shell is about to run, `{ id, command, at }`,
+or how it ended, `{ id, code, at }`; the client prefixes `id` like a terminal's name),
 and the lines a coding agent prints while it generates something
 (`commit-msg-progress`, `pr-title-progress`, `pr-description-progress`,
 `branch-name-progress`, `merge-conflict-progress`, `action-yaml-progress`,

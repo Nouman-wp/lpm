@@ -23,7 +23,7 @@ export function GlobalSection() {
           and they show up in <Strong>every project</Strong>{" "}automatically. If
           a project defines an action with the same key, the{" "}
           <Strong>project-level entry wins</Strong>. Edit it from Settings
-          &rarr; Global Config, or the Global tab of any project&rsquo;s
+          &rarr; Global config, or the Global tab of any project&rsquo;s
           config editor.
         </>
       }

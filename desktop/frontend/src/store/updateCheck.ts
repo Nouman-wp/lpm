@@ -16,10 +16,14 @@ export interface UpdateInfo {
 
 // The last answer from the release check, whoever asked, so the sidebar's
 // update row and Settings agree — and a channel switch updates both.
-export const useUpdateCheck = create<{ info: UpdateInfo | null }>(() => ({ info: null }));
+// `checkedAt` is in unix seconds.
+export const useUpdateCheck = create<{ info: UpdateInfo | null; checkedAt: number }>(() => ({
+  info: null,
+  checkedAt: 0,
+}));
 
 export function noteUpdateCheck(info: UpdateInfo) {
-  useUpdateCheck.setState({ info });
+  useUpdateCheck.setState({ info, checkedAt: Math.floor(Date.now() / 1000) });
 }
 
 export async function checkForUpdate(): Promise<UpdateInfo> {

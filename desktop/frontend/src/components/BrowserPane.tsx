@@ -20,13 +20,16 @@ import { toast } from "sonner";
 import { projectAddress } from "../peer/projectPorts";
 import { toTarget } from "./browserTarget";
 import { ExternalBrowserPane } from "./ExternalBrowserPane";
+import { BrowserServiceList, serviceAddress, type BrowserService } from "./BrowserServiceList";
 import { ChevronLeftIcon, ChevronRightIcon, RefreshIcon, SunIcon, MoonIcon, GlobeIcon } from "./icons";
 
-interface BrowserPaneProps {
+export interface BrowserPaneProps {
   id: string;
   // A paired machine's project browses that machine's localhost.
   projectName: string;
   active: boolean;
+  // The project's services that are serving pages, offered before a page opens.
+  services?: BrowserService[];
 }
 
 // Linux can't float a webview over the pane (see browser.rs), so pages open in
@@ -41,7 +44,7 @@ function hostOf(addr: string): string {
   }
 }
 
-function EmbeddedBrowserPane({ id, projectName, active }: BrowserPaneProps) {
+function EmbeddedBrowserPane({ id, projectName, active, services = [] }: BrowserPaneProps) {
   const holeRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const openedRef = useRef(false);
@@ -124,9 +127,8 @@ function EmbeddedBrowserPane({ id, projectName, active }: BrowserPaneProps) {
     [id],
   );
 
-  const go = async (e: FormEvent) => {
-    e.preventDefault();
-    let target = toTarget(address);
+  const open = async (raw: string) => {
+    let target = toTarget(raw);
     if (!target) return;
     try {
       target = await projectAddress(projectName, target);
@@ -145,6 +147,17 @@ function EmbeddedBrowserPane({ id, projectName, active }: BrowserPaneProps) {
     OpenBrowser(id, target, rect.x, rect.y, rect.w, rect.h);
     SetBrowserTheme(id, darkRef.current);
     setOpened(true);
+  };
+
+  const openService = (addr: string) => {
+    setAddress(addr);
+    void open(addr);
+  };
+
+  const go = (e: FormEvent) => {
+    e.preventDefault();
+    if (address.trim() || opened || !services[0]) void open(address);
+    else openService(serviceAddress(services[0].port));
   };
 
   const navBtn =
@@ -207,19 +220,25 @@ function EmbeddedBrowserPane({ id, projectName, active }: BrowserPaneProps) {
         {!opened ? (
           <div
             onClick={() => inputRef.current?.focus()}
-            className="absolute inset-0 flex cursor-text select-none flex-col items-center justify-center gap-4 px-6 text-center"
+            className={`absolute inset-0 flex cursor-text select-none flex-col items-center justify-center gap-4 px-6 text-center ${services.length > 0 ? emptyTitle : ""}`}
           >
-            <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border ${badge} [&>svg]:h-7 [&>svg]:w-7`}>
-              <GlobeIcon />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <span className={`text-[15px] font-semibold tracking-tight ${emptyTitle}`}>
-                Search the web
-              </span>
-              <span className={`text-xs ${emptySub}`}>
-                Type a search or enter a web address to get started
-              </span>
-            </div>
+            {services.length > 0 ? (
+              <BrowserServiceList projectName={projectName} services={services} onOpen={openService} />
+            ) : (
+              <>
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border ${badge} [&>svg]:h-7 [&>svg]:w-7`}>
+                  <GlobeIcon />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className={`text-[15px] font-semibold tracking-tight ${emptyTitle}`}>
+                    Search the web
+                  </span>
+                  <span className={`text-xs ${emptySub}`}>
+                    Type a search or enter a web address to get started
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           !shown && (

@@ -72,6 +72,7 @@ pub struct PtySession {
     /// When the pane drew its last few chunks, oldest first: how fast it draws
     /// tells a working agent from a dialog that only blinks.
     recent_output: Mutex<std::collections::VecDeque<i64>>,
+    command_marks: Mutex<crate::cmdmarks::Scanner>,
 }
 
 /// How many of a pane's latest output times are kept.
@@ -346,6 +347,11 @@ fn emit_output(bytes: &[u8], app: &AppHandle, sess: &Arc<PtySession>) {
     // ports / surface undeclared ones (port poller's no-poll-needed path).
     if sess.remote {
         crate::portforward::sniff_pane_output(app, &sess.project_name, &sess.declared, &text);
+    } else {
+        sess.command_marks
+            .lock()
+            .unwrap()
+            .scan(app, &sess.id, &text);
     }
     add_unacked(sess, runes);
 }
@@ -695,6 +701,7 @@ fn spawn_with_builder(
         rows: AtomicU16::new(24),
         last_output: AtomicI64::new(0),
         recent_output: Mutex::new(std::collections::VecDeque::with_capacity(RECENT_OUTPUTS)),
+        command_marks: Mutex::default(),
     });
     state
         .sessions

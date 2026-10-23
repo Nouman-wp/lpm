@@ -14,7 +14,7 @@ const WORKFLOWS: Workflow[] = [
     title: "Spin up an unfamiliar repo your first morning on a project",
     body: (
       <>
-        Choose Clone Repository in Add a project, paste the URL, and lpm clones
+        Choose Clone repository in Add a project, paste the URL, and lpm clones
         it and sets up services from its manifests. Check them in the Start menu, edit one
         if you need to, and hit Start. Every service streams side by side, with
         no guessing from the README.

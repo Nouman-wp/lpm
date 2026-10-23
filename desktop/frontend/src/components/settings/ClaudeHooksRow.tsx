@@ -81,7 +81,7 @@ export function ClaudeHooksRow() {
       </SettingsRow>
       <ConfirmDialog
         open={showResetDialog}
-        title="Reset Claude Code Hooks"
+        title="Reset Claude Code hooks"
         body="Claude Code hooks are not configured correctly. Would you like to reinstall them?"
         confirmLabel="Reset"
         disabled={resetting}

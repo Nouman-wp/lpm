@@ -1,5 +1,6 @@
 import type { MouseEvent, ReactNode } from "react";
 import { actionButtonStyle } from "../actionColors";
+import { ActionRunMarkBadge } from "./ActionRunMarkBadge";
 
 const actionStyles = {
   primary:
@@ -20,6 +21,7 @@ export function ActionButton({
   variant,
   label,
   color,
+  runKey,
 }: {
   onClick: () => void;
   onContextMenu?: (e: MouseEvent) => void;
@@ -28,6 +30,8 @@ export function ActionButton({
   variant: keyof typeof actionStyles;
   label: ReactNode;
   color?: string;
+  // Names the button to a quick action's result card and run mark.
+  runKey?: string;
 }) {
   return (
     <button
@@ -36,9 +40,11 @@ export function ActionButton({
       onMouseEnter={onMouseEnter}
       disabled={disabled}
       style={actionButtonStyle(color)}
-      className={`inline-flex h-8 shrink-0 cursor-grab select-none items-center whitespace-nowrap rounded-lg px-3.5 text-xs font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 ${actionStyles[variant]}`}
+      data-action-run={runKey}
+      className={`relative inline-flex h-8 shrink-0 cursor-grab select-none items-center whitespace-nowrap rounded-lg px-3.5 text-xs font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 ${actionStyles[variant]}`}
     >
       {label}
+      {runKey && <ActionRunMarkBadge runKey={runKey} />}
     </button>
   );
 }

@@ -5,6 +5,8 @@ import { Tooltip } from "../ui/Tooltip";
 import { TabTooltipCard, tabCardHasDetails } from "./TabTooltipCard";
 import { useIsTruncated } from "../../hooks/useIsTruncated";
 import type { PaneAgentStatus } from "../../hooks/usePaneStatus";
+import type { TabFork } from "../../paneTree";
+import type { TerminalCommandState } from "../../store/terminalCommands";
 import { actionAccentColor, actionTextColor } from "../../actionColors";
 import { chordLabel } from "../../keys";
 
@@ -12,6 +14,8 @@ export function HeaderTab({
   label,
   icon,
   origin,
+  fork,
+  command,
   active,
   onClick,
   onClose,
@@ -32,6 +36,8 @@ export function HeaderTab({
   // (an agent renamed the tab after its conversation). Shown in the tooltip so
   // the action behind a renamed tab stays findable.
   origin?: string;
+  fork?: TabFork;
+  command?: TerminalCommandState;
   active: boolean;
   onClick: (e: MouseEvent<HTMLButtonElement>) => void;
   onClose?: () => void;
@@ -99,7 +105,7 @@ export function HeaderTab({
   // A tab with an agent in it, or one renamed away from the action that
   // launched it, gets a card lined up under the tab. Everything else keeps the
   // plain one-line tooltip, shown only when the strip clips the label.
-  const card = tabCardHasDetails(agentStatus, origin);
+  const card = tabCardHasDetails(agentStatus, origin, fork, command);
   const tooltip = card ? (
     <TabTooltipCard
       label={label}
@@ -107,6 +113,8 @@ export function HeaderTab({
       origin={origin}
       color={color}
       agentStatus={agentStatus}
+      fork={fork}
+      command={command}
     />
   ) : (
     label

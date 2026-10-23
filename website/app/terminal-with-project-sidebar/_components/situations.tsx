@@ -6,7 +6,7 @@ const SITUATIONS = [
     icon: GitBranch,
     title: "Several agents on one repo",
     lead: "Claude Code on a refactor, Codex on the tests, each in its own copy.",
-    body: "Give each task its own copy of the project: Duplicate for a standalone folder, or New Worktree for a linked branch. The copies stack under the original instead of scattering through the list. Each one keeps its own terminals and agents, so moving between tasks is one click on a row, with no cd and no git stash.",
+    body: "Give each task its own copy of the project: Duplicate for a standalone folder, or New worktree for a linked branch. The copies stack under the original instead of scattering through the list. Each one keeps its own terminals and agents, so moving between tasks is one click on a row, with no cd and no git stash.",
   },
   {
     icon: Building2,

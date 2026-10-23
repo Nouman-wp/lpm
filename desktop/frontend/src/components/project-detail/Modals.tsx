@@ -1,6 +1,6 @@
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { ActionInputsModal } from "./ActionInputsModal";
-import { ActionTerminal } from "./ActionTerminal";
+import { ActionRunCard } from "./ActionRunCard";
 import type { ProjectActionsModals } from "../../hooks/useProjectActions";
 
 interface ModalsProps {
@@ -33,8 +33,16 @@ export function Modals({ projectName, actionModals }: ModalsProps) {
         />
       )}
 
-      {running.action && running.run && (
-        <ActionTerminal label={running.action.label} run={running.run} onClose={running.onClose} />
+      {running.shown && (
+        <ActionRunCard
+          key={running.shown.id}
+          label={running.shown.action.label}
+          runKey={running.shown.runKey}
+          run={running.shown.run}
+          startedAt={running.shown.startedAt}
+          onClose={running.onClose}
+          onRunAgain={running.onRunAgain}
+        />
       )}
     </>
   );

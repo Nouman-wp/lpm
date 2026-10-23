@@ -10,7 +10,7 @@ type Outcome = {
 const OUTCOMES: Outcome[] = [
   {
     title: "A second agent starts on a copy that already runs",
-    body: "Duplicate clones the project folder, so the new copy arrives with node_modules, .venv, .env files, and your uncommitted work in place. Only rebuildable caches like .next and dist are left out. Want a branch instead? New Worktree makes a real Git checkout of your current commit. It starts clean, so uncommitted changes and ignored files like node_modules and .env stay behind in the original.",
+    body: "Duplicate clones the project folder, so the new copy arrives with node_modules, .venv, .env files, and your uncommitted work in place. Only rebuildable caches like .next and dist are left out. Want a branch instead? New worktree makes a real Git checkout of your current commit. It starts clean, so uncommitted changes and ignored files like node_modules and .env stay behind in the original.",
   },
   {
     title: "One prompt, several answers to choose from",

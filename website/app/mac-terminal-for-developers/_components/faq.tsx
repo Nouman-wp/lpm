@@ -26,7 +26,7 @@ const FAQS: QA[] = [
   {
     question: "How does lpm help when running multiple AI coding agents?",
     answer:
-      "Put each agent in a separate copy, Duplicate or New Worktree, so no two agents edit the same files and your working copy stays untouched. Each copy has its own terminals and services and appears under the original in the sidebar. Copies use the same ports as the original, so lpm warns you when two want the same one and offers to free it.",
+      "Put each agent in a separate copy, Duplicate or New worktree, so no two agents edit the same files and your working copy stays untouched. Each copy has its own terminals and services and appears under the original in the sidebar. Copies use the same ports as the original, so lpm warns you when two want the same one and offers to free it.",
   },
   {
     question: "Can I use my existing shell setup (zsh, dotfiles, aliases) in lpm?",

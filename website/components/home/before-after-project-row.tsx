@@ -53,7 +53,8 @@ export function ReplicaProjectRow({ row }: { row: Row }) {
         // One line per agent under the project it runs in: the tab it lives in,
         // coloured by what it is doing, a mark, and how long it has taken.
         <div
-          className={`flex items-center gap-[0.5em] rounded-[0.45em] py-[0.22em] pl-[1.15em] pr-[0.6em] text-[0.95em] ${
+          data-agent-state={agent.state}
+          className={`ba-state flex items-center gap-[0.5em] rounded-[0.45em] py-[0.22em] pl-[1.15em] pr-[0.6em] text-[0.95em] ${
             agent.onScreen ? "bg-[#e5e5e5]/8 text-[#e5e5e5]" : "text-[#919191]"
           }`}
         >

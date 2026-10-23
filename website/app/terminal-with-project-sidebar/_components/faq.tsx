@@ -50,7 +50,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "What else can I do from a sidebar row?",
     answer:
-      "Right-click a row for its git menu (pull, push, commit, create a PR, switch branch), Duplicate and New Worktree, Open with your editor, Rename, and Detach to new window. Shift-click selects several projects to move into a folder or remove at once, and you can turn on double-click to start or stop a project in Settings.",
+      "Right-click a row for its git menu (pull, push, commit, create a PR, switch branch), Duplicate and New worktree, Open with your editor, Rename, and Detach to new window. Shift-click selects several projects to move into a folder or remove at once, and you can turn on double-click to start or stop a project in Settings.",
   },
 ];
 

@@ -63,6 +63,7 @@ const NULL: string[] = [
   "terminal_unpresent_control", "test_job_check", "trash_project", "uninstall_app",
   "uninstall_kokoro", "update_agent_skill", "vault_import_key", "voice_to_text_cancel",
   "voice_to_text_stop", "voice_to_text_toggle", "write_agent_capability", "write_memory_session",
+  "restart_services", "schedule_update", "scheduled_update", "take_update_note",
 ];
 
 const EMPTY_LIST: string[] = [
@@ -73,8 +74,7 @@ const EMPTY_LIST: string[] = [
   "list_port_forwards", "list_system_sounds", "list_templates", "message_history_folders",
   "message_history_query", "notes_list_chats", "notes_list_messages", "notes_search",
   "openai_voices", "read_clipboard_files", "remote_take_restore_requests",
-  "remote_take_run_actions", "restart_services", "scheduled_update", "search_branches",
-  "take_update_note", "telegram_find_chats",
+  "remote_take_run_actions", "search_branches", "telegram_find_chats",
 ];
 
 const FALSE: string[] = [

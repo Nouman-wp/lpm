@@ -1,7 +1,7 @@
 import { Columns2, Zap } from "lucide-react";
-import { TerminalLine } from "@/components/terminal-line";
+import { TerminalLine, type Line } from "@/components/terminal-line";
 import { ClaudeBanner } from "./before-after-claude-banner";
-import { CLAUDE_SESSION } from "./before-after-session";
+import { CLAUDE_SESSION, PROMPT_FROM } from "./before-after-session";
 import { ReplicaSidebar } from "./before-after-sidebar";
 
 // The same window every lpm user works in, placed on the stage where the pile it
@@ -55,6 +55,17 @@ const RUNNING_ZAP = (
   />
 );
 
+function SessionLine({ line }: { line: Line }) {
+  return (
+    <TerminalLine
+      line={line}
+      size="text-[0.95em] leading-[1.5]"
+      fallback={TEXT}
+      gapClass="mt-[1.5em]"
+    />
+  );
+}
+
 // `compact` is the phone stage's narrower window: the All tab goes and the tabs
 // close up, so the ones that stay keep their full labels.
 export function LpmReplica({ compact = false }: { compact?: boolean }) {
@@ -97,15 +108,17 @@ export function LpmReplica({ compact = false }: { compact?: boolean }) {
         </div>
         <div className="flex min-h-0 flex-1 flex-col justify-end overflow-hidden px-[1em] py-[0.8em] font-mono [mask-image:linear-gradient(to_right,#000_95%,transparent)] [-webkit-mask-image:linear-gradient(to_right,#000_95%,transparent)]">
           <ClaudeBanner cwd="~/Projects/auth-service" />
-          {CLAUDE_SESSION.map((l, i) => (
-            <TerminalLine
-              key={i}
-              line={l}
-              size="text-[0.95em] leading-[1.5]"
-              fallback={TEXT}
-              gapClass="mt-[1.5em]"
-            />
+          {CLAUDE_SESSION.slice(0, PROMPT_FROM).map((l, i) => (
+            <SessionLine key={i} line={l} />
           ))}
+          {/* The permission prompt is what "Needs you" points at. Its gap moves
+              onto the wrapper, so the ring hugs the prompt and every row stays
+              where the pile's window expects it. */}
+          <div data-agent-state="waiting" className="ba-state mt-[1.5em]">
+            {CLAUDE_SESSION.slice(PROMPT_FROM).map((l, i) => (
+              <SessionLine key={i} line={i === 0 ? { ...l, gap: false } : l} />
+            ))}
+          </div>
         </div>
       </div>
     </div>

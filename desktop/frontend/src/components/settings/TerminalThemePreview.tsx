@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import { getTerminalThemeColors, type TerminalThemeName } from "../../terminal-themes";
 import { TrafficLights } from "../ui/TrafficLights";
 
@@ -5,7 +6,7 @@ export function TerminalThemePreview({
   theme,
   fontSize,
   fontFamily,
-  lineHeight,
+  lineHeight = 1,
 }: {
   theme: TerminalThemeName;
   fontSize: number;
@@ -18,7 +19,16 @@ export function TerminalThemePreview({
   const header = colors?.header ?? "var(--terminal-header)";
   const headerText = colors?.headerText ?? "var(--terminal-header-text)";
   const cursor = colors?.cursor ?? fg;
-  const bodyFontSize = Math.min(fontSize, 11);
+  const selection = colors?.selection ?? "var(--terminal-selection)";
+
+  // xterm makes a row the font's natural line height times the setting, which
+  // CSS's unitless line-height would draw tighter than the real terminal.
+  const probeRef = useRef<HTMLSpanElement>(null);
+  const [rowHeight, setRowHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const natural = probeRef.current?.getBoundingClientRect().height;
+    setRowHeight(natural ? Math.floor(Math.ceil(natural) * lineHeight) : null);
+  }, [fontSize, fontFamily, lineHeight]);
 
   return (
     <div
@@ -30,19 +40,31 @@ export function TerminalThemePreview({
         style={{ background: header, color: headerText }}
       >
         <TrafficLights />
-        <span className="ml-1 truncate text-[10px] leading-none">terminal</span>
+        <span className="ml-1 truncate font-sans text-[10px] leading-none">terminal</span>
       </div>
       <div
-        className="px-2 py-1.5 leading-tight"
-        style={{ fontSize: `${bodyFontSize}px`, lineHeight }}
+        className="relative whitespace-pre px-3 py-2 [&>div]:overflow-hidden [&>div]:text-ellipsis"
+        style={{ fontSize: `${fontSize}px`, lineHeight: rowHeight ? `${rowHeight}px` : lineHeight }}
       >
+        <span
+          ref={probeRef}
+          aria-hidden
+          className="pointer-events-none invisible absolute"
+          style={{ lineHeight: "normal" }}
+        >
+          W
+        </span>
         <div>$ npm run dev</div>
-        <div style={{ opacity: 0.7 }}>✓ ready on :3000</div>
+        <div style={{ opacity: 0.7 }}>
+          {"  Local:   "}
+          <span style={{ background: selection }}>http://localhost:3000</span>
+        </div>
+        <div>✓ Ready in 842ms</div>
         <div className="flex items-center">
           <span>$&nbsp;</span>
           <span
             className="demo-cursor inline-block"
-            style={{ width: "0.55em", height: "1em", background: cursor }}
+            style={{ width: "0.6em", height: rowHeight ? `${rowHeight}px` : "1em", background: cursor }}
           />
         </div>
       </div>

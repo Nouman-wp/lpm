@@ -3,58 +3,19 @@ import { toast } from "sonner";
 import { GetVersion, UninstallApp } from "../../../bridge/commands";
 import { MACHINE } from "../../machineWords";
 import { isMac } from "../../platform";
-import { openReleasePage, UPDATES_INSTALL_IN_APP } from "../../releasePage";
 import { removeAppConfirmText } from "../../removeAppCopy";
 import { rowProps } from "../../settings-registry";
-import { checkForUpdate, useUpdateCheck } from "../../store/updateCheck";
-import type { UpdateInstallState } from "../../store/updateInstall";
 import { AgentToolsManualSetup } from "../AgentToolsManualSetup";
 import { SettingsRow } from "../SettingsRow";
 import { SettingsSection } from "../SettingsSection";
 import { SkillInstallControl } from "../SkillInstallControl";
-import { UpdateChannelRow } from "../UpdateChannelRow";
-import { BTN_SECONDARY } from "../ui/buttons";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
-import { useUpdateInstall } from "../useUpdateInstall";
-import { IdleUpdateRow } from "./IdleUpdateRow";
 import { RemovingOverlay } from "./RemovingOverlay";
-import { ServicesBuildRow } from "./ServicesBuildRow";
-import { Spinner } from "./Spinner";
+import { UpdatesSection } from "./UpdatesSection";
 
-type UpdateStatus = "idle" | "checking" | "available" | "up-to-date" | "installing" | "error";
-
-function getUpdateDescription(
-  status: UpdateStatus,
-  latestVersion: string,
-  error: string,
-): string {
-  switch (status) {
-    case "checking":
-      return "Checking...";
-    case "available":
-      return `v${latestVersion} available`;
-    case "up-to-date":
-      return "You're up to date";
-    case "error":
-      return error || "Failed to check";
-    default:
-      return "Check for new versions";
-  }
-}
-
-function installDescription({ phase, progress, cancelling }: UpdateInstallState): string {
-  if (cancelling) return "Cancelling update...";
-  if (phase === "installing") return "Installing. lpm restarts in a moment.";
-  return phase === "downloading" && progress >= 0 ? `Downloading... ${progress}%` : "Downloading...";
-}
-
-// This machine's lpm: its version, its updates, its agent tools and removing it.
+// This machine's lpm: its updates, its agent tools and removing it.
 export function AboutSection() {
   const [version, setVersion] = useState("");
-  const [checkState, setCheckState] = useState<"idle" | "checking" | "checked" | "error">("idle");
-  const checkedUpdate = useUpdateCheck((s) => s.info);
-  const latestVersion = checkedUpdate?.latestVersion ?? "";
-  const [updateError, setUpdateError] = useState("");
   const [showRemoveApp, setShowRemoveApp] = useState(false);
   const [removeAppData, setRemoveAppData] = useState(false);
   const [removingApp, setRemovingApp] = useState(false);
@@ -66,32 +27,6 @@ export function AboutSection() {
   useEffect(() => {
     if (showRemoveApp) setRemoveAppData(false);
   }, [showRemoveApp]);
-
-  const update = useUpdateInstall();
-  // An update any check found is offered here too; "up to date" only once
-  // this page has asked.
-  const updateStatus: UpdateStatus =
-    checkState === "checking" || checkState === "error"
-      ? checkState
-      : checkedUpdate?.updateAvail
-        ? "available"
-        : checkState === "checked"
-          ? "up-to-date"
-          : "idle";
-  const shownUpdateStatus: UpdateStatus = update.active ? "installing" : update.error ? "error" : updateStatus;
-
-  const handleCheckUpdate = async () => {
-    setCheckState("checking");
-    setUpdateError("");
-    update.dismissError();
-    try {
-      await checkForUpdate();
-      setCheckState("checked");
-    } catch (err) {
-      setCheckState("error");
-      setUpdateError(String(err));
-    }
-  };
 
   const handleRemoveApp = async () => {
     setShowRemoveApp(false);
@@ -110,44 +45,11 @@ export function AboutSection() {
 
   return (
     <>
-      {update.dialogs}
       {removingApp && <RemovingOverlay />}
 
+      <UpdatesSection version={version} />
+
       <SettingsSection title="About">
-        <SettingsRow {...rowProps("general.version")}>
-          <span className="text-xs text-[var(--text-muted)]">{version || "..."}</span>
-        </SettingsRow>
-        <SettingsRow
-          {...rowProps("general.updates", {
-            description:
-              version === "dev"
-                ? "Not available in development builds"
-                : update.active
-                  ? installDescription(update)
-                  : getUpdateDescription(shownUpdateStatus, latestVersion, update.error || updateError),
-          })}
-        >
-          {version === "dev" ? null : update.active ? (
-            <button
-              onClick={update.cancel}
-              disabled={update.cancelling || update.phase === "installing"}
-              className={BTN_SECONDARY}
-            >
-              {update.phase === "installing" ? <Spinner /> : "Cancel"}
-            </button>
-          ) : shownUpdateStatus === "available" ? (
-            <button onClick={UPDATES_INSTALL_IN_APP ? update.request : () => openReleasePage(latestVersion)} className="rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90">
-              {UPDATES_INSTALL_IN_APP ? "Update" : "Download"}
-            </button>
-          ) : (
-            <button onClick={handleCheckUpdate} disabled={shownUpdateStatus === "checking"} className={BTN_SECONDARY}>
-              {shownUpdateStatus === "checking" ? <Spinner /> : "Check"}
-            </button>
-          )}
-        </SettingsRow>
-        {version !== "dev" && <UpdateChannelRow update={update} />}
-        {version !== "dev" && UPDATES_INSTALL_IN_APP && <IdleUpdateRow />}
-        <ServicesBuildRow appVersion={version} />
         <SettingsRow
           {...rowProps("general.agentTools")}
           details={

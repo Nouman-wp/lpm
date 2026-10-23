@@ -43,16 +43,16 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Is lpm Duplicate based on git worktree?",
     answer:
-      "No. Duplicate copies the project folder, as a copy-on-write clone on APFS. When the folder is the repository root, the copy gets its own .git with the same history, branch and remotes, not a link back to the original, and lpm removes the worktree entries it inherited from the original. New Worktree, the menu item next to Duplicate, is the one that runs git worktree add.",
+      "No. Duplicate copies the project folder, as a copy-on-write clone on APFS. When the folder is the repository root, the copy gets its own .git with the same history, branch and remotes, not a link back to the original, and lpm removes the worktree entries it inherited from the original. New worktree, the menu item next to Duplicate, is the one that runs git worktree add.",
   },
   {
     question: "Can lpm create real Git worktrees too?",
     answer:
-      "Yes. Right-click a project and choose New Worktree. lpm runs git worktree add on a fresh lpm/<name> branch from the commit you're on, with the same count, label and task options as Duplicate and an optional dependency install. Uncommitted and ignored files stay behind, as with plain Git. Removing an lpm worktree deletes its folder and its branch, even if the branch isn't merged, so push or merge first.",
+      "Yes. Right-click a project and choose New worktree. lpm runs git worktree add on a fresh lpm/<name> branch from the commit you're on, with the same count, label and task options as Duplicate and an optional dependency install. Uncommitted and ignored files stay behind, as with plain Git. Removing an lpm worktree deletes its folder and its branch, even if the branch isn't merged, so push or merge first.",
   },
   {
     question: "Can every project be duplicated?",
     answer:
-      "Local projects can, and so can projects on a connected Linux server or another connected computer. Folders that aren't Git repositories work too; the Git options are skipped. SSH projects can't be duplicated, and a project that is itself a linked Git worktree has to use New Worktree instead. New Worktree needs the project folder to be the root of a Git repository with at least one commit.",
+      "Local projects can, and so can projects on a connected Linux server or another connected computer. Folders that aren't Git repositories work too; the Git options are skipped. SSH projects can't be duplicated, and a project that is itself a linked Git worktree has to use New worktree instead. New worktree needs the project folder to be the root of a Git repository with at least one commit.",
   },
 ];

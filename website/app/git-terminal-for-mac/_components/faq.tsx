@@ -56,16 +56,16 @@ const FAQS: QA[] = [
         serving the new branch&apos;s files, and most hot-reload on their own.
         If a branch needs a dependency install or a migration, you decide when
         to stop and start. To keep one branch running while you work on
-        another, open it with New Worktree.
+        another, open it with New worktree.
       </>
     ),
     answerText:
-      "No. lpm never stops or restarts a service because you ran git checkout feature/xyz. Services run from the project folder, so after the checkout your dev server is serving the new branch's files, and most hot-reload on their own. If a branch needs a dependency install or a migration, you decide when to stop and start. To keep one branch running while you work on another, open it with New Worktree.",
+      "No. lpm never stops or restarts a service because you ran git checkout feature/xyz. Services run from the project folder, so after the checkout your dev server is serving the new branch's files, and most hot-reload on their own. If a branch needs a dependency install or a migration, you decide when to stop and start. To keep one branch running while you work on another, open it with New worktree.",
   },
   {
     question: "How does lpm help with PR review workflows on Mac?",
     answer:
-      "Choose New Worktree on the project. lpm makes a separate checkout on its own branch with its own services, listed under the original in the sidebar. Check out the review branch there and start the services you need to test it; if one wants a port your original is still using, lpm flags the clash when you press Start. Your original branch keeps running untouched, and when you're done you delete the worktree from the sidebar.",
+      "Choose New worktree on the project. lpm makes a separate checkout on its own branch with its own services, listed under the original in the sidebar. Check out the review branch there and start the services you need to test it; if one wants a port your original is still using, lpm flags the clash when you press Start. Your original branch keeps running untouched, and when you're done you delete the worktree from the sidebar.",
   },
   {
     question: "Can lpm write my commit messages and PR descriptions?",

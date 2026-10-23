@@ -24,7 +24,7 @@ const EXTRAS: { icon: LucideIcon; title: string; body: React.ReactNode }[] = [
   {
     icon: MousePointerClick,
     title: "A menu on every row",
-    body: "Right-click for git (pull, push, commit, create a PR), Duplicate, New Worktree, Open with your editor, or Detach to new window.",
+    body: "Right-click for git (pull, push, commit, create a PR), Duplicate, New worktree, Open with your editor, or Detach to new window.",
   },
   {
     icon: Activity,

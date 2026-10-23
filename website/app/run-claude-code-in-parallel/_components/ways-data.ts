@@ -49,7 +49,7 @@ export const WAYS: Way[] = [
     step: "A branch per agent",
     name: "Git worktrees",
     icon: GitBranch,
-    entry: "Right-click a project → New Worktree",
+    entry: "Right-click a project → New worktree",
     body: "Create 1 to 50 linked worktrees, each on its own lpm/<name> branch from the current commit and sharing your repository’s history. For Node projects, lpm can install dependencies in each one.",
     useWhen: [
       "Each task should end as its own branch and pull request",

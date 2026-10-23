@@ -9,7 +9,7 @@ export function GlobalConfigEditor({ machine, onBack }: { machine: MachineScope;
   const save = useCallback((content: string) => saveLayer(layer, content), [layer]);
   return (
     <YamlConfigEditor
-      title={machine.name ? `Global Config · ${machine.name}` : "Global Config"}
+      title={machine.name ? `Global config · ${machine.name}` : "Global config"}
       description={`Actions and terminals defined here are available in every project${
         machine.name ? ` on ${machine.name}` : ""
       }.`}

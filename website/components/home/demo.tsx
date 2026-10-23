@@ -12,6 +12,7 @@ import {
 import { DownloadLink } from "@/components/download-link";
 import { DemoCaption } from "@/components/home/demo-caption";
 import { DemoFrame } from "@/components/home/demo-frame";
+import { lessonPoster } from "@/components/home/lesson-data";
 import { DemoSkeleton } from "@/components/home/demo-skeleton";
 import { DemoSteps } from "@/components/home/demo-steps";
 import { WINDOW_FRAME } from "@/components/home/demo-window";
@@ -132,6 +133,7 @@ function DesktopOnlyPrompt({
     <div data-on-dark className={WINDOW_FRAME}>
       <YouTubeVideo
         lesson={lesson}
+        poster={lessonPoster(lesson)}
         fetchPriority={posterPriority ? "high" : undefined}
       />
       <div className="flex flex-col items-center gap-3 border-t border-[#2e2e2e] px-5 py-5 text-center">
@@ -226,6 +228,7 @@ function DemoStage({
           <DemoSteps
             steps={script.steps}
             tour={tour}
+            done={script.done}
             onRun={runStep}
             onRestart={restart}
           />
@@ -246,17 +249,7 @@ function DemoStage({
               <DemoSkeleton />
             </div>
           )}
-          <p
-            id="demo-next"
-            tabIndex={-1}
-            className="mt-4 text-center text-[13px] text-gray-500 dark:text-gray-400"
-          >
-            Done poking around?{" "}
-            <DownloadLink className="underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 hover:decoration-current dark:decoration-gray-600 dark:hover:text-white">
-              Get lpm
-            </DownloadLink>{" "}
-            and point it at your own projects.
-          </p>
+          <div id="demo-next" tabIndex={-1} className="outline-none" />
         </div>
       )}
     </div>

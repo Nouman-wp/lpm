@@ -7,8 +7,24 @@ import { useFileDiscard } from "./useFileDiscard";
 
 const CHANGES_ONLY_KEY = "lpm:filesChangesOnly";
 const SIDE_BY_SIDE_KEY = "lpm:filesDiffSplit";
+const WORD_WRAP_KEY = "lpm:filesDiffWrap";
 const NO_DECORATIONS: ReadonlyMap<string, string> = new Map();
 const NO_FILES: ChangedFile[] = [];
+
+function useStoredFlag(key: string, fallback: boolean) {
+  const [on, setOn] = useState(() => {
+    const stored = localStorage.getItem(key);
+    return stored === null ? fallback : stored === "1";
+  });
+  const set = useCallback(
+    (next: boolean) => {
+      localStorage.setItem(key, next ? "1" : "0");
+      setOn(next);
+    },
+    [key],
+  );
+  return [on, set] as const;
+}
 
 // The git side of the Files tab: what changed, how the tree marks it, and
 // which git view the editor shows — the open file against HEAD, or every
@@ -30,9 +46,8 @@ export function useChangesView(
     () => review || localStorage.getItem(CHANGES_ONLY_KEY) === "1",
   );
   const [allWanted, setAllWanted] = useState(review);
-  const [sideBySide, setSideBySide] = useState(
-    () => localStorage.getItem(SIDE_BY_SIDE_KEY) !== "0",
-  );
+  const [sideBySide, showSideBySide] = useStoredFlag(SIDE_BY_SIDE_KEY, true);
+  const [wordWrap, showWordWrap] = useStoredFlag(WORD_WRAP_KEY, false);
   const status = selectedPath ? decorations.get(selectedPath) : undefined;
   const diff = useDiffView(root, selectedPath, status, active);
   const discard = useFileDiscard(root, changes);
@@ -60,11 +75,6 @@ export function useChangesView(
     }
   }, []);
 
-  const showSideBySide = useCallback((on: boolean) => {
-    localStorage.setItem(SIDE_BY_SIDE_KEY, on ? "1" : "0");
-    setSideBySide(on);
-  }, []);
-
   return {
     changes,
     files,
@@ -82,5 +92,7 @@ export function useChangesView(
     showAllChanges: setAllWanted,
     sideBySide,
     showSideBySide,
+    wordWrap,
+    showWordWrap,
   };
 }

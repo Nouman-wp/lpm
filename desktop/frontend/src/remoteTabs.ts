@@ -24,12 +24,17 @@ export interface RemoteTab {
 
 export function remoteTabOf(
   t: TerminalInstance,
-  { localSessions, sessionsReachable }: { localSessions: boolean; sessionsReachable: boolean },
+  {
+    localSessions,
+    sessionsReachable,
+    label,
+  }: { localSessions: boolean; sessionsReachable: boolean; label?: string },
 ): RemoteTab {
   const canFork = canForkSession(t.resumeCmd);
   return {
     id: t.id,
-    label: terminalDisplayLabel(t),
+    // The strip's name, which a running command can stand in for.
+    label: label ?? terminalDisplayLabel(t),
     cli: detectAICLI(t.startCmd) ?? "",
     pinned: t.pinned === true,
     emoji: t.emoji ?? "",

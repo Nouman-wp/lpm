@@ -24,6 +24,15 @@ export function terminalFontStack(family?: string): string {
   return `'${name}', ${TERMINAL_FONT_FAMILY}`;
 }
 
+// The family "Default" ends up as: the first of the default stack that the
+// machine has.
+export function defaultTerminalFontName(installed: string[]): string | undefined {
+  const have = new Set(installed.map((name) => name.toLowerCase()));
+  return TERMINAL_FONT_FAMILY.split(",")
+    .map((family) => family.trim().replace(/'/g, ""))
+    .find((family) => have.has(family.toLowerCase()));
+}
+
 // Fitting while the host is collapsed (hidden tab, mid-layout flex transition)
 // would shrink the terminal to xterm's 2-col minimum and garble everything
 // written after; skip and let the ResizeObserver refit once the host reaches a

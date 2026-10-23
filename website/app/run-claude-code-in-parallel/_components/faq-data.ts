@@ -2,7 +2,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "How do I run multiple Claude Code sessions at once?",
     answer:
-      "In lpm, press ⌘T for another terminal tab or ⌘D to split the pane (Ctrl+Shift+T and Ctrl+Shift+D on Windows and Linux), and start Claude Code in each; those sessions share the project folder. When the sessions might edit the same files, give each its own folder instead: right-click the project and choose Duplicate for full copies, or New Worktree for Git worktrees on their own branches.",
+      "In lpm, press ⌘T for another terminal tab or ⌘D to split the pane (Ctrl+Shift+T and Ctrl+Shift+D on Windows and Linux), and start Claude Code in each; those sessions share the project folder. When the sessions might edit the same files, give each its own folder instead: right-click the project and choose Duplicate for full copies, or New worktree for Git worktrees on their own branches.",
   },
   {
     question: "Can two Claude Code agents work in the same folder?",

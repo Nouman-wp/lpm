@@ -24,7 +24,7 @@ export const CMUX_DEMO: PageDemo = {
       project: "saas-app",
       mode: "worktree",
       title: "Give Codex a worktree",
-      body: "New Worktree on saas-app: a linked checkout on a branch of its own, where Codex starts on a second approach.",
+      body: "New worktree on saas-app: a linked checkout on a branch of its own, where Codex starts on a second approach.",
       // Past the typed prompt before it: the turn is seen starting first.
       leadMs: 8200,
       hint: {

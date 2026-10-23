@@ -22,22 +22,23 @@ export function useCopyLastAnswer(projectName: string, session: AgentSessionRef)
   }, []);
 
   const copy = async () => {
-    try {
-      const text = await AgentLastAnswer(
-        projectName,
-        session.provider,
-        session.sessionId,
-      );
-      if (!text?.trim()) {
-        toast.info("No answer to copy yet");
-        return;
-      }
-      await SetClipboardText(text);
-      flashCopied();
-    } catch (err) {
-      toast.error(String(err));
-    }
+    if (await copyLastAnswer(projectName, session)) flashCopied();
   };
 
   return { copied, copy, flashCopied };
+}
+
+export async function copyLastAnswer(projectName: string, session: AgentSessionRef | null): Promise<boolean> {
+  try {
+    const text = session && (await AgentLastAnswer(projectName, session.provider, session.sessionId));
+    if (!text?.trim()) {
+      toast.info("No answer to copy yet");
+      return false;
+    }
+    await SetClipboardText(text);
+    return true;
+  } catch (err) {
+    toast.error(String(err));
+    return false;
+  }
 }

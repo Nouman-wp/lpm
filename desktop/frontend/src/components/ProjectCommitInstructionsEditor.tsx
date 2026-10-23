@@ -24,7 +24,7 @@ export function ProjectCommitInstructionsEditor({
 
   return (
     <InstructionsEditor
-      title="Commit Instructions"
+      title="Commit instructions"
       description="Custom instructions for this project's AI commit messages. Leave blank to use the global default."
       placeholder={DEFAULT_COMMIT_INSTRUCTIONS}
       load={load}

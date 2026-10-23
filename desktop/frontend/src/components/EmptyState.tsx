@@ -1,3 +1,7 @@
+import { useAppStore } from "../store/app";
+import { CloudBranchIcon, FolderIcon } from "./icons";
+import { LaptopIcon } from "./connections/LaptopIcon";
+
 export function EmptyState() {
   return (
     <div className="flex h-full items-center justify-center">
@@ -13,10 +17,16 @@ export function EmptyState() {
   );
 }
 
-export function EmptyStateNoProjects({ onAdd }: { onAdd: () => void }) {
+const WAY_IN =
+  "inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium shadow-sm transition-all active:opacity-75";
+
+export function EmptyStateNoProjects() {
+  const pick = useAppStore((s) => s.pickAddProjectKind);
+  const connectComputer = useAppStore((s) => s.connectComputer);
+  const addProject = useAppStore((s) => s.addProject);
   return (
     <div className="flex h-full items-center justify-center px-6">
-      <div className="flex max-w-sm flex-col items-center text-center">
+      <div className="flex max-w-xl flex-col items-center text-center">
         <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] shadow-sm">
           <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
             <circle cx="13" cy="13" r="5" fill="var(--accent-green)" />
@@ -27,21 +37,38 @@ export function EmptyStateNoProjects({ onAdd }: { onAdd: () => void }) {
         <h2 className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">
           Start a project in lpm
         </h2>
-        <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
+        <p className="mt-2 max-w-sm text-sm leading-relaxed text-[var(--text-secondary)]">
           Run, stop, and switch between your local dev projects — all from one place.
         </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <button
+            onClick={() => void pick("local")}
+            className={`${WAY_IN} bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-85`}
+          >
+            <FolderIcon size={15} />
+            Open a folder…
+          </button>
+          <button
+            onClick={() => void pick("clone")}
+            className={`${WAY_IN} border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)]`}
+          >
+            <CloudBranchIcon size={15} />
+            Clone a repository…
+          </button>
+          <button
+            onClick={connectComputer}
+            className={`${WAY_IN} border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)]`}
+          >
+            <LaptopIcon size={15} />
+            Connect a computer…
+          </button>
+        </div>
         <button
-          onClick={onAdd}
-          className="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-sm font-medium text-[var(--bg-primary)] shadow-sm transition-all hover:opacity-85 active:opacity-75"
+          onClick={addProject}
+          className="mt-4 text-[12px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          Add project
+          Servers and other ways to add a project
         </button>
-        <p className="mt-4 text-[11px] text-[var(--text-muted)]">
-          Local folder · Git repo · SSH host
-        </p>
       </div>
     </div>
   );

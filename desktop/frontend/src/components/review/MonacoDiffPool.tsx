@@ -22,7 +22,7 @@ import {
 } from "../../monaco-theme";
 import { useGitChanged } from "../../hooks/useGitChanged";
 import { LayersIcon } from "../icons";
-import { READ_HEAVY_DIFF_OPTIONS } from "./diffEditorOptions";
+import { READ_HEAVY_DIFF_OPTIONS, wrapOptions } from "./diffEditorOptions";
 import { SPLIT_MIN_WIDTH, splitFits } from "./diffSplit";
 import {
   REVIEW_SOURCES,
@@ -116,6 +116,7 @@ interface MonacoDiffPoolProps {
   // When false, non-added files render as a single-column inline diff. Added
   // files ignore this and always use the true-inline rendering (see attachSlot).
   sideBySide?: boolean;
+  wordWrap?: boolean;
   active: boolean;
   // Reports the file occupying the top of the viewport as the user scrolls, so
   // the changes tree can highlight whatever they're reading.
@@ -142,6 +143,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       baseBranch,
       fontSize,
       sideBySide = true,
+      wordWrap = false,
       active,
       onActiveFileChange,
       selected,
@@ -202,6 +204,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     // Read inside attachSlot so the callback identity doesn't churn on toggle;
     // the effect below pushes the change to already-attached slots.
     const sideBySideRef = useRef(sideBySide);
+    const wordWrapRef = useRef(wordWrap);
     const filesRef = useRef<ChangedFile[]>(files);
     const statusRef = useRef<Map<string, string>>(new Map());
     const saveRef = useRef<(path: string) => void>(() => {});
@@ -216,6 +219,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     activeRef.current = active;
     fontSizeRef.current = fontSize;
     sideBySideRef.current = sideBySide;
+    wordWrapRef.current = wordWrap;
     filesRef.current = files;
     const statusMap = useMemo(
       () => new Map(files.map((f) => [f.path, f.status])),
@@ -617,6 +621,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         originalEditable: false,
         renderSideBySide: true,
         renderSideBySideInlineBreakpoint: SPLIT_MIN_WIDTH,
+        ...wrapOptions(wordWrapRef.current),
         ignoreTrimWhitespace: false,
         hideUnchangedRegions: { enabled: true },
         minimap: { enabled: false },
@@ -950,6 +955,14 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         scheduleLayout(slot);
       }
     }, [sideBySide, scheduleLayout]);
+
+    // Wrapping changes every line's height, so each attached editor re-measures.
+    useEffect(() => {
+      for (const slot of slotsRef.current) {
+        slot.editor.updateOptions(wrapOptions(wordWrap));
+        if (slot.path) scheduleLayout(slot);
+      }
+    }, [wordWrap, scheduleLayout]);
 
     useEffect(() => {
       if (!onDirtyPathsChange) return;

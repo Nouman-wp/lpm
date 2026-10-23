@@ -51,17 +51,16 @@ pub fn apply(builder: &mut CommandBuilder, shell: &str) {
             builder.env("ZDOTDIR", dir);
         }
         "bash" => {
-            builder.env("PROMPT_COMMAND", bash_prompt_command(std::env::var("PROMPT_COMMAND").ok()));
+            builder.env(
+                "PROMPT_COMMAND",
+                crate::shellwrap::bash_prompt_command(
+                    BASH_FN_NAME,
+                    std::env::var("PROMPT_COMMAND").ok(),
+                ),
+            );
             builder.env(format!("BASH_FUNC_{BASH_FN_NAME}%%"), BASH_FN);
         }
         _ => {}
-    }
-}
-
-fn bash_prompt_command(inherited: Option<String>) -> String {
-    match inherited {
-        Some(own) if !own.trim().is_empty() => format!("{BASH_FN_NAME};{own}"),
-        _ => BASH_FN_NAME.to_string(),
     }
 }
 
@@ -107,16 +106,6 @@ mod tests {
 
     fn has(shell: &str) -> bool {
         Command::new(shell).arg("-c").arg("true").status().is_ok()
-    }
-
-    #[test]
-    fn an_inherited_prompt_command_still_runs_after_the_hook() {
-        assert_eq!(bash_prompt_command(None), "_lpm_pane_prompt");
-        assert_eq!(bash_prompt_command(Some(" ".into())), "_lpm_pane_prompt");
-        assert_eq!(
-            bash_prompt_command(Some("history -a".into())),
-            "_lpm_pane_prompt;history -a"
-        );
     }
 
     /// The hook runs first at every prompt, ahead of the precmd hooks the
