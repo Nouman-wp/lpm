@@ -50,6 +50,10 @@ interface FilesTreeProps {
   onQueryChange: (query: string) => void;
   // null while the index is still being built.
   results: IndexEntry[] | null;
+  // How many paths matched in all; `results` holds the best of them.
+  resultsTotal?: number;
+  // Shown in place of the list when nothing matches the filter.
+  noMatches?: ReactNode;
   cursorRequest: CursorRequest | null;
   // Bumped to put the caret in the filter box with its text selected.
   filterFocusRequest: number;
@@ -84,6 +88,8 @@ export function FilesTree({
   query,
   onQueryChange,
   results,
+  resultsTotal = 0,
+  noMatches,
   cursorRequest,
   filterFocusRequest,
   onActivate,
@@ -290,6 +296,7 @@ export function FilesTree({
     if (filtering) {
       if (results === null) return <Note>{changesOnly ? "Loading…" : "Indexing files…"}</Note>;
       if (items.length === 0) {
+        if (noMatches && !changesOnly) return noMatches;
         return <Note>{changesOnly ? "No matching changed files" : "No matching files"}</Note>;
       }
       return renderRows(items);
@@ -351,6 +358,11 @@ export function FilesTree({
       >
         {renderList()}
       </div>
+      {filtering && results && resultsTotal > results.length && (
+        <p className="border-t border-[var(--border)] px-3 py-1.5 text-[10.5px] text-[var(--text-muted)]">
+          {results.length.toLocaleString()} of {resultsTotal.toLocaleString()} shown · type more to narrow
+        </p>
+      )}
     </div>
   );
 }

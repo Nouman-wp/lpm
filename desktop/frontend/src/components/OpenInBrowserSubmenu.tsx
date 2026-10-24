@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { GlobeIcon } from "./icons";
-import { ContextMenuItem } from "./ui/ContextMenuItem";
-import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
 import { DetectServicePorts } from "../../bridge/commands";
-import { openProjectPort } from "../peer/projectPorts";
-import { parseServicePorts } from "../servicePorts";
+import { linkedPorts, parseServicePorts } from "../servicePorts";
+import { PortLinkMenuItems, type PortLink } from "./terminal/PortLinkMenuItems";
 
 interface RunningService {
   name: string;
@@ -18,18 +15,9 @@ interface OpenInBrowserSubmenuProps {
   onClose: () => void;
 }
 
-interface ServiceLink {
-  service: string;
-  port: number;
-}
-
-const portLabel = (port: number) => (
-  <span className="font-mono text-[10px] tabular-nums">{`:${port}`}</span>
-);
-
-// Opens localhost:<port> for each running service in the default browser — a
-// paired machine's through a port tunnelled from there. The
-// configured `port:` renders the row synchronously so the menu has its final
+// Each running service's web server, in lpm's Browser tab or the default
+// browser — a paired machine's through a port tunnelled from there. The
+// configured `port:` renders the rows synchronously so the menu has its final
 // height on the first frame (no async reflow / flicker); live detection then
 // refines each service to the port it actually bound.
 export function OpenInBrowserSubmenu({ projectName, running, services, onClose }: OpenInBrowserSubmenuProps) {
@@ -53,45 +41,16 @@ export function OpenInBrowserSubmenu({ projectName, running, services, onClose }
     };
   }, [projectName, running]);
 
-  const links = useMemo<ServiceLink[]>(() => {
-    const out: ServiceLink[] = [];
+  const links = useMemo<PortLink[]>(() => {
+    const out: PortLink[] = [];
     for (const svc of services) {
-      const found = detected[svc.name];
-      const ports = found?.length ? found : svc.port > 0 ? [svc.port] : [];
-      for (const port of ports) out.push({ service: svc.name, port });
+      for (const port of linkedPorts(detected[svc.name] ?? [], svc.port, true)) {
+        out.push({ service: svc.name, port });
+      }
     }
     return out;
   }, [services, detected]);
 
-  if (!running || links.length === 0) return null;
-
-  const open = (port: number) => {
-    void openProjectPort(projectName, port);
-    onClose();
-  };
-
-  if (links.length === 1) {
-    const only = links[0];
-    return (
-      <ContextMenuItem
-        label="Open in browser"
-        icon={<GlobeIcon />}
-        trailing={portLabel(only.port)}
-        onClick={() => open(only.port)}
-      />
-    );
-  }
-
-  return (
-    <ContextMenuSubmenu label="Open in browser" icon={<GlobeIcon />}>
-      {links.map((link) => (
-        <ContextMenuItem
-          key={`${link.service}:${link.port}`}
-          label={link.service}
-          trailing={portLabel(link.port)}
-          onClick={() => open(link.port)}
-        />
-      ))}
-    </ContextMenuSubmenu>
-  );
+  if (!running) return null;
+  return <PortLinkMenuItems projectName={projectName} links={links} onClose={onClose} />;
 }

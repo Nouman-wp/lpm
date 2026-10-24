@@ -7,6 +7,7 @@ import {
   StartTerminalWithCwdEnv,
 } from "../../../bridge/commands";
 import { sendTerminalInput } from "../../terminal-io";
+import { setBrowserStartUrl } from "../../browserStartUrls";
 import { logDiagnostic } from "../../diagnostics";
 import { buildForkLaunch, claudeSessionIdOf } from "../../forkSession";
 import { claudeResumeSessionId } from "../../agentSession";
@@ -396,10 +397,13 @@ export function useTabCreation({
 
   // Browser tabs have no PTY — no StartTerminal, just a webview keyed by id.
   // Still owner-created so the tab id is minted once, in the tree of record.
+  // With a `url` the tab opens on that page instead of its start screen.
   const addBrowserToPane = useCallback(
-    (paneId?: string) => {
-      if (IS_MIRROR_WINDOW) return forward("addBrowserToPane", paneId);
-      addTerminal(makeBrowser(nextId("browser")), paneId);
+    (paneId?: string, url?: string, label?: string) => {
+      if (IS_MIRROR_WINDOW) return forward("addBrowserToPane", paneId, url, label);
+      const id = nextId("browser");
+      if (url) setBrowserStartUrl(id, url);
+      addTerminal(makeBrowser(id, label), paneId);
     },
     [addTerminal, forward],
   );

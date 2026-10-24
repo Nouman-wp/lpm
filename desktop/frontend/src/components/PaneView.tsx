@@ -163,6 +163,8 @@ export interface ServiceTabInfo {
   // Live TCP-listen ports the service's process tree owns, shown on its tab.
   // Empty until the service binds (or always, for remote projects).
   ports?: number[];
+  // The port the config names, when the service listens elsewhere instead.
+  configuredPort?: number;
   // The service's command has ended; its tab stays with the last output.
   exited?: boolean;
   exitCode?: number | null;
@@ -578,7 +580,15 @@ function PaneViewImpl(props: PaneViewProps) {
                       }`}
                     />
                   ) : (
-                    ports.length > 0 && <ServicePortLinks projectName={projectName} ports={ports} />
+                    ports.length > 0 && (
+                      <ServicePortLinks
+                        projectName={projectName}
+                        ports={ports}
+                        service={svc.name}
+                        paneId={pane.id}
+                        configuredPort={svc.configuredPort}
+                      />
+                    )
                   )
                 }
                 onClick={(e) => {
@@ -787,8 +797,10 @@ function PaneViewImpl(props: PaneViewProps) {
                 labelActions={
                   <ServiceColumnActions
                     projectName={projectName}
+                    paneId={pane.id}
                     name={svc.name}
                     ports={svc.ports ?? []}
+                    configuredPort={svc.configuredPort}
                     exited={svc.exited ?? false}
                     onRestart={() => onRestartService(svc.name)}
                     onStop={() => onStopService(svc.name)}
@@ -1009,6 +1021,8 @@ function PaneViewImpl(props: PaneViewProps) {
             y={serviceMenu.y}
             ports={svc.ports ?? []}
             projectName={projectName}
+            service={svc.name}
+            paneId={pane.id}
             onRestart={() => onRestartService(svc.name)}
             onStop={() => onStopService(svc.name)}
             onClose={() => setServiceMenu(null)}

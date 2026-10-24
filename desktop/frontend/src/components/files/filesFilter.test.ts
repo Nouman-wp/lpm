@@ -18,12 +18,12 @@ const index = [
 
 describe("rankFiles", () => {
   it("returns nothing for a blank query", () => {
-    expect(rankFiles(index, "")).toEqual([]);
-    expect(rankFiles(index, "   ")).toEqual([]);
+    expect(rankFiles(index, "").entries).toEqual([]);
+    expect(rankFiles(index, "   ").entries).toEqual([]);
   });
 
   it("ranks a name prefix, then a name hit, then a path hit, then a subsequence", () => {
-    expect(rankFiles(index, "lib").map((e) => e.path)).toEqual([
+    expect(rankFiles(index, "lib").entries.map((e) => e.path)).toEqual([
       "src/lib.rs",
       "src/stdlib.ts",
       "lib/util.ts",
@@ -32,7 +32,7 @@ describe("rankFiles", () => {
   });
 
   it("breaks ties within a rank by path length", () => {
-    expect(rankFiles(index, "sidebar").map((e) => e.path)).toEqual([
+    expect(rankFiles(index, "sidebar").entries.map((e) => e.path)).toEqual([
       "docs/sidebar-notes.md",
       "src/components/Sidebar.tsx",
       "src/components/SidebarUsage.tsx",
@@ -42,24 +42,26 @@ describe("rankFiles", () => {
   it("matches characters in order as a last resort", () => {
     expect(isSubsequence("sbts", "src/sb.ts")).toBe(true);
     expect(isSubsequence("tsb", "src/sb.ts")).toBe(false);
-    expect(rankFiles(index, "README.md").map((e) => e.path)).toEqual(["README.md"]);
+    expect(rankFiles(index, "README.md").entries.map((e) => e.path)).toEqual(["README.md"]);
   });
 
   it("requires every space-separated term somewhere in the path", () => {
-    expect(rankFiles(index, "comp usage").map((e) => e.path)).toEqual([
+    expect(rankFiles(index, "comp usage").entries.map((e) => e.path)).toEqual([
       "src/components/SidebarUsage.tsx",
     ]);
-    expect(rankFiles(index, "docs usage")).toEqual([]);
+    expect(rankFiles(index, "docs usage").entries).toEqual([]);
   });
 
   it("orders folders after files within a rank and respects the limit", () => {
-    const paths = rankFiles(index, "components").map((e) => e.path);
+    const paths = rankFiles(index, "components").entries.map((e) => e.path);
     expect(paths[0]).toBe("src/components");
-    expect(rankFiles(index, "s", 2)).toHaveLength(2);
+    const capped = rankFiles(index, "s", 2);
+    expect(capped.entries).toHaveLength(2);
+    expect(capped.total).toBeGreaterThan(2);
   });
 
   it("is case-insensitive and lower-cases once at index time", () => {
-    expect(rankFiles(index, "readme")[0].path).toBe("README.md");
+    expect(rankFiles(index, "readme").entries[0].path).toBe("README.md");
     expect(indexEntry("Docs/README.md", false)).toMatchObject({
       lower: "docs/readme.md",
       lowerName: "readme.md",

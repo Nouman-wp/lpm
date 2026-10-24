@@ -4,6 +4,7 @@
 use crate::agent_usage::{
     sort_breakdowns, AgentUsageStats, DailyUsage, UsageBreakdown, UsageSource, RECENT_SESSIONS,
 };
+use crate::agent_usage_detail::{merge_day_projects, PreviousUsage};
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 
@@ -16,7 +17,18 @@ pub(crate) fn merge(parts: Vec<(String, AgentUsageStats)>, days: i64) -> AgentUs
         ..Default::default()
     };
     let mut daily: BTreeMap<String, DailyUsage> = BTreeMap::new();
+    // A computer without the period before (an older lpm) would make the
+    // comparison wrong, so then there's none.
+    let mut previous = parts
+        .iter()
+        .all(|(_, stats)| stats.previous.is_some())
+        .then(PreviousUsage::default);
     for (machine, stats) in parts {
+        if let (Some(into), Some(part)) = (previous.as_mut(), stats.previous) {
+            into.sessions += part.sessions;
+            into.totals.add(part.totals);
+            into.projects.extend(part.projects);
+        }
         merged.sessions += stats.sessions;
         merged.totals.add(stats.totals);
         merged.providers.extend(stats.providers);
@@ -39,6 +51,10 @@ pub(crate) fn merge(parts: Vec<(String, AgentUsageStats)>, days: i64) -> AgentUs
     merged.projects = fold_rows(std::mem::take(&mut merged.projects));
     merged.models = fold_rows(std::mem::take(&mut merged.models));
     merged.daily = daily.into_values().collect();
+    merged.previous = previous.map(|mut previous| {
+        previous.projects = fold_rows(previous.projects);
+        previous
+    });
     merged
         .recent_sessions
         .sort_by(|a, b| b.last_at.cmp(&a.last_at));
@@ -77,6 +93,7 @@ fn add_day(daily: &mut BTreeMap<String, DailyUsage>, day: DailyUsage) {
     into.claude_tokens = into.claude_tokens.saturating_add(day.claude_tokens);
     into.codex_tokens = into.codex_tokens.saturating_add(day.codex_tokens);
     into.total_tokens = into.total_tokens.saturating_add(day.total_tokens);
+    merge_day_projects(&mut into.projects, day.projects);
     for model in day.models {
         match into.models.iter_mut().find(|m| {
             m.provider == model.provider

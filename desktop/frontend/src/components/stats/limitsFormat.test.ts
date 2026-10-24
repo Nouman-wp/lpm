@@ -86,7 +86,9 @@ describe("computePace elapsedPercent", () => {
   });
 
   it("is 50 at the midpoint", () => {
-    expect(computePace(resettingIn(FIVE_HOUR_MS / 2, 0), FIVE_HOUR_MS, NOW)!.elapsedPercent).toBe(50);
+    expect(computePace(resettingIn(FIVE_HOUR_MS / 2, 0), FIVE_HOUR_MS, NOW)!.elapsedPercent).toBe(
+      50,
+    );
   });
 
   it("is 100 at the window end", () => {
@@ -193,21 +195,29 @@ describe("computePace exhaustsInMs", () => {
   });
 
   it("is null when the projection lands exactly on the reset", () => {
-    expect(computePace(resettingIn(FIVE_HOUR_MS / 2, 50), FIVE_HOUR_MS, NOW)!.exhaustsInMs).toBeNull();
+    expect(
+      computePace(resettingIn(FIVE_HOUR_MS / 2, 50), FIVE_HOUR_MS, NOW)!.exhaustsInMs,
+    ).toBeNull();
   });
 
   it("is null when the projection lands after the reset", () => {
-    expect(computePace(resettingIn(FIVE_HOUR_MS / 2, 10), FIVE_HOUR_MS, NOW)!.exhaustsInMs).toBeNull();
+    expect(
+      computePace(resettingIn(FIVE_HOUR_MS / 2, 10), FIVE_HOUR_MS, NOW)!.exhaustsInMs,
+    ).toBeNull();
     expect(computePace(resettingIn(WEEKLY_MS / 2, 20), WEEKLY_MS, NOW)!.exhaustsInMs).toBeNull();
   });
 
   it("is null without a burn rate", () => {
-    expect(computePace(resettingIn(FIVE_HOUR_MS / 2, 0), FIVE_HOUR_MS, NOW)!.exhaustsInMs).toBeNull();
+    expect(
+      computePace(resettingIn(FIVE_HOUR_MS / 2, 0), FIVE_HOUR_MS, NOW)!.exhaustsInMs,
+    ).toBeNull();
     expect(computePace(resettingIn(FIVE_HOUR_MS, 40), FIVE_HOUR_MS, NOW)!.exhaustsInMs).toBeNull();
   });
 
   it("is null once the limit is already reached", () => {
-    expect(computePace(resettingIn(FIVE_HOUR_MS / 2, 100), FIVE_HOUR_MS, NOW)!.exhaustsInMs).toBeNull();
+    expect(
+      computePace(resettingIn(FIVE_HOUR_MS / 2, 100), FIVE_HOUR_MS, NOW)!.exhaustsInMs,
+    ).toBeNull();
   });
 });
 
@@ -236,7 +246,9 @@ describe("computePace numeric safety", () => {
           expect(Number.isFinite(pace.ratio), where).toBe(true);
           expect(pace.elapsedPercent, where).toBeGreaterThanOrEqual(0);
           expect(pace.elapsedPercent, where).toBeLessThanOrEqual(100);
-          expect(pace.exhaustsInMs === null || Number.isFinite(pace.exhaustsInMs), where).toBe(true);
+          expect(pace.exhaustsInMs === null || Number.isFinite(pace.exhaustsInMs), where).toBe(
+            true,
+          );
           if (pace.exhaustsInMs !== null) expect(pace.exhaustsInMs, where).toBeGreaterThan(0);
         }
       }

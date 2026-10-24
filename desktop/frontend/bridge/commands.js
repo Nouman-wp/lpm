@@ -223,6 +223,9 @@ export function ListDirEntries(root, rel) {
 export function ListDirFiles(root) {
   return invoke("list_dir_files", { root });
 }
+export function SearchFileContents(root, query) {
+  return invoke("search_file_contents", { root, query });
+}
 export function ListDirs(path) {
   return invoke("list_dirs", { path });
 }

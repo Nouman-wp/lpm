@@ -20,6 +20,7 @@ import type { RowTarget } from "./FilesRow";
 import { FilesRowMenu } from "./FilesRowMenu";
 import { FilesTree, type ActivateOptions, type CursorRequest } from "./FilesTree";
 import { rankFiles, type IndexEntry } from "./filesFilter";
+import { FilesContentSearch } from "./FilesContentSearch";
 import {
   adjacentFile,
   ancestorsOf,
@@ -97,7 +98,7 @@ export function FilesPane({
   // is the focused pane's view, so ⌘+ elsewhere still sizes the terminal.
   const zoom = useContentZoom(active && focused && git.allChanges, CHANGES_ZOOM_KEY);
   const index = useFileIndex(projectRoot, filtering && !changesOnly, active);
-  const results = useMemo(() => {
+  const ranked = useMemo(() => {
     if (!filtering) return null;
     const source = changesOnly ? git.items : index;
     return source ? rankFiles(source, query) : null;
@@ -280,10 +281,10 @@ export function FilesPane({
 
   const stepFile = useCallback(
     (delta: 1 | -1) => {
-      const next = adjacentFile(filtering ? (results ?? []) : rows, selectedPath, delta);
+      const next = adjacentFile(filtering ? (ranked?.entries ?? []) : rows, selectedPath, delta);
       if (next) openFile(next);
     },
-    [filtering, results, rows, selectedPath, openFile],
+    [filtering, ranked, rows, selectedPath, openFile],
   );
 
   // The path chords act on the tree cursor while the list has focus, else on
@@ -330,7 +331,9 @@ export function FilesPane({
         dirtyPaths={commit.dirtyPaths}
         query={query}
         onQueryChange={setQuery}
-        results={results}
+        results={ranked?.entries ?? null}
+        resultsTotal={ranked?.total}
+        noMatches={<FilesContentSearch root={projectRoot} query={query} onOpen={openFile} />}
         cursorRequest={cursorRequest}
         filterFocusRequest={filterFocusRequest}
         onActivate={activate}

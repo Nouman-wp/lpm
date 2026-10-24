@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { PeerPortForward } from "../../bridge/commands";
+import { PeerPortForward, SetClipboardText } from "../../bridge/commands";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { peerSlugOf } from "./markers";
 
@@ -24,6 +24,17 @@ export async function openProjectPort(projectName: string, port: number): Promis
     BrowserOpenURL(await projectPortUrl(projectName, port));
   } catch (err) {
     toast.error(`Couldn't open :${port}: ${err}`);
+  }
+}
+
+// The address this Mac reaches a project's web server at, on the clipboard.
+export async function copyProjectPortUrl(projectName: string, port: number): Promise<void> {
+  try {
+    const url = await projectPortUrl(projectName, port);
+    await SetClipboardText(url);
+    toast.success(`Copied ${url}`);
+  } catch (err) {
+    toast.error(`Couldn't copy :${port}: ${err}`);
   }
 }
 

@@ -68,6 +68,7 @@ export function ExportConfig(...args: any[]): Promise<any>;
 export function FileExists(...args: any[]): Promise<any>;
 export function ListDirEntries(...args: any[]): Promise<any>;
 export function ListDirFiles(...args: any[]): Promise<any>;
+export function SearchFileContents(...args: any[]): Promise<any>;
 export function ListDirs(...args: any[]): Promise<any>;
 export function FocusDetachedWindow(...args: any[]): Promise<any>;
 export function FocusMainWindow(...args: any[]): Promise<any>;

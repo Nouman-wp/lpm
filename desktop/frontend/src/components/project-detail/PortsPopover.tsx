@@ -8,7 +8,7 @@ import {
 } from "../../../bridge/commands";
 import type { main } from "../../../bridge/models";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
-import { openProjectPort } from "../../peer/projectPorts";
+import { openPortInLpm } from "../../portLinks";
 import { PlusIcon, XIcon } from "../icons";
 import { forwardPortAndOpen } from "./forwardPort";
 import { LocalPortField } from "./LocalPortField";
@@ -220,7 +220,7 @@ export function PortsPopover({ projectName, forwards, suggestions, onClose }: Po
                   value={isEditing ? editValue : String(f.localPort)}
                   onChange={setEditValue}
                   displayLabel={url}
-                  onDisplayClick={() => void openProjectPort(projectName, f.localPort)}
+                  onDisplayClick={() => openPortInLpm(projectName, f.localPort)}
                   onEdit={() =>
                     startEdit(
                       { kind: "forward", localPort: f.localPort, remotePort: f.remotePort },

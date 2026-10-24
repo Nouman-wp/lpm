@@ -79,6 +79,7 @@ import { useFollowState } from "../hooks/useFollowState";
 import { peerSlugOf } from "../peer/markers";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
 import { liveServices } from "../serviceExit";
+import { useBrowserRequests } from "../hooks/useBrowserRequests";
 
 interface ProjectDetailProps {
   project: ProjectInfo;
@@ -416,6 +417,12 @@ export function ProjectDetail({
     clearPendingFocusTerminal();
     terminalRef.current?.focusTerminalById(terminalId);
   }, [pendingFocusTerminal, selectedProject, project.name, clearPendingFocusTerminal]);
+
+  // A port link or the sidebar asked to show one of our servers' pages.
+  useBrowserRequests(project.name, selectedProject === project.name, (request) => {
+    switchDetailView("terminal");
+    void terminalRef.current?.openBrowserAt(request.url, request.label, request.paneId);
+  });
 
   // A peer Mac spawned a terminal on this host; adopt its pty as a tab. No
   // `selected` guard — the project is kept mounted (visited) so a hidden detail

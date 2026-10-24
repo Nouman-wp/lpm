@@ -1,5 +1,6 @@
 use crate::agent_usage_claude::collect_claude_events;
 use crate::agent_usage_codex::collect_codex_events;
+use crate::agent_usage_detail::{DailyProjectUsage, DailyProjects, PreviousUsage};
 use crate::config;
 use chrono::{DateTime, Duration, Local, TimeZone};
 use serde::{Deserialize, Serialize};
@@ -82,6 +83,8 @@ pub struct DailyUsage {
     pub(crate) codex_tokens: u64,
     pub(crate) total_tokens: u64,
     pub(crate) models: Vec<DailyModelUsage>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) projects: Vec<DailyProjectUsage>,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -119,6 +122,8 @@ pub struct AgentUsageStats {
     pub(crate) daily: Vec<DailyUsage>,
     pub(crate) recent_sessions: Vec<AgentSessionUsage>,
     pub(crate) sources: Vec<UsageSource>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) previous: Option<PreviousUsage>,
 }
 
 #[derive(Clone)]
@@ -290,12 +295,31 @@ fn period_cutoff(days: i64) -> Result<Option<i64>, String> {
     if !matches!(days, 1 | 7 | 30) {
         return Err("days must be 0, 1, 7, or 30".into());
     }
-    let start_date = Local::now().date_naive() - Duration::days(days - 1);
+    day_start(days - 1).map(Some)
+}
+
+// Where the period before this one begins. Today has none: a part of today
+// against all of yesterday would read as a drop every morning.
+fn previous_cutoff(days: i64) -> Result<Option<i64>, String> {
+    match days {
+        7 | 30 => day_start(2 * days - 1).map(Some),
+        _ => Ok(None),
+    }
+}
+
+fn day_start(days_ago: i64) -> Result<i64, String> {
+    let start_date = Local::now().date_naive() - Duration::days(days_ago);
     let start = start_date
         .and_hms_opt(0, 0, 0)
         .and_then(|value| Local.from_local_datetime(&value).earliest())
         .ok_or_else(|| "could not resolve local date".to_string())?;
-    Ok(Some(start.timestamp_millis()))
+    Ok(start.timestamp_millis())
+}
+
+fn local_date(timestamp: i64) -> String {
+    DateTime::from_timestamp_millis(timestamp)
+        .map(|value| value.with_timezone(&Local).format("%Y-%m-%d").to_string())
+        .unwrap_or_default()
 }
 
 fn breakdowns(
@@ -336,12 +360,15 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
     let mut model_groups: HashMap<(String, bool, bool), GroupAggregate> = HashMap::new();
     let mut sessions: HashMap<String, SessionAggregate> = HashMap::new();
     let mut daily: BTreeMap<String, DailyAggregate> = BTreeMap::new();
+    let mut day_projects = DailyProjects::default();
     for event in events {
         totals.add(event.tokens);
         let session_key = format!(
             "{}\0{}\0{}",
             event.provider, event.project, event.session_id
         );
+        let date = local_date(event.timestamp);
+        day_projects.add(&date, &event, &session_key);
         let provider = provider_groups
             .entry(event.provider.to_string())
             .or_default();
@@ -371,9 +398,6 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
         session.started_at = session.started_at.min(event.timestamp);
         session.last_at = session.last_at.max(event.timestamp);
         session.tokens.add(event.tokens);
-        let date = DateTime::from_timestamp_millis(event.timestamp)
-            .map(|value| value.with_timezone(&Local).format("%Y-%m-%d").to_string())
-            .unwrap_or_default();
         let day = daily.entry(date).or_default();
         if event.provider == "claude" {
             day.claude_tokens = day.claude_tokens.saturating_add(event.tokens.total_tokens);
@@ -391,6 +415,14 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
             .add(event.tokens);
     }
     let session_count = sessions.len();
+    for session in sessions.values() {
+        day_projects.mark_started(
+            &local_date(session.started_at),
+            &session.project,
+            &session.provider,
+        );
+    }
+    let mut day_projects = day_projects.into_days();
     let mut recent_sessions: Vec<AgentSessionUsage> = sessions
         .into_values()
         .map(|session| AgentSessionUsage {
@@ -429,6 +461,7 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
         daily: daily
             .into_iter()
             .map(|(date, totals)| DailyUsage {
+                projects: day_projects.remove(&date).unwrap_or_default(),
                 date,
                 claude_tokens: totals.claude_tokens,
                 codex_tokens: totals.codex_tokens,
@@ -450,16 +483,30 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
             .collect(),
         recent_sessions,
         sources,
+        previous: None,
     }
 }
 
 fn load_agent_usage_stats(days: i64) -> Result<AgentUsageStats, String> {
     let cutoff = period_cutoff(days)?;
+    let previous_from = previous_cutoff(days)?;
+    let since = previous_from.or(cutoff);
     let matcher = ProjectMatcher::load();
-    let (mut events, claude_files) = collect_claude_events(&matcher, cutoff);
-    let (codex_events, codex_files) = collect_codex_events(&matcher, cutoff);
+    let (mut events, claude_files) = collect_claude_events(&matcher, since);
+    let (codex_events, codex_files) = collect_codex_events(&matcher, since);
     events.extend(codex_events);
-    Ok(aggregate(
+    let (events, earlier): (Vec<_>, Vec<_>) = events
+        .into_iter()
+        .partition(|event| cutoff.is_none_or(|cutoff| event.timestamp >= cutoff));
+    let previous = previous_from.map(|_| {
+        let before = aggregate(earlier, days, Vec::new());
+        PreviousUsage {
+            sessions: before.sessions,
+            totals: before.totals,
+            projects: before.projects,
+        }
+    });
+    let mut stats = aggregate(
         events,
         days,
         vec![
@@ -472,12 +519,19 @@ fn load_agent_usage_stats(days: i64) -> Result<AgentUsageStats, String> {
                 files: codex_files,
             },
         ],
-    ))
+    );
+    stats.previous = previous;
+    Ok(stats)
 }
 
 #[tauri::command(async)]
 pub fn agent_usage_stats(days: i64) -> Result<AgentUsageStats, String> {
     load_agent_usage_stats(days)
+}
+
+#[cfg(test)]
+pub(crate) fn aggregate_for_test(events: Vec<UsageEvent>) -> AgentUsageStats {
+    aggregate(events, 0, Vec::new())
 }
 
 #[cfg(test)]

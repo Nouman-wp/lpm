@@ -193,11 +193,19 @@ describe("sample stats", () => {
     expect(total(stats.projects)).toBe(stats.totals.totalTokens);
     expect(total(stats.models)).toBe(stats.totals.totalTokens);
     expect(stats.daily.reduce((n, d) => n + d.totalTokens, 0)).toBe(stats.totals.totalTokens);
+    for (const day of stats.daily) {
+      const rows = (day.projects ?? []).flatMap((row) => row.models);
+      expect(rows.reduce((n, m) => n + m.tokens.totalTokens, 0)).toBe(day.totalTokens);
+    }
+    expect(stats.previous === undefined).toBe(days !== 7 && days !== 30);
   });
 
   it("leaves omitted projects out", () => {
     const stats = sampleStats(30, ["auth-service"]);
     expect(stats.projects.map((p) => p.key)).not.toContain("auth-service");
+    expect(stats.daily.flatMap((d) => d.projects ?? []).map((r) => r.project)).not.toContain(
+      "auth-service",
+    );
     expect(stats.recentSessions.map((s) => s.project)).not.toContain("auth-service");
     expect(total(stats.projects)).toBe(stats.totals.totalTokens);
   });

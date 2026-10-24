@@ -45,6 +45,7 @@ import { useKeyboardShortcut, type KeyboardShortcut } from "../hooks/useKeyboard
 import { canonicalShortcut, parseShortcut } from "../shortcutParse";
 import { resolveHotkey, type HotkeyId } from "../hotkeys";
 import { useServicePorts } from "../hooks/useServicePorts";
+import { linkedPorts, movedFromPort } from "../servicePorts";
 import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
 import type { LaunchpadProject } from "../hooks/useLaunchpad";
 import type { RunActionOpts } from "../hooks/useProjectActions";
@@ -86,7 +87,7 @@ interface TerminalViewProps {
   // What the user calls the project, for the + popup's prompt history.
   projectLabel: string;
   projectRoot: string;
-  services: { name: string; cmd?: string; cwd?: string; exited?: boolean; exitCode?: number | null }[];
+  services: { name: string; cmd?: string; cwd?: string; port?: number; exited?: boolean; exitCode?: number | null }[];
   terminalTheme: TerminalThemeName;
   onTerminalCountChange?: (count: number) => void;
   fontSize: number;
@@ -151,6 +152,9 @@ export interface TerminalViewHandle {
   openMemory(): void;
   // Open (or focus) the Automations tab, for `lpm automations open`.
   openAutomationsTab(): Promise<void>;
+  // A page of one of the project's servers, in the Browser tab already on it
+  // or a new one in `paneId`.
+  openBrowserAt(url: string, label?: string, paneId?: string): Promise<void>;
 }
 
 export function TerminalView({ projectName, projectLabel, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, paneStatus, visible = true, onScreen = visible, keysActive = true, onResumeSession, actions, onRunAction, onEditService, ref }: TerminalViewProps) {
@@ -237,6 +241,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     addFilesToPane,
     addAutomationsToPane,
     openAutomationsTab,
+    openBrowserTab,
     closeTerminal,
     closeOtherTerminals,
     restartTerminal,
@@ -370,12 +375,13 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
         output: outputs[idx] ?? "",
         sessionKey: `${projectName}:${svc.name}`,
         cwd: projectRoot ? joinAbs(projectRoot, svc.cwd ?? "") : "",
-        ports: servicePorts[svc.name] ?? [],
+        ports: linkedPorts(servicePorts[svc.name] ?? [], svc.port ?? 0, sessionsReachable),
+        configuredPort: movedFromPort(servicePorts[svc.name] ?? [], svc.port ?? 0),
         exited: serviceExits.has(svc.name),
         exitCode: serviceExits.get(svc.name) ?? null,
         cmd: svc.cmd,
       })),
-    [stableServices, outputs, projectName, projectRoot, servicePorts, serviceExits],
+    [stableServices, outputs, projectName, projectRoot, servicePorts, serviceExits, sessionsReachable],
   );
 
   // Session keys for all service Panes owned by this TerminalView.
@@ -1183,6 +1189,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       liveAgentSessions,
       openMemory,
       openAutomationsTab,
+      openBrowserAt: openBrowserTab,
     }),
     [
       createTerminal,
@@ -1207,6 +1214,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       liveAgentSessions,
       openMemory,
       openAutomationsTab,
+      openBrowserTab,
     ],
   );
 

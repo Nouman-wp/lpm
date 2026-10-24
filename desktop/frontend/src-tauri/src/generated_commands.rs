@@ -189,6 +189,7 @@ macro_rules! all_command_handlers {
             list_branches,
             list_dir_entries,
             list_dir_files,
+            search_file_contents,
             list_dirs,
             list_detached_projects,
             list_open_in_targets,

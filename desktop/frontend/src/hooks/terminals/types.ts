@@ -51,12 +51,14 @@ export interface UseTerminalsResult {
   forkTerminal: (paneId: string, termId: string) => Promise<void>;
   forkTerminalIntoCopy: (paneId: string, termId: string) => Promise<void>;
   addTerminalToPane: (paneId: string) => Promise<void>;
-  addBrowserToPane: (paneId?: string) => void;
+  addBrowserToPane: (paneId?: string, url?: string, label?: string) => void;
   addMemoryToPane: (paneId?: string) => void;
   addToolkitToPane: (paneId?: string) => void;
   addFilesToPane: (paneId?: string) => void;
   addAutomationsToPane: (paneId?: string) => void;
   openAutomationsTab: () => Promise<void>;
+  // Show a page of one of the project's servers, in the tab already on it or a new one.
+  openBrowserTab: (url: string, label?: string, paneId?: string) => Promise<void>;
   closeTerminal: (paneId: string, tabIdx: number) => void;
   // Start a terminal whose process has ended again in its own tab.
   restartTerminal: (terminalId: string) => Promise<void>;

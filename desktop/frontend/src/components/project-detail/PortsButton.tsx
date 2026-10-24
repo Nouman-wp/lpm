@@ -6,7 +6,7 @@ import {
 } from "../../../bridge/commands";
 import { EventsOn } from "../../../bridge/runtime";
 import type { main } from "../../../bridge/models";
-import { openProjectPort } from "../../peer/projectPorts";
+import { openPortInLpm } from "../../portLinks";
 import { PortForwardIcon } from "../icons";
 import { PortsPopover } from "./PortsPopover";
 
@@ -46,7 +46,7 @@ export function PortsButton({ projectName }: PortsButtonProps) {
       (data: { project: string; remotePort: number; localPort: number }) => {
         if (data.project !== projectName) return;
         toast.success(`Auto-forwarded :${data.remotePort} → http://localhost:${data.localPort}`, {
-          action: { label: "Open", onClick: () => void openProjectPort(projectName, data.localPort) },
+          action: { label: "Open", onClick: () => openPortInLpm(projectName, data.localPort) },
         });
       },
     );

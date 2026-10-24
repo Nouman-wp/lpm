@@ -278,12 +278,31 @@ export interface DailyModelUsage {
   longContext?: boolean;
 }
 
+// One project's usage with one agent on one day. `sessions` ran that day,
+// `started` of them began on it.
+export interface DailyProjectUsage {
+  project: string;
+  provider: string;
+  sessions: number;
+  started: number;
+  models: DailyModelUsage[];
+}
+
 export interface DailyUsage {
   date: string;
   claudeTokens: number;
   codexTokens: number;
   totalTokens: number;
   models: DailyModelUsage[];
+  // Absent from an older computer's stats.
+  projects?: DailyProjectUsage[];
+}
+
+// The period of the same length just before (7 and 30 days only).
+export interface PreviousUsage {
+  sessions: number;
+  totals: TokenUsage;
+  projects: UsageBreakdown[];
 }
 
 export interface AgentSessionUsage {
@@ -314,6 +333,7 @@ export interface AgentUsageStats {
   daily: DailyUsage[];
   recentSessions: AgentSessionUsage[];
   sources: UsageSource[];
+  previous?: PreviousUsage;
 }
 
 // A computer the Stats page can show: this one ("local") or a paired one.

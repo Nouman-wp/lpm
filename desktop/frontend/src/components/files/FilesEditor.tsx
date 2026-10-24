@@ -11,6 +11,7 @@ import { usePdfPreview } from "../pdfPreview";
 import { BinaryFilePlaceholder } from "../review/BinaryFilePlaceholder";
 import { EmptyState } from "../ui/EmptyState";
 import { useVideoPreview } from "../videoPreview";
+import { FileOpenActions } from "./FileOpenActions";
 import { FilesDiffEditor } from "./FilesDiffEditor";
 import { FilesMarkdownPreview, type MarkdownPreviewOptions } from "./FilesMarkdownPreview";
 import type { DiffSource } from "./useDiffView";
@@ -92,13 +93,18 @@ export function FilesEditor({
   if (media === "video") return <VideoFileView video={video} />;
   if (media === "image") return <ImageFileView preview={preview} />;
   if (media === "pdf") return <PdfFileView pdf={pdf} />;
-  if (file.binary) return <BinaryFilePlaceholder path={file.path} />;
+  if (file.binary) {
+    return (
+      <BinaryFilePlaceholder path={file.path}>
+        <FileOpenActions absPath={absPath} />
+      </BinaryFilePlaceholder>
+    );
+  }
   if (file.tooLarge) {
     return (
-      <BinaryFilePlaceholder
-        path={file.path}
-        message={`Too large to open here (${formatBytes(file.size)}) — use Open to view it elsewhere`}
-      />
+      <BinaryFilePlaceholder path={file.path} message={`Too large to open here (${formatBytes(file.size)})`}>
+        <FileOpenActions absPath={absPath} />
+      </BinaryFilePlaceholder>
     );
   }
   if (markdown) {

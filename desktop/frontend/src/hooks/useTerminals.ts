@@ -19,6 +19,7 @@ import { useAgentSessionTitles } from "./terminals/useAgentSessionTitles";
 import { useAgentSessionEvents } from "./terminals/useAgentSessionEvents";
 import { useTerminalMemory } from "./terminals/useTerminalMemory";
 import { useOpenAutomationsTab } from "./terminals/useOpenAutomationsTab";
+import { useOpenBrowserTab } from "./terminals/useOpenBrowserTab";
 
 export { type TerminalStartOpts, type UseTerminalsResult } from "./terminals/types";
 
@@ -181,6 +182,13 @@ export function useTerminals(
     focusTerminal,
     addAutomationsToPane,
   );
+  const openBrowserTab = useOpenBrowserTab(
+    projectName,
+    treeRef,
+    restoreSettled,
+    focusTerminal,
+    addBrowserToPane,
+  );
 
   const {
     closeTerminal,
@@ -318,6 +326,7 @@ export function useTerminals(
     addFilesToPane,
     addAutomationsToPane,
     openAutomationsTab,
+    openBrowserTab,
     closeTerminal,
     closeOtherTerminals,
     restartTerminal,

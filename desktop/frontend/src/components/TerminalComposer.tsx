@@ -66,6 +66,8 @@ import type { SendTargetRow } from "../sendTargets";
 import { useAppStore } from "../store/app";
 import { ComposerTabStrip, type ComposerTabView } from "./ComposerTabStrip";
 import { SendToTerminalModal, type SendTargetMode } from "./SendToTerminalModal";
+import type { SendPrompt } from "./SendPromptPreview";
+import { openSentTarget, sentToastText, startPromptInNewTab } from "../sendToNewTab";
 import type { DuplicatePromptSeed } from "./BulkDuplicateDialog";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
 import { MemoryPreviewPopover } from "./MemoryPreviewPopover";
@@ -236,6 +238,7 @@ const SHARED_TEXT_ONLY = "Only text can be sent to a shared tab.";
 // "@" mention is picked — enough to carry a stack trace, capped so a chatty
 // service can't bury the prompt (or the agent's context).
 const MENTION_LOG_LINES = 200;
+const NO_PROMPT: SendPrompt = { text: "", imageCount: 0 };
 
 
 // "/lpm-memory " (Claude) or "$lpm-memory " (Codex skill mention) with a
@@ -298,10 +301,11 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const gen = useAIGeneration(projectName);
   const [actionsModalOpen, setActionsModalOpen] = useState(false);
   // The target picker for "Send to another tab". Null while closed; open it with
-  // the prompt's image count, which decides whether a tab on another Mac can take
-  // it at all. `sendingAway` holds the picker open but inert while the send is in
-  // flight — a target's image upload is a round-trip that can still fail.
-  const [sendTarget, setSendTarget] = useState<{ hasImages: boolean } | null>(null);
+  // the prompt, shown at its top, whose image count decides whether a tab on
+  // another Mac can take it at all. `sendingAway` holds the picker open but
+  // inert while the send is in flight — a target's image upload is a round-trip
+  // that can still fail.
+  const [sendTarget, setSendTarget] = useState<SendPrompt | null>(null);
   const [sendingAway, setSendingAway] = useState(false);
   // Set while the multi-result variant picker is open. `startedId` pins the tab
   // the rewrites belong to, and `images` rehydrates whichever one is committed.
@@ -1396,7 +1400,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     sending.current.add(sentId);
     setSendingAway(true);
     try {
-      if (mode === "move") {
+      if (row.launch) {
+        startPromptInNewTab(row, row.launch, text, images);
+        rememberSent(text, images);
+      } else if (mode === "move") {
         deliverPromptDraft(row.terminalId, row.historyKey, text, images);
       } else {
         const payload = await buildTerminalPayload(row.terminalId, text, images);
@@ -1421,11 +1428,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       }
       finishSend(sentId, editor);
       setSendTarget(null);
-      toast.success(mode === "move" ? `Moved to ${row.label}` : `Sent to ${row.label}`, {
-        action: {
-          label: "Open",
-          onClick: () => useAppStore.getState().focusProjectTerminal(row.projectName, row.terminalId),
-        },
+      toast.success(sentToastText(row, mode), {
+        action: { label: "Open", onClick: () => openSentTarget(row) },
       });
     } catch (err) {
       toast.error(`Couldn't reach ${row.label}: ${String(err)}`);
@@ -2463,7 +2467,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               ? undefined
               : () => {
                   const editor = editorRef.current;
-                  setSendTarget({ hasImages: !!editor && presentImageTokens(editor).size > 0 });
+                  setSendTarget({
+                    text: editor ? serializeEditor(editor) : "",
+                    imageCount: editor ? presentImageTokens(editor).size : 0,
+                  });
                 },
             onRunInDuplicates: guest ? undefined : runInDuplicates,
           }}
@@ -2477,7 +2484,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         onClose={() => setSendTarget(null)}
         sourceProject={projectName}
         sourceTerminalId={terminalId}
-        hasImages={sendTarget?.hasImages ?? false}
+        prompt={sendTarget ?? NO_PROMPT}
+        sourceAgent={agentName}
         busy={sendingAway}
         onPick={(row, mode) => void sendToAnotherTab(row, mode)}
       />

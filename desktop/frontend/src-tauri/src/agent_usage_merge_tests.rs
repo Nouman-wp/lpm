@@ -1,5 +1,6 @@
 use super::*;
 use crate::agent_usage::{AgentSessionUsage, DailyModelUsage, TokenUsage};
+use crate::agent_usage_detail::DailyProjectUsage;
 
 fn tokens(total: u64) -> TokenUsage {
     TokenUsage {
@@ -34,6 +35,7 @@ fn day(date: &str, model: &str, total: u64) -> DailyUsage {
             fast: false,
             long_context: false,
         }],
+        ..Default::default()
     }
 }
 
@@ -217,4 +219,78 @@ fn recent_sessions_stay_capped() {
         .recent_sessions
         .iter()
         .all(|s| s.machine.as_deref() == Some("mbp")));
+}
+
+#[test]
+fn a_project_day_on_two_computers_is_one_row() {
+    let project_day = |sessions, started, total| DailyProjectUsage {
+        project: "lpm".into(),
+        provider: "claude".into(),
+        sessions,
+        started,
+        models: day("2026-10-01", "claude-opus", total).models,
+    };
+    let with_projects = |rows| DailyUsage {
+        projects: rows,
+        ..day("2026-10-01", "claude-opus", 100)
+    };
+    let merged = merge(
+        vec![
+            (
+                "local".into(),
+                stats(
+                    vec![],
+                    vec![with_projects(vec![project_day(2, 1, 60)])],
+                    vec![],
+                ),
+            ),
+            (
+                "mini".into(),
+                stats(
+                    vec![],
+                    vec![with_projects(vec![project_day(1, 1, 40)])],
+                    vec![],
+                ),
+            ),
+        ],
+        30,
+    );
+    let rows = &merged.daily[0].projects;
+    assert_eq!(rows.len(), 1);
+    assert_eq!((rows[0].sessions, rows[0].started), (3, 2));
+    assert_eq!(rows[0].models.len(), 1);
+    assert_eq!(rows[0].models[0].tokens.total_tokens, 100);
+}
+
+#[test]
+fn the_period_before_adds_up_only_when_every_computer_has_it() {
+    let with_previous = |total| AgentUsageStats {
+        previous: Some(PreviousUsage {
+            sessions: 1,
+            totals: tokens(total),
+            projects: vec![row("lpm", 1, total, false)],
+        }),
+        ..stats(vec![], vec![], vec![])
+    };
+    let merged = merge(
+        vec![
+            ("local".into(), with_previous(30)),
+            ("mini".into(), with_previous(12)),
+        ],
+        30,
+    );
+    let previous = merged.previous.expect("both computers have it");
+    assert_eq!(previous.sessions, 2);
+    assert_eq!(previous.totals.total_tokens, 42);
+    assert_eq!(previous.projects.len(), 1);
+    assert_eq!(previous.projects[0].tokens.total_tokens, 42);
+
+    let older = merge(
+        vec![
+            ("local".into(), with_previous(30)),
+            ("old".into(), stats(vec![], vec![], vec![])),
+        ],
+        30,
+    );
+    assert!(older.previous.is_none());
 }

@@ -2,7 +2,9 @@ import type {
   AgentSessionUsage,
   AgentUsageStats,
   DailyModelUsage,
+  DailyProjectUsage,
   DailyUsage,
+  PreviousUsage,
   TokenUsage,
   UsageBreakdown,
 } from "../../../types";
@@ -35,6 +37,18 @@ const PROJECT_SHARES = [
   { name: "ml-pipeline", share: 0.13 },
   { name: "mobile-app", share: 0.06 },
 ];
+
+// Each project's period before against this one, so the Projects panel's
+// change column has something to say.
+const BEFORE: Record<string, number> = {
+  "saas-app": 0.81,
+  "auth-service": 0.89,
+  "docs-site": 1.09,
+  "ml-pipeline": 0.71,
+  "mobile-app": 1.43,
+};
+
+type Share = { name: string; share: number };
 
 // Each session's last turn `ago` before now, after running for `ran`.
 const RECENT = [
@@ -81,7 +95,50 @@ function dayOf(ago: number): Date {
 const pad = (n: number) => String(n).padStart(2, "0");
 const isoDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-function daily(ago: number): DailyUsage {
+function sharesWithout(omit: readonly string[]): Share[] {
+  const kept = PROJECT_SHARES.filter((p) => !omit.includes(p.name));
+  const whole = kept.reduce((n, p) => n + p.share, 0);
+  return kept.map((p) => ({ name: p.name, share: p.share / whole }));
+}
+
+// Splits `total` by `shares`, the last part taking what rounding left over.
+function split(total: number, shares: Share[]): number[] {
+  let left = total;
+  return shares.map((p, i) => {
+    const part = i === shares.length - 1 ? left : Math.round(total * p.share);
+    left -= part;
+    return part;
+  });
+}
+
+const modelsTotal = (models: DailyModelUsage[]) =>
+  models.reduce((n, m) => n + m.tokens.totalTokens, 0);
+
+function projectDays(models: DailyModelUsage[], shares: Share[]): DailyProjectUsage[] {
+  const rows: DailyProjectUsage[] = [];
+  for (const provider of ["claude", "codex"]) {
+    const own = models.filter((m) => m.provider === provider);
+    const parts = own.map((m) => split(m.tokens.totalTokens, shares));
+    shares.forEach((p, i) => {
+      const projectModels = own
+        .map((m, j) => ({ ...m, tokens: tokens(parts[j][i]) }))
+        .filter((m) => m.tokens.totalTokens > 0);
+      const total = modelsTotal(projectModels);
+      if (total === 0) return;
+      const sessions = sessionsFor(total);
+      rows.push({
+        project: p.name,
+        provider,
+        sessions,
+        started: Math.max(1, Math.round(sessions * 0.6)),
+        models: projectModels,
+      });
+    });
+  }
+  return rows;
+}
+
+function daily(ago: number, shares: Share[]): DailyUsage {
   const i = CLAUDE_SERIES.length - 1 - (ago % CLAUDE_SERIES.length);
   const claude = Math.round(CLAUDE_SERIES[i] * MILLION);
   const codex = Math.round(CODEX_SERIES[i] * MILLION);
@@ -98,6 +155,7 @@ function daily(ago: number): DailyUsage {
     codexTokens: codex,
     totalTokens: claude + codex,
     models,
+    projects: projectDays(models, shares),
   };
 }
 
@@ -114,15 +172,30 @@ function breakdown(
 const byTokens = (a: UsageBreakdown, b: UsageBreakdown) =>
   b.tokens.totalTokens - a.tokens.totalTokens || a.label.localeCompare(b.label);
 
-function projects(total: number, omit: readonly string[]): UsageBreakdown[] {
-  const shares = PROJECT_SHARES.filter((p) => !omit.includes(p.name));
-  const whole = shares.reduce((n, p) => n + p.share, 0);
-  let left = total;
-  return shares.map((p, i) => {
-    const part = i === shares.length - 1 ? left : Math.round((total * p.share) / whole);
-    left -= part;
-    return breakdown(p.name, p.name, tokens(part));
-  });
+function projects(window: DailyUsage[], shares: Share[]): UsageBreakdown[] {
+  return shares
+    .map((p) => {
+      const total = window
+        .flatMap((day) => day.projects ?? [])
+        .filter((row) => row.project === p.name)
+        .reduce((n, row) => n + modelsTotal(row.models), 0);
+      return breakdown(p.name, p.name, tokens(total));
+    })
+    .sort(byTokens);
+}
+
+function previous(days: number, shares: Share[]): PreviousUsage | undefined {
+  if (days !== 7 && days !== 30) return undefined;
+  const before = Array.from({ length: days }, (_, i) => daily(days + i, shares));
+  const rows = projects(before, shares).map((row) =>
+    breakdown(
+      row.key,
+      row.label,
+      tokens(Math.round(row.tokens.totalTokens * (BEFORE[row.key] ?? 1))),
+    ),
+  );
+  const total = rows.reduce((n, row) => n + row.tokens.totalTokens, 0);
+  return { sessions: sessionsFor(total), totals: tokens(total), projects: rows.sort(byTokens) };
 }
 
 function recent(since: number, omit: readonly string[]): AgentSessionUsage[] {
@@ -141,7 +214,8 @@ function recent(since: number, omit: readonly string[]): AgentSessionUsage[] {
  *  projects in `omit`. */
 export function sampleStats(days: number, omit: readonly string[] = []): AgentUsageStats {
   const span = days > 0 ? days : ALL_TIME_DAYS;
-  const window = Array.from({ length: span }, (_, i) => daily(span - 1 - i));
+  const shares = sharesWithout(omit);
+  const window = Array.from({ length: span }, (_, i) => daily(span - 1 - i, shares));
   const models = window.flatMap((d) => d.models);
   const modelRows = [...new Set(models.map((m) => m.model))].map((model) => {
     const rows = models.filter((m) => m.model === model);
@@ -161,10 +235,11 @@ export function sampleStats(days: number, omit: readonly string[] = []): AgentUs
     sessions: providers.reduce((n, p) => n + p.sessions, 0),
     totals,
     providers: providers.sort(byTokens),
-    projects: projects(totals.totalTokens, omit).sort(byTokens),
+    projects: projects(window, shares),
     models: modelRows.sort(byTokens),
     daily: window,
     recentSessions: recent(since, omit),
     sources: providers.map((p) => ({ provider: p.key, files: p.sessions })),
+    previous: previous(days, shares),
   };
 }

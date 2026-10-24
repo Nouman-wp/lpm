@@ -76,16 +76,17 @@ export function visibleDaily(daily: DailyUsage[], filter: ProviderFilter): Visib
     const claudeTokens = filter.claude ? day.claudeTokens : 0;
     const codexTokens = filter.codex ? day.codexTokens : 0;
     const totalTokens = claudeTokens + codexTokens;
-    const models = (day.models ?? []).filter((entry) =>
+    const shown = (entry: { provider: string }) =>
       entry.provider === "claude"
         ? filter.claude
         : entry.provider === "codex"
           ? filter.codex
-          : true,
-    );
+          : true;
+    const models = (day.models ?? []).filter(shown);
+    const projects = day.projects?.filter(shown);
     max = Math.max(max, totalTokens);
     total += totalTokens;
-    return { date: day.date, claudeTokens, codexTokens, totalTokens, models };
+    return { date: day.date, claudeTokens, codexTokens, totalTokens, models, projects };
   });
   return { days, max, total };
 }

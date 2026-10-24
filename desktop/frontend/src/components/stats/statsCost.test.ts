@@ -15,11 +15,7 @@ function tokens(partial: Partial<TokenUsage>): TokenUsage {
   };
 }
 
-function breakdown(
-  key: string,
-  tokenPart: Partial<TokenUsage>,
-  provider?: string,
-): UsageBreakdown {
+function breakdown(key: string, tokenPart: Partial<TokenUsage>, provider?: string): UsageBreakdown {
   return { key, label: key, sessions: 1, tokens: tokens(tokenPart), provider };
 }
 
@@ -181,10 +177,7 @@ describe("estimateModelCost", () => {
       6 * (5 + 0.5 + 25),
       6,
     );
-    expect(estimateModelCost(usage, "gpt-5.5", "codex", true)).toBeCloseTo(
-      2.5 * (5 + 0.5 + 30),
-      6,
-    );
+    expect(estimateModelCost(usage, "gpt-5.5", "codex", true)).toBeCloseTo(2.5 * (5 + 0.5 + 30), 6);
     expect(estimateModelCost(usage, "o4-mini", "codex", true)).toBeCloseTo(2 + 0.5 + 8, 6);
   });
 

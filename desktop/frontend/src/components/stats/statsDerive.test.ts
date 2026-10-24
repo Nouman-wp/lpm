@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { TokenUsage, UsageBreakdown } from "../../types";
-import {
-  cacheShare,
-  providerMeta,
-  reasoningShare,
-  sortProjects,
-  tokenTypeSegments,
-} from "./statsDerive";
+import type { TokenUsage } from "../../types";
+import { cacheShare, providerMeta, reasoningShare, tokenTypeSegments } from "./statsDerive";
 
 const claudeTotals: TokenUsage = {
   inputTokens: 152,
@@ -91,45 +85,5 @@ describe("tokenTypeSegments", () => {
     for (const segment of segments) {
       expect(segment.value).toBeGreaterThanOrEqual(0);
     }
-  });
-});
-
-describe("sortProjects", () => {
-  const projects: UsageBreakdown[] = [
-    { key: "b", label: "beta", sessions: 3, tokens: { ...codexTotals, totalTokens: 500 } },
-    { key: "a", label: "alpha", sessions: 3, tokens: { ...codexTotals, totalTokens: 900 } },
-    { key: "c", label: "gamma", sessions: 1, tokens: { ...codexTotals, totalTokens: 500 } },
-  ];
-
-  it("sorts by tokens descending by default", () => {
-    expect(sortProjects(projects, "tokens", "desc").map((p) => p.key)).toEqual(["a", "b", "c"]);
-  });
-
-  it("breaks ties on label ascending regardless of direction", () => {
-    expect(sortProjects(projects, "sessions", "desc").map((p) => p.key)).toEqual(["a", "b", "c"]);
-  });
-
-  it("sorts by name ascending", () => {
-    expect(sortProjects(projects, "name", "asc").map((p) => p.key)).toEqual(["a", "b", "c"]);
-  });
-
-  it("sorts by the resolved display name when a resolver is supplied", () => {
-    const resolved: Record<string, string> = { a: "Zeta", b: "Mango", c: "Apple" };
-    const nameOf = (p: UsageBreakdown) => resolved[p.key];
-    expect(sortProjects(projects, "name", "asc", nameOf).map((p) => p.key)).toEqual([
-      "c",
-      "b",
-      "a",
-    ]);
-  });
-
-  it("breaks ties on the resolved display name", () => {
-    const resolved: Record<string, string> = { a: "Zeta", b: "Mango", c: "Apple" };
-    const nameOf = (p: UsageBreakdown) => resolved[p.key];
-    expect(sortProjects(projects, "sessions", "desc", nameOf).map((p) => p.key)).toEqual([
-      "b",
-      "a",
-      "c",
-    ]);
   });
 });

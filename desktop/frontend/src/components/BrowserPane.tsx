@@ -19,6 +19,7 @@ import { isLinux, isWindows } from "../platform";
 import { toast } from "sonner";
 import { projectAddress } from "../peer/projectPorts";
 import { toTarget } from "./browserTarget";
+import { browserStartUrl, forgetBrowserStartUrl } from "../browserStartUrls";
 import { ExternalBrowserPane } from "./ExternalBrowserPane";
 import { BrowserServiceList, serviceAddress, type BrowserService } from "./BrowserServiceList";
 import { ChevronLeftIcon, ChevronRightIcon, RefreshIcon, SunIcon, MoonIcon, GlobeIcon } from "./icons";
@@ -136,6 +137,9 @@ function EmbeddedBrowserPane({ id, projectName, active, services = [] }: Browser
       toast.error(`Couldn't open ${target}: ${err}`);
       return;
     }
+    // Known before the page reports it, so a second link to the same server
+    // finds this tab instead of opening another.
+    useBrowserUrls.getState().setUrl(id, target);
     if (openedRef.current) {
       NavigateBrowser(id, target);
       return;
@@ -148,6 +152,19 @@ function EmbeddedBrowserPane({ id, projectName, active, services = [] }: Browser
     SetBrowserTheme(id, darkRef.current);
     setOpened(true);
   };
+
+  // A tab made for a page opens on it. Deferred a tick, and cancelled with the
+  // effect, so a mount StrictMode undoes doesn't leave a webview it closed.
+  useEffect(() => {
+    const start = browserStartUrl(id);
+    if (!start || openedRef.current) return;
+    const timer = setTimeout(() => {
+      forgetBrowserStartUrl(id);
+      setAddress(start);
+      void open(start);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [id]);
 
   const openService = (addr: string) => {
     setAddress(addr);

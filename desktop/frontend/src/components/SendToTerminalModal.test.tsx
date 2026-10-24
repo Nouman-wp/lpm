@@ -76,7 +76,8 @@ async function render(props: Partial<Parameters<typeof SendToTerminalModal>[0]> 
         onClose={() => {}}
         sourceProject="api"
         sourceTerminalId="api-1"
-        hasImages={false}
+        prompt={{ text: "Add a loading skeleton to the cart", imageCount: 0 }}
+        sourceAgent="claude"
         busy={false}
         onPick={mocks.pick}
         {...props}
@@ -142,12 +143,42 @@ afterEach(() => {
 describe("SendToTerminalModal", () => {
   it("lists every other open tab and never the one being written in", async () => {
     await render();
-    expect(rowLabels()).toEqual(["Shell", "Codex"]);
+    expect(rowLabels()).toEqual(["Shell", "New Claude Code tab", "Codex", "New Claude Code tab"]);
+  });
+
+  it("shows the prompt it is handing off, and its images", async () => {
+    await render({ prompt: { text: "Fix [Image #1] the cart", imageCount: 2 } });
+    expect(document.body.textContent).toContain("Fix the cart");
+    expect(document.body.textContent).toContain("2 images");
+  });
+
+  it("starts the prompt in a new tab of the project, even on ⌘↵", async () => {
+    await render();
+    click(rowButtons()[1]);
+    expect(mocks.pick).toHaveBeenLastCalledWith(
+      expect.objectContaining({ projectName: "api", launch: expect.objectContaining({ agent: "claude" }) }),
+      "send",
+    );
+    pressInSearch("ArrowDown");
+    pressInSearch("Enter", true);
+    expect(mocks.pick).toHaveBeenLastCalledWith(
+      expect.objectContaining({ projectName: "api", launch: expect.objectContaining({ agent: "claude" }) }),
+      "send",
+    );
+  });
+
+  it("offers a new tab in projects that have none open yet", async () => {
+    mocks.projects = [project("api"), project("web"), project("billing")];
+    await render();
+    expect(document.body.textContent).toContain("Not open this session");
+    const row = rowButtons().at(-1);
+    click(row);
+    expect(mocks.pick).toHaveBeenCalledWith(expect.objectContaining({ projectName: "billing" }), "send");
   });
 
   it("sends to the tab that was clicked", async () => {
     await render();
-    click(rowButtons()[1]);
+    click(rowButtons().find((b) => (b.textContent ?? "").includes("Codex")));
     expect(mocks.pick).toHaveBeenCalledWith(
       expect.objectContaining({ terminalId: "web-1", projectName: "web" }),
       "send",
@@ -165,6 +196,7 @@ describe("SendToTerminalModal", () => {
 
   it("sends on ↵ and moves on ⌘↵, following the arrow keys", async () => {
     await render();
+    pressInSearch("ArrowDown");
     pressInSearch("ArrowDown");
     pressInSearch("Enter");
     expect(mocks.pick).toHaveBeenLastCalledWith(
@@ -208,17 +240,18 @@ describe("SendToTerminalModal", () => {
       "peer-a1b2c3d4-web": [tab("peer-a1b2c3d4-web-1", "Codex")],
     };
     mocks.projects = [project("api"), project("peer-a1b2c3d4-web")];
-    await render({ hasImages: true });
-    const row = rowButtons()[0];
-    expect(row.disabled).toBe(true);
-    expect((row.textContent ?? "").includes("Another Mac")).toBe(true);
+    await render({ prompt: { text: "Fix [Image #1]", imageCount: 1 } });
+    const row = rowButtons().find((b) => (b.textContent ?? "").includes("Codex"));
+    expect(row?.disabled).toBe(true);
+    expect((row?.textContent ?? "").includes("Another Mac")).toBe(true);
     click(row);
     expect(mocks.pick).not.toHaveBeenCalled();
   });
 
-  it("says why there is nothing to send to", async () => {
+  it("offers a new tab when the project has no other", async () => {
+    mocks.projects = [project("api")];
     mocks.byProject = { api: [tab("api-1", "Claude")] };
     await render();
-    expect(document.body.textContent).toContain("only projects you've opened this session");
+    expect(rowLabels()).toEqual(["New Claude Code tab"]);
   });
 });

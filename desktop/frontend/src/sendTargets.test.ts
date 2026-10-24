@@ -94,4 +94,37 @@ describe("buildSendTargets", () => {
     });
     expect(flattenTargets(groups)[0].offHost).toBe(false);
   });
+
+  it("ends each project with a new tab, and offers projects with none open", () => {
+    const newTab = { launch: { agent: "claude" }, label: "New Claude Code tab", detail: "" };
+    const groups = buildSendTargets({
+      ...base,
+      byProject: {
+        [GLOBAL_TERMINALS_KEY]: [tab("g-1", "Scratch")],
+        api: [tab("api-1", "Claude"), tab("api-2", "Shell")],
+      },
+      newTab,
+      allProjects: ["api", "billing", "peer-a1b2c3d4-docs"],
+    });
+    expect(groups.map((g) => [g.projectName, !!g.closed])).toEqual([
+      ["api", false],
+      [GLOBAL_TERMINALS_KEY, false],
+      ["billing", true],
+      ["peer-a1b2c3d4-docs", true],
+    ]);
+    expect(groups[0].rows.map((r) => r.label)).toEqual(["Shell", "New Claude Code tab"]);
+    expect(groups[1].rows.some((r) => r.launch)).toBe(false);
+    expect(groups[3].rows[0]).toMatchObject({ launch: { agent: "claude" }, offHost: true });
+  });
+
+  it("narrows the projects with none open to the query", () => {
+    const groups = buildSendTargets({
+      ...base,
+      byProject: { api: [tab("api-1", "Claude")] },
+      newTab: { launch: { agent: "codex" }, label: "New Codex tab", detail: "" },
+      allProjects: ["api", "billing", "docs"],
+      query: "bill",
+    });
+    expect(groups.map((g) => g.projectName)).toEqual(["billing"]);
+  });
 });

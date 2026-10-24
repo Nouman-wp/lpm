@@ -9,6 +9,8 @@ import { ProjectsPanel } from "./stats/ProjectsPanel";
 import { RecentSessionsPanel } from "./stats/RecentSessionsPanel";
 import { StatsSkeleton } from "./stats/StatsSkeleton";
 import { ComputerMenu } from "./stats/ComputerMenu";
+import { StatsScopeChip } from "./stats/StatsScopeChip";
+import { useStatsScope } from "./stats/useStatsScope";
 import { distinctModelCount, providerMeta } from "./stats/statsDerive";
 import {
   ALL_MACHINES,
@@ -19,6 +21,8 @@ import {
   statsSubtitle,
 } from "./stats/statsMachines";
 import { MACHINE } from "../machineWords";
+import { useAppStore } from "../store/app";
+import { displayNameForProjectName } from "./ProjectNameDisplay";
 
 const PERIODS = [
   { days: 1, label: "Today" },
@@ -61,10 +65,9 @@ export function StatsView() {
     void load();
   }, [load]);
 
-  const chartDays = useMemo(() => {
-    const values = stats?.daily ?? [];
-    return days === 0 ? values.slice(-28) : values;
-  }, [stats, days]);
+  const allProjects = useAppStore((s) => s.projects);
+  const view = useStatsScope(stats, days);
+  const { scope, scoped } = view;
   const totalFiles = stats?.sources.reduce((sum, source) => sum + source.files, 0) ?? 0;
   const names = useMemo(() => machineNames(machines), [machines]);
   const several = machines.length > 1 && machine !== LOCAL_MACHINE;
@@ -77,10 +80,31 @@ export function StatsView() {
         : "";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div
+      className="flex min-h-0 flex-1 flex-col"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && view.stepBack()) event.stopPropagation();
+      }}
+    >
       <div className="app-drag flex items-center gap-4 -mx-6 px-6 py-1">
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-semibold tracking-tight">Stats</h1>
+          <div className="flex min-w-0 items-center gap-2">
+            <h1 className="text-xl font-semibold tracking-tight">Stats</h1>
+            {scope.project && (
+              <StatsScopeChip
+                label={displayNameForProjectName(scope.project, allProjects)}
+                clearLabel="Show every project"
+                onClear={() => view.focusProject(null)}
+              />
+            )}
+            {view.rangeText && (
+              <StatsScopeChip
+                label={view.rangeText}
+                clearLabel="Show the whole period"
+                onClear={view.clearRange}
+              />
+            )}
+          </div>
           <p className="mt-0.5 text-xs text-[var(--text-muted)]">
             {statsSubtitle(machine, machines)}
           </p>
@@ -91,6 +115,7 @@ export function StatsView() {
             selected={machine}
             onSelect={(id) => {
               setStats(null);
+              view.reset();
               setMachine(id);
             }}
           />
@@ -102,6 +127,7 @@ export function StatsView() {
               onClick={() => {
                 if (period.days !== days) {
                   setStats(null);
+                  view.reset();
                   setDays(period.days);
                 }
               }}
@@ -140,19 +166,24 @@ export function StatsView() {
 
         {!error && !stats && loading && <StatsSkeleton days={days} />}
 
-        {stats && (
+        {stats && scoped && (
           <div
             className="space-y-4 pb-2 transition-opacity duration-200"
             style={{ opacity: loading ? 0.6 : 1 }}
           >
             <StatTiles
-              totals={stats.totals}
-              sessions={stats.sessions}
-              daily={stats.daily}
-              models={stats.models}
-              projectCount={stats.projects.length}
-              modelCount={distinctModelCount(stats.recentSessions)}
-              days={days}
+              totals={scoped.totals}
+              sessions={scoped.sessions}
+              daily={view.tileDays}
+              models={scoped.models}
+              projectCount={scoped.projects.length}
+              modelCount={
+                scoped === stats
+                  ? distinctModelCount(stats.recentSessions)
+                  : new Set(scoped.models.map((model) => model.key)).size
+              }
+              days={view.tileDayCount}
+              singleDayCaption={view.singleDayCaption}
             />
 
             {stats.totals.totalTokens === 0 ? (
@@ -180,15 +211,29 @@ export function StatsView() {
             ) : (
               <>
                 <div className="grid grid-cols-[minmax(0,1.55fr)_minmax(280px,0.9fr)] gap-4">
-                  <TokenActivityChart daily={chartDays} />
-                  <BreakdownPanel providers={stats.providers} totals={stats.totals} />
+                  <TokenActivityChart
+                    daily={view.chartDaily}
+                    pinned={scope.range}
+                    onPin={view.pin}
+                  />
+                  <BreakdownPanel providers={scoped.providers} totals={scoped.totals} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <ProjectsPanel projects={stats.projects} days={days} />
+                  <ProjectsPanel
+                    days={view.rangeDays}
+                    periodDays={view.periodDays}
+                    fallback={stats.projects}
+                    previous={scope.range ? undefined : stats.previous}
+                    changeLabel={view.changeLabel}
+                    emptyLabel={view.emptyLabel}
+                    focused={scope.project}
+                    onFocus={view.focusProject}
+                  />
                   <RecentSessionsPanel
-                    sessions={stats.recentSessions}
-                    days={days}
+                    sessions={scoped.recentSessions}
+                    total={scoped.sessions}
+                    emptyLabel={view.emptyLabel}
                     machineNames={names}
                   />
                 </div>

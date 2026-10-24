@@ -30,3 +30,15 @@ export function samePorts(
   }
   return true;
 }
+
+// What a service's links point at: the ports it listens on, else (before the
+// scan has seen it bind, or where nothing is scanned) the one its config names.
+export function linkedPorts(detected: number[], configured: number, fallback: boolean): number[] {
+  if (detected.length > 0) return detected;
+  return fallback && configured > 0 ? [configured] : [];
+}
+
+// The configured port, when the service listens on others instead of it.
+export function movedFromPort(detected: number[], configured: number): number | undefined {
+  return configured > 0 && detected.length > 0 && !detected.includes(configured) ? configured : undefined;
+}

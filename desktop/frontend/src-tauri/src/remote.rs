@@ -2464,6 +2464,9 @@ fn handle_msg(
                     .and_then(|u| serde_json::to_value(u).map_err(|e| e.to_string()))
                 {
                     Ok(Value::Object(mut fields)) => {
+                        if let Some(stats) = fields.get_mut("stats") {
+                            crate::agent_usage_detail::strip_for_phone(stats);
+                        }
                         fields.insert("t".into(), json!("stats"));
                         fields.insert("ok".into(), json!(true));
                         Value::Object(fields)

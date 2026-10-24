@@ -1,4 +1,4 @@
-import { TerminalIcon } from "./icons";
+import { PlusIcon, TerminalIcon } from "./icons";
 import { EmojiMark } from "./EmojiMark";
 import { AGENT_STATE_LABEL, AGENT_STATE_TONE, type AgentState } from "../agentStatus";
 import type { SendTargetRow } from "../sendTargets";
@@ -50,11 +50,13 @@ export function SendTargetItem({
         }`}
       >
         <span className="flex h-4 w-4 shrink-0 items-center justify-center text-[var(--text-muted)]">
-          {row.emoji ? <EmojiMark emoji={row.emoji} size={16} /> : <TerminalIcon />}
+          {row.launch ? <PlusIcon /> : row.emoji ? <EmojiMark emoji={row.emoji} size={16} /> : <TerminalIcon />}
         </span>
         <span className="min-w-0 flex-1 truncate">{row.label}</span>
         {blockedReason ? (
           <span className="shrink-0 text-[11px] text-[var(--text-muted)]">{blockedReason}</span>
+        ) : row.detail ? (
+          <span className="shrink-0 text-[11px] text-[var(--text-muted)]">{row.detail}</span>
         ) : (
           state && (
             <span className={`shrink-0 text-[11px] ${AGENT_STATE_TONE[state]}`}>
@@ -63,17 +65,19 @@ export function SendTargetItem({
           )
         )}
       </button>
-      <button
-        type="button"
-        tabIndex={-1}
-        onClick={() => onPick(row, other)}
-        disabled={disabled}
-        className={`mr-2 shrink-0 rounded-md px-1.5 py-0.5 text-[11px] text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40 ${
-          primary === "move" || active ? "" : "opacity-0 group-hover:opacity-100"
-        }`}
-      >
-        {OTHER_LABEL[primary]}
-      </button>
+      {!row.launch && (
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => onPick(row, other)}
+          disabled={disabled}
+          className={`mr-2 shrink-0 rounded-md px-1.5 py-0.5 text-[11px] text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40 ${
+            primary === "move" || active ? "" : "opacity-0 group-hover:opacity-100"
+          }`}
+        >
+          {OTHER_LABEL[primary]}
+        </button>
+      )}
     </div>
   );
 }

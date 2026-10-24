@@ -48,9 +48,15 @@ function compare(a: IndexEntry, b: IndexEntry): number {
   );
 }
 
-export function rankFiles(index: IndexEntry[], query: string, limit = FILTER_LIMIT): IndexEntry[] {
+export interface RankedFiles {
+  entries: IndexEntry[];
+  // Every match, of which `entries` holds the best `limit`.
+  total: number;
+}
+
+export function rankFiles(index: IndexEntry[], query: string, limit = FILTER_LIMIT): RankedFiles {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (terms.length === 0) return [];
+  if (terms.length === 0) return { entries: [], total: 0 };
   const head = terms.slice(0, -1);
   const last = terms[terms.length - 1];
   const buckets: IndexEntry[][] = [[], [], [], []];
@@ -68,5 +74,5 @@ export function rankFiles(index: IndexEntry[], query: string, limit = FILTER_LIM
       out.push(entry);
     }
   }
-  return out;
+  return { entries: out, total: buckets.reduce((n, b) => n + b.length, 0) };
 }

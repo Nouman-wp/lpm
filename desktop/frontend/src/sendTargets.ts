@@ -1,6 +1,7 @@
 import { GLOBAL_TERMINALS_KEY, GLOBAL_TERMINALS_LABEL } from "./terminals";
 import { peerSlugOf } from "./peer/markers";
 import type { TerminalTargetInfo } from "./store/terminalTargets";
+import type { RemoteAgentLaunch } from "./remoteAgentTabs";
 
 // The tabs a composed prompt can be handed to, grouped the way the picker lists
 // them: this terminal's own project first, then the other projects that are open,
@@ -17,13 +18,28 @@ export interface SendTargetRow {
   // typed into the receiving agent, and the ones this prompt holds live on the
   // machine it was composed on.
   offHost: boolean;
+  // Set on a row that opens a new tab running this agent with the prompt,
+  // instead of naming a tab that exists; `detail` names its model.
+  launch?: RemoteAgentLaunch;
+  detail?: string;
 }
 
 export interface SendTargetGroup {
   projectName: string;
   projectLabel: string;
   rows: SendTargetRow[];
+  // A project with no tabs this session, offered for a new one.
+  closed?: boolean;
 }
+
+export interface NewTabTarget {
+  launch: RemoteAgentLaunch;
+  label: string;
+  detail: string;
+}
+
+// Projects with no tabs open, listed before a search narrows them.
+const CLOSED_SHOWN = 5;
 
 interface BuildOptions {
   byProject: Record<string, TerminalTargetInfo[]>;
@@ -35,6 +51,10 @@ interface BuildOptions {
   // it has in `byProject`.
   mru?: string[];
   query?: string;
+  // Ends each project with a row starting this agent in a new tab, and offers
+  // `allProjects` that have no tabs yet the same way.
+  newTab?: NewTabTarget;
+  allProjects?: string[];
 }
 
 export function buildSendTargets({
@@ -44,6 +64,8 @@ export function buildSendTargets({
   sourceTerminalId,
   mru = [],
   query = "",
+  newTab,
+  allProjects = [],
 }: BuildOptions): SendTargetGroup[] {
   const sourceHost = peerSlugOf(sourceTerminalId);
   const names = Object.keys(byProject).sort(
@@ -70,9 +92,46 @@ export function buildSendTargets({
         offHost: peerSlugOf(target.id) !== sourceHost,
       });
     }
+    if (newTab && projectHit && projectName !== GLOBAL_TERMINALS_KEY) {
+      rows.push(newTabRow(projectName, projectLabel, newTab, sourceHost));
+    }
     if (rows.length > 0) groups.push({ projectName, projectLabel, rows });
   }
+  if (!newTab) return groups;
+  const closed = allProjects
+    .filter((name) => !(name in byProject) && name !== GLOBAL_TERMINALS_KEY)
+    .sort((a, b) => rank(a, sourceProject, mru) - rank(b, sourceProject, mru))
+    .map((projectName) => ({ projectName, projectLabel: labelOf(projectName) }))
+    .filter((p) => needle === "" || p.projectLabel.toLowerCase().includes(needle))
+    .slice(0, needle === "" ? CLOSED_SHOWN : undefined);
+  for (const { projectName, projectLabel } of closed) {
+    groups.push({
+      projectName,
+      projectLabel,
+      closed: true,
+      rows: [newTabRow(projectName, projectLabel, newTab, sourceHost)],
+    });
+  }
   return groups;
+}
+
+function newTabRow(
+  projectName: string,
+  projectLabel: string,
+  newTab: NewTabTarget,
+  sourceHost: string | null,
+): SendTargetRow {
+  return {
+    projectName,
+    projectLabel,
+    terminalId: `new-tab:${projectName}`,
+    label: newTab.label,
+    emoji: "",
+    historyKey: "",
+    offHost: peerSlugOf(projectName) !== sourceHost,
+    launch: newTab.launch,
+    detail: newTab.detail,
+  };
 }
 
 // The source project leads, the standalone Terminals trail, and everything else

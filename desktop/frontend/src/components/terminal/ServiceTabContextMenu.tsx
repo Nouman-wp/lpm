@@ -1,53 +1,34 @@
-import { GlobeIcon, RefreshIcon, StopIcon } from "../icons";
+import { RefreshIcon, StopIcon } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
-import { ContextMenuSubmenu } from "../ui/ContextMenuSubmenu";
-import { openProjectPort } from "../../peer/projectPorts";
+import { PortLinkMenuItems } from "./PortLinkMenuItems";
 
 interface ServiceTabContextMenuProps {
   x: number;
   y: number;
-  // Live ports the service is listening on; empty until it binds (or always,
-  // for remote projects) — drives whether "Open in browser" is actionable.
+  // The ports the service's links point at; empty until it binds when its
+  // config names none (or always, for SSH projects).
   ports: number[];
   // The project the service belongs to, which says whose localhost it is on.
   projectName: string;
+  service: string;
+  // The pane the tab is in, where a Browser tab for it opens.
+  paneId: string;
   onRestart: () => void;
   onStop: () => void;
   onClose: () => void;
 }
 
-const portLabel = (port: number) => (
-  <span className="font-mono text-[10px] tabular-nums">{`:${port}`}</span>
-);
-
-export function ServiceTabContextMenu({ x, y, ports, projectName, onRestart, onStop, onClose }: ServiceTabContextMenuProps) {
-  const open = (port: number) => {
-    void openProjectPort(projectName, port);
-    onClose();
-  };
+export function ServiceTabContextMenu({ x, y, ports, projectName, service, paneId, onRestart, onStop, onClose }: ServiceTabContextMenuProps) {
   return (
     <ContextMenuShell x={x} y={y} onClose={onClose}>
-      {ports.length > 1 ? (
-        <ContextMenuSubmenu label="Open in browser" icon={<GlobeIcon />}>
-          {ports.map((port) => (
-            <ContextMenuItem
-              key={port}
-              label={`localhost:${port}`}
-              onClick={() => open(port)}
-            />
-          ))}
-        </ContextMenuSubmenu>
-      ) : (
-        <ContextMenuItem
-          label="Open in browser"
-          icon={<GlobeIcon />}
-          trailing={ports.length === 1 ? portLabel(ports[0]) : undefined}
-          disabled={ports.length === 0}
-          title={ports.length === 0 ? "No port detected yet" : undefined}
-          onClick={() => open(ports[0])}
-        />
-      )}
+      <PortLinkMenuItems
+        projectName={projectName}
+        links={ports.map((port) => ({ port, service }))}
+        paneId={paneId}
+        emptyHint="No port detected yet"
+        onClose={onClose}
+      />
       <ContextMenuItem
         label="Restart service"
         icon={<RefreshIcon />}

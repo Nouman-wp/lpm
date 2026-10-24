@@ -1,4 +1,4 @@
-import type { AgentSessionUsage, DailyUsage, TokenUsage, UsageBreakdown } from "../../types";
+import type { AgentSessionUsage, DailyUsage, TokenUsage } from "../../types";
 
 export { providerMeta, type ProviderMeta } from "../../agentStatus";
 
@@ -55,33 +55,6 @@ export function tokenTypeSegments(totals: TokenUsage): TokenTypeSegment[] {
   }));
 }
 
-export type ProjectSortKey = "tokens" | "sessions" | "name";
-export type SortDirection = "asc" | "desc";
-
-export function sortProjects(
-  projects: UsageBreakdown[],
-  key: ProjectSortKey,
-  direction: SortDirection,
-  nameOf: (project: UsageBreakdown) => string = (project) => project.label,
-): UsageBreakdown[] {
-  return [...projects].sort((a, b) => {
-    let primary: number;
-    if (key === "name") {
-      primary = nameOf(a).localeCompare(nameOf(b));
-    } else if (key === "sessions") {
-      primary = a.sessions - b.sessions;
-    } else {
-      primary = a.tokens.totalTokens - b.tokens.totalTokens;
-    }
-    if (primary !== 0) return direction === "asc" ? primary : -primary;
-    return nameOf(a).localeCompare(nameOf(b));
-  });
-}
-
 export function providerShare(tokens: number, total: number): number {
   return tokens / Math.max(1, total);
-}
-
-export function projectShare(tokens: number, max: number): number {
-  return tokens / Math.max(1, max);
 }

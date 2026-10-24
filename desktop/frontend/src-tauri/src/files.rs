@@ -188,7 +188,7 @@ pub struct DirFileEntry {
 
 /// Directory names never worth surfacing in the picker — large, generated, or
 /// VCS-internal. Skipped wholesale, contents and all.
-const MENTION_SKIP_DIRS: &[&str] = &[
+pub(crate) const MENTION_SKIP_DIRS: &[&str] = &[
     ".git",
     "node_modules",
     "target",

@@ -1,18 +1,24 @@
 import { useState } from "react";
 import type { AgentSessionUsage } from "../../types";
-import { usagePeriodLabel } from "../../agentUsageFormat";
 import { SessionRow } from "./SessionRow";
 
 const COLLAPSED_COUNT = 12;
 
 interface RecentSessionsPanelProps {
   sessions: AgentSessionUsage[];
-  days: number;
+  /** Every session in view; only the latest ones are listed. */
+  total: number;
+  emptyLabel: string;
   // Display names by machine id, for sessions listed from several computers.
   machineNames?: Record<string, string>;
 }
 
-export function RecentSessionsPanel({ sessions, days, machineNames }: RecentSessionsPanelProps) {
+export function RecentSessionsPanel({
+  sessions,
+  total,
+  emptyLabel,
+  machineNames,
+}: RecentSessionsPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? sessions : sessions.slice(0, COLLAPSED_COUNT);
 
@@ -21,13 +27,15 @@ export function RecentSessionsPanel({ sessions, days, machineNames }: RecentSess
       <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
         <h2 className="text-sm font-medium">Recent sessions</h2>
         <span className="text-[11px] tabular-nums text-[var(--text-muted)]">
-          {shown.length} of {sessions.length}
+          {shown.length} of {Math.max(total, sessions.length).toLocaleString()}
         </span>
       </div>
 
       {sessions.length === 0 ? (
         <div className="px-4 py-6 text-xs text-[var(--text-muted)]">
-          Nothing in {usagePeriodLabel(days)}
+          {total > 0
+            ? `${total.toLocaleString()} session${total === 1 ? "" : "s"} ${emptyLabel}, older than the ones listed`
+            : `Nothing ${emptyLabel}`}
         </div>
       ) : (
         <>
@@ -49,8 +57,17 @@ export function RecentSessionsPanel({ sessions, days, machineNames }: RecentSess
               onClick={() => setExpanded((value) => !value)}
               className="w-full border-t border-[var(--border)] px-4 py-2 text-[11px] font-medium text-[var(--text-muted)] transition-colors duration-[120ms] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-blue)]"
             >
-              {expanded ? "Show less" : `Show all (${sessions.length})`}
+              {expanded
+                ? "Show less"
+                : total > sessions.length
+                  ? `Show the latest ${sessions.length}`
+                  : `Show all (${sessions.length})`}
             </button>
+          )}
+          {expanded && total > sessions.length && (
+            <div className="border-t border-[var(--border)] px-4 py-2 text-[10px] text-[var(--text-muted)]">
+              Only the {sessions.length} most recent sessions are listed.
+            </div>
           )}
         </>
       )}

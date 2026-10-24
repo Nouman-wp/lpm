@@ -9,6 +9,8 @@ import { displayNameForProjectName } from "./ProjectNameDisplay";
 import { derivePaneStatus } from "../hooks/usePaneStatus";
 import { type AgentState } from "../agentStatus";
 import { SendTargetItem } from "./SendTargetItem";
+import { SendPromptPreview, type SendPrompt } from "./SendPromptPreview";
+import { newTabAgent } from "../sendToNewTab";
 import { parsePeerMarker } from "../peer/markers";
 import { peerAliasMap, type PeerClient } from "../peer/usePeerState";
 import { buildSendTargets, flattenTargets, type SendTargetRow } from "../sendTargets";
@@ -24,9 +26,12 @@ interface SendToTerminalModalProps {
   onClose: () => void;
   sourceProject: string;
   sourceTerminalId: string;
-  // A prompt carrying images can't cross machines: the paths it holds are files
-  // on the Mac it was composed on, and the receiving agent opens them itself.
-  hasImages: boolean;
+  // What is being handed off. A prompt carrying images can't cross machines:
+  // the paths it holds are files on the Mac it was composed on, and the
+  // receiving agent opens them itself.
+  prompt: SendPrompt;
+  // The agent the prompt was written for, which a new tab starts.
+  sourceAgent: string;
   busy: boolean;
   onPick: (row: SendTargetRow, mode: SendTargetMode) => void;
 }
@@ -38,10 +43,12 @@ export function SendToTerminalModal({
   onClose,
   sourceProject,
   sourceTerminalId,
-  hasImages,
+  prompt,
+  sourceAgent,
   busy,
   onPick,
 }: SendToTerminalModalProps) {
+  const hasImages = prompt.imageCount > 0;
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -80,6 +87,7 @@ export function SendToTerminalModal({
     };
   }, [open]);
 
+  const newTab = useMemo(() => (open ? newTabAgent(sourceAgent) : undefined), [open, sourceAgent]);
   const groups = useMemo(
     () =>
       buildSendTargets({
@@ -89,8 +97,10 @@ export function SendToTerminalModal({
         sourceTerminalId,
         mru,
         query,
+        newTab,
+        allProjects: projects.map((p) => p.name),
       }),
-    [byProject, projects, sourceProject, sourceTerminalId, mru, query],
+    [byProject, projects, sourceProject, sourceTerminalId, mru, query, newTab],
   );
 
   // What each target's agent is doing, so a busy tab says so before the prompt is
@@ -118,7 +128,7 @@ export function SendToTerminalModal({
   // Sending ends in a carriage return; into a permission prompt that is an answer
   // to it, so those tabs lead with the verb that types nothing.
   const primaryFor = (row: SendTargetRow): SendTargetMode =>
-    states.get(row.terminalId) === "needs-you" ? "move" : "send";
+    !row.launch && states.get(row.terminalId) === "needs-you" ? "move" : "send";
 
   // Keep the highlighted row in view as the arrows walk past the fold.
   useEffect(() => {
@@ -129,7 +139,8 @@ export function SendToTerminalModal({
 
   const pick = (row: SendTargetRow, mode: SendTargetMode) => {
     if (busy || blocked(row)) return;
-    onPick(row, mode);
+    // A new tab has no input to wait in yet: it always starts with the prompt.
+    onPick(row, row.launch ? "send" : mode);
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -171,8 +182,9 @@ export function SendToTerminalModal({
           <XIcon />
         </button>
       </div>
+      <SendPromptPreview prompt={prompt} />
 
-      <div className="border-b border-[var(--border)] p-2">
+      <div className="border-b border-[var(--border)] px-2 pb-2 pt-1">
         <input
           ref={searchRef}
           value={query}
@@ -197,11 +209,16 @@ export function SendToTerminalModal({
           <div className="px-4 py-3 text-[13px] text-[var(--text-muted)]">
             {query.trim()
               ? "No matches"
-              : "Nothing to send to yet — only projects you've opened this session have tabs."}
+              : "Nothing to send to yet."}
           </div>
         )}
-        {groups.map((group) => (
+        {groups.map((group, i) => (
           <div key={group.projectName}>
+            {group.closed && !groups[i - 1]?.closed && (
+              <div className="mt-1 border-t border-[var(--border)] px-4 pb-0.5 pt-2.5 text-[10px] font-medium uppercase tracking-wide text-[var(--text-muted)]">
+                Not open this session
+              </div>
+            )}
             <div className="flex items-baseline gap-1.5 px-4 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wide text-[var(--text-muted)]">
               <span className="truncate">{group.projectLabel}</span>
               {group.projectName === sourceProject && (
@@ -232,7 +249,9 @@ export function SendToTerminalModal({
 
       {rows.length > 0 && (
         <div className="border-t border-[var(--border)] px-4 py-2 text-[11px] text-[var(--text-muted)]">
-          {enterHint()} {VERB[activePrimary]} · {enterHint({ meta: true })} {VERB[activePrimary === "send" ? "move" : "send"]}
+          {active?.launch
+            ? `${enterHint()} start it there`
+            : `${enterHint()} ${VERB[activePrimary]} · ${enterHint({ meta: true })} ${VERB[activePrimary === "send" ? "move" : "send"]}`}
         </div>
       )}
     </Modal>

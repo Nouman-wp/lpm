@@ -4,8 +4,10 @@ import { ServicePortLinks } from "./ServicePortLinks";
 
 interface ServiceColumnActionsProps {
   projectName: string;
+  paneId: string;
   name: string;
   ports: number[];
+  configuredPort?: number;
   exited: boolean;
   onRestart: () => void;
   onStop: () => void;
@@ -17,11 +19,18 @@ const BUTTON =
 
 // The right end of a service's bar, on its own pane and on its column in the
 // All view: where it listens, and restart/stop/edit without leaving the view.
-export function ServiceColumnActions({ projectName, name, ports, exited, onRestart, onStop, onEdit }: ServiceColumnActionsProps) {
+export function ServiceColumnActions({ projectName, paneId, name, ports, configuredPort, exited, onRestart, onStop, onEdit }: ServiceColumnActionsProps) {
   return (
     <>
       {!exited && ports.length > 0 && (
-        <ServicePortLinks projectName={projectName} ports={ports} className="mr-1" />
+        <ServicePortLinks
+          projectName={projectName}
+          ports={ports}
+          service={name}
+          paneId={paneId}
+          configuredPort={configuredPort}
+          className="mr-1"
+        />
       )}
       <Tooltip content={`Restart ${name}`} side="bottom" align="end">
         <button type="button" onClick={onRestart} aria-label={`Restart ${name}`} className={BUTTON}>

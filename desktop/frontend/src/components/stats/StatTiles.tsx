@@ -13,6 +13,8 @@ interface StatTilesProps {
   projectCount: number;
   modelCount: number;
   days: number;
+  /** The caption of a single day's tiles; "so far today" by default. */
+  singleDayCaption?: string;
 }
 
 export function StatTiles({
@@ -23,6 +25,7 @@ export function StatTiles({
   projectCount,
   modelCount,
   days,
+  singleDayCaption = "so far today",
 }: StatTilesProps) {
   const peak = mostActiveDay(daily);
   const cache = cacheShare(totals);
@@ -50,7 +53,7 @@ export function StatTiles({
         }
         caption={
           singleDay
-            ? "so far today"
+            ? singleDayCaption
             : peak
               ? `peak ${formatTokenCount(peak.totalTokens)} · ${shortUsageDate(peak.date)}`
               : undefined

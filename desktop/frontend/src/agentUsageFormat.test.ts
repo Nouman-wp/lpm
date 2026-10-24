@@ -3,7 +3,6 @@ import {
   formatDuration,
   formatPercent,
   formatTokenCount,
-  usagePeriodLabel,
 } from "./agentUsageFormat";
 
 describe("formatTokenCount", () => {
@@ -15,14 +14,6 @@ describe("formatTokenCount", () => {
     expect(formatTokenCount(1_250)).toBe("1.3K");
     expect(formatTokenCount(12_500)).toBe("13K");
     expect(formatTokenCount(2_400_000)).toBe("2.4M");
-  });
-});
-
-describe("usagePeriodLabel", () => {
-  it("labels supported periods", () => {
-    expect(usagePeriodLabel(1)).toBe("today");
-    expect(usagePeriodLabel(7)).toBe("the last 7 days");
-    expect(usagePeriodLabel(0)).toBe("all time");
   });
 });
 
