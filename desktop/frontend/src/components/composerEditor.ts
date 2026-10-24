@@ -622,6 +622,17 @@ export function insertTextAtCaret(root: HTMLElement, text: string): boolean {
   return document.execCommand("insertText", false, text);
 }
 
+// `insertTextAtCaret` spaced off the word before it. The caret is parked first
+// (the control can be clicked before the field was ever focused) so the padding
+// is decided from where the text will actually land.
+export function insertSpacedAtCaret(root: HTMLElement, text: string): boolean {
+  root.focus();
+  if (!caretInside(root)) placeCaretAtEnd(root);
+  const line = lineBeforeCaret(root);
+  const pad = line && !/\s$/.test(line) ? " " : "";
+  return insertTextAtCaret(root, `${pad}${text}`);
+}
+
 // Replace the "@<frag>" preceding the caret with arbitrary `text` (no leading
 // "@"), used when a mention expands to injected content — e.g. a service's
 // captured logs — instead of a literal token the agent resolves. `text` may hold

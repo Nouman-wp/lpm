@@ -318,6 +318,9 @@ at(66000, 'uploadAbort', uploadId='nope')
 at(66000, 'upload', id='demo-storefront-1', mime='image/jpeg', reqId='u3')
 at(66000, 'upload', id='demo-storefront-1', name='shot.png')
 at(66500, 'apnsToken', token='x'); at(66500, 'ttsSpeak', reqId='s1', text='hi')
+at(66500, 'liveActivity', on=True)
+at(66500, 'answerAgent', project='storefront', terminalId='demo-storefront-1', key='claude_code_demo-storefront-1',
+   ts=1792089000123, action='reply', text='Ship it', reqId='a1')
 at(67100, 'sub', id='demo-storefront-1'); at(67200, 'unsub', id='demo-storefront-1')
 
 # lifecycle 2

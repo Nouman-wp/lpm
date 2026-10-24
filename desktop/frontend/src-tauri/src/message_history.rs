@@ -239,14 +239,15 @@ pub fn message_history_query(
 
 // Shared INSERT for a sent message or a draft — identical except the is_draft
 // flag, so the column list lives in exactly one place.
-fn insert_message(conn: &Connection, message: &AddInput, is_draft: bool) -> Result<(), String> {
+fn insert_message(conn: &Connection, message: &AddInput, is_draft: bool) -> Result<String, String> {
+    let id = uuid::Uuid::new_v4().to_string();
     let images = serde_json::to_string(&message.images).unwrap_or_else(|_| "{}".into());
     conn.execute(
         "INSERT INTO message_history \
          (id, text, project_name, terminal_id, terminal_label, at, favorite, images, is_draft) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7, ?8)",
         params![
-            uuid::Uuid::new_v4().to_string(),
+            id,
             message.text,
             message.project_name,
             message.terminal_id,
@@ -257,7 +258,7 @@ fn insert_message(conn: &Connection, message: &AddInput, is_draft: bool) -> Resu
         ],
     )
     .map_err(|e| e.to_string())?;
-    Ok(())
+    Ok(id)
 }
 
 #[tauri::command(async)]
@@ -284,18 +285,19 @@ pub fn message_history_add(
         if is_repeat {
             return Ok(());
         }
-        insert_message(conn, &message, false)
+        insert_message(conn, &message, false).map(|_| ())
     })
 }
 
 // Save the composer's current prompt as an unsent draft. Unlike a send this
 // never de-dupes (the user asked to keep this exact text) and flags the row so
-// the popover badges it and "clear history" leaves it alone.
+// the popover badges it and "clear history" leaves it alone. Returns the new
+// row's id, so the save can be undone.
 #[tauri::command(async)]
 pub fn message_history_save_draft(
     state: State<MessageHistoryState>,
     message: AddInput,
-) -> Result<(), String> {
+) -> Result<String, String> {
     state.with_conn(|conn| insert_message(conn, &message, true))
 }
 

@@ -9,7 +9,8 @@ import kotlinx.coroutines.flow.map
  * keep their own values while [enabled] is off; what a Mac is told is
  * `enabled && kind`. Absent keys read as on, so a fresh install opts in to every
  * push that reports something to act on — except an automation starting, which only
- * announces work the user already scheduled.
+ * announces work the user already scheduled. [liveActivity] — the ongoing
+ * notification of the agents at work — stands on its own.
  */
 data class NotificationPrefs(
     val enabled: Boolean = true,
@@ -18,7 +19,8 @@ data class NotificationPrefs(
     val error: Boolean = true,
     val automationStarted: Boolean = false,
     val automationDone: Boolean = true,
-    val automationError: Boolean = true
+    val automationError: Boolean = true,
+    val liveActivity: Boolean = true
 )
 
 val AppPreferences.notificationPrefs: NotificationPrefs
@@ -33,14 +35,15 @@ val AppPreferences.notificationPrefs: NotificationPrefs
                 ?: defaults.automationStarted,
             automationDone = bool(PreferenceKeys.NOTIFY_AUTOMATION_DONE) ?: defaults.automationDone,
             automationError = bool(PreferenceKeys.NOTIFY_AUTOMATION_ERROR)
-                ?: defaults.automationError
+                ?: defaults.automationError,
+            liveActivity = bool(PreferenceKeys.NOTIFY_LIVE_ACTIVITY) ?: defaults.liveActivity
         )
     }
 
 fun AppPreferences.notificationPrefsFlow(): Flow<NotificationPrefs> =
     data.map { notificationPrefs }.distinctUntilChanged()
 
-/** Stores every kind, as iOS does on any change, so all seven keys hold a value after. */
+/** Stores every kind, as iOS does on any change, so all eight keys hold a value after. */
 fun AppPreferences.setNotificationPrefs(prefs: NotificationPrefs) {
     setBool(PreferenceKeys.NOTIFY_ENABLED, prefs.enabled)
     setBool(PreferenceKeys.NOTIFY_WAITING, prefs.waiting)
@@ -49,4 +52,5 @@ fun AppPreferences.setNotificationPrefs(prefs: NotificationPrefs) {
     setBool(PreferenceKeys.NOTIFY_AUTOMATION_STARTED, prefs.automationStarted)
     setBool(PreferenceKeys.NOTIFY_AUTOMATION_DONE, prefs.automationDone)
     setBool(PreferenceKeys.NOTIFY_AUTOMATION_ERROR, prefs.automationError)
+    setBool(PreferenceKeys.NOTIFY_LIVE_ACTIVITY, prefs.liveActivity)
 }

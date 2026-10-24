@@ -1,23 +1,29 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import type { SettingsSearchEntry } from "../settings-registry";
+import { groupSearchResults } from "../settingsSearchHits";
 import { SettingsSearchResults } from "./SettingsSearchResults";
 
 interface SettingsSearchProps {
   query: string;
   onQueryChange: (query: string) => void;
   results: SettingsSearchEntry[];
+  hints: string[];
   onActivate: (entry: SettingsSearchEntry) => void;
 }
 
 export function SettingsSearch({
   query,
   onQueryChange,
-  results,
+  results: ranked,
+  hints,
   onActivate,
 }: SettingsSearchProps) {
   const active = query.trim() !== "";
   const [selected, setSelected] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const groups = useMemo(() => groupSearchResults(ranked, query), [ranked, query]);
+  const results = useMemo(() => groups.flatMap((g) => g.hits.map((h) => h.entry)), [groups]);
 
   useEffect(() => {
     setSelected(0);
@@ -55,6 +61,7 @@ export function SettingsSearch({
           className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
         />
         <input
+          ref={inputRef}
           type="text"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
@@ -67,10 +74,16 @@ export function SettingsSearch({
       {active && (
         <div className="mt-2">
           <SettingsSearchResults
-            results={results}
+            groups={groups}
+            query={query}
+            hints={hints}
             selectedIndex={clampedSelected}
             onActivate={onActivate}
             onHover={setSelected}
+            onHint={(hint) => {
+              onQueryChange(hint);
+              inputRef.current?.focus();
+            }}
           />
         </div>
       )}

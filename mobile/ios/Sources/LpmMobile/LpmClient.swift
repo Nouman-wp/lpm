@@ -124,6 +124,8 @@ final class LpmClient: NSObject {
     var onUpdateCancel: ((_ stopping: Bool) -> Void)?
     // The desktop acknowledged (or rejected) an apnsToken registration.
     var onApnsToken: ((_ ok: Bool) -> Void)?
+    var onAnswerAgent: ((_ reqId: String, _ error: String?) -> Void)?
+    var onLiveActivity: ((_ ok: Bool) -> Void)?
     // Composer parity replies.
     var onComposerActions: ((_ actions: [ComposerAction]) -> Void)?
     var onTransformVariant: ((_ reqId: String, _ idx: Int, _ text: String?, _ error: String?) -> Void)?
@@ -247,6 +249,8 @@ final class LpmClient: NSObject {
     static let agentSessionsFeature = "agentSessions"
     static let listDirFeature = "listDir"
     static let tabMenuFeature = "tabMenu"
+    static let answerAgentFeature = "answerAgent"
+    static let liveActivityFeature = "liveActivity"
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -1005,6 +1009,10 @@ final class LpmClient: NSObject {
                             notifyAutomationDone: notifyAutomationDone,
                             notifyAutomationError: notifyAutomationError))
     }
+    func answerAgent(_ answer: AgentAnswer, reqId: String) { send(Wire.answerAgent(answer, reqId: reqId)) }
+    func sendLiveActivity(on: Bool, token: String?, env: String) {
+        send(Wire.liveActivity(on: on, token: token, env: env))
+    }
     func startProject(_ name: String, profile: String = "") { send(Wire.start(name: name, profile: profile)) }
     func stopProject(_ name: String) { send(Wire.stop(name: name)) }
     func toggleService(_ name: String, service: String) { send(Wire.toggleService(name: name, service: service)) }
@@ -1472,6 +1480,8 @@ final class LpmClient: NSObject {
             case .gitAutoSwitchBase(let proj, let base, let error, let pullError):
                 self.onGitAutoSwitchBase?(proj, base, error, pullError)
             case .apnsToken(let ok): self.onApnsToken?(ok)
+            case .answerAgent(let reqId, let error): self.onAnswerAgent?(reqId, error)
+            case .liveActivity(let ok): self.onLiveActivity?(ok)
             case .composerActions(let actions): self.onComposerActions?(actions)
             case .transformVariant(let reqId, let idx, let text, let error):
                 self.onTransformVariant?(reqId, idx, text, error)

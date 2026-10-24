@@ -3,6 +3,7 @@ import {
   sendPush,
   type ApnsEnv,
   type ApnsPushType,
+  type ApnsResult,
 } from "@/lib/apns";
 import { loadFcmConfig, sendFcmPush, type FcmResult } from "@/lib/fcm";
 
@@ -81,10 +82,8 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   if (!body || typeof body !== "object") return badRequest();
-  const { platform, token, env, blob, type, collapseId } = body as Record<
-    string,
-    unknown
-  >;
+  const { platform, token, env, blob, type, collapseId, event, urgent, dismissAt } =
+    body as Record<string, unknown>;
 
   if (platform !== undefined && platform !== "apns" && platform !== "fcm") {
     return badRequest();
@@ -94,18 +93,96 @@ export async function POST(request: Request): Promise<Response> {
   if (typeof token !== "string" || !tokenRe.test(token)) return badRequest();
   if (!fcm && env !== "production" && env !== "sandbox") return badRequest();
   if (!isValidBlob(blob)) return badRequest();
-  if (type !== undefined && type !== "alert" && type !== "background") {
+  if (
+    type !== undefined &&
+    type !== "alert" &&
+    type !== "background" &&
+    type !== "liveactivity"
+  ) {
     return badRequest();
   }
-  const pushType: ApnsPushType = type === "background" ? "background" : "alert";
+  const pushType: ApnsPushType =
+    type === "background" || type === "liveactivity" ? type : "alert";
   if (collapseId !== undefined && !isValidCollapseId(collapseId)) {
     return badRequest();
   }
   const collapse = typeof collapseId === "string" ? collapseId : undefined;
 
+  if (pushType === "liveactivity") {
+    const live = parseLiveUpdate(event, urgent, dismissAt);
+    if (!live) return badRequest();
+    return fcm
+      ? relayToFcm(token, blob, pushType, undefined, live)
+      : relayLiveToApns(env as ApnsEnv, token, blob, live);
+  }
+
   return fcm
     ? relayToFcm(token, blob, pushType, collapse)
     : relayToApns(env as ApnsEnv, token, blob, pushType, collapse);
+}
+
+// One update of the agents a phone shows live: an iPhone's Live Activity (whose
+// own token this is) or an Android phone's ongoing notification. `end` closes
+// it, staying up until `dismissAt` (unix seconds) at the latest; `urgent` asks
+// for immediate delivery, which APNs budgets more tightly than the rest.
+interface LiveUpdate {
+  event: "update" | "end";
+  urgent: boolean;
+  dismissAt?: number;
+}
+
+function parseLiveUpdate(
+  event: unknown,
+  urgent: unknown,
+  dismissAt: unknown,
+): LiveUpdate | null {
+  if (event !== undefined && event !== "update" && event !== "end") return null;
+  if (urgent !== undefined && typeof urgent !== "boolean") return null;
+  if (
+    dismissAt !== undefined &&
+    !(typeof dismissAt === "number" && Number.isInteger(dismissAt) && dismissAt > 0)
+  ) {
+    return null;
+  }
+  return {
+    event: event === "end" ? "end" : "update",
+    urgent: urgent !== false,
+    dismissAt: typeof dismissAt === "number" ? dismissAt : undefined,
+  };
+}
+
+async function relayLiveToApns(
+  env: ApnsEnv,
+  token: string,
+  blob: string,
+  live: LiveUpdate,
+): Promise<Response> {
+  const config = loadApnsConfig();
+  if (!config) return notConfigured();
+  if (rateLimited(token)) return tooMany();
+
+  // The content state stays sealed: the phone's widget opens `blob` itself.
+  const payload = JSON.stringify({
+    aps: {
+      timestamp: Math.floor(Date.now() / 1000),
+      event: live.event,
+      "content-state": { blob },
+      ...(live.event === "end" && live.dismissAt
+        ? { "dismissal-date": live.dismissAt }
+        : {}),
+    },
+  });
+
+  const result = await sendPush(
+    env,
+    token,
+    payload,
+    config,
+    "liveactivity",
+    undefined,
+    live.urgent,
+  );
+  return apnsResponse(result);
 }
 
 async function relayToApns(
@@ -140,6 +217,10 @@ async function relayToApns(
     pushType,
     collapseId,
   );
+  return apnsResponse(result);
+}
+
+function apnsResponse(result: ApnsResult | null): Response {
   if (!result) {
     return Response.json(
       { ok: false, reason: "apns unreachable" },
@@ -180,12 +261,21 @@ async function relayToFcm(
   blob: string,
   pushType: ApnsPushType,
   collapseId: string | undefined,
+  live?: LiveUpdate,
 ): Promise<Response> {
   const config = loadFcmConfig();
   if (!config) return notConfigured();
   if (rateLimited(token)) return tooMany();
 
-  const result = await sendFcmPush(token, blob, config, pushType, collapseId);
+  const result = await sendFcmPush(
+    token,
+    blob,
+    config,
+    pushType,
+    collapseId,
+    live ? { event: live.event } : {},
+    live?.urgent,
+  );
   if (!result) {
     return Response.json(
       { ok: false, reason: "fcm unreachable" },

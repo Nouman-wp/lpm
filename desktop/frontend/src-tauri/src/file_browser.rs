@@ -11,7 +11,7 @@ use std::collections::HashSet;
 use std::path::{Component, Path, PathBuf};
 
 /// VCS internals are never worth browsing and are dangerous to edit by hand.
-const HIDDEN_DIRS: &[&str] = &[".git", ".svn", ".hg"];
+pub(crate) const HIDDEN_DIRS: &[&str] = &[".git", ".svn", ".hg"];
 
 #[derive(Debug, serde::Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -36,7 +36,7 @@ pub struct ProjectFileContent {
 
 /// A project-relative path handed back from a listing, normalised and confined
 /// to the root: no absolute paths, no `..`, no empty segments.
-fn checked_rel(rel: &str) -> Result<String, String> {
+pub(crate) fn checked_rel(rel: &str) -> Result<String, String> {
     let mut parts: Vec<&str> = Vec::new();
     for component in Path::new(rel).components() {
         match component {

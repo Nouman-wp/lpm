@@ -58,7 +58,7 @@ targets:
         # build-tailnet.sh runs the Go toolchain, which reads and writes its
         # caches outside the project.
         ENABLE_USER_SCRIPT_SANDBOXING: NO
-        MARKETING_VERSION: "1.67"
+        MARKETING_VERSION: "1.68"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -101,6 +101,9 @@ targets:
         UIBackgroundModes:
           - remote-notification
           - audio
+        # The live Mac's agents on the Lock Screen and in the Dynamic Island,
+        # updated by the Mac through the push relay while the app is away.
+        NSSupportsLiveActivities: true
         # Export compliance: standard TLS (wss://) for transport, plus OS-provided
         # primitives (the Keychain and CryptoKit: SHA-256 cert pinning and AES-GCM
         # push-payload decryption). The built-in Tailscale node (liblpmtailnet.a)
@@ -145,7 +148,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cx.lpm.mobile.notificationservice
-        MARKETING_VERSION: "1.67"
+        MARKETING_VERSION: "1.68"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -168,7 +171,8 @@ targets:
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
 
   # Home Screen widgets: Agents, Usage and Token activity, read from the app group
-  # the app and the notification extension write.
+  # the app and the notification extension write — and the agents' Live Activity,
+  # whose sealed content needs the push key from the shared keychain group.
   LpmMobileWidgets:
     type: app-extension
     platform: iOS
@@ -178,7 +182,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cx.lpm.mobile.widgets
-        MARKETING_VERSION: "1.67"
+        MARKETING_VERSION: "1.68"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -186,6 +190,8 @@ targets:
     entitlements:
       path: LpmMobileWidgets.entitlements
       properties:
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)cx.lpm.mobile.shared
         com.apple.security.application-groups:
           - group.cx.lpm.mobile
     info:

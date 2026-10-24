@@ -86,8 +86,12 @@ fun GitReviewRoute(
                 viewModel.toggleViewed(it)
             },
             showAll = viewModel::showAll,
+            toggleWrap = viewModel::toggleWrap,
             ask = { asking = viewModel.askContext(it) },
-            openCommit = { committing = true },
+            openCommit = {
+                committing = true
+                viewModel.commitOpened()
+            },
             createPullRequest = { onNavigate(GitPullRequestKey(key.project, key.session)) }
         )
     )
@@ -100,7 +104,8 @@ fun GitReviewRoute(
                 generateMessage = viewModel::generateMessage,
                 toggleSelected = viewModel::toggleSelected,
                 selectAll = viewModel::selectAll,
-                commit = viewModel::commit
+                commit = viewModel::commit,
+                commitAndPush = viewModel::commitAndPush
             ),
             onDismiss = { committing = false }
         )

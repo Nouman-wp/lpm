@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -106,6 +107,20 @@ class SettingsUiTest {
         compose.onNodeWithContentDescription("Push notifications").assertIsOff()
         compose.onNodeWithContentDescription("Waiting for you").assertIsOn().assertIsNotEnabled()
         compose.onAllNodesWithContentDescription("Finished").onFirst().assertIsNotEnabled()
+    }
+
+    @Test
+    fun theLockScreenCardHasASwitchOfItsOwn() {
+        showNotifications()
+        compose.onNodeWithText("While agents work, an ongoing notification shows them.")
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithContentDescription("Push notifications").performClick()
+        compose.onNodeWithContentDescription("Show agents on the Lock Screen")
+            .assertIsOn()
+            .assertIsEnabled()
+            .performClick()
+            .assertIsOff()
     }
 
     @Test

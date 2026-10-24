@@ -6,7 +6,7 @@ import type { MentionItem } from "../mentions";
 import { memoryInvocation } from "../terminalMemory";
 import { ComposerMemoryButton } from "./ComposerMemoryButton";
 import { MemoryPreviewPopover } from "./MemoryPreviewPopover";
-import { caretInside, insertTextAtCaret, lineBeforeCaret, placeCaretAtEnd } from "./composerEditor";
+import { insertSpacedAtCaret } from "./composerEditor";
 
 interface InputComposerMemoryProps extends InputComposerMemorySource {
   state: InputComposerMemoryState;
@@ -18,16 +18,9 @@ interface InputComposerMemoryProps extends InputComposerMemorySource {
 // picking a session writes its skill invocation into the prompt, so the agent
 // that later runs it continues — or starts — that session.
 export function InputComposerMemory({ project, agent, state, editorRef, onInserted }: InputComposerMemoryProps) {
-  // Parks the caret first (the button can be clicked before the field was ever
-  // focused) so the padding space is decided from where the text lands.
   const pick = (item: MentionItem) => {
     const editor = editorRef.current;
-    if (!editor) return;
-    editor.focus();
-    if (!caretInside(editor)) placeCaretAtEnd(editor);
-    const line = lineBeforeCaret(editor);
-    const pad = line && !/\s$/.test(line) ? " " : "";
-    if (insertTextAtCaret(editor, `${pad}${memoryInvocation(agent, item.insert)}`)) onInserted();
+    if (editor && insertSpacedAtCaret(editor, memoryInvocation(agent, item.insert))) onInserted();
   };
 
   const remove = async (item: MentionItem) => {

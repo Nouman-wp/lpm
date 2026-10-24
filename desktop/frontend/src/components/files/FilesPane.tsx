@@ -36,6 +36,7 @@ import { useFileIndex } from "./useFileIndex";
 import { useFileView } from "./useFileView";
 import { useFilesPaneRequests } from "./useFilesPaneRequests";
 import { useFilesChords } from "./useFilesChords";
+import { useTreeEdits } from "./useTreeEdits";
 import { FilesStart } from "./FilesStart";
 import { useSelectedLineCounts } from "../../hooks/useSelectedLineCounts";
 import type { ChangedFile } from "./useChangedFiles";
@@ -264,6 +265,18 @@ export function FilesPane({
   );
 
   const absPath = selectedPath ? joinAbs(projectRoot, selectedPath) : null;
+  const edits = useTreeEdits({
+    root: projectRoot,
+    projectName,
+    listings,
+    load,
+    expandDirs,
+    setQuery,
+    showChangesOnly: git.showChangesOnly,
+    openFile,
+    selectedPath,
+    dirtyPaths: buffer.dirtyPaths,
+  });
 
   const stepFile = useCallback(
     (delta: 1 | -1) => {
@@ -327,6 +340,7 @@ export function FilesPane({
         checks={commit.checks}
         onCheck={commit.onCheck}
         onCursorChange={onCursorChange}
+        edits={review ? undefined : edits}
       />
       <div
         onMouseDown={handleResizeStart}
@@ -431,7 +445,9 @@ export function FilesPane({
         <FilesRowMenu
           target={menu}
           absPath={joinAbs(projectRoot, menu.path)}
+          projectName={projectName}
           onOpen={() => activate(menu)}
+          edits={review ? undefined : edits}
           onDiscard={decorations.has(menu.path) ? () => git.discard.request(menu) : undefined}
           onClose={() => setMenu(null)}
         />

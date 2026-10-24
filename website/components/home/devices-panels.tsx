@@ -18,19 +18,19 @@ function More({ href, children }: { href: string; children: string }) {
   );
 }
 
-export function ComputerPanel() {
+export function ComputerPanel({ active }: { active: boolean }) {
   return (
     <div className="mx-auto max-w-5xl">
-      <PairDemoCard />
+      <PairDemoCard active={active} />
       <More href={MAC_MINI_PATH}>Run Claude Code and Codex on a Mac mini</More>
     </div>
   );
 }
 
-export function ServerPanel() {
+export function ServerPanel({ active }: { active: boolean }) {
   return (
     <div className="mx-auto max-w-3xl">
-      <AddHostCard />
+      <AddHostCard active={active} />
       <More href={LINUX_HOST_PATH}>Run Claude Code on a remote server</More>
     </div>
   );

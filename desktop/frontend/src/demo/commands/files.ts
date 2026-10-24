@@ -1,6 +1,7 @@
 import type { CommandMap } from "../backend";
 import { emitEvent } from "../ipc";
 import { isBinary } from "../seed/sample";
+import { demoDirsIn, fileEditCommands } from "./fileEdits";
 import { projectAt, project, type Project } from "./state";
 
 function tree(root: unknown): Record<string, string> {
@@ -57,8 +58,18 @@ function write(absPath: string, content: string): void {
   emitEvent("git-changed", { path: p.root, files: [rel] });
 }
 
+function listing(root: unknown, rel: string) {
+  const entries = dirEntries(tree(root), rel);
+  const listed = new Set(entries.map((e) => e.name));
+  const made = demoDirsIn(root, rel)
+    .filter((name) => !listed.has(name))
+    .map((name) => ({ name, isDir: true, isSymlink: false, isIgnored: false }));
+  return [...made, ...entries];
+}
+
 export const fileCommands: CommandMap = {
-  list_dir_entries: ({ root, rel }) => dirEntries(tree(root), String(rel ?? "")),
+  ...fileEditCommands,
+  list_dir_entries: ({ root, rel }) => listing(root, String(rel ?? "")),
   list_dir_files: ({ root }) => allPaths(tree(root)),
   read_project_file: ({ root, rel }) => {
     const content = tree(root)[String(rel)];

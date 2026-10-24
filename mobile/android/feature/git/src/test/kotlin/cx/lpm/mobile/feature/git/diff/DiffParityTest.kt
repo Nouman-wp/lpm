@@ -23,10 +23,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Every diff in `ios-parity/diffs.json`, parsed and highlighted by the port, against
- * what the iOS `ParsedDiff` and `DiffHighlighter` produced for it
- * (`ios-parity/generate.sh`): the same lines, numbers, blocks and text, every run in
- * the same light and dark colors, and the same rules for every language.
+ * Every diff in `ios-parity/diffs.json`, parsed, highlighted and word-diffed by the
+ * port, against what the iOS `ParsedDiff`, `DiffHighlighter` and `WordDiff` produced
+ * for it (`ios-parity/generate.sh`): the same lines, numbers, blocks, wrapped lines
+ * and text, every run in the same light and dark colors, and the same rules for
+ * every language.
  */
 class DiffParityTest {
     private val expected = load("expected.json").jsonObject
@@ -99,7 +100,7 @@ class DiffParityTest {
 
     private fun blockJson(block: DiffBlock) = buildJsonObject {
         put("code", block.code)
-        put("codeRuns", runs(codeColors(block)))
+        put("codeRuns", runs(codeColors(block.code, block.tokens, block.emphasis)))
         put("gutter", block.gutter)
         put("gutterRuns", runs(gutterColors(block)))
         put("hunkContext", block.hunkContext)
@@ -108,7 +109,16 @@ class DiffParityTest {
         put("indentHint", block.indentHint)
         put("kind", if (block.kind == DiffBlockKind.Hunk) "hunk" else "code")
         put("lineCount", block.lineCount)
+        put("lines", JsonArray(block.lines.map(::lineJson)))
         put("rows", strings(block.rows.map { it.iosName }))
+    }
+
+    private fun lineJson(line: DiffCodeLine) = buildJsonObject {
+        put("code", line.code)
+        put("codeRuns", runs(codeColors(line.code, line.tokens, line.emphasis)))
+        put("id", line.id)
+        put("kind", line.kind.iosName)
+        put("number", line.number)
     }
 
     private fun highlightJson(lines: List<String>, ext: String): JsonObject {
@@ -136,13 +146,17 @@ class DiffParityTest {
     }
 
     /** Each UTF-16 unit's (foreground, background), as the attributed string paints it. */
-    private fun codeColors(block: DiffBlock): List<Pair<String, String>> {
-        val fg = Array(block.code.length) { SyntaxToken.Plain.desc }
-        val bg = Array(block.code.length) { "" }
-        block.tokens.forEach { span ->
+    private fun codeColors(
+        code: String,
+        tokens: List<TokenSpan>,
+        emphasis: List<EmphasisSpan>
+    ): List<Pair<String, String>> {
+        val fg = Array(code.length) { SyntaxToken.Plain.desc }
+        val bg = Array(code.length) { "" }
+        tokens.forEach { span ->
             for (i in span.start until span.end) fg[i] = span.token.desc
         }
-        block.emphasis.forEach { span ->
+        emphasis.forEach { span ->
             val tint = if (span.added) DiffPalette.addWord else DiffPalette.delWord
             for (i in span.start until span.end) bg[i] = tint.desc
         }

@@ -7,10 +7,11 @@ import { BORDER, HOST_NAME, LAPTOP_NAME, MUTED } from "./pair-demo-styles";
 import { PairDemoWindow } from "./pair-demo-window";
 import { usePairSequence } from "./use-pair-sequence";
 
-// The card alone, for the home page's "Another computer" tab.
-export function PairDemoCard() {
+// The card alone, for the home page's "Another computer" tab, which keeps it
+// mounted but still while another tab is showing.
+export function PairDemoCard({ active = true }: { active?: boolean }) {
   const { ref, inView } = useInView<HTMLDivElement>();
-  const { step, reduced } = usePairSequence(inView);
+  const { step, reduced } = usePairSequence(inView && active);
 
   return (
     <div

@@ -317,14 +317,8 @@ export function useAppEvents(): void {
     const cancelSettings = EventsOn("menu-open-settings", () => {
       setView("settings");
     });
-    const cancelCommitInstr = EventsOn("navigate-commit-instructions", () => {
-      setView("commit-instructions");
-    });
     const cancelPRInstr = EventsOn("navigate-pr-instructions", () => {
       setView("pr-instructions");
-    });
-    const cancelBranchInstr = EventsOn("navigate-branch-instructions", () => {
-      setView("branch-instructions");
     });
     const cancelFeedback = EventsOn("menu-open-feedback", () => {
       setFeedbackOpen(true);
@@ -350,9 +344,7 @@ export function useAppEvents(): void {
       if (typeof cancelOpenAutomation === "function") cancelOpenAutomation();
       if (typeof cancelNewProject === "function") cancelNewProject();
       if (typeof cancelSettings === "function") cancelSettings();
-      if (typeof cancelCommitInstr === "function") cancelCommitInstr();
       if (typeof cancelPRInstr === "function") cancelPRInstr();
-      if (typeof cancelBranchInstr === "function") cancelBranchInstr();
       if (typeof cancelFeedback === "function") cancelFeedback();
       cancelFocusTerminal();
     };

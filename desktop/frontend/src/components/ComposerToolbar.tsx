@@ -13,6 +13,7 @@ import { ComposerToolbarSlot } from "./ComposerToolbarSlot";
 import { SquarePenIcon } from "./icons";
 import { SendSplitButton, type SendSplitButtonProps } from "./SendSplitButton";
 import { TerminalHistoryButton, type TerminalHistoryButtonProps } from "./TerminalHistoryButton";
+import { TerminalHistoryPanel } from "./TerminalHistoryPanel";
 import { DICTATION_AVAILABLE } from "../hooks/useVoiceDictation";
 import { useDictationHost } from "../hooks/useDictationHost";
 import { DictationStrip } from "./dictation/DictationStrip";
@@ -43,12 +44,28 @@ interface ComposerToolbarProps {
   model: ComposerModelButtonProps | null;
   fork: ComposerForkProps;
   send: SendSplitButtonProps;
+  // History › Drafts asked for from outside the row (a toast's Open Drafts),
+  // wherever the Drafts tool sits.
+  draftsOpen: boolean;
+  onDraftsClose: () => void;
 }
 
 // The button row under the terminal input. Every tool but Send lives either
 // here, as a button, or in the More menu at the row's end, and the user moves
 // it between the two from either place.
-export function ComposerToolbar({ boxRef, editorRef, history, onNewInput, actions, memory, model, fork, send }: ComposerToolbarProps) {
+export function ComposerToolbar({
+  boxRef,
+  editorRef,
+  history,
+  onNewInput,
+  actions,
+  memory,
+  model,
+  fork,
+  send,
+  draftsOpen,
+  onDraftsClose,
+}: ComposerToolbarProps) {
   // Dictating into this composer: the recorder takes over the row — the
   // strip where the tools were, the mic as the one button beside them. A
   // failed take's notice keeps the strip but gives Send back.
@@ -186,6 +203,14 @@ export function ComposerToolbar({ boxRef, editorRef, history, onNewInput, action
         {micBesideSend ? slot("mic") : recording && <ComposerMicButton into={editorRef} prominent />}
         {!(micBesideSend && send.disabled) && !recording && <SendSplitButton {...send} />}
       </div>
+      <TerminalHistoryPanel
+        {...history}
+        open={draftsOpen}
+        onClose={onDraftsClose}
+        boxRef={boxRef}
+        scheduled
+        initialCollection={COLLECTION_DRAFTS}
+      />
     </div>
   );
 }

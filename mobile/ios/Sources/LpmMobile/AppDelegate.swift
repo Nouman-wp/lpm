@@ -49,10 +49,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     // the model is attached; hold them and hand them over on attach.
     private var pendingToken: String?
     private var pendingTarget: NotificationOpenTarget?
+    private let answers = MainActor.assumeIsolated { AgentAnswerSender() }
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        MainActor.assumeIsolated { AgentAnswerSender.registerCategories() }
         return true
     }
 
@@ -134,6 +136,21 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
+        // A button answered the agent: send it and stay in the background.
+        if AgentAnswerAction(identifier: response.actionIdentifier) != nil {
+            guard let answer = AgentAnswer(response: response) else {
+                completionHandler()
+                return
+            }
+            MainActor.assumeIsolated {
+                let live = model.map { model in { (answer: AgentAnswer) in await model.answerLive(answer) } }
+                Task { @MainActor in
+                    await answers.send(answer, live: live, notification: response.notification)
+                    completionHandler()
+                }
+            }
+            return
+        }
         if let target = NotificationOpenTarget(userInfo: response.notification.request.content.userInfo) {
             if model != nil {
                 MainActor.assumeIsolated { model?.pendingNotificationTarget = target }

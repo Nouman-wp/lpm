@@ -273,6 +273,8 @@ interface AppState {
   createRemoteProjectFromFolder: (hostDir: string) => Promise<void>;
   noteAdoption: (adopted: AdoptedProject, requested: string, where: string) => void;
   pickAddProjectKind: (kind: "local" | "ssh" | "clone") => Promise<void>;
+  // Adopt a folder on this machine as a project; null when that failed (toasted).
+  addLocalFolder: (dir: string) => Promise<AdoptedProject | null>;
   closeSSHModal: () => void;
   addSSHProject: (params: SSHProjectParams) => Promise<void>;
   openAddCloneModal: () => void;
@@ -1189,13 +1191,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const dir = await BrowseFolder(getSettings().defaultProjectDirectory);
       if (!dir) return;
+      const adopted = await get().addLocalFolder(dir);
+      if (adopted) set({ selected: adopted.name, view: "projects" });
+    } catch (err) {
+      toast.error(`Failed to add project: ${err}`);
+    }
+  },
+
+  addLocalFolder: async (dir) => {
+    try {
       const name = folderBaseName(dir);
       const adopted = adoptedProject(await CreateProject(name, dir), name);
       await get().refreshProjects();
-      set({ selected: adopted.name, view: "projects" });
       get().noteAdoption(adopted, name, "");
+      return adopted;
     } catch (err) {
       toast.error(`Failed to add project: ${err}`);
+      return null;
     }
   },
 
@@ -1707,14 +1719,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  // The rename dialog shows a failure itself, so it is thrown rather than toasted.
   moveProjectRoot: async (name, newRoot) => {
-    try {
-      await MoveProjectRoot(name, newRoot);
-      await get().refreshProjects();
-    } catch (err) {
-      toast.error(`Failed to move ${name}: ${err}`);
-      throw err;
-    }
+    await MoveProjectRoot(name, newRoot);
+    await get().refreshProjects();
   },
 
   applySidebarLayout: async (layout) => {

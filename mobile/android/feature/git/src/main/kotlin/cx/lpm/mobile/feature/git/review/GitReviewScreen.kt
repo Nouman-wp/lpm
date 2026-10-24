@@ -35,6 +35,7 @@ import cx.lpm.mobile.feature.git.diff.DiffBlockKind
 import cx.lpm.mobile.feature.git.diff.DiffCodeBlock
 import cx.lpm.mobile.feature.git.diff.DiffColors
 import cx.lpm.mobile.feature.git.diff.HunkSeparator
+import cx.lpm.mobile.feature.git.diff.WrappedDiffCodeBlock
 import cx.lpm.mobile.feature.git.diff.rememberDiffColors
 import cx.lpm.mobile.feature.git.ui.GitNoticeBanner
 import kotlinx.coroutines.launch
@@ -51,6 +52,7 @@ class ReviewActions(
     val toggleCollapsed: (String) -> Unit = {},
     val toggleViewed: (String) -> Unit = {},
     val showAll: (String) -> Unit = {},
+    val toggleWrap: () -> Unit = {},
     val ask: (String) -> Unit = {},
     val openCommit: () -> Unit = {},
     val createPullRequest: () -> Unit = {}
@@ -151,26 +153,33 @@ private fun ReviewList(
             if (row is ReviewRow.FileHeader) {
                 stickyHeader(key = row.key, contentType = ReviewRow.FileHeader::class) {
                     LaunchedEffect(row.path) { actions.fileAppeared(row.path) }
-                    FileHeaderBar(row, actions, onViewedToggle = { onViewedToggle(row) })
+                    FileHeaderBar(
+                        row,
+                        state.wrap,
+                        actions,
+                        onViewedToggle = { onViewedToggle(row) }
+                    )
                 }
             } else {
-                item(key = row.key, contentType = row::class) { ReviewItem(row, actions, colors) }
+                item(key = row.key, contentType = row::class) {
+                    ReviewItem(row, state.wrap, actions, colors)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ReviewItem(row: ReviewRow, actions: ReviewActions, colors: DiffColors) {
+private fun ReviewItem(row: ReviewRow, wrap: Boolean, actions: ReviewActions, colors: DiffColors) {
     when (row) {
         is ReviewRow.Summary -> ReviewSummary(row)
 
         is ReviewRow.FileHeader -> Unit
 
-        is ReviewRow.Block -> if (row.block.kind == DiffBlockKind.Hunk) {
-            HunkSeparator(row.block)
-        } else {
-            DiffCodeBlock(row.block, colors, Modifier.fillMaxWidth())
+        is ReviewRow.Block -> when {
+            row.block.kind == DiffBlockKind.Hunk -> HunkSeparator(row.block)
+            wrap -> WrappedDiffCodeBlock(row.block, colors, Modifier.fillMaxWidth())
+            else -> DiffCodeBlock(row.block, colors, Modifier.fillMaxWidth())
         }
 
         is ReviewRow.Note -> FileNoteRow(row.note, onRetry = { actions.retryDiff(row.path) })

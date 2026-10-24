@@ -23,6 +23,7 @@ import { PortConflictDialog } from "./components/PortConflictDialog";
 import { PairApprovalHost } from "./components/PairApprovalHost";
 import { PairRequestDialog } from "./components/connections/PairRequestDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
+import { InstructionsDialogHost } from "./components/InstructionsDialogHost";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
 import { AppToaster } from "./components/AppToaster";
 import { DictationOverlay } from "./components/dictation/DictationOverlay";
@@ -407,6 +408,7 @@ export default function App() {
       <PairRequestDialog />
       <TabShareHosts />
       <FileViewerHost />
+      <InstructionsDialogHost />
       <TerminalDropOverlayHost />
       <ProjectSwitcher
         active={switcher.active}

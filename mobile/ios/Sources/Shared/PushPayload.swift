@@ -9,13 +9,29 @@ import CryptoKit
 /// (background clear handling), which both open the same combined format.
 enum PushPayload {
     static func open(blob: String) -> [String: Any]? {
-        guard let sealed = Data(base64Encoded: blob),
-              let keyData = PushKey.load(),
-              let box = try? AES.GCM.SealedBox(combined: sealed),
-              let plaintext = try? AES.GCM.open(box, using: SymmetricKey(data: keyData)),
+        guard let plaintext = plaintext(blob: blob),
               let payload = try? JSONSerialization.jsonObject(with: plaintext) as? [String: Any]
         else { return nil }
         return payload
+    }
+
+    static func plaintext(blob: String) -> Data? {
+        guard let sealed = Data(base64Encoded: blob),
+              let keyData = PushKey.load(),
+              let box = try? AES.GCM.SealedBox(combined: sealed),
+              let plaintext = try? AES.GCM.open(box, using: SymmetricKey(data: keyData))
+        else { return nil }
+        return plaintext
+    }
+
+    /// Seal `plaintext` the way the Mac does, so what the app shows itself reads
+    /// exactly like what a push brings.
+    static func seal(_ plaintext: Data) -> String? {
+        guard let keyData = PushKey.load(),
+              let box = try? AES.GCM.seal(plaintext, using: SymmetricKey(data: keyData)),
+              let combined = box.combined
+        else { return nil }
+        return combined.base64EncodedString()
     }
 
     /// A collision-free identity for a delivered notification's (project, status

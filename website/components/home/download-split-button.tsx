@@ -4,13 +4,13 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ArrowRight, ChevronDown } from "lucide-react";
 import { trackDownload, type DownloadSource } from "@/lib/analytics";
 import {
+  DOWNLOAD_OS_ORDER,
   DOWNLOADS_BY_OS,
   downloadDetails,
   formatReleaseDate,
   formatSize,
   isBetaOs,
   OS_NAMES,
-  type DesktopOs,
   type DownloadEntry,
   type DownloadPlatform,
   type ReleaseSummary,
@@ -18,8 +18,6 @@ import {
 import { BetaTag } from "./beta-tag";
 import { OsIcon } from "./os-icon";
 import { PrimaryDownload } from "./primary-download";
-
-const OS_ORDER: DesktopOs[] = ["macos", "windows", "linux"];
 
 type Props = {
   primary: DownloadEntry;
@@ -104,7 +102,7 @@ export function DownloadSplitButton({
             {released && ` · ${released}`}
           </p>
         )}
-        {OS_ORDER.map((os) => (
+        {DOWNLOAD_OS_ORDER.map((os) => (
           <div
             key={os}
             className="border-t border-gray-100 py-1 first-of-type:border-t-0 dark:border-white/[0.06]"

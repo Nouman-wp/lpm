@@ -401,6 +401,8 @@
 {"at": 66000, "frame": {"t": "uploadBegin", "id": "demo-storefront-1"}}
 {"at": 66500, "frame": {"t": "apnsToken", "token": "x"}}
 {"at": 66500, "frame": {"t": "ttsSpeak", "reqId": "s1", "text": "hi"}}
+{"at": 66500, "frame": {"t": "liveActivity", "on": true}}
+{"at": 66500, "frame": {"t": "answerAgent", "project": "storefront", "terminalId": "demo-storefront-1", "key": "claude_code_demo-storefront-1", "ts": 1792089000123, "action": "reply", "text": "Ship it", "reqId": "a1"}}
 {"at": 66900, "frame": {"t": "saveProfile", "project": "storefront", "name": "web-only", "services": ["web"]}}
 {"at": 67100, "frame": {"t": "sub", "id": "demo-storefront-1"}}
 {"at": 67200, "frame": {"t": "unsub", "id": "demo-storefront-1"}}

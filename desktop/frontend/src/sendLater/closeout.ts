@@ -14,7 +14,7 @@ export function enableCloseout(): () => void {
   };
 }
 
-function saveAsDraft(item: ScheduledPrompt): Promise<void> {
+function saveAsDraft(item: ScheduledPrompt): Promise<string> {
   return saveDraft({
     text: item.text,
     projectName: item.projectName,
@@ -26,10 +26,11 @@ function saveAsDraft(item: ScheduledPrompt): Promise<void> {
 
 // File a waiting prompt with the user's drafts, text and images intact, and
 // take it off the schedule. The draft is written first, so a failure keeps it
-// scheduled rather than losing it.
-export async function keepAsDraft(item: ScheduledPrompt): Promise<void> {
-  await saveAsDraft(item);
+// scheduled rather than losing it. Resolves with the draft's id.
+export async function keepAsDraft(item: ScheduledPrompt): Promise<string> {
+  const draftId = await saveAsDraft(item);
   await removePrompt(item.id);
+  return draftId;
 }
 
 async function keepAllAsDrafts(items: ScheduledPrompt[], title: string) {

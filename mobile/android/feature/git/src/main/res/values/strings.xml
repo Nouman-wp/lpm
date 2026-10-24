@@ -29,6 +29,7 @@
     <string name="git_review_not_repo_message">This project isn\'t tracked by git, so there\'s nothing to review.</string>
     <string name="git_review_unreachable">Can\'t reach your Mac</string>
     <string name="git_file_viewed">Viewed</string>
+    <string name="git_file_wrap">Wrap</string>
     <string name="git_file_on">On</string>
     <string name="git_file_off">Off</string>
     <string name="git_file_collapsed">Collapsed</string>
@@ -49,6 +50,15 @@
     <string name="git_commit_message">Commit message</string>
     <string name="git_commit_generating">Generating…</string>
     <string name="git_commit_generate_message">Generate message</string>
+    <string name="git_commit_drafted">Drafted from the diff</string>
+    <string name="git_commit_regenerate">Regenerate</string>
+    <string name="git_commit_files_count" tools:ignore="PluralsCandidate">%1$d of %2$d</string>
+    <string name="git_commit_branch">Branch</string>
+    <string name="git_commit_branch_target">%1$s → origin</string>
+    <string name="git_commit_and_push">Commit and Push</string>
+    <string name="git_commit_only">Commit only</string>
+    <string name="git_commit_committing">Committing…</string>
+    <string name="git_commit_pushing">Pushing…</string>
     <string name="git_commit_files">Files</string>
     <string name="git_commit_select_all">Select All</string>
     <string name="git_commit_deselect_all">Deselect All</string>

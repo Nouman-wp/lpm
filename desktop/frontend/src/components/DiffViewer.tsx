@@ -1,11 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  type Token,
-  DIFF_META_PREFIXES,
-  getLang,
-  ensureLang,
-  tokenizeLines,
-} from "../highlight";
+import { useEffect, useMemo, useState } from "react";
+import { type Token, getLang, ensureLang, tokenizeLines } from "../highlight";
+import { gutterDigits, hunkLabel, parseDiffRows, type DiffRow } from "./diffRows";
 
 interface DiffViewerProps {
   diff: string;
@@ -13,10 +8,7 @@ interface DiffViewerProps {
   filePath?: string;
 }
 
-async function highlightUnifiedDiff(
-  lines: string[],
-  filePath: string,
-): Promise<Map<number, Token[]>> {
+async function highlightRows(rows: DiffRow[], filePath: string): Promise<Map<number, Token[]>> {
   const lang = getLang(filePath);
   if (!lang || !(await ensureLang(lang))) return new Map();
 
@@ -25,92 +17,57 @@ async function highlightUnifiedDiff(
   const newIdx: number[] = [];
   const newCode: string[] = [];
 
-  lines.forEach((line, i) => {
-    const code =
-      line.startsWith("+") || line.startsWith("-") || line.startsWith(" ")
-        ? line.slice(1)
-        : line;
-    if (line.startsWith("-")) {
+  rows.forEach((row, i) => {
+    if (row.kind !== "code") return;
+    if (row.type !== "add") {
       oldIdx.push(i);
-      oldCode.push(code);
-    } else if (line.startsWith("+")) {
+      oldCode.push(row.text);
+    }
+    if (row.type !== "del") {
       newIdx.push(i);
-      newCode.push(code);
-    } else {
-      oldIdx.push(i);
-      oldCode.push(code);
-      newIdx.push(i);
-      newCode.push(code);
+      newCode.push(row.text);
     }
   });
 
   const result = new Map<number, Token[]>();
-
-  if (oldCode.length > 0) {
-    const oldTokens = await tokenizeLines(oldCode.join("\n"), lang);
-    oldTokens.forEach((tokens, i) => {
-      if (i < oldIdx.length) result.set(oldIdx[i], tokens);
+  const fill = async (idx: number[], code: string[]) => {
+    if (code.length === 0) return;
+    const tokens = await tokenizeLines(code.join("\n"), lang);
+    tokens.forEach((t, i) => {
+      if (i < idx.length) result.set(idx[i], t);
     });
-  }
-  if (newCode.length > 0) {
-    const newTokens = await tokenizeLines(newCode.join("\n"), lang);
-    newTokens.forEach((tokens, i) => {
-      if (i < newIdx.length) result.set(newIdx[i], tokens);
-    });
-  }
-
+  };
+  await fill(oldIdx, oldCode);
+  await fill(newIdx, newCode);
   return result;
 }
 
-function renderLine(
-  line: string,
-  tokens: Token[] | undefined,
-): ReactNode {
-  const isAdd = line.startsWith("+");
-  const isDel = line.startsWith("-");
-  const prefix = isAdd ? "+" : isDel ? "-" : line.startsWith(" ") ? " " : "";
-
-  if (tokens && tokens.length > 0) {
-    return (
-      <>
-        {prefix}
-        {tokens.map((t, i) => (
-          <span key={i} style={t.color ? { color: t.color } : undefined}>
-            {t.content}
-          </span>
-        ))}
-      </>
-    );
-  }
-  return line || " ";
-}
+const MARKER = { add: "+", del: "-", ctx: " " } as const;
+const ROW_BG = { add: "bg-green-500/10", del: "bg-red-500/10", ctx: "" } as const;
+const FALLBACK_COLOR = {
+  add: "text-green-400",
+  del: "text-red-400",
+  ctx: "text-[var(--text-muted)]",
+} as const;
+const GUTTER =
+  "shrink-0 select-none pl-2 text-right tabular-nums text-[var(--text-muted)] opacity-60";
 
 export function DiffViewer({ diff, loading, filePath }: DiffViewerProps) {
   const [tokenMap, setTokenMap] = useState<Map<number, Token[]>>(new Map());
-
-  const lines = useMemo(
-    () =>
-      diff
-        .split("\n")
-        .filter(
-          (l) =>
-            !l.startsWith("@@") &&
-            !DIFF_META_PREFIXES.some((p) => l.startsWith(p)),
-        ),
-    [diff],
-  );
+  const rows = useMemo(() => parseDiffRows(diff), [diff]);
+  const gutterWidth = { width: `calc(${gutterDigits(rows)}ch + 0.5rem)` };
 
   useEffect(() => {
     setTokenMap(new Map());
-    if (!filePath || lines.length === 0) return;
+    if (!filePath || rows.length === 0) return;
     let cancelled = false;
-    highlightUnifiedDiff(lines, filePath).then((result) => {
+    highlightRows(rows, filePath).then((result) => {
       if (!cancelled) setTokenMap(result);
     });
     return () => {
       cancelled = true;
     };
-  }, [lines, filePath]);
+  }, [rows, filePath]);
 
   if (loading) {
     return (
@@ -129,28 +86,49 @@ export function DiffViewer({ diff, loading, filePath }: DiffViewerProps) {
   }
 
   return (
-    <pre className="max-h-[250px] overflow-auto border-t border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[11px] font-mono leading-[1.6]">
-      {lines.map((line, i) => {
-        const tokens = tokenMap.get(i);
-        const isAdd = line.startsWith("+");
-        const isDel = line.startsWith("-");
-        const bg = isAdd
-          ? "bg-green-500/10"
-          : isDel
-            ? "bg-red-500/10"
-            : "";
-        const fallbackColor = isAdd
-          ? "text-green-400"
-          : isDel
-            ? "text-red-400"
-            : "text-[var(--text-muted)]";
-
-        return (
-          <div key={i} className={`${bg} ${tokens ? "" : fallbackColor}`}>
-            {renderLine(line, tokens)}
-          </div>
-        );
-      })}
-    </pre>
+    <div className="max-h-[250px] overflow-auto border-t border-[var(--border)] bg-[var(--bg-primary)] py-1 font-mono text-[11px] leading-[1.6]">
+      <div className="min-w-fit">
+        {rows.map((row, i) => {
+          if (row.kind === "hunk") {
+            return (
+              <div
+                key={i}
+                className="my-0.5 whitespace-pre bg-[var(--accent-blue)]/10 px-3 text-[10.5px] text-[var(--accent-blue-text)] first:mt-0"
+              >
+                {hunkLabel(row)}
+              </div>
+            );
+          }
+          if (row.kind === "note") {
+            return (
+              <div key={i} className="whitespace-pre px-3 text-[var(--text-muted)]">
+                {row.text}
+              </div>
+            );
+          }
+          const tokens = tokenMap.get(i);
+          return (
+            <div key={i} className={`flex ${ROW_BG[row.type]}`}>
+              <span className={GUTTER} style={gutterWidth}>
+                {row.oldNo ?? ""}
+              </span>
+              <span className={GUTTER} style={gutterWidth}>
+                {row.newNo ?? ""}
+              </span>
+              <span className={`whitespace-pre pl-2 pr-3 ${tokens ? "" : FALLBACK_COLOR[row.type]}`}>
+                {MARKER[row.type]}
+                {tokens && tokens.length > 0
+                  ? tokens.map((t, j) => (
+                      <span key={j} style={t.color ? { color: t.color } : undefined}>
+                        {t.content}
+                      </span>
+                    ))
+                  : row.text}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

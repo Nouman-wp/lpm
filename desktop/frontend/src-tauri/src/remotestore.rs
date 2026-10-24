@@ -53,6 +53,16 @@ pub(crate) struct Device {
     pub(crate) push_automation_started: bool,
     pub(crate) push_automation_done: bool,
     pub(crate) push_automation_error: bool,
+    // The phone shows this machine's agents live (`liveActivity`): an iPhone's
+    // Live Activity, updated through its own APNs token (live_token, hex, in
+    // live_env), or an Android phone's ongoing notification, sent to its push
+    // token like any other push.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub(crate) live_updates: bool,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub(crate) live_token: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub(crate) live_env: String,
     // The flavor-aware server id of the instance that completed this pairing (dev
     // vs prod). None on legacy entries — treated as prod — so the dev instance
     // never pushes to them and their pushes keep flowing. Scopes push delivery so a
@@ -95,6 +105,9 @@ impl Default for Device {
             push_automation_started: false,
             push_automation_done: false,
             push_automation_error: false,
+            live_updates: false,
+            live_token: String::new(),
+            live_env: String::new(),
             paired_server_id: None,
             alias: String::new(),
             last_seen: 0,

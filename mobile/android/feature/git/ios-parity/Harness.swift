@@ -1,7 +1,8 @@
 import AppKit
 
 // Replays diffs.json through the iOS ParsedDiff and DiffHighlighter and prints what
-// they produce: lines, blocks with each run's colors, and every language's rules.
+// they produce: lines, blocks (and each block's wrapped lines) with each run's
+// colors, and every language's rules.
 
 let cases = try! JSONSerialization.jsonObject(
     with: Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))
@@ -56,6 +57,12 @@ for c in cases {
                     "rows": block.rows.map(name),
                     "gutter": block.gutter.string, "gutterRuns": runs(block.gutter),
                     "code": block.code.string, "codeRuns": runs(block.code),
+                    "lines": block.lines.map { line -> [String: Any] in
+                        [
+                            "id": line.id, "kind": name(line.kind), "number": line.number,
+                            "code": line.code.string, "codeRuns": runs(line.code),
+                        ]
+                    },
                 ]
             },
         ])

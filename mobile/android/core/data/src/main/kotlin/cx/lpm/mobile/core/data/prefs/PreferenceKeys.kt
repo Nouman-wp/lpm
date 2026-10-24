@@ -14,6 +14,10 @@ object PreferenceKeys {
     const val NOTIFY_AUTOMATION_STARTED = "lpm.notify.automation.started"
     const val NOTIFY_AUTOMATION_DONE = "lpm.notify.automation.done"
     const val NOTIFY_AUTOMATION_ERROR = "lpm.notify.automation.error"
+    const val NOTIFY_LIVE_ACTIVITY = "lpm.notify.liveActivity"
+
+    /** Android only: the Macs whose agents-at-work card was swiped away until they're done. */
+    const val LIVE_DISMISSED = "liveActivity.dismissed"
 
     const val APPEARANCE_MODE = "appearanceMode"
     const val TERMINAL_FONT_SIZE = "terminalFontSize"
@@ -33,6 +37,7 @@ object PreferenceKeys {
     const val ACTION_PRIMARY_LAST_USED = "actionPrimaryLastUsed"
     const val ZONE_OPEN_LAYERS = "zoneOpenLayers"
     const val NEW_TAB_LAST_PICK = "newTab.lastPick"
+    const val GIT_REVIEW_WRAP = "gitReview.wrap"
 
     const val TOKEN_ACTIVITY_RANGE = "tokenActivity.range"
 

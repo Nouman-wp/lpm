@@ -15,6 +15,25 @@ const CHECKS = [
 
 type Step = "idle" | "typing" | "installing" | "connecting" | "connected";
 
+const WAIT = {
+  idle: 900,
+  key: 58,
+  typed: 620,
+  check: 900,
+  installed: 500,
+  connecting: 1200,
+  connected: 5200,
+};
+
+export const ADD_HOST_CYCLE_MS =
+  WAIT.idle +
+  TARGET.length * WAIT.key +
+  WAIT.typed +
+  CHECKS.length * WAIT.check +
+  WAIT.installed +
+  WAIT.connecting +
+  WAIT.connected;
+
 const MUTED = "text-[#8a8a8a]";
 const PRIMARY = "text-[#ededed]";
 const BORDER = "border-[#2e2e2e]";
@@ -45,37 +64,37 @@ function useAddHostSequence(active: boolean) {
   useEffect(() => {
     if (!active || reduced) return;
     if (step === "idle") {
-      const t = setTimeout(() => setStep("typing"), 900);
+      const t = setTimeout(() => setStep("typing"), WAIT.idle);
       return () => clearTimeout(t);
     }
     if (step === "typing") {
       if (typed.length < TARGET.length) {
         const t = setTimeout(
           () => setTyped(TARGET.slice(0, typed.length + 1)),
-          58,
+          WAIT.key,
         );
         return () => clearTimeout(t);
       }
-      const t = setTimeout(() => setStep("installing"), 620);
+      const t = setTimeout(() => setStep("installing"), WAIT.typed);
       return () => clearTimeout(t);
     }
     if (step === "installing") {
       if (checks < CHECKS.length) {
-        const t = setTimeout(() => setChecks((c) => c + 1), 900);
+        const t = setTimeout(() => setChecks((c) => c + 1), WAIT.check);
         return () => clearTimeout(t);
       }
-      const t = setTimeout(() => setStep("connecting"), 500);
+      const t = setTimeout(() => setStep("connecting"), WAIT.installed);
       return () => clearTimeout(t);
     }
     if (step === "connecting") {
-      const t = setTimeout(() => setStep("connected"), 1200);
+      const t = setTimeout(() => setStep("connected"), WAIT.connecting);
       return () => clearTimeout(t);
     }
     const t = setTimeout(() => {
       setTyped("");
       setChecks(0);
       setStep("idle");
-    }, 5200);
+    }, WAIT.connected);
     return () => clearTimeout(t);
   }, [active, reduced, step, typed, checks]);
 
@@ -144,9 +163,11 @@ function HostRow({ connected }: { connected: boolean }) {
 }
 
 // The card alone, for the home page's "Linux server" tab.
-export function AddHostCard() {
+export function AddHostCard({ active = true }: { active?: boolean }) {
   const { ref, inView } = useInView<HTMLDivElement>();
-  const { step, typed, checks, reduced } = useAddHostSequence(inView);
+  const { step, typed, checks, reduced } = useAddHostSequence(
+    inView && active,
+  );
 
   const showRow = step === "connecting" || step === "connected";
   const busy = step === "installing";

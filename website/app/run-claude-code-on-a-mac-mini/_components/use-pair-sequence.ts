@@ -20,6 +20,11 @@ const NEXT: Record<PairStep, { step: PairStep; after: number }> = {
   running: { step: "idle", after: 6400 },
 };
 
+export const PAIR_CYCLE_MS = Object.values(NEXT).reduce(
+  (total, { after }) => total + after,
+  0,
+);
+
 // The reduced-motion view is derived, never written: it shows Claude Code and
 // Codex running on the paired Mac mini, and the loop never starts.
 export function usePairSequence(active: boolean) {

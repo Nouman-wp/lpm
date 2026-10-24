@@ -3,6 +3,7 @@ import { interactivePaneOutputAt } from "../components/InteractivePane";
 import { buildTerminalPayload } from "../composerPayload";
 import { isSwitchingModel } from "../hooks/useAgentModelSwitch";
 import { derivePaneStatus } from "../hooks/usePaneStatus";
+import { projectStatusEntries } from "../projectStatusEntries";
 import { useAppStore } from "../store/app";
 import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import { recordMessage } from "../store/messageHistory";
@@ -27,11 +28,7 @@ function findTarget(item: ScheduledPrompt): TerminalTargetInfo | null {
 }
 
 function agentStateOf(projectName: string, terminalId: string) {
-  const entries =
-    projectName === GLOBAL_TERMINALS_KEY
-      ? useGlobalAgentStatus.getState().entries
-      : useAppStore.getState().projects.find((p) => p.name === projectName)?.statusEntries;
-  return derivePaneStatus(entries, Date.now()).agents.get(terminalId)?.state;
+  return derivePaneStatus(projectStatusEntries(projectName), Date.now()).agents.get(terminalId)?.state;
 }
 
 function current(id: string): ScheduledPrompt | undefined {

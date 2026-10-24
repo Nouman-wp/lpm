@@ -9,4 +9,20 @@
     <string name="push_channel_automation_started">Started</string>
     <string name="push_channel_automation_done">Finished</string>
     <string name="push_channel_automation_error">Error or timeout</string>
+    <string name="push_channel_live">Agents at work</string>
+
+    <!-- Answering from a notification. -->
+    <string name="answer_allow">Allow</string>
+    <string name="answer_deny">Deny</string>
+    <string name="answer_reply">Reply</string>
+    <string name="answer_reply_hint">Reply…</string>
+    <string name="answer_not_sent">Not sent: %1$s</string>
+    <string name="answer_unreachable">couldn\'t reach %1$s.</string>
+    <string name="answer_your_mac">your Mac</string>
+    <string name="answer_unknown_mac">This Mac isn\'t on this phone any more.</string>
+
+    <!-- The agents-at-work card. -->
+    <string name="live_open">Open</string>
+    <string name="live_at_work">Agents at work</string>
+    <string name="live_problem">problem</string>
 </resources>

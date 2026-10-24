@@ -148,6 +148,78 @@ class PushRegistrarTest {
     }
 
     @Test
+    fun aMacOfferingLiveUpdatesIsToldTheChoiceWithEveryRegistration() = runTest {
+        val h = SessionHarness(this)
+        h.pushTokens.token.value = "fcm:tok-1"
+        h.registrar.start()
+        val live = h.connectReady(features = listOf("liveActivity"))
+        settle()
+        assertEquals(true, live.sentOf("liveActivity").single().bool("on"))
+        assertNull(live.sentOf("liveActivity").single()["token"])
+
+        h.prefs.setNotificationPrefs(NotificationPrefs(liveActivity = false))
+        settle()
+        assertEquals(false, live.sentOf("liveActivity").last().bool("on"))
+        assertEquals(2, live.sentOf("pushToken").size)
+    }
+
+    @Test
+    fun aMacWithoutLiveUpdatesHearsNothingOfThem() = runTest {
+        val h = SessionHarness(this)
+        h.pushTokens.token.value = "fcm:tok-1"
+        h.registrar.start()
+        val live = h.connectReady()
+        settle()
+        assertEquals(1, live.sentOf("pushToken").size)
+        assertTrue(live.sentOf("liveActivity").isEmpty())
+    }
+
+    @Test
+    fun theSweepTellsAnotherMacAndWaitsForBothAnswers() = runTest {
+        val h = SessionHarness(this)
+        h.pushTokens.token.value = "fcm:tok-1"
+        h.connectReady()
+        val other = MacRecord(
+            localId = MacRecord.newLocalId(),
+            serverId = "srv-2",
+            name = "Office Mac",
+            hosts = listOf("10.0.0.5"),
+            port = 8765
+        )
+        h.credentials.save("dev-2", "tok-2", other.localId)
+        h.prober.reachable += "10.0.0.5"
+        h.session.mutableState.update { it.copy(macs = it.macs + other) }
+        h.registrar.start()
+        settle(2_000)
+
+        val sweep = h.transport.last
+        sweep.open()
+        settle()
+        sweep.receive("""{"t":"ready","serverId":"srv-2","features":["liveActivity"]}""")
+        settle()
+        assertEquals(true, sweep.sentOf("liveActivity").single().bool("on"))
+        sweep.receive("""{"t":"pushToken","ok":true}""")
+        settle()
+        assertFalse(sweep.closed)
+        assertNull(h.registered(other.localId))
+        sweep.receive("""{"t":"liveActivity","ok":true}""")
+        settle()
+        assertTrue(sweep.closed)
+        assertEquals(h.registrar.registration()?.signature, h.registered(other.localId))
+
+        // Switching live updates off is news to every Mac.
+        h.prefs.setNotificationPrefs(NotificationPrefs(liveActivity = false))
+        settle(2_000)
+        val again = h.transport.last
+        assertTrue(again !== sweep)
+        again.open()
+        settle()
+        again.receive("""{"t":"ready","serverId":"srv-2","features":["liveActivity"]}""")
+        settle()
+        assertEquals(false, again.sentOf("liveActivity").single().bool("on"))
+    }
+
+    @Test
     fun anUnreachableMacIsLeftForTheNextSweep() = runTest {
         val h = SessionHarness(this)
         h.pushTokens.token.value = "fcm:tok-1"

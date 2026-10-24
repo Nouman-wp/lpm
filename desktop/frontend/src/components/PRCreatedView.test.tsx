@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   checkout: vi.fn(),
   pull: vi.fn(),
   open: vi.fn(),
+  copy: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
   settings: {} as Record<string, unknown>,
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../bridge/commands", () => ({
   CheckoutBranch: (...args: unknown[]) => mocks.checkout(...args),
   PullBranch: (...args: unknown[]) => mocks.pull(...args),
+  SetClipboardText: (text: string) => mocks.copy(text),
 }));
 vi.mock("../../bridge/runtime", () => ({
   BrowserOpenURL: (url: string) => mocks.open(url),
@@ -42,7 +44,9 @@ function buttons(): HTMLButtonElement[] {
   return Array.from(container.querySelectorAll("button"));
 }
 
-function render(onSwitched = vi.fn(), onBusyChange = vi.fn()) {
+const switchButton = () => buttons().find((b) => b.textContent?.startsWith("Switch"))!;
+
+function render(onSwitched = vi.fn(), onBusyChange = vi.fn(), draft = false) {
   act(() =>
     root.render(
       <PRCreatedView
@@ -50,6 +54,7 @@ function render(onSwitched = vi.fn(), onBusyChange = vi.fn()) {
         branch="feat/x"
         base="main"
         url="https://github.com/o/r/pull/9"
+        draft={draft}
         onSwitched={onSwitched}
         onBusyChange={onBusyChange}
       />,
@@ -74,12 +79,24 @@ afterEach(() => {
 describe("PRCreatedView", () => {
   it("shows the branch pair and opens the PR on GitHub", () => {
     render();
-    expect(container.textContent).toContain("Pull request created");
+    expect(container.textContent).toContain("Pull request #9 created");
+    expect(container.textContent).not.toContain("Draft");
     expect(container.textContent).toContain("feat/x → main");
-    const [switchBtn, openBtn] = buttons();
-    expect(switchBtn.textContent).toBe("Switch to main and pull");
-    act(() => openBtn.click());
+    expect(switchButton().textContent).toBe("Switch to main and pull");
+    act(() => buttons().find((b) => b.textContent === "Open on GitHub")!.click());
     expect(mocks.open).toHaveBeenCalledWith("https://github.com/o/r/pull/9");
+  });
+
+  it("marks a draft and copies the link", async () => {
+    mocks.copy.mockResolvedValue(undefined);
+    render(vi.fn(), vi.fn(), true);
+    expect(container.textContent).toContain("Draft");
+    expect(container.textContent).toContain("https://github.com/o/r/pull/9");
+
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Copy link"]')!.click());
+    await flush();
+    expect(mocks.copy).toHaveBeenCalledWith("https://github.com/o/r/pull/9");
+    expect(mocks.success).toHaveBeenCalledWith("Copied pull request link");
   });
 
   it("checks out the base, pulls with the saved strategy, then reports back", async () => {
@@ -88,9 +105,9 @@ describe("PRCreatedView", () => {
     mocks.pull.mockResolvedValue(undefined);
     const { onSwitched, onBusyChange } = render();
 
-    act(() => buttons()[0].click());
+    act(() => switchButton().click());
     expect(onBusyChange).toHaveBeenCalledWith(true);
-    expect(buttons()[0].textContent).toBe("Switching to main…");
+    expect(switchButton().textContent).toBe("Switching to main…");
     await flush();
 
     expect(mocks.checkout).toHaveBeenCalledWith("/p", "main", "");
@@ -111,13 +128,13 @@ describe("PRCreatedView", () => {
     mocks.checkout.mockRejectedValue(new Error("dirty tree"));
     const { onSwitched } = render();
 
-    act(() => buttons()[0].click());
+    act(() => switchButton().click());
     await flush();
 
     expect(mocks.pull).not.toHaveBeenCalled();
     expect(mocks.error).toHaveBeenCalledWith("Switch to main: Error: dirty tree");
     expect(onSwitched).not.toHaveBeenCalled();
-    expect(buttons()[0].textContent).toBe("Switch to main and pull");
+    expect(switchButton().textContent).toBe("Switch to main and pull");
   });
 
   it("still reports the switch when only the pull fails", async () => {
@@ -125,7 +142,7 @@ describe("PRCreatedView", () => {
     mocks.pull.mockRejectedValue(new Error("no upstream"));
     const { onSwitched } = render();
 
-    act(() => buttons()[0].click());
+    act(() => switchButton().click());
     await flush();
 
     expect(mocks.error).toHaveBeenCalledWith(

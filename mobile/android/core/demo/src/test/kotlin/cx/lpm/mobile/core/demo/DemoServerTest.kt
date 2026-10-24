@@ -18,6 +18,28 @@ class DemoServerTest {
     }
 
     @Test
+    fun acksPushRegistrationsAndAnswers() = runTest {
+        val demo = DemoHarness(this)
+        assertEquals(
+            mapOf("t" to "liveActivity", "ok" to true),
+            demo.request("liveActivity", "on" to true).single("liveActivity")
+        )
+        assertEquals(
+            mapOf("t" to "answerAgent", "ok" to true, "reqId" to "r-1"),
+            demo.request(
+                "answerAgent",
+                "project" to "storefront",
+                "action" to "allow",
+                "reqId" to "r-1"
+            ).single("answerAgent")
+        )
+        assertEquals(
+            mapOf("t" to "answerAgent", "ok" to true),
+            demo.request("answerAgent", "action" to "deny").single("answerAgent")
+        )
+    }
+
+    @Test
     fun ignoresUnknownVerbsAndMalformedFrames() = runTest {
         val demo = DemoHarness(this)
         demo.server.receive("""{"t":"nope"}""")
@@ -82,9 +104,9 @@ class DemoServerTest {
         "sendJobFollowup", "answerJobQuestion", "dismissJobQuestion",
         "readConfig", "saveConfig", "serviceBody", "saveService",
         "deleteService", "saveProfile", "deleteProfile", "actionBody", "saveAction", "deleteAction",
-        "apnsToken", "memory", "memorySession", "memorySave", "memoryDelete", "notesChats",
-        "notesCreateChat", "notesRenameChat", "notesDeleteChat", "notesMessages", "notesAddMessage",
-        "notesEditMessage", "notesDeleteMessage", "notesSearch", "notesAttachment", "limits",
-        "uploadBegin", "uploadChunk", "uploadDone", "uploadAbort"
+        "apnsToken", "liveActivity", "answerAgent", "memory", "memorySession", "memorySave",
+        "memoryDelete", "notesChats", "notesCreateChat", "notesRenameChat", "notesDeleteChat",
+        "notesMessages", "notesAddMessage", "notesEditMessage", "notesDeleteMessage", "notesSearch",
+        "notesAttachment", "limits", "uploadBegin", "uploadChunk", "uploadDone", "uploadAbort"
     )
 }

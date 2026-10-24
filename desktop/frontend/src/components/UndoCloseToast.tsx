@@ -5,12 +5,13 @@ import { FOOTER_TOASTER_ID } from "../toasterOffset";
 
 interface UndoCloseToastProps {
   toastId: string;
-  label: string;
+  title: string;
+  detail?: string;
   durationMs: number;
   onUndo: () => void;
 }
 
-export function UndoCloseToast({ toastId, label, durationMs, onUndo }: UndoCloseToastProps) {
+export function UndoCloseToast({ toastId, title, detail, durationMs, onUndo }: UndoCloseToastProps) {
   // Countdown line drains from full to empty over the undo window: paint it full
   // on mount, then flip to 0 on the next frame so the width transition runs.
   const [drained, setDrained] = useState(false);
@@ -21,11 +22,12 @@ export function UndoCloseToast({ toastId, label, durationMs, onUndo }: UndoClose
 
   return (
     <div
-      className="group relative flex w-[300px] items-center gap-2 overflow-hidden rounded-[11px] border border-[var(--border)] py-1.5 pl-3.5 pr-2 shadow-lg backdrop-blur-md"
+      className="group relative flex w-max min-w-[300px] max-w-[356px] items-center gap-2 overflow-hidden rounded-[11px] border border-[var(--border)] py-1.5 pl-3.5 pr-2 shadow-lg backdrop-blur-md"
       style={{ backgroundColor: "color-mix(in srgb, var(--bg-primary) 88%, transparent)" }}
     >
       <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-primary)]">
-        {label} closed
+        {title}
+        {detail && <span className="text-[var(--text-muted)]"> · {detail}</span>}
       </span>
       <button
         type="button"
@@ -57,7 +59,8 @@ export function UndoCloseToast({ toastId, label, durationMs, onUndo }: UndoClose
 
 export function showUndoCloseToast(opts: {
   toastId: string;
-  label: string;
+  title: string;
+  detail?: string;
   durationMs: number;
   onUndo: () => void;
   onFinalize: () => void;
@@ -66,7 +69,8 @@ export function showUndoCloseToast(opts: {
     () => (
       <UndoCloseToast
         toastId={opts.toastId}
-        label={opts.label}
+        title={opts.title}
+        detail={opts.detail}
         durationMs={opts.durationMs}
         onUndo={opts.onUndo}
       />

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PairingModal, type Pairing } from "./PairingModal";
+import { PairingModal } from "./PairingModal";
 import { RemoteNotice } from "./RemoteNotice";
 import { ReachCard } from "./mobile/ReachCard";
 import { PhonesSection } from "./mobile/PhonesSection";
+import { usePairingFlow } from "./mobile/usePairingFlow";
 import { usePeerState } from "../peer/usePeerState";
 import { useTailnetState } from "../hooks/useTailnetState";
 import { builtInReachable } from "../tailnetStatus";
-import { PeerRemotePair } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import {
   REMOTE_TONE_STYLE,
@@ -19,6 +19,7 @@ import {
 } from "../remoteStatus";
 import { canReachAway, type KeepAwakeStatus } from "../mobile/reachStatus";
 import { anyOverTailscale, type PhoneDevice } from "../mobile/phoneStatus";
+import { peerCommands } from "./settings/machineCommands";
 import { useMachineWords } from "./settings/useMachineWords";
 import { useSettingsTarget } from "./settings/settingsTarget";
 
@@ -66,37 +67,22 @@ export function MobileSettingsPane() {
   const { mobile } = commands;
   const local = machine.kind === "local";
   const [state, setState] = useState<RemoteStateShape>(DEFAULT_STATE);
-  const [pairing, setPairing] = useState<Pairing | null>(null);
-  const [pairingBusy, setPairingBusy] = useState(false);
+  const pairFlow = usePairingFlow();
   const [failure, setFailure] = useState<RemoteFailure | null>(null);
-  // Pairing minted by a connected peer machine: the phone scans this Mac's
-  // screen but connects straight to that machine.
   const { state: peerState } = usePeerState();
   const tailnet = useTailnetState(commands.tailnet);
-  const [hostPairing, setHostPairing] = useState<{ machine: string; pairing: Pairing } | null>(null);
-  const [hostPairingBusy, setHostPairingBusy] = useState(false);
+  // Pairing minted by a connected peer machine: the phone scans this Mac's
+  // screen but connects straight to that machine.
+  const hostFlow = usePairingFlow();
+  const [host, setHost] = useState<{ slug: string; machine: string } | null>(null);
   const [hostFailure, setHostFailure] = useState<string | null>(null);
   const reports = useRef(0);
-  // Devices change whenever a phone connects or leaves; only a phone that wasn't
-  // listed before means the pairing code on screen has been used.
-  const knownDevices = useRef<Set<string> | null>(null);
-  // Bumped when a pairing code is shown, so only a later read can close it.
-  const pairingShown = useRef(0);
 
   const refresh = useCallback(async (): Promise<RemoteStateShape | null> => {
     const seen = reports.current;
-    const shown = pairingShown.current;
     try {
       const fresh = { ...DEFAULT_STATE, ...((await mobile.state()) as RemoteStateShape) };
       setState((prev) => mergeRefreshedState(prev, fresh, reports.current !== seen));
-      const ids = new Set(fresh.devices.map((d) => d.id));
-      const known = knownDevices.current;
-      const paired = known && [...ids].some((id) => !known.has(id));
-      // A code that was used, replaced or withdrawn elsewhere is no use on screen.
-      if (paired || (!fresh.hasPendingCode && shown === pairingShown.current && shown > 0)) {
-        setPairing(null);
-      }
-      knownDevices.current = ids;
       return fresh;
     } catch {
       // The Mac may still be starting up — keep what the pane already shows.
@@ -167,33 +153,30 @@ export function MobileSettingsPane() {
     [state, run, mobile],
   );
 
+  const { start: startFlow } = pairFlow;
   const startPairing = useCallback(async () => {
-    setPairingBusy(true);
     setFailure(null);
     try {
-      const p = (await mobile.startPairing()) as Pairing;
-      pairingShown.current += 1;
-      setPairing(p);
+      await startFlow(mobile);
       await refresh();
     } catch (err) {
       await reportFailure("pair", err);
-    } finally {
-      setPairingBusy(false);
     }
-  }, [refresh, reportFailure, mobile]);
+  }, [refresh, reportFailure, mobile, startFlow]);
 
-  const startHostPairing = useCallback(async (slug: string, machine: string) => {
-    setHostPairingBusy(true);
-    setHostFailure(null);
-    try {
-      const p = (await PeerRemotePair(slug)) as Pairing;
-      setHostPairing({ machine, pairing: p });
-    } catch (err) {
-      setHostFailure(`Couldn't get a pairing code from ${machine} — ${String(err)}`);
-    } finally {
-      setHostPairingBusy(false);
-    }
-  }, []);
+  const { start: startHostFlow } = hostFlow;
+  const startHostPairing = useCallback(
+    async (slug: string, machine: string) => {
+      setHost({ slug, machine });
+      setHostFailure(null);
+      try {
+        await startHostFlow(peerCommands(slug).mobile);
+      } catch (err) {
+        setHostFailure(`Couldn't get a pairing code from ${machine} — ${String(err)}`);
+      }
+    },
+    [startHostFlow],
+  );
 
   // Tailscale is the way to reach this machine from anywhere: offer the app's
   // address when it runs here, else turn on the built-in one and sign in.
@@ -255,7 +238,7 @@ export function MobileSettingsPane() {
           devices={state.devices}
           peers={local ? peerState.peers : []}
           awayReady={awayReady}
-          pairing={pairingBusy || hostPairingBusy}
+          pairing={pairFlow.busy || hostFlow.busy}
           settingUpAway={tailnet.busy === "signIn"}
           onSetUpAway={setUpAway}
           onPairHere={() => void startPairing()}
@@ -268,18 +251,28 @@ export function MobileSettingsPane() {
       </div>
 
       <PairingModal
-        pairing={pairing}
+        pairing={pairFlow.pairing}
         machine={local ? undefined : machine.name}
-        onClose={() => setPairing(null)}
+        outcome={pairFlow.outcome}
+        busy={pairFlow.busy}
+        onClose={pairFlow.close}
         onSetUpTailscale={() => {
-          setPairing(null);
+          pairFlow.close();
           setUpAway();
         }}
+        onNewCode={() => void startPairing()}
+        onRename={(id, name) => void run("rename", {}, () => pairFlow.rename(id, name))}
       />
       <PairingModal
-        pairing={hostPairing?.pairing ?? null}
-        machine={hostPairing?.machine}
-        onClose={() => setHostPairing(null)}
+        pairing={hostFlow.pairing}
+        machine={host?.machine}
+        outcome={hostFlow.outcome}
+        busy={hostFlow.busy}
+        onClose={hostFlow.close}
+        onNewCode={host ? () => void startHostPairing(host.slug, host.machine) : undefined}
+        onRename={(id, name) =>
+          void hostFlow.rename(id, name).catch((err) => setHostFailure(`Couldn't rename it — ${String(err)}`))
+        }
       />
     </>
   );

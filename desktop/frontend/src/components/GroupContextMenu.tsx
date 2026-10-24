@@ -3,26 +3,30 @@ import { FolderIcon, PencilIcon, TrashIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
+import { deleteWithProjectsLabel } from "../removalGroups";
 
 interface GroupContextMenuProps {
   x: number;
   y: number;
+  // The projects the folder holds, copies included.
+  projectCount: number;
   onRename: () => void;
   onNewFolder: () => void;
-  // Drops the folder but keeps its projects; absent for an empty folder.
-  onUngroup?: () => void;
+  // Drops the folder; its projects move back to the top of the list.
+  onDeleteFolder: () => void;
   // Absent where the folder's projects can't be deleted from here.
-  onDelete?: () => void;
+  onDeleteWithProjects?: () => void;
   onClose: () => void;
 }
 
 export function GroupContextMenu({
   x,
   y,
+  projectCount,
   onRename,
   onNewFolder,
-  onUngroup,
-  onDelete,
+  onDeleteFolder,
+  onDeleteWithProjects,
   onClose,
 }: GroupContextMenuProps) {
   const close = (fn: () => void) => () => {
@@ -33,21 +37,18 @@ export function GroupContextMenu({
     <ContextMenuShell x={x} y={y} minWidth={180} onClose={onClose}>
       <ContextMenuItem label="Rename folder" icon={<PencilIcon />} onClick={close(onRename)} />
       <ContextMenuItem label="New folder" icon={<FolderIcon />} onClick={close(onNewFolder)} />
-      {(onUngroup || onDelete) && <ContextMenuSeparator />}
-      {onUngroup && (
-        <ContextMenuItem
-          label="Ungroup"
-          title="Remove the folder and keep its projects"
-          icon={<FolderOpen size={14} />}
-          onClick={close(onUngroup)}
-        />
-      )}
-      {onDelete && (
+      <ContextMenuSeparator />
+      <ContextMenuItem
+        label={projectCount > 0 ? "Delete folder, keep projects" : "Delete folder"}
+        icon={<FolderOpen size={14} />}
+        onClick={close(onDeleteFolder)}
+      />
+      {onDeleteWithProjects && projectCount > 0 && (
         <ContextMenuItem
           destructive
-          label="Delete folder"
+          label={deleteWithProjectsLabel(projectCount)}
           icon={<TrashIcon />}
-          onClick={close(onDelete)}
+          onClick={close(onDeleteWithProjects)}
         />
       )}
     </ContextMenuShell>

@@ -2,6 +2,7 @@ package cx.lpm.mobile.core.data.push
 
 import cx.lpm.mobile.core.data.client.LpmClient
 import cx.lpm.mobile.core.data.client.LpmClientFactory
+import cx.lpm.mobile.core.data.client.sendLiveActivity
 import cx.lpm.mobile.core.data.client.sendPushToken
 import cx.lpm.mobile.core.data.di.ApplicationScope
 import cx.lpm.mobile.core.data.link.HostProber
@@ -40,11 +41,12 @@ class PushRegistrar @Inject constructor(
     private val tokens: ResolvedPush,
     private val credentials: CredentialStore,
     private val prefs: AppPreferences,
-    private val clients: LpmClientFactory,
-    private val prober: HostProber,
-    private val device: ThisDevice,
+    clients: LpmClientFactory,
+    prober: HostProber,
+    device: ThisDevice,
     @param:ApplicationScope private val scope: CoroutineScope
 ) {
+    private val errand = MacErrand(clients, prober, credentials, device.name)
     private var session: MacSession? = null
     private var started = false
     private var allowed = false
@@ -108,8 +110,9 @@ class PushRegistrar @Inject constructor(
     }
 
     /**
-     * Over the live link. A machine opened through another Mac doesn't know this
-     * phone (that Mac is registered by the sweep), and Demo Mode has no push at all.
+     * Over the live link, with live updates on or off for a Mac that offers them. A
+     * machine opened through another Mac doesn't know this phone (that Mac is
+     * registered by the sweep), and Demo Mode has no push at all.
      */
     private fun sendLive() {
         val s = session ?: return
@@ -119,6 +122,9 @@ class PushRegistrar @Inject constructor(
         val registration = registration() ?: return
         lastSent = registration
         client.sendPushToken(registration)
+        if (LpmClient.LIVE_ACTIVITY_FEATURE in client.hostFeatures) {
+            client.sendLiveActivity(registration.live)
+        }
     }
 
     /** The live Mac's ack: remember it, so the sweep doesn't dial that Mac again. */
@@ -174,38 +180,41 @@ class PushRegistrar @Inject constructor(
         }
     }
 
-    /** False covers unreachable, refused and timed out alike: the next sweep retries. */
+    /**
+     * False covers unreachable, refused and timed out alike: the next sweep retries.
+     * A Mac that offers live updates is told this phone's choice in the same visit.
+     */
     private suspend fun register(
         s: MacSession,
         mac: MacRecord,
         registration: PushRegistration
-    ): Boolean {
-        val credential = credentials.load(mac.localId) ?: return false
-        val identity = HostProber.Identity(pin = credentials.loadPin(mac.localId))
-        val hosts = mac.hosts.filter { it.isNotEmpty() }
-        val host = if (hosts.size == 1) {
-            hosts.single().takeIf { prober.open(it, mac.port, identity, PROBE_MS).reachable }
-        } else {
-            prober.race(hosts, mac.port, identity, PROBE_MS).winner
-        } ?: return false
-        return PushAttempt(clients, device.name).register(
-            endpoint = LpmClient.Endpoint(host, mac.port),
-            credential = credential,
-            pin = { credentials.loadPin(mac.localId) },
-            registration = registration,
-            onIdentity = { serverId, serverName, platform ->
-                s.learnIdentity(mac.localId, serverId, serverName, platform)
-            },
-            timeoutMs = ATTEMPT_MS
-        )
-    }
+    ): Boolean = errand.run<Boolean>(
+        mac,
+        ATTEMPT_MS,
+        onIdentity = { serverId, serverName, platform ->
+            s.learnIdentity(mac.localId, serverId, serverName, platform)
+        }
+    ) { c, done ->
+        val live = LpmClient.LIVE_ACTIVITY_FEATURE in c.hostFeatures
+        var unanswered = if (live) 2 else 1
+        var allOk = true
+        val settle = { ok: Boolean ->
+            allOk = allOk && ok
+            if (--unanswered == 0) done(allOk)
+        }
+        c.onPushToken = settle
+        c.sendPushToken(registration)
+        if (live) {
+            c.onLiveActivity = settle
+            c.sendLiveActivity(registration.live)
+        }
+    } ?: false
 
     private companion object {
         const val COALESCE_MS = 1_500L
 
         // Generous: a Tailscale path can take seconds, and nothing waits on it.
         const val ATTEMPT_MS = 20_000L
-        const val PROBE_MS = 6_000L
     }
 }
 

@@ -399,7 +399,8 @@ html {
   --demo-stage-h: min(694px, 76vh);
 }
 
-/* The active step's bar in the list beside the demo, timed to the tour's beat. */
+/* A progress bar timed to its step: the demo tour's steps and the home page's
+   device tabs. */
 @keyframes demo-step-fill {
   from {
     transform: scaleX(0);

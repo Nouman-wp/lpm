@@ -81,6 +81,8 @@ export const DOWNLOAD_ENTRIES: Record<DownloadPlatform, DownloadEntry> = {
   ),
 };
 
+export const DOWNLOAD_OS_ORDER: DesktopOs[] = ["macos", "windows", "linux"];
+
 export const OS_NAMES: Record<DesktopOs, string> = {
   macos: "macOS",
   windows: "Windows",
@@ -96,6 +98,22 @@ export const DOWNLOADS_BY_OS: Record<DesktopOs, DownloadEntry[]> = {
     DOWNLOAD_ENTRIES["linux-appimage"],
   ],
 };
+
+export const OS_REQUIREMENTS: Record<DesktopOs, string> = {
+  macos: "12 or later",
+  windows: "11, x64",
+  linux: "x86-64, Ubuntu 22.04 or newer",
+};
+
+// ".dmg", ".exe", ".AppImage": what a download button says it hands over.
+export function fileType(entry: DownloadEntry): string {
+  return entry.filename.slice(entry.filename.lastIndexOf("."));
+}
+
+// The table's short name for a build: the Windows installer is just ".exe".
+export function shortChoiceLabel(entry: DownloadEntry): string {
+  return entry.choiceLabel.replace(/^Installer \((.+)\)$/, "$1");
+}
 
 export function isBetaOs(os: DesktopOs): boolean {
   return os !== "macos";

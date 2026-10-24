@@ -56,12 +56,13 @@ import kotlinx.coroutines.launch
 /**
  * A file's bar, pinned over its diff while the diff scrolls (GitHub "Files changed"
  * style): the collapse chevron, status letter, name over folder with +N −M, the
- * "Viewed" toggle, and "…" with "Ask agent…", include or exclude, and "Copy Path" —
- * also on a long press.
+ * "Wrap" and "Viewed" toggles, and "…" with "Ask agent…", include or exclude, and
+ * "Copy Path" — also on a long press.
  */
 @Composable
 internal fun FileHeaderBar(
     row: ReviewRow.FileHeader,
+    wrap: Boolean,
     actions: ReviewActions,
     onViewedToggle: () -> Unit,
     modifier: Modifier = Modifier
@@ -87,7 +88,27 @@ internal fun FileHeaderBar(
                 onLongClick = { menu = true },
                 modifier = Modifier.weight(1f)
             )
-            ViewedPill(viewed = row.viewed, onToggle = onViewedToggle)
+            // Long diff lines wrap to the screen (the default) or scroll sideways,
+            // one choice for every file.
+            TogglePill(
+                on = wrap,
+                onToggle = actions.toggleWrap,
+                label = stringResource(R.string.git_file_wrap),
+                tint = colors.tint,
+                role = Role.Switch
+            )
+            TogglePill(
+                on = row.viewed,
+                onToggle = onViewedToggle,
+                label = stringResource(R.string.git_file_viewed),
+                tint = colors.green,
+                role = Role.Checkbox,
+                icon = if (row.viewed) {
+                    DesignR.drawable.ic_check_circle_fill
+                } else {
+                    DesignR.drawable.ic_circle
+                }
+            )
             Box(
                 modifier = Modifier
                     .size(32.dp)
@@ -223,53 +244,6 @@ private fun DetailLine(row: ReviewRow.FileHeader) {
     }
 }
 
-/**
- * GitHub's "Viewed" checkbox as a capsule: a ring while unviewed, a green check once
- * viewed. Marking a file viewed collapses it.
- */
-@Composable
-private fun ViewedPill(viewed: Boolean, onToggle: () -> Unit) {
-    val colors = LpmTheme.colors
-    val label = stringResource(R.string.git_file_viewed)
-    val value = stringResource(if (viewed) R.string.git_file_on else R.string.git_file_off)
-    val tint = if (viewed) colors.green else colors.secondaryLabel
-    Row(
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(
-                if (viewed) colors.green.copy(alpha = PILL_ALPHA) else colors.tertiarySystemFill
-            )
-            .toggleable(
-                value = viewed,
-                interactionSource = null,
-                indication = null,
-                role = Role.Checkbox,
-                onValueChange = { onToggle() }
-            )
-            .semantics(mergeDescendants = true) {
-                contentDescription = label
-                stateDescription = value
-            }
-            .padding(horizontal = 9.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            painter = painterResource(
-                if (viewed) DesignR.drawable.ic_check_circle_fill else DesignR.drawable.ic_circle
-            ),
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(14.dp)
-        )
-        Text(
-            text = label,
-            style = LpmTheme.typography.caption1.copy(fontWeight = FontWeight.SemiBold),
-            color = tint
-        )
-    }
-}
-
 /** The per-file "+N −M", each only when nonzero. */
 @Composable
 internal fun DiffStat(added: Int, removed: Int, modifier: Modifier = Modifier) {
@@ -299,7 +273,6 @@ internal fun DiffStat(added: Int, removed: Int, modifier: Modifier = Modifier) {
     }
 }
 
-private const val PILL_ALPHA = 0.15f
 private val EXCLUDE_ICON = DesignR.drawable.ic_do_not_disturb_on
 private val INCLUDE_ICON = DesignR.drawable.ic_add_circle
 private val HeaderMinHeight = 56.dp

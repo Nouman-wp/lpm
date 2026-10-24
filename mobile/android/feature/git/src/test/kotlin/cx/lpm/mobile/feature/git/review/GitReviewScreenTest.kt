@@ -20,6 +20,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.GitFile
 import cx.lpm.mobile.feature.git.diff.ParsedDiff
 import org.junit.Assert.assertEquals
@@ -37,10 +38,8 @@ class GitReviewScreenTest {
 
     private val app = GitFile("src/app.ts", "modified", staged = false, stamp = "1")
     private val logo = GitFile("assets/logo.png", "added", staged = false, stamp = "1")
-    private val parsed = ParsedDiff.parse(
-        "@@ -1,2 +1,2 @@\n-const a = 1\n+const a = 2\n keep()\n",
-        "ts"
-    )
+    private val diff = "@@ -1,2 +1,2 @@\n-const a = 1\n+const a = 2\n keep()\n"
+    private val parsed = ParsedDiff.parse(diff, "ts")
 
     private fun show(state: GitReviewUiState) = compose.setContent {
         LpmTheme {
@@ -54,6 +53,7 @@ class GitReviewScreenTest {
                     toggleSelected = { events += "select $it" },
                     toggleCollapsed = { events += "collapse $it" },
                     toggleViewed = { events += "viewed $it" },
+                    toggleWrap = { events += "wrap" },
                     ask = { events += "ask $it" },
                     openCommit = { events += "open commit" },
                     createPullRequest = { events += "pr" }
@@ -71,7 +71,8 @@ class GitReviewScreenTest {
                     generateMessage = { events += "generate" },
                     toggleSelected = { events += "select $it" },
                     selectAll = { events += "all $it" },
-                    commit = { events += "commit" }
+                    commit = { events += "commit" },
+                    commitAndPush = { events += "commit and push" }
                 ),
                 onDismiss = { events += "dismiss" }
             )
@@ -134,6 +135,41 @@ class GitReviewScreenTest {
         assertEquals(listOf("viewed src/app.ts", "collapse src/app.ts", "ask src/app.ts"), events)
     }
 
+    private fun withDiff(wrap: Boolean): GitReviewUiState {
+        val result = GitDiffResult(diff, binary = false, truncated = false)
+        val files = listOf(ReviewFile(app, result, null, parsed, true, false, false, false))
+        return loaded().copy(rows = reviewRows(files, ghCli = false), wrap = wrap)
+    }
+
+    @Test
+    fun wrapIsOnUntilAnyFileBarTurnsItOff() {
+        show(loaded())
+        val wrap = compose.onAllNodesWithContentDescription("Wrap")
+        wrap.assertCountEquals(2)
+        wrap[0].assertIsOn()
+        wrap[0].assert(hasStateDescription("On"))
+        wrap[1].performClick()
+        assertEquals(listOf("wrap"), events)
+    }
+
+    @Test
+    fun wrappedCodeIsALineByLineList() {
+        show(withDiff(wrap = true))
+        compose.onNodeWithText("const a = 1").assertExists()
+        compose.onNodeWithText("const a = 2").assertExists()
+        compose.onNodeWithText("keep()").assertExists()
+    }
+
+    @Test
+    fun unwrappedCodeScrollsAsOneBlock() {
+        show(withDiff(wrap = false))
+        compose.onNodeWithContentDescription("Wrap")
+            .assertIsOff()
+            .assert(hasStateDescription("Off"))
+        compose.onNodeWithText("const a = 2").assertDoesNotExist()
+        compose.onNodeWithText("+const a = 2", substring = true).assertExists()
+    }
+
     @Test
     fun aFileLeftOutOfTheCommitCanBeIncludedFromItsMenu() {
         show(loaded())
@@ -162,26 +198,54 @@ class GitReviewScreenTest {
     }
 
     @Test
-    fun theSheetNeedsAMessageAndPicksFiles() {
+    fun theSheetNeedsAMessageAndPicksFilesOnItsOwnPage() {
         showSheet(loaded())
         compose.onNodeWithText("Commit message").assertExists()
-        compose.onNode(hasText("Commit") and hasClickAction()).assertIsNotEnabled()
+        compose.onNode(hasText("Commit and Push") and hasClickAction()).assertIsNotEnabled()
+        compose.onNode(hasText("Commit only") and hasClickAction()).assertIsNotEnabled()
+        compose.onNodeWithText("Only the selected files are committed.").assertDoesNotExist()
+        compose.onNodeWithText("Generate message").performClick()
+        compose.onNodeWithText("1 of 2").assertExists()
+        compose.onNodeWithText("Files").performClick()
         compose.onNodeWithText("Only the selected files are committed.").assertExists()
         compose.onNodeWithContentDescription("src/app.ts").assert(hasStateDescription("Included"))
         compose.onNodeWithContentDescription("assets/logo.png")
             .assert(hasStateDescription("Excluded"))
             .performClick()
         compose.onNodeWithText("Select All").performClick()
-        compose.onNodeWithText("Generate message").performClick()
-        assertEquals(listOf("select assets/logo.png", "all true", "generate"), events)
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithText("Commit message").assertExists()
+        assertEquals(listOf("generate", "select assets/logo.png", "all true"), events)
     }
 
     @Test
-    fun aMessageEnablesCommit() {
+    fun aMessageEnablesBothCommits() {
         showSheet(loaded(message = "fix: x", canCommit = true))
         compose.onNodeWithText("fix: x").assertExists()
-        compose.onNode(hasText("Commit") and hasClickAction()).performClick()
-        assertEquals(listOf("commit"), events)
+        compose.onNode(hasText("Commit and Push") and hasClickAction()).performClick()
+        compose.onNode(hasText("Commit only") and hasClickAction()).performClick()
+        assertEquals(listOf("commit and push", "commit"), events)
+    }
+
+    @Test
+    fun aDraftedMessageOffersRegenerateAndShowsWhereItPushes() {
+        showSheet(
+            loaded(message = "feat: x", canCommit = true).copy(drafted = true, branch = "main")
+        )
+        compose.onNodeWithText("Drafted from the diff").assertExists()
+        compose.onNodeWithText("Generate message").assertDoesNotExist()
+        compose.onNodeWithText("Branch").assertExists()
+        compose.onNodeWithText("main → origin").assertExists()
+        compose.onNodeWithText("Regenerate").performClick()
+        assertEquals(listOf("generate"), events)
+    }
+
+    @Test
+    fun theButtonTappedShowsItsProgress() {
+        showSheet(loaded(message = "feat: x").copy(busy = CommitBusy.Pushing))
+        compose.onNode(hasText("Pushing…") and hasClickAction()).assertIsNotEnabled()
+        compose.onNode(hasText("Commit only") and hasClickAction()).assertIsNotEnabled()
+        compose.onNodeWithText("Branch").assertDoesNotExist()
     }
 
     private val conflicted = GitFile("src/merge.ts", "conflicted", staged = false, stamp = "1")

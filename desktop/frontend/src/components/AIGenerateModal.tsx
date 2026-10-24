@@ -5,6 +5,7 @@ import { checkAICLIs } from "../hooks/useAIPicker";
 import { EventsOn } from "../../bridge/runtime";
 import type { main } from "../../bridge/models";
 import { enterHint } from "../shortcutHints";
+import { AIConfigReview } from "./AIConfigReview";
 
 import { type AICLI, AI_CLI_OPTIONS } from "../types";
 
@@ -21,8 +22,11 @@ interface AIGenerateModalProps {
   open: boolean;
   // The project the config is generated for, which may be a paired machine's.
   scope: string;
+  // The config the result would replace, for the review.
+  current: string;
   onCancel: () => void;
-  onGenerate: (cli: AICLI, extraPrompt: string, genId: string) => Promise<void>;
+  onGenerate: (cli: AICLI, extraPrompt: string, genId: string) => Promise<string>;
+  onApply: (yaml: string, save: boolean) => void;
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -72,13 +76,13 @@ function CLIChip({
   );
 }
 
-export function AIGenerateModal({ open, scope, onCancel, onGenerate }: AIGenerateModalProps) {
+export function AIGenerateModal({ open, scope, current, onCancel, onGenerate, onApply }: AIGenerateModalProps) {
   const [availability, setAvailability] = useState<main.AICLIAvailability | null>(null);
   const [cli, setCli] = useState<AICLI>("claude");
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const gen = useAIGeneration(scope);
   const running = gen.generating;
-  const [stopHover, setStopHover] = useState(false);
+  const [generated, setGenerated] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string[]>([]);
   const progressEndRef = useRef<HTMLDivElement>(null);
@@ -102,6 +106,7 @@ export function AIGenerateModal({ open, scope, onCancel, onGenerate }: AIGenerat
     if (!open) return;
     setError(null);
     setProgress([]);
+    setGenerated(null);
     checkAICLIs(scope)
       .then((a) => {
         setAvailability(a);
@@ -120,7 +125,7 @@ export function AIGenerateModal({ open, scope, onCancel, onGenerate }: AIGenerat
     setError(null);
     setProgress([]);
     try {
-      await gen.run((genId) => onGenerate(cli, prompt, genId));
+      setGenerated(await gen.run((genId) => onGenerate(cli, prompt, genId)));
     } catch (err) {
       if (!isCanceledError(err)) setError(`${err}`);
     }
@@ -128,10 +133,30 @@ export function AIGenerateModal({ open, scope, onCancel, onGenerate }: AIGenerat
 
   const close = () => {
     gen.cancel();
+    setGenerated(null);
     onCancel();
   };
 
-  const showStop = running && stopHover;
+  if (generated !== null) {
+    return (
+      <Modal
+        open={open}
+        onClose={close}
+        zIndexClassName="z-[60]"
+        contentClassName="w-[min(1100px,calc(100vw-48px))] rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 shadow-xl"
+      >
+        <AIConfigReview
+          current={current}
+          generated={generated}
+          onDiscard={close}
+          onApply={(yaml, save) => {
+            setGenerated(null);
+            onApply(yaml, save);
+          }}
+        />
+      </Modal>
+    );
+  }
 
   return (
     <Modal
@@ -234,15 +259,11 @@ export function AIGenerateModal({ open, scope, onCancel, onGenerate }: AIGenerat
             Cancel
           </button>
           <button
-            onClick={showStop ? gen.cancel : handleGenerate}
+            onClick={running ? gen.cancel : handleGenerate}
             disabled={!running && !selectedAvailable}
-            onMouseEnter={() => setStopHover(true)}
-            onMouseLeave={() => setStopHover(false)}
-            onFocus={() => setStopHover(true)}
-            onBlur={() => setStopHover(false)}
             className="rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-40"
           >
-            {showStop ? "Stop" : running ? "Generating\u2026" : "Generate"}
+            {running ? "Stop" : "Generate"}
           </button>
         </div>
       </div>

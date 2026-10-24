@@ -50,6 +50,7 @@ import {
   deliverPromptDraft,
   loadComposerDraft,
   saveComposerDraft,
+  subscribeComposerInsert,
   subscribeInboundPrompt,
   subscribeRemoteDraft,
   tabFromPrompt,
@@ -77,7 +78,6 @@ import { basename } from "../path";
 import { composerPlaceholder } from "../composerText";
 import {
   caretEdges,
-  caretInside,
   caretOffsetInSerialized,
   chipAfterCaret,
   chipBeforeCaret,
@@ -85,7 +85,7 @@ import {
   fragmentClipboardPayload,
   highlightCommand,
   insertItemsAtCaret,
-  insertTextAtCaret,
+  insertSpacedAtCaret,
   isEditorEmpty,
   isImagePath,
   lineBeforeCaret,
@@ -151,6 +151,7 @@ import { MENTION_TRIGGER, rankMentions, type MentionItem } from "../mentions";
 import { memoryInvocation, type TerminalMemoryRef } from "../terminalMemory";
 import { useComposerSendLater, type ComposerPrompt, type SendLaterPicker } from "../hooks/useComposerSendLater";
 import { limitAgentFor, type LimitAgent } from "../sendLater/limitReset";
+import { announceSavedDraft } from "../sendLater/actions";
 import { SendLaterPopover } from "./SendLaterPopover";
 import { SendLaterStrip } from "./SendLaterStrip";
 import { isImeComposing } from "../imeComposing";
@@ -703,6 +704,18 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     });
   }, [terminalId, syncState, loadTab, refreshTabView]);
 
+  // A file mentioned from the Files tab lands at the caret, spaced off the word
+  // before it, the way the footer's memory pick does.
+  useEffect(() => {
+    return subscribeComposerInsert(terminalId, (text: string) => {
+      const editor = editorRef.current;
+      if (!editor || !insertSpacedAtCaret(editor, text)) return;
+      histIdx.current = -1;
+      normalizeComposer(editor);
+      syncState();
+    });
+  }, [terminalId, syncState]);
+
   // After a caret move, WebKit may have injected stray chars around a chip. Clean
   // them in a rAF (before the next paint, so no flash; coalesced across repeats)
   // rather than reacting to input — caret navigation fires no input event.
@@ -1247,9 +1260,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     try {
       // Store the draft first; only clear the field once it's safely persisted so
       // a failed write never discards the prompt.
-      await saveDraft({ text: value, projectName, terminalId: historyKey, terminalLabel: targetLabel, images });
+      const id = await saveDraft({ text: value, projectName, terminalId: historyKey, terminalLabel: targetLabel, images });
       finishSend(draftId, editor);
-      toast.success("Saved as draft");
+      announceSavedDraft({ id, projectName, historyKey, text: value, images });
     } catch {
       toast.error("Couldn't save draft");
     } finally {
@@ -1313,6 +1326,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       if (editor) finishSend(id, editor);
     },
     restore: restorePrompt,
+    shown,
   });
 
   // A picker left open while this input goes off screen (another project, a
@@ -1724,18 +1738,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   };
 
   // Footer memory button: the same invocation as an "@" pick, dropped at the
-  // caret since no typed fragment precedes it. The caret is parked first (the
-  // button can be clicked before the field was ever focused) so the padding
-  // space — which keeps the command off the back of whatever word precedes it —
-  // is decided from where the text will actually land.
+  // caret since no typed fragment precedes it.
   const insertMemorySession = (item: MentionItem) => {
     const editor = editorRef.current;
-    if (!editor) return;
-    editor.focus();
-    if (!caretInside(editor)) placeCaretAtEnd(editor);
-    const line = lineBeforeCaret(editor);
-    const pad = line && !/\s$/.test(line) ? " " : "";
-    if (insertTextAtCaret(editor, `${pad}${memoryInvocation(slashCli, item.insert)}`)) {
+    if (editor && insertSpacedAtCaret(editor, memoryInvocation(slashCli, item.insert))) {
       afterMemoryInsert(editor);
     }
   };
@@ -2461,6 +2467,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
                 },
             onRunInDuplicates: guest ? undefined : runInDuplicates,
           }}
+          draftsOpen={sendLater.draftsOpen}
+          onDraftsClose={sendLater.closeDrafts}
         />
       </div>
       </div>

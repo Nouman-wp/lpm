@@ -9,9 +9,11 @@ import { DEFAULT_BRANCH_NAME_INSTRUCTIONS } from "../aiInstructions";
 export function ProjectBranchNameInstructionsEditor({
   projectName,
   onBack,
+  backTitle = "Back to AI Instructions",
 }: {
   projectName: string;
   onBack: () => void;
+  backTitle?: string;
 }) {
   const load = useCallback(
     () => ReadProjectInstructions(projectName, "branch-name"),
@@ -27,10 +29,12 @@ export function ProjectBranchNameInstructionsEditor({
     <InstructionsEditor
       title="Branch name instructions"
       description="Custom instructions for this project's AI branch names. Leave blank to use the global default."
-      placeholder={DEFAULT_BRANCH_NAME_INSTRUCTIONS}
+      defaultText={DEFAULT_BRANCH_NAME_INSTRUCTIONS}
+      resetClears
       load={load}
       save={save}
       onBack={onBack}
+      backTitle={backTitle}
     />
   );
 }

@@ -32,6 +32,7 @@ vi.mock("../../bridge/commands", () => ({
   PeerReconnect: vi.fn(),
   PeerSetAlias: mocks.setAlias,
   PeerRemotePair: mocks.remotePair,
+  PeerInvoke: vi.fn(() => Promise.resolve({ devices: [], hasPendingCode: true })),
   PeerUpdateMac: mocks.updateMac,
   PeerCancelMacUpdate: vi.fn(() => Promise.resolve(true)),
   GetVersion: vi.fn(() => Promise.resolve("1.43.0")),

@@ -30,6 +30,7 @@ export function FileViewerHost() {
       col={current?.col ?? 0}
       projectRoot={current?.projectRoot ?? ""}
       choices={current?.choices}
+      overDialog={current?.overDialog}
       layout={{
         mode,
         dockWidth: dock.width,

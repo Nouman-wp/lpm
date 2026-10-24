@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,37 +8,47 @@ import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
 import { AIPickerButton } from "./ui/AIPickerButton";
 import { GenerateBranchName } from "../../bridge/commands";
-import { EventsEmit } from "../../bridge/runtime";
+import { main } from "../../bridge/models";
 import { useAIPicker } from "../hooks/useAIPicker";
+import { useBranchSearch } from "../hooks/useBranchSearch";
 import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { aiEffectiveFast } from "../types";
 import { newBranchNameSchema } from "../forms/schemas";
-import { slugify } from "../slugify";
+import { branchSlug, existingBranch, uncommittedNote, upstreamNote } from "../newBranchHints";
+import { branchKey } from "./branchUtils";
+import { BranchPicker } from "./BranchPicker";
+import { InstructionsChip } from "./InstructionsChip";
+import { NewBranchNameHint } from "./NewBranchNameHint";
 
 interface CreateBranchModalProps {
   open: boolean;
   busy: boolean;
   projectName: string;
   projectPath: string;
+  status: main.GitStatus;
+  branches: main.Branch[];
   // Prefills the name, e.g. with what was typed into the branch search.
   initialName?: string;
   onClose: () => void;
-  onCreate: (name: string) => Promise<void> | void;
+  // `from` is the branch to start at; undefined starts at HEAD.
+  onCreate: (name: string, from?: string) => Promise<void> | void;
+  onSwitch: (branch: main.Branch) => void;
 }
 
 const schema = z.object({ name: newBranchNameSchema });
 type FormValues = z.infer<typeof schema>;
-
-const normalize = (s: string) => slugify(s, { allowSlash: true });
 
 export function CreateBranchModal({
   open,
   busy,
   projectName,
   projectPath,
+  status,
+  branches,
   initialName = "",
   onClose,
   onCreate,
+  onSwitch,
 }: CreateBranchModalProps) {
   const gen = useAIGeneration(projectName);
   const generating = gen.generating;
@@ -46,6 +56,8 @@ export function CreateBranchModal({
   const openRef = useRef(open);
   const initialNameRef = useRef(initialName);
   initialNameRef.current = initialName;
+  // The branch to start from; null is the current checkout.
+  const [from, setFrom] = useState<main.Branch | null>(null);
 
   const {
     register,
@@ -53,6 +65,7 @@ export function CreateBranchModal({
     setValue,
     reset,
     setFocus,
+    watch,
     formState: { isValid },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -64,13 +77,21 @@ export function CreateBranchModal({
     openRef.current = open;
     if (!open) return;
     reset({ name: "" });
-    const initial = normalize(initialNameRef.current);
+    setFrom(null);
+    const initial = branchSlug(initialNameRef.current);
     if (initial) setValue("name", initial, { shouldValidate: true, shouldDirty: true });
     const focusTimer = setTimeout(() => setFocus("name"), 50);
     return () => clearTimeout(focusTimer);
   }, [open, reset, setFocus, setValue]);
 
-  const canCreate = !busy && !generating && isValid;
+  const slug = branchSlug(watch("name") ?? "");
+  const searched = useBranchSearch(projectPath, slug, open);
+  const existing = existingBranch(slug, [branches, searched]);
+  const current = status.branch;
+  const isCurrentCheckout = (b: main.Branch) => !b.remote && b.name === current && !status.detached;
+  const onCurrent = !!existing && isCurrentCheckout(existing);
+  const fromCurrent = from === null;
+  const canCreate = !busy && !generating && isValid && !existing;
 
   const generate = async () => {
     if (generating || !projectPath) return;
@@ -88,7 +109,7 @@ export function CreateBranchModal({
       );
       if (!openRef.current) return;
       if (result) {
-        setValue("name", normalize(result), {
+        setValue("name", branchSlug(result), {
           shouldValidate: true,
           shouldDirty: true,
         });
@@ -105,10 +126,15 @@ export function CreateBranchModal({
   };
 
   const onSubmit = handleSubmit(async (values) => {
-    const cleaned = normalize(values.name);
-    if (!cleaned) return;
-    await onCreate(cleaned);
+    const cleaned = branchSlug(values.name);
+    if (!cleaned || existing) return;
+    await onCreate(cleaned, from ? branchKey(from) : undefined);
   });
+
+  const pickFrom = (b: main.Branch) => setFrom(isCurrentCheckout(b) ? null : b);
+
+  const fromNote = fromCurrent ? upstreamNote(status) : null;
+  const carried = fromCurrent ? uncommittedNote(status.uncommitted) : null;
 
   return (
     <Modal
@@ -147,7 +173,23 @@ export function CreateBranchModal({
           </button>
         </div>
 
-        <div className="mt-5">
+        <div className="mt-5 flex min-w-0 items-center gap-2">
+          <span className="text-xs font-medium text-[var(--text-secondary)]">From</span>
+          <BranchPicker
+            projectPath={projectPath}
+            label={from ? branchKey(from) : current}
+            branches={branches}
+            isSelected={(b) => (from ? branchKey(b) === branchKey(from) : !b.remote && b.name === current)}
+            onSelect={pickFrom}
+            disabled={busy || generating}
+            menuClassName="w-80"
+          />
+          {fromNote && (
+            <span className="min-w-0 truncate text-[11px] text-[var(--text-muted)]">{fromNote}</span>
+          )}
+        </div>
+
+        <div className="mt-4">
           <label className="mb-2 block text-xs font-medium text-[var(--text-secondary)]">
             Branch name
           </label>
@@ -193,20 +235,18 @@ export function CreateBranchModal({
               )}
             </div>
           </div>
+          <NewBranchNameHint
+            slug={slug}
+            existing={existing}
+            current={onCurrent}
+            onSwitch={() => existing && onSwitch(existing)}
+          />
+          {carried && <p className="mt-1 text-[11px] text-[var(--text-muted)]">{carried}</p>}
         </div>
 
         <div className="mt-5 flex items-center justify-between">
           {ai.anyAvailable ? (
-            <button
-              type="button"
-              onClick={() => {
-                EventsEmit("navigate-branch-instructions");
-                closeModal();
-              }}
-              className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
-            >
-              Edit AI Instructions
-            </button>
+            <InstructionsChip projectName={projectName} target="branch" backTitle="Back to new branch" />
           ) : (
             <span />
           )}

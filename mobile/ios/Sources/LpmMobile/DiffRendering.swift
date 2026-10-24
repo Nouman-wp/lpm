@@ -3,6 +3,15 @@ import UIKit
 
 enum DiffLineKind {
     case added, removed, hunk, context
+
+    /// The diff's own prefix: "+", "-", or a space for context.
+    var marker: String {
+        switch self {
+        case .added: return "+"
+        case .removed: return "-"
+        default: return " "
+        }
+    }
 }
 
 struct DiffLine: Identifiable {
@@ -26,11 +35,11 @@ enum DiffBlockKind { case hunk, code }
 /// One render unit: a hunk separator, or a run of code lines merged into a single
 /// gutter attributed string (line numbers, deeper tint) and a single code
 /// attributed string (leading +/- marker, syntax highlighting, word-level
-/// emphasis), plus each line's kind for the row tint drawn behind it. A long code
-/// run is split into several consecutive blocks of at most `chunkLimit` lines so
-/// no single Text has to lay out thousands of lines at once. The SwiftUI
-/// `AttributedString`s are converted once here, off the main thread, so the view
-/// just renders them.
+/// emphasis), plus each line's kind for the row tint drawn behind it, and the same
+/// lines one by one for the wrapped layout. A long code run is split into several
+/// consecutive blocks of at most `chunkLimit` lines so no single Text has to lay
+/// out thousands of lines at once. The SwiftUI `AttributedString`s are converted
+/// once here, off the main thread, so the view just renders them.
 struct DiffBlock: Identifiable {
     let id: Int
     let kind: DiffBlockKind
@@ -41,6 +50,16 @@ struct DiffBlock: Identifiable {
     let code: AttributedString
     let rows: [DiffLineKind]
     let lineCount: Int
+    let lines: [DiffCodeLine]
+}
+
+/// One code line for the wrapped layout: its gutter number, and its highlighted
+/// code with the word emphasis, without the marker or the run's padding.
+struct DiffCodeLine: Identifiable {
+    let id: Int
+    let kind: DiffLineKind
+    let number: String
+    let code: AttributedString
 }
 
 /// A diff parsed into per-hunk merged blocks (for horizontal-scroll rendering with
@@ -55,7 +74,7 @@ struct ParsedDiff {
 
     init(_ diff: String, ext: String) {
         let base = Self.parse(diff)
-        let emphasis = Self.computeEmphasis(base)
+        let emphasis = WordDiff.emphasis(base)
         var highlighter = DiffHighlighter(ext: ext)
         var fg: [NSAttributedString?] = Array(repeating: nil, count: base.count)
         for (idx, line) in base.enumerated() where line.kind != .hunk {
@@ -67,14 +86,6 @@ struct ParsedDiff {
         addedCount = base.filter { $0.kind == .added }.count
         removedCount = base.filter { $0.kind == .removed }.count
         blocks = Self.buildBlocks(base: base, fg: fg, emphasis: emphasis, digits: digits)
-    }
-
-    private static func marker(_ kind: DiffLineKind) -> String {
-        switch kind {
-        case .added: return "+"
-        case .removed: return "-"
-        default: return " "
-        }
     }
 
     /// Parses hunk by hunk so each hunk's common leading indentation is trimmed and
@@ -198,64 +209,6 @@ struct ParsedDiff {
         return (number(after: "-"), number(after: "+"), context)
     }
 
-    // MARK: word-level emphasis
-
-    /// Pairs each run of consecutive removed lines with the equal-length run of
-    /// added lines that follows, and marks the differing middle span of each pair
-    /// (character diff snapped out to word boundaries) for a deeper tint.
-    private static func computeEmphasis(_ lines: [DiffLine]) -> [Int: [NSRange]] {
-        var result: [Int: [NSRange]] = [:]
-        var i = 0
-        let n = lines.count
-        while i < n {
-            guard lines[i].kind == .removed else { i += 1; continue }
-            var r = i
-            while r < n && lines[r].kind == .removed { r += 1 }
-            var a = r
-            while a < n && lines[a].kind == .added { a += 1 }
-            let removed = r - i
-            let added = a - r
-            if removed == added {
-                for k in 0..<removed {
-                    let (oldRange, newRange) = wordDiff(lines[i + k].text, lines[r + k].text)
-                    if let oldRange { result[i + k, default: []].append(oldRange) }
-                    if let newRange { result[r + k, default: []].append(newRange) }
-                }
-            }
-            i = max(a, i + 1)
-        }
-        return result
-    }
-
-    private static func wordDiff(_ old: String, _ new: String) -> (NSRange?, NSRange?) {
-        let o = Array(old), w = Array(new)
-        if o.isEmpty || w.isEmpty { return (nil, nil) }
-        var p = 0
-        while p < o.count && p < w.count && o[p] == w[p] { p += 1 }
-        var s = 0
-        while s < o.count - p && s < w.count - p && o[o.count - 1 - s] == w[w.count - 1 - s] { s += 1 }
-        if p == o.count && p == w.count { return (nil, nil) }
-        while p > 0 && isWordChar(o[p - 1]) { p -= 1 }
-        while s > 0 && isWordChar(o[o.count - s]) { s -= 1 }
-        let oMid = (o.count - s) - p
-        let wMid = (w.count - s) - p
-        if oMid <= 0 && wMid <= 0 { return (nil, nil) }
-        let oWhole = o.count > 0 && Double(oMid) >= 0.9 * Double(o.count)
-        let wWhole = w.count > 0 && Double(wMid) >= 0.9 * Double(w.count)
-        if oWhole && wWhole { return (nil, nil) }
-        let oldRange = oMid > 0 ? nsRange(o, p, o.count - s) : nil
-        let newRange = wMid > 0 ? nsRange(w, p, w.count - s) : nil
-        return (oldRange, newRange)
-    }
-
-    private static func isWordChar(_ c: Character) -> Bool { c.isLetter || c.isNumber || c == "_" }
-
-    private static func nsRange(_ chars: [Character], _ from: Int, _ to: Int) -> NSRange {
-        let location = String(chars[0..<from]).utf16.count
-        let length = String(chars[from..<to]).utf16.count
-        return NSRange(location: location, length: length)
-    }
-
     // MARK: per-hunk merged blocks
 
     /// The largest number of code lines packed into one DiffBlock. A long run is
@@ -276,7 +229,7 @@ struct ParsedDiff {
             if line.kind == .hunk {
                 blocks.append(DiffBlock(id: id, kind: .hunk, hunkLabel: line.hunkLabel,
                                         hunkContext: line.text, indentHint: line.indentHint,
-                                        gutter: empty, code: empty, rows: [], lineCount: 0))
+                                        gutter: empty, code: empty, rows: [], lineCount: 0, lines: []))
                 id += 1; i += 1
                 continue
             }
@@ -289,10 +242,12 @@ struct ParsedDiff {
                 let end = min(c + chunkLimit, j)
                 let code = buildCodeBlock(range: c..<end, base: base, fg: fg, emphasis: emphasis, maxLen: runWidth)
                 let gutter = buildGutterBlock(range: c..<end, base: base, digits: digits)
+                let lines = (c..<end).map { codeLine($0, base: base, fg: fg, emphasis: emphasis, digits: digits) }
                 blocks.append(DiffBlock(id: id, kind: .code, hunkLabel: "", hunkContext: "",
                                         indentHint: 0, gutter: AttributedString(gutter),
                                         code: AttributedString(code),
-                                        rows: base[c..<end].map(\.kind), lineCount: end - c))
+                                        rows: base[c..<end].map(\.kind), lineCount: end - c,
+                                        lines: lines))
                 id += 1; c = end
             }
             i = j
@@ -319,7 +274,7 @@ struct ParsedDiff {
         let plain: [NSAttributedString.Key: Any] = [.font: DiffTypography.codeFont, .foregroundColor: UIColor.label]
         let out = NSMutableAttributedString()
         for idx in range {
-            let line = NSMutableAttributedString(string: marker(base[idx].kind), attributes: plain)
+            let line = NSMutableAttributedString(string: base[idx].kind.marker, attributes: plain)
             line.append(fg[idx] ?? NSAttributedString(string: base[idx].text, attributes: plain))
             let padCount = maxLen - line.length
             if padCount > 0 {
@@ -338,12 +293,32 @@ struct ParsedDiff {
         return out
     }
 
+    /// One line of a chunk on its own: the code a wrapped row shows (a space when
+    /// the line is empty, so the row keeps its height) with its emphasis tint.
+    private static func codeLine(_ idx: Int, base: [DiffLine], fg: [NSAttributedString?],
+                                 emphasis: [Int: [NSRange]], digits: Int) -> DiffCodeLine {
+        let line = base[idx]
+        let plain: [NSAttributedString.Key: Any] = [.font: DiffTypography.codeFont, .foregroundColor: UIColor.label]
+        let code = NSMutableAttributedString(attributedString: fg[idx] ?? NSAttributedString(string: line.text, attributes: plain))
+        if code.length == 0 { code.append(NSAttributedString(string: " ", attributes: plain)) }
+        let emColor = line.kind == .added ? DiffPalette.addWord : DiffPalette.delWord
+        for r in emphasis[idx] ?? [] where r.location + r.length <= code.length {
+            code.addAttribute(.backgroundColor, value: emColor, range: r)
+        }
+        return DiffCodeLine(id: line.id, kind: line.kind, number: gutterText(line, digits: digits),
+                            code: AttributedString(code))
+    }
+
+    private static func gutterText(_ line: DiffLine, digits: Int) -> String {
+        let number = line.kind == .removed ? line.oldNumber : line.newNumber
+        return (number.map(String.init) ?? "").leftPadded(digits) + "  "
+    }
+
     private static func buildGutterBlock(range: Range<Int>, base: [DiffLine], digits: Int) -> NSAttributedString {
         let out = NSMutableAttributedString()
         for idx in range {
             let line = base[idx]
-            let number = line.kind == .removed ? line.oldNumber : line.newNumber
-            let text = (number.map(String.init) ?? "").leftPadded(digits) + "  "
+            let text = gutterText(line, digits: digits)
             let piece = NSMutableAttributedString(string: text, attributes: [
                 .font: DiffTypography.codeFont, .foregroundColor: UIColor.secondaryLabel,
             ])
@@ -353,81 +328,6 @@ struct ParsedDiff {
             if idx != range.upperBound - 1 { out.append(NSAttributedString(string: "\n")) }
         }
         return out
-    }
-}
-
-/// One hunk's merged code beside its pinned gutter: the gutter (line numbers,
-/// deeper tint) stays fixed at the left while the code column scrolls horizontally.
-struct DiffCodeBlock: View {
-    let block: DiffBlock
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            Text(block.gutter)
-                .fixedSize()
-            ScrollView(.horizontal, showsIndicators: false) {
-                ZStack(alignment: .topLeading) {
-                    // At least the visible width, so a row's tint reaches the edge
-                    // of the screen when every line is shorter than it.
-                    Color.clear.frame(height: 0).containerRelativeFrame(.horizontal)
-                    Text(block.code)
-                        .fixedSize()
-                        .padding(.trailing, 12)
-                }
-                .background { DiffRowTints(rows: block.rows) }
-            }
-        }
-        .fixedSize(horizontal: false, vertical: true)
-    }
-}
-
-/// The added/removed row bands behind a code block. Every line has the same
-/// monospaced height, so each row is an equal slice of the block.
-private struct DiffRowTints: View {
-    let rows: [DiffLineKind]
-
-    var body: some View {
-        Canvas { context, size in
-            guard !rows.isEmpty else { return }
-            let height = size.height / CGFloat(rows.count)
-            for (index, kind) in rows.enumerated() {
-                guard let tint = DiffPalette.rowUI(kind) else { continue }
-                let rect = CGRect(x: 0, y: CGFloat(index) * height, width: size.width, height: height)
-                context.fill(Path(rect), with: .color(Color(uiColor: tint)))
-            }
-        }
-    }
-}
-
-/// A slim full-bleed band marking a hunk boundary, with an optional "⇥ N" hint
-/// when common indentation was trimmed from the hunk.
-struct HunkSeparator: View {
-    let label: String
-    let context: String
-    let indent: Int
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(label)
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.secondary)
-            if !context.isEmpty {
-                Text(context)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            Spacer(minLength: 8)
-            if indent > 0 {
-                Text("⇥ \(indent)")
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 5)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

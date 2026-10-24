@@ -3,16 +3,25 @@ import type { MachineScope } from "./settings/machineCommands";
 import { instructionsScope, useMachineInstructions } from "./settings/useMachineInstructions";
 import { DEFAULT_COMMIT_INSTRUCTIONS } from "../aiInstructions";
 
-export function CommitInstructionsEditor({ machine, onBack }: { machine: MachineScope; onBack: () => void }) {
+export function CommitInstructionsEditor({
+  machine,
+  onBack,
+  backTitle,
+}: {
+  machine: MachineScope;
+  onBack: () => void;
+  backTitle?: string;
+}) {
   const { load, save } = useMachineInstructions(machine.commands, "commit", DEFAULT_COMMIT_INSTRUCTIONS);
   return (
     <InstructionsEditor
       title="Commit instructions"
       description={`Custom instructions for AI-generated commit messages. ${instructionsScope(machine.name)}`}
-      placeholder={DEFAULT_COMMIT_INSTRUCTIONS}
+      defaultText={DEFAULT_COMMIT_INSTRUCTIONS}
       load={load}
       save={save}
       onBack={onBack}
+      backTitle={backTitle}
     />
   );
 }

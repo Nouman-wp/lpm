@@ -16,7 +16,8 @@ data class EmphasisSpan(val start: Int, val end: Int, val added: Boolean)
 /**
  * One render unit: a hunk separator, or a run of at most 48 code lines merged into
  * one gutter text (line numbers) and one code text (a +/- marker, the code padded
- * to its run's longest line), with each row's kind for the tint behind it.
+ * to its run's longest line), with each row's kind for the tint behind it, and the
+ * same lines one by one for the wrapped layout.
  */
 @Immutable
 data class DiffBlock(
@@ -29,10 +30,26 @@ data class DiffBlock(
     val code: String = "",
     val tokens: List<TokenSpan> = emptyList(),
     val emphasis: List<EmphasisSpan> = emptyList(),
-    val rows: List<DiffLineKind> = emptyList()
+    val rows: List<DiffLineKind> = emptyList(),
+    val lines: List<DiffCodeLine> = emptyList()
 ) {
     val lineCount: Int get() = rows.size
 }
+
+/**
+ * One code line for the wrapped layout (iOS `DiffCodeLine`): its gutter number, and
+ * its code without the marker or the run's padding (a space when the line is empty,
+ * so the row keeps its height), with its syntax and word-change spans.
+ */
+@Immutable
+data class DiffCodeLine(
+    val id: Int,
+    val kind: DiffLineKind,
+    val number: String,
+    val code: String,
+    val tokens: List<TokenSpan> = emptyList(),
+    val emphasis: List<EmphasisSpan> = emptyList()
+)
 
 /**
  * A diff parsed for the review screen (iOS `ParsedDiff`): per-hunk blocks for
@@ -121,16 +138,8 @@ private class BlockBuilder(
         for (index in range) {
             val line = base[index]
             val start = text.length
-            text.append(marker(line.kind))
-            for (run in code[index] ?: listOf(TokenRun(line.text, SyntaxToken.Plain))) {
-                val from = text.length
-                text.append(run.text)
-                if (run.token !=
-                    SyntaxToken.Plain
-                ) {
-                    tokens += TokenSpan(from, text.length, run.token)
-                }
-            }
+            text.append(line.kind.marker)
+            appendCode(index, text, tokens)
             repeat(width - (text.length - start)) { text.append(' ') }
             val length = text.length - start
             for (r in emphasis[index].orEmpty()) {
@@ -152,18 +161,35 @@ private class BlockBuilder(
             code = text.toString(),
             tokens = tokens,
             emphasis = marks,
-            rows = range.map { base[it].kind }
+            rows = range.map { base[it].kind },
+            lines = range.map(::codeLine)
         )
+    }
+
+    private fun codeLine(index: Int): DiffCodeLine {
+        val line = base[index]
+        val text = StringBuilder()
+        val tokens = mutableListOf<TokenSpan>()
+        appendCode(index, text, tokens)
+        if (text.isEmpty()) text.append(' ')
+        val added = line.kind == DiffLineKind.Added
+        val marks = emphasis[index].orEmpty()
+            .filter { it.location + it.length <= text.length }
+            .map { EmphasisSpan(it.location, it.location + it.length, added) }
+        return DiffCodeLine(line.id, line.kind, gutterLine(line), text.toString(), tokens, marks)
+    }
+
+    /** A line's code onto `text`, with each highlighted run's span added to `tokens`. */
+    private fun appendCode(index: Int, text: StringBuilder, tokens: MutableList<TokenSpan>) {
+        for (run in code[index] ?: listOf(TokenRun(base[index].text, SyntaxToken.Plain))) {
+            val from = text.length
+            text.append(run.text)
+            if (run.token != SyntaxToken.Plain) tokens += TokenSpan(from, text.length, run.token)
+        }
     }
 
     private fun gutterLine(line: DiffLine): String {
         val number = if (line.kind == DiffLineKind.Removed) line.oldNumber else line.newNumber
         return number?.toString().orEmpty().padStart(digits) + "  "
-    }
-
-    private fun marker(kind: DiffLineKind) = when (kind) {
-        DiffLineKind.Added -> "+"
-        DiffLineKind.Removed -> "-"
-        else -> " "
     }
 }

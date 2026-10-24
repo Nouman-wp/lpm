@@ -188,3 +188,37 @@ export function deliverPromptDraft(
   }
   saveComposerDraft(terminalId, { tabs: [tab], activeTabId: tab.id, history: [] }, durable);
 }
+
+// Text such as an "@path" mention handed to a terminal's input from elsewhere in
+// the window (the Files tab's "Mention in agent"). It joins what is typed there.
+type ComposerInsertCallback = (text: string) => void;
+const insertSubs = new Map<string, ComposerInsertCallback>();
+
+export function subscribeComposerInsert(terminalId: string, cb: ComposerInsertCallback): () => void {
+  insertSubs.set(terminalId, cb);
+  return () => {
+    if (insertSubs.get(terminalId) === cb) insertSubs.delete(terminalId);
+  };
+}
+
+// A mounted composer takes `text` at its caret; otherwise it goes on the end of
+// the parked prompt, there when that composer mounts. True when it went live.
+export function insertComposerText(terminalId: string, historyKey: string, text: string): boolean {
+  const cb = insertSubs.get(terminalId);
+  if (cb) {
+    cb(text);
+    return true;
+  }
+  const durable = historyKey === terminalId ? undefined : historyKey;
+  const draft = loadComposerDraft(terminalId, durable);
+  const tab = draft?.tabs.find((t) => t.id === draft.activeTabId) ?? draft?.tabs[0];
+  if (!draft || !tab) {
+    const fresh = createInputTab();
+    fresh.text = text;
+    saveComposerDraft(terminalId, { tabs: [fresh], activeTabId: fresh.id, history: draft?.history ?? [] }, durable);
+    return false;
+  }
+  tab.text = tab.text === "" || /\s$/.test(tab.text) ? tab.text + text : `${tab.text} ${text}`;
+  saveComposerDraft(terminalId, draft, durable);
+  return false;
+}

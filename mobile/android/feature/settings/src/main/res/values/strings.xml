@@ -38,5 +38,8 @@
     <string name="notify_automations">Automations</string>
     <string name="notify_started">Started</string>
     <string name="notify_error_or_timeout">Error or timeout</string>
+    <string name="notify_live_header">Live updates</string>
+    <string name="notify_live">Show agents on the Lock Screen</string>
+    <string name="notify_live_footer">While agents work, an ongoing notification shows them.</string>
     <string name="notify_automations_footer">Choose which automation outcomes send a notification when this app is closed.</string>
 </resources>

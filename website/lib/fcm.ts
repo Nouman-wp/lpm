@@ -13,7 +13,7 @@ export interface FcmResult {
   message?: string;
 }
 
-export type FcmPushType = "alert" | "background";
+export type FcmPushType = "alert" | "background" | "liveactivity";
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
@@ -21,6 +21,8 @@ const ASSERTION_TTL_SECONDS = 60 * 60;
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 10_000;
 const TIME_TO_LIVE = "21600s";
+// An agent snapshot older than this is already out of date.
+const LIVE_TIME_TO_LIVE = "3600s";
 
 export function loadFcmConfig(): FcmConfig | null {
   const projectId = process.env.FCM_PROJECT_ID;
@@ -125,16 +127,18 @@ export async function sendFcmPush(
   config: FcmConfig,
   pushType: FcmPushType = "alert",
   collapseId?: string,
+  extra: Record<string, string> = {},
+  urgent = pushType !== "background",
 ): Promise<FcmResult | null> {
   try {
     const bearer = await accessToken(config);
     if ("failure" in bearer) return bearer.failure;
 
-    const data: Record<string, string> = { blob, type: pushType };
+    const data: Record<string, string> = { ...extra, blob, type: pushType };
     if (collapseId) data.collapseId = collapseId;
     const android: Record<string, string> = {
-      priority: pushType === "background" ? "NORMAL" : "HIGH",
-      ttl: TIME_TO_LIVE,
+      priority: urgent ? "HIGH" : "NORMAL",
+      ttl: pushType === "liveactivity" ? LIVE_TIME_TO_LIVE : TIME_TO_LIVE,
     };
     if (pushType === "alert" && collapseId) android.collapse_key = collapseId;
 

@@ -40,6 +40,39 @@ const STILL: Frame = {
   phoneOpen: true,
 };
 
+function cycle(apply: (patch: Partial<Frame>) => void): Step[] {
+  const steps: Step[] = [];
+  const set = (wait: number, patch: Partial<Frame>) =>
+    steps.push({ wait, apply: () => apply(patch) });
+
+  set(450, START);
+  for (let i = PREAMBLE + 1; i <= REPLY_INDEX; i += 1) {
+    set(i === PREAMBLE + 1 ? 720 : 620, { revealed: i });
+  }
+  set(700, { notified: true });
+  set(1500, { tap: "notification" });
+  set(320, { tap: null, notified: false, phoneOpen: true, owner: "phone" });
+  set(900, { typing: true });
+  for (let c = 1; c <= REPLY_TEXT.length; c += 1) {
+    set(52, { typed: REPLY_TEXT.slice(0, c) });
+  }
+  set(560, { revealed: REPLY_INDEX + 1, typed: "", typing: false });
+  for (let i = REPLY_INDEX + 2; i <= CLAUDE_LINES.length; i += 1) {
+    set(i === REPLY_INDEX + 2 ? 850 : 620, { revealed: i });
+  }
+  set(1800, { tap: "mac" });
+  set(650, { tap: null, owner: "mac" });
+  set(2600, {});
+  return steps;
+}
+
+// How long one pass of the handoff takes, so the home page's device tabs can
+// move on once it has played.
+export const HANDOFF_CYCLE_MS = cycle(() => {}).reduce(
+  (total, step) => total + step.wait,
+  0,
+);
+
 // One terminal is live on one screen at a time, as in the app: the agent works
 // on the Mac, the phone is notified when it needs an answer, opening the
 // terminal there takes control (the Mac shows "Active in iPhone"), and the Mac
@@ -87,29 +120,7 @@ export function usePairedDevicesLoop(
   useEffect(() => {
     if (reduced || !inView || paused) return;
 
-    const steps: Step[] = [];
-    const set = (wait: number, patch: Partial<Frame>) =>
-      steps.push({ wait, apply: () => setFrame((f) => ({ ...f, ...patch })) });
-
-    steps.push({ wait: 450, apply: () => setFrame(START) });
-    for (let i = PREAMBLE + 1; i <= REPLY_INDEX; i += 1) {
-      set(i === PREAMBLE + 1 ? 720 : 620, { revealed: i });
-    }
-    set(700, { notified: true });
-    set(1500, { tap: "notification" });
-    set(320, { tap: null, notified: false, phoneOpen: true, owner: "phone" });
-    set(900, { typing: true });
-    for (let c = 1; c <= REPLY_TEXT.length; c += 1) {
-      set(52, { typed: REPLY_TEXT.slice(0, c) });
-    }
-    set(560, { revealed: REPLY_INDEX + 1, typed: "", typing: false });
-    for (let i = REPLY_INDEX + 2; i <= CLAUDE_LINES.length; i += 1) {
-      set(i === REPLY_INDEX + 2 ? 850 : 620, { revealed: i });
-    }
-    set(1800, { tap: "mac" });
-    set(650, { tap: null, owner: "mac" });
-    steps.push({ wait: 2600, apply: () => {} });
-
+    const steps = cycle((patch) => setFrame((f) => ({ ...f, ...patch })));
     let idx = stepRef.current % steps.length;
     let timer: ReturnType<typeof setTimeout>;
     const run = () => {

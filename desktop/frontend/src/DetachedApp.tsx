@@ -7,6 +7,7 @@ import { FeedbackModal } from "./components/FeedbackModal";
 import { findParentProject, projectDisplayName } from "./components/ProjectNameDisplay";
 import { PortConflictDialog } from "./components/PortConflictDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
+import { InstructionsDialogHost } from "./components/InstructionsDialogHost";
 import { ShareTabPopover } from "./components/share/ShareTabPopover";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
 import { MainTopBar } from "./components/MainTopBar";
@@ -177,6 +178,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
       <FeedbackModal />
       <PortConflictDialog />
       <FileViewerHost />
+      <InstructionsDialogHost />
       <TerminalDropOverlayHost />
       <ShareTabPopover />
     </div>

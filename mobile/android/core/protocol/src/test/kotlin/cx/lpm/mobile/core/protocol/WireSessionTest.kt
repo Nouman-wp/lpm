@@ -94,6 +94,26 @@ class WireSessionTest {
     }
 
     @Test
+    fun answerAgentCarriesTheAlertsReportAndAReplysText() {
+        assertFrame(
+            """{ "t": "answerAgent", "project": "api", "terminalId": "t-1",
+                 "key": "claude_code_t-1", "ts": 1792089000123, "action": "allow", "reqId": "r-1" }""",
+            Wire.answerAgent("api", "t-1", "claude_code_t-1", 1792089000123, "allow", null, "r-1")
+        )
+        assertFrame(
+            """{ "t": "answerAgent", "project": "api", "terminalId": "t-1", "key": "k", "ts": 5,
+                 "action": "reply", "text": "Ship it", "reqId": "r-2" }""",
+            Wire.answerAgent("api", "t-1", "k", 5, "reply", "Ship it", "r-2")
+        )
+    }
+
+    @Test
+    fun liveActivityNamesNoTokenFromAnFcmPhone() {
+        assertFrame("""{ "t": "liveActivity", "on": true }""", Wire.liveActivity(on = true))
+        assertFrame("""{ "t": "liveActivity", "on": false }""", Wire.liveActivity(on = false))
+    }
+
+    @Test
     fun macRequests() {
         assertFrame("""{ "t": "machines" }""", Wire.machines())
         assertFrame("""{ "t": "machinePair", "slug": "box" }""", Wire.machinePair("box"))

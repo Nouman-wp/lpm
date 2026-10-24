@@ -26,7 +26,6 @@ import { useSelectedLineCounts } from "../hooks/useSelectedLineCounts";
 import { LineCounts } from "./LineCounts";
 import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { aiEffectiveEffort, aiEffectiveFast } from "../types";
-import { EventsEmit } from "../../bridge/runtime";
 import { getSettings, saveSettings } from "../store/settings";
 import { DEFAULT_PUSH_CONFIG, pushFlags } from "../gitOptions";
 import { runAutoCommit } from "../autoCommit";
@@ -38,6 +37,7 @@ import {
 import { SideBySideDiffModal } from "./SideBySideDiffModal";
 import { ConflictNotice } from "./ConflictNotice";
 import { Tooltip } from "./ui/Tooltip";
+import { InstructionsChip } from "./InstructionsChip";
 
 type ChangedFile = main.ChangedFile;
 
@@ -551,7 +551,7 @@ export function CommitModal({
               )}
             </div>
 
-            <ConflictNotice files={files} />
+            <ConflictNotice files={files} projectPath={projectPath} />
 
             <div
               ref={filesListRef}
@@ -614,15 +614,7 @@ export function CommitModal({
                 </label>
               </Tooltip>
             )}
-            <button
-              onClick={() => {
-                EventsEmit("navigate-commit-instructions");
-                closeModal();
-              }}
-              className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
-            >
-              Edit AI Instructions
-            </button>
+            <InstructionsChip projectName={projectName} target="commit" backTitle="Back to commit" />
           </span>
           <div className="flex gap-2">
             <button

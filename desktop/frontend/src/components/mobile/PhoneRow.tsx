@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Smartphone } from "lucide-react";
 import { RowMenu } from "../connections/RowMenu";
-import { RenameModal } from "../RenameModal";
+import { RenameDeviceModal } from "./RenameDeviceModal";
 import { QUIET_BUTTON, TILE_STYLE } from "./styles";
+import { deviceName } from "../../mobile/pairingCode";
 import { phoneSubtitle, type PhoneDevice } from "../../mobile/phoneStatus";
 import { useMachineWords } from "../settings/useMachineWords";
 
@@ -22,7 +23,7 @@ export function PhoneRow({
   const words = useMachineWords();
   const [confirming, setConfirming] = useState(false);
   const [renaming, setRenaming] = useState(false);
-  const name = device.name || device.phoneName || "Device";
+  const name = deviceName(device);
   const sub = phoneSubtitle(device, now, words.thisMachine);
 
   return (
@@ -74,19 +75,12 @@ export function PhoneRow({
           </button>
         </div>
       )}
-      <RenameModal
+      <RenameDeviceModal
+        device={device}
+        machine={words.thisMachine}
         open={renaming}
-        title="Rename device"
-        description={`Only ${words.thisMachine} uses this name. Nothing changes on the device.`}
-        initialValue={name}
-        placeholder={device.phoneName || "iPhone"}
-        allowEmpty
-        submitLabel={(value) => (value ? "Save" : "Use the device's own name")}
         onClose={() => setRenaming(false)}
-        onSubmit={(value) => {
-          setRenaming(false);
-          onRename(device.id, value);
-        }}
+        onRename={onRename}
       />
     </div>
   );

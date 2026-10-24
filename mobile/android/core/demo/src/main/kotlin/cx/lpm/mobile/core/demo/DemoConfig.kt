@@ -2,7 +2,8 @@ package cx.lpm.mobile.core.demo
 
 /**
  * Demo handlers for config editing (raw-YAML read/write per layer and structured
- * service/profile/action edits) plus the harmless `apnsToken` ack. Reads reply inline;
+ * service/profile/action edits) plus the harmless push acks (`apnsToken`,
+ * `liveActivity`, `answerAgent`), which nothing in Demo Mode sends. Reads reply inline;
  * every write replies after a short simulated worker-thread delay and emits
  * `projects-changed`, mirroring the desktop.
  */
@@ -12,6 +13,12 @@ internal fun DemoServer.registerConfigHandlers() {
     registerProfileHandlers()
     registerActionConfigHandlers()
     register("apnsToken") { push(mapOf("t" to "apnsToken", "ok" to true)) }
+    register("liveActivity") { push(mapOf("t" to "liveActivity", "ok" to true)) }
+    register("answerAgent") { o ->
+        val reply = mutableMapOf<String, Any?>("t" to "answerAgent", "ok" to true)
+        o["reqId"]?.let { reply["reqId"] = it }
+        push(reply)
+    }
 }
 
 // raw YAML

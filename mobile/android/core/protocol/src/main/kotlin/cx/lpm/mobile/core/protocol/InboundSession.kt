@@ -12,6 +12,7 @@ import cx.lpm.mobile.core.model.bool
 import cx.lpm.mobile.core.model.list
 import cx.lpm.mobile.core.model.long
 import cx.lpm.mobile.core.model.obj
+import cx.lpm.mobile.core.model.reqIdString
 import cx.lpm.mobile.core.model.string
 import cx.lpm.mobile.core.model.strings
 
@@ -47,6 +48,13 @@ internal val sessionParsers = parsers {
     put("pong") { Inbound.Pong }
     put("apnsToken") { o -> Inbound.ApnsToken(ok = o.ok) }
     put("pushToken") { o -> Inbound.PushToken(ok = o.ok) }
+    put("answerAgent") { o ->
+        Inbound.AnswerAgent(
+            reqId = o["reqId"].reqIdString(),
+            error = o.failure("The Mac couldn't send it.")
+        )
+    }
+    put("liveActivity") { o -> Inbound.LiveActivity(ok = o.ok) }
     put("stats") { o ->
         Inbound.Stats(
             stats = if (o.ok) AgentStats.parse(o.obj("stats") ?: emptyObject, reply = o) else null,

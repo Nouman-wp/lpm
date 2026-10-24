@@ -4,6 +4,7 @@ import {
   GitDefaultBranch,
   GitStatus,
 } from "../bridge/commands";
+import { count } from "./count";
 
 // Work in a copy that exists nowhere else, so deleting the copy loses it.
 export interface UnsavedWork {
@@ -41,8 +42,6 @@ export async function loadUnsavedWork(root: string): Promise<UnsavedWork | null>
   const unpushed = Number(await GitCommitCount(root, base, "HEAD")) || 0;
   return { changed, untracked, unpushed, base };
 }
-
-const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 export function unsavedWorkLines(work: UnsavedWork): string[] {
   const lines: string[] = [];

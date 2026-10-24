@@ -137,3 +137,37 @@ describe("deliverPromptDraft with a legacy tab", () => {
     expect(persist.loadPersistedDraft("web-1")).toBeUndefined();
   });
 });
+
+describe("insertComposerText", () => {
+  it("hands the text to a mounted composer", async () => {
+    const m = await import("./composerDrafts");
+    const seen: string[] = [];
+    m.subscribeComposerInsert("term-1", (text) => seen.push(text));
+
+    expect(m.insertComposerText("term-1", "hk-1", "@src/a.ts ")).toBe(true);
+    expect(seen).toEqual(["@src/a.ts "]);
+    expect(m.loadComposerDraft("term-1")).toBeUndefined();
+  });
+
+  it("joins the parked prompt that is on screen, spaced off its last word", async () => {
+    const m = await import("./composerDrafts");
+    const other = m.createInputTab();
+    other.text = "other";
+    const mine = m.createInputTab();
+    mine.text = "look at";
+    m.saveComposerDraft("term-1", { tabs: [other, mine], activeTabId: mine.id, history: [] }, "hk-1");
+
+    expect(m.insertComposerText("term-1", "hk-1", "@src/a.ts ")).toBe(false);
+
+    const draft = m.loadComposerDraft("term-1", "hk-1");
+    expect(draft?.tabs.map((t) => t.text)).toEqual(["other", "look at @src/a.ts "]);
+  });
+
+  it("starts a prompt where there is none", async () => {
+    const m = await import("./composerDrafts");
+    m.insertComposerText("term-1", "hk-1", "@README.md ");
+    const draft = m.loadComposerDraft("term-1", "hk-1");
+    expect(draft?.tabs.map((t) => t.text)).toEqual(["@README.md "]);
+    expect(draft?.activeTabId).toBe(draft?.tabs[0].id);
+  });
+});

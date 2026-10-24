@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { CheckState } from "../ChangedFilesTree";
-import { SearchIcon, XIcon } from "../icons";
+import { matchesChord } from "../../keys";
+import { TRASH_CHORD } from "./fileActions";
 import { FilesAllChangesRow } from "./FilesAllChangesRow";
+import { FilesFilterBox } from "./FilesFilterBox";
 import { FILES_ROW_PX, type RowTarget } from "./FilesRow";
 import { FilesRows } from "./FilesRows";
 import { FilesViewSwitch } from "./FilesViewSwitch";
 import type { IndexEntry } from "./filesFilter";
 import { createTreeCursorStore } from "./treeCursor";
+import { isUnder, withDraftRow, withoutPending } from "./treeEdits";
 import { useVirtualList } from "./useVirtualList";
 import { buildMatchTree, parentPath, type Item, type Listing, type TreeRow } from "./treeModel";
 import type { Changes } from "./useChangedFiles";
+import type { TreeEdits } from "./useTreeEdits";
 
 export interface CursorRequest {
   path: string;
@@ -23,6 +27,7 @@ export interface ActivateOptions {
 }
 
 const NO_ROWS: TreeRow[] = [];
+const NO_PATHS: readonly string[] = [];
 
 interface FilesTreeProps {
   rows: TreeRow[];
@@ -58,10 +63,9 @@ interface FilesTreeProps {
   // The row the keyboard cursor sits on while the list has focus, else null:
   // the target of the path chords when they fire from the tree.
   onCursorChange?: (item: Item | null) => void;
+  // New entries, renames and Move to Trash; without it the tree is read-only.
+  edits?: TreeEdits;
 }
-
-const INPUT_CLASS =
-  "h-7 w-full rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] pl-7 pr-6 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]";
 
 // The rail: a filter box over the folder tree, or, while a filter is typed,
 // over the matches shown under their folders. One keyboard cursor serves both.
@@ -89,10 +93,16 @@ export function FilesTree({
   checks,
   onCheck,
   onCursorChange,
+  edits,
 }: FilesTreeProps) {
   const filtering = query.trim() !== "";
   const matchRows = useMemo(() => (results ? buildMatchTree(results) : NO_ROWS), [results]);
-  const items: TreeRow[] = filtering ? matchRows : rows;
+  const edit = edits?.edit ?? null;
+  const pending = edits?.pending ?? NO_PATHS;
+  const items: TreeRow[] = useMemo(
+    () => withoutPending(withDraftRow(filtering ? matchRows : rows, edit), pending),
+    [filtering, matchRows, rows, edit, pending],
+  );
   const [cursorStore] = useState(createTreeCursorStore);
   const setCursorPath = useCallback(
     (cursorPath: string | null) => cursorStore.setState({ cursorPath }),
@@ -125,6 +135,14 @@ export function FilesTree({
       if (s.listFocused && s.cursorPath !== prev.cursorPath) ensureVisible(indexOf(s.cursorPath));
     });
   }, [items, listKind, cursorStore, ensureVisible]);
+
+  // A name field scrolls into view, so it is mounted to take the focus.
+  const editPath = edits?.view?.path ?? null;
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  useEffect(() => {
+    if (editPath !== null) ensureVisible(itemsRef.current.findIndex((it) => it.path === editPath));
+  }, [editPath, ensureVisible]);
 
   // A breadcrumb reveal lands the cursor on that folder and hands the list
   // focus, so the arrow keys continue from there.
@@ -172,10 +190,17 @@ export function FilesTree({
   };
 
   const onListKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
     const { cursorPath } = cursorStore.getState();
     const index = items.findIndex((it) => it.path === cursorPath);
     const current = index >= 0 ? items[index] : null;
+    if (edits && !edits.blocked && current && matchesChord(e.nativeEvent, TRASH_CHORD)) {
+      e.preventDefault();
+      const next = items.slice(index + 1).find((it) => !isUnder(it.path, current.path)) ?? items[index - 1];
+      edits.trash(current);
+      setCursorPath(next?.path ?? null);
+      return;
+    }
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     switch (e.key) {
       case "ArrowDown":
         moveCursor(index + 1);
@@ -257,31 +282,32 @@ export function FilesTree({
       onDiscard={onDiscard}
       checks={checks}
       onCheck={onCheck}
+      nameEdit={edits?.view}
     />
   );
 
   const renderList = (): ReactNode => {
     if (filtering) {
       if (results === null) return <Note>{changesOnly ? "Loading…" : "Indexing files…"}</Note>;
-      if (results.length === 0) {
+      if (items.length === 0) {
         return <Note>{changesOnly ? "No matching changed files" : "No matching files"}</Note>;
       }
-      return renderRows(matchRows);
+      return renderRows(items);
     }
     if (changesOnly) {
       if (changes.status === "error") {
         return <Note tone="bad">Couldn't list the changes: {changes.message}</Note>;
       }
       if (changes.status === "loading") return <Note>Loading…</Note>;
-      if (rows.length === 0) return <Note>No uncommitted changes</Note>;
-      return renderRows(rows);
+      if (items.length === 0) return <Note>No uncommitted changes</Note>;
+      return renderRows(items);
     }
     if (rootListing?.status === "error") {
       return <Note tone="bad">Couldn't read the project folder: {rootListing.message}</Note>;
     }
     if (!rootListing || rootListing.status === "loading") return <Note>Loading…</Note>;
-    if (rows.length === 0) return <Note>This folder is empty</Note>;
-    return renderRows(rows);
+    if (items.length === 0) return <Note>This folder is empty</Note>;
+    return renderRows(items);
   };
 
   return (
@@ -293,40 +319,19 @@ export function FilesTree({
           onChange={onChangesOnlyChange}
         />
       )}
-      <div className="shrink-0 px-2 pb-1 pt-2">
-        <div className="relative">
-          <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] [&>svg]:h-3 [&>svg]:w-3">
-            <SearchIcon />
-          </span>
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-            onKeyDown={onInputKeyDown}
-            placeholder={changesOnly ? "Filter changed files…" : "Filter files…"}
-            aria-label="Filter files"
-            spellCheck={false}
-            autoCorrect="off"
-            autoCapitalize="off"
-            data-text-scope=""
-            className={INPUT_CLASS}
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => {
-                onQueryChange("");
-                inputRef.current?.focus();
-              }}
-              aria-label="Clear filter"
-              className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] [&>svg]:h-3 [&>svg]:w-3"
-            >
-              <XIcon />
-            </button>
-          )}
-        </div>
-      </div>
+      <FilesFilterBox
+        inputRef={inputRef}
+        query={query}
+        onQueryChange={onQueryChange}
+        onKeyDown={onInputKeyDown}
+        changesOnly={changesOnly}
+        newFile={
+          edits && {
+            blocked: edits.blocked,
+            onCreate: () => edits.create(selectedPath ? parentPath(selectedPath) : "", false),
+          }
+        }
+      />
       {changesOnly && !filtering && changes.status === "ready" && changes.files.length > 0 && (
         <FilesAllChangesRow
           count={changes.files.length}

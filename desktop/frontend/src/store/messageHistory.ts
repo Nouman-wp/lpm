@@ -118,23 +118,26 @@ export function recordMessage(
 
 // Persist the composer's current prompt as an unsent draft. Same shape as a
 // send, but flagged as a draft so it can be reopened later; unlike a send it's
-// never de-duped. Resolves once stored (rejecting on a backend failure) so the
-// caller can keep the prompt in the field until the write actually lands.
-export function saveDraft(
+// never de-duped. Resolves with the draft's id once stored (rejecting on a
+// backend failure) so the caller can keep the prompt in the field until the
+// write actually lands. Empty when there was nothing to store.
+export async function saveDraft(
   entry: Pick<
     HistoryMessage,
     "text" | "projectName" | "terminalId" | "terminalLabel" | "images"
   >,
-): Promise<void> {
+): Promise<string> {
   const text = entry.text.trimEnd();
-  if (!text.trim()) return Promise.resolve();
-  return MessageHistorySaveDraft({
+  if (!text.trim()) return "";
+  const id = await MessageHistorySaveDraft({
     text,
     projectName: entry.projectName,
     terminalId: entry.terminalId,
     terminalLabel: entry.terminalLabel,
     images: entry.images,
-  }).then(invalidateHistory);
+  });
+  invalidateHistory();
+  return typeof id === "string" ? id : "";
 }
 
 export function toggleFavorite(id: string): void {

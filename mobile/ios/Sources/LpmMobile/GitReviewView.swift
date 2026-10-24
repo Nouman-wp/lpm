@@ -13,6 +13,11 @@ struct GitReviewView: View {
     // Files the user explicitly unchecked. Everything else stays selected, so new
     // changes are picked up automatically and deselections survive a refresh.
     @State private var deselected: Set<String> = []
+    // The message the Mac last drafted, and the draft as it stood when it was asked
+    // for: a reply that lands after the user typed is dropped, so their text wins.
+    @State private var drafted: String?
+    @State private var draftAtGenerate: String?
+    @State private var autoDraftTried = false
     // Collapse the user chose per file; a file without a choice is collapsed once
     // it's viewed.
     @State private var collapsed: [String: Bool] = [:]
@@ -103,15 +108,25 @@ struct GitReviewView: View {
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { model.git.refreshWatched(name) }
             }
+            .onChange(of: model.git.generatingMessage.contains(name)) { _, generating in
+                if generating { draftAtGenerate = message }
+            }
             .onChange(of: model.git.generatedMessage[name]) { _, m in
-                if let m {
+                guard let m else { return }
+                model.git.consumeGeneratedMessage(name)
+                autoDraftTried = false
+                if message == draftAtGenerate {
                     message = m
-                    model.git.consumeGeneratedMessage(name)
+                    drafted = m
                 }
+                draftAtGenerate = nil
             }
             .onChange(of: model.git.commitTick[name]) { _, _ in
                 message = ""
                 deselected = []
+                drafted = nil
+                draftAtGenerate = nil
+                autoDraftTried = false
             }
             // Gated on isVisible: a terminal pushed from this screen hosts the
             // project menu, whose git ops report into the same gitOpError slot —
@@ -127,7 +142,8 @@ struct GitReviewView: View {
                 Text(model.git.opError[name]?.message ?? "")
             }
             .sheet(isPresented: $showCommit) {
-                GitCommitSheet(project: name, message: $message, deselected: $deselected)
+                GitCommitSheet(project: name, message: $message, deselected: $deselected,
+                               drafted: drafted, autoDraftTried: $autoDraftTried)
                     .environment(model)
             }
             .sheet(isPresented: $showPrSheet) {

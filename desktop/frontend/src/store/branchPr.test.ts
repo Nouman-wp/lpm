@@ -12,6 +12,10 @@ describe("prFromCreatedUrl", () => {
     });
   });
 
+  it("marks a PR opened as a draft", () => {
+    expect(prFromCreatedUrl("https://github.com/o/r/pull/7", "WIP", true)?.isDraft).toBe(true);
+  });
+
   it("rejects output that is not a PR URL", () => {
     expect(prFromCreatedUrl("", "t")).toBeNull();
     expect(prFromCreatedUrl("https://github.com/o/r/pulls", "t")).toBeNull();

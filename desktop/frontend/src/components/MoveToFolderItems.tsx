@@ -7,7 +7,7 @@ export interface MoveToFolderItemsProps {
   groups: ProjectGroup[];
   // The folder a target already lives in, disabled in the list (single project).
   disabledGroupId?: string | null;
-  // Whether to offer "Remove from folder".
+  // Whether to offer "Move out of folder".
   showRemove: boolean;
   onMoveToGroup: (groupId: string | null) => void;
   onCreateGroupWith: () => void;
@@ -39,7 +39,7 @@ export function MoveToFolderItems({
         />
       ))}
       {showRemove && (
-        <ContextMenuItem label="Remove from folder" onClick={close(() => onMoveToGroup(null))} />
+        <ContextMenuItem label="Move out of folder" onClick={close(() => onMoveToGroup(null))} />
       )}
     </>
   );

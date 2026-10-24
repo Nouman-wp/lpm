@@ -38,6 +38,11 @@ data class GitState(
     val discarding: Set<String> = emptySet(),
     val undoingAutoPull: Set<String> = emptySet(),
     val committing: Set<String> = emptySet(),
+    /**
+     * Commits that push once they land (the commit sheet's Commit and Push), kept until
+     * that push finishes: [commitTick] counts the commit then.
+     */
+    val commitPushing: Set<String> = emptySet(),
     val generatingMessage: Set<String> = emptySet(),
     val generatingPr: Set<String> = emptySet(),
     val creatingPr: Set<String> = emptySet(),

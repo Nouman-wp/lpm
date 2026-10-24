@@ -68,6 +68,7 @@ mod donehold;
 mod dirdelete;
 mod dockmenu;
 mod file_browser;
+mod file_ops;
 mod files;
 mod firstlaunch;
 mod fonts;
@@ -90,6 +91,7 @@ mod gitfollow;
 mod gitfollowrun;
 mod gitfollowstore;
 mod gitpush;
+mod gitresolve;
 mod gitsync;
 mod gitwatch;
 mod gitmoved;
@@ -320,6 +322,7 @@ use config_cmds::*;
 use control::*;
 use detached::*;
 use file_browser::*;
+use file_ops::*;
 use files::*;
 use fonts::*;
 #[allow(unused_imports)]
@@ -333,6 +336,9 @@ use gitautopull::{git_auto_pull, git_auto_pull_last, git_auto_pull_undo, set_aut
 use gitlines::{git_diff_stat, git_file_line_counts};
 use gitorigin::git_origin_status;
 use gitpush::git_push_rebasing;
+use gitresolve::{
+    git_continue_merge, git_mark_conflict_resolved, git_merge_state, git_take_conflict_side,
+};
 use gitsync::{sync_project_cancel, sync_project_start};
 use hooks::*;
 use jobs::*;

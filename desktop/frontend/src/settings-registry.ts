@@ -34,7 +34,6 @@ export type SettingsViewEntry = {
   id: string;
   label: string;
   description: string;
-  caption?: string;
   keywords?: string[];
   // Which connected machines it opens for; unset, only this one.
   reach?: SettingsReach;
@@ -48,7 +47,6 @@ export type SettingsModalEntry = {
   id: string;
   label: string;
   description: string;
-  caption?: string;
   keywords?: string[];
 };
 
@@ -660,7 +658,6 @@ const MODAL_ENTRIES: SettingsModalEntry[] = [
     label: "Usage limits",
     description:
       "See how much of your Claude and Codex plans you've used, and turn on Claude usage meters.",
-    caption: "Opens Usage",
     keywords: ["rate limit", "quota", "claude", "codex", "plan", "meter"],
   },
 ];
@@ -791,9 +788,4 @@ export function matchSettings(
   });
   scored.sort((a, b) => a.rank - b.rank || a.index - b.index);
   return scored.map((s) => s.entry);
-}
-
-export function captionFor(entry: SettingsSearchEntry): string {
-  if (entry.kind === "row") return TAB_TITLES[entry.tab];
-  return entry.caption ?? "Opens editor";
 }

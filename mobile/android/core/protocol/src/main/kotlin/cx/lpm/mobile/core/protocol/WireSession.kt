@@ -119,6 +119,34 @@ sealed interface WireSession {
         }
     }
 
+    /**
+     * An answer from a notification: `allow`, `deny` or `reply` (with `text`) to the
+     * alert's own report. Only for a Mac whose `features` has "answerAgent".
+     */
+    fun answerAgent(
+        project: String,
+        terminalId: String,
+        key: String,
+        ts: Long,
+        action: String,
+        text: String?,
+        reqId: String
+    ): String = frame("answerAgent") {
+        put("project", project)
+        put("terminalId", terminalId)
+        put("key", key)
+        put("ts", ts)
+        put("action", action)
+        text?.let { put("text", it) }
+        put("reqId", reqId)
+    }
+
+    /**
+     * Live updates on or off for this phone. An FCM phone names no token: the Mac
+     * reaches it on its push token. Only for a Mac whose `features` has "liveActivity".
+     */
+    fun liveActivity(on: Boolean): String = frame("liveActivity") { put("on", on) }
+
     /** The machines this Mac connects to (its Linux servers and other Macs). */
     fun machines(): String = frame("machines")
 

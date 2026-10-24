@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   CheckoutBranch,
@@ -38,7 +38,6 @@ import { BrowserOpenURL } from "../../bridge/runtime";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useEventListener } from "../hooks/useEventListener";
 import type { useGitStatus } from "../hooks/useGitStatus";
-import { useBranchSearch } from "../hooks/useBranchSearch";
 import { CreateBranchModal } from "./CreateBranchModal";
 import { CommitModal } from "./CommitModal";
 import { LineCounts } from "./LineCounts";
@@ -46,20 +45,9 @@ import { AutoPRModal, type AutoPRAIParams } from "./AutoPRModal";
 import { MergeBranchDialog } from "./MergeBranchDialog";
 import { PRModal } from "./PRModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import {
-  BranchIcon,
-  ChevronDownIcon,
-  CloudBranchIcon,
-  CloudOffIcon,
-  CopyIcon,
-  PencilIcon,
-  SparkleIcon,
-  TrashIcon,
-  UndoIcon,
-  UploadIcon,
-} from "./icons";
-import { branchKey, isUnpublished, orderBranches, RemoteBadge } from "./branchUtils";
-import { relativeTime } from "../relativeTime";
+import { BranchIcon, ChevronDownIcon, SparkleIcon, UndoIcon, UploadIcon } from "./icons";
+import { BranchSearchMenu } from "./BranchSearchMenu";
+import { isUnpublished } from "./branchUtils";
 import { shouldFetch, recordFetch } from "../gitFetchThrottle";
 import { toastPullError } from "../gitPullErrors";
 import { pulledText, pushedText, syncedText } from "../gitToastText";
@@ -82,11 +70,9 @@ export function BranchSwitcher({
   const openPr = pullRequest?.state === "OPEN" ? pullRequest : null;
   const { status, branches, diffStat, refresh } = gitState;
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [activeIndex, setActiveIndex] = useState(0);
-  const searchResults = useBranchSearch(projectPath, query, open);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createPrefill, setCreatePrefill] = useState("");
   const [committing, setCommitting] = useState(false);
   const [creatingPR, setCreatingPR] = useState(false);
   const [autoPR, setAutoPR] = useState<AutoPRAIParams | null>(null);
@@ -94,8 +80,6 @@ export function BranchSwitcher({
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
   const [confirmDiscardAllOpen, setConfirmDiscardAllOpen] = useState(false);
   const [discarding, setDiscarding] = useState(false);
-  const [renamingKey, setRenamingKey] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
   const [deletingBranch, setDeletingBranch] = useState<main.Branch | null>(
     null,
   );
@@ -104,8 +88,6 @@ export function BranchSwitcher({
   );
   const [pruning, setPruning] = useState(false);
   const pruningRef = useRef(false);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
   const ai = useAIPicker(commitMenuOpen, projectName);
 
   const commitMenuRef = useOutsideClick<HTMLDivElement>(
@@ -126,22 +108,6 @@ export function BranchSwitcher({
     open && !creating,
   );
 
-  useEffect(() => {
-    if (open && !creating) searchRef.current?.focus();
-  }, [open, creating]);
-
-  const current = status?.branch ?? "";
-  const filtered = useMemo(
-    () => orderBranches(branches, query, searchResults, current),
-    [branches, query, searchResults, current],
-  );
-
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [query, open]);
-
-  const clampedIndex = Math.min(activeIndex, Math.max(filtered.length - 1, 0));
-
   if (!status?.isGitRepo) return null;
 
   const checkout = async (branch: main.Branch) => {
@@ -154,7 +120,6 @@ export function BranchSwitcher({
       await CheckoutBranch(projectPath, branch.name, branch.remote ?? "");
       await refresh();
       setOpen(false);
-      setQuery("");
     } catch (err) {
       toast.error(`Checkout ${branch.name}: ${err}`);
     } finally {
@@ -162,24 +127,14 @@ export function BranchSwitcher({
     }
   };
 
-  const moveActive = (delta: number) => {
-    if (filtered.length === 0) return;
-    const next = Math.max(0, Math.min(filtered.length - 1, clampedIndex + delta));
-    setActiveIndex(next);
-    listRef.current
-      ?.querySelector(`[data-branch-index="${next}"]`)
-      ?.scrollIntoView({ block: "nearest" });
-  };
-
-  const create = async (name: string) => {
+  const create = async (name: string, from?: string) => {
     if (!name || busy) return;
     setBusy(true);
     try {
-      await CreateBranch(projectPath, name);
+      await CreateBranch(projectPath, name, from);
       await refresh();
       setOpen(false);
       setCreating(false);
-      setQuery("");
     } catch (err) {
       toast.error(`Create ${name}: ${err}`);
     } finally {
@@ -358,24 +313,15 @@ export function BranchSwitcher({
     }
   };
 
-  const startRename = (b: main.Branch) => {
-    setRenamingKey(branchKey(b));
-    setRenameValue(b.name);
-  };
-
-  const submitRename = async (b: main.Branch) => {
-    const newName = renameValue.trim();
-    if (!newName || newName === b.name) {
-      setRenamingKey(null);
-      return;
-    }
+  const renameBranch = async (b: main.Branch, newName: string) => {
     setBusy(true);
     try {
       await RenameBranch(projectPath, b.name, newName);
       await refresh();
-      setRenamingKey(null);
+      return true;
     } catch (err) {
       toast.error(`Rename ${b.name}: ${err}`);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -477,200 +423,25 @@ export function BranchSwitcher({
         </button>
 
         {open && (
-          <div data-row-menu="off" className="absolute bottom-full right-0 z-50 mb-2 w-[520px] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl">
-            <div className="border-b border-[var(--border)] p-2">
-              <input
-                ref={searchRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    moveActive(1);
-                  } else if (e.key === "ArrowUp") {
-                    e.preventDefault();
-                    moveActive(-1);
-                  } else if (e.key === "Enter") {
-                    e.preventDefault();
-                    const branch = filtered[clampedIndex];
-                    if (branch) checkout(branch);
-                  }
-                }}
-                placeholder="Search branches"
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck={false}
-                className="w-full rounded-lg bg-transparent px-3 py-2 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
-              />
-            </div>
-            <div ref={listRef} className="max-h-[360px] overflow-y-auto py-1.5">
-              <div className="flex items-center px-4 pb-1.5 pt-2">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                  Branches
-                </span>
-                {pruning && (
-                  <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
-                    <span className="inline-block h-1 w-1 animate-pulse rounded-full bg-[var(--text-muted)]" />
-                    Syncing…
-                  </span>
-                )}
-              </div>
-              {filtered.length === 0 && (
-                <div className="px-4 py-3 text-[13px] text-[var(--text-muted)]">
-                  No matches
-                </div>
-              )}
-              {filtered.map((b, i) => {
-                const isCurrent = b.name === status.branch;
-                const age = relativeTime(b.committerDate);
-                const key = branchKey(b);
-                const isRenaming = renamingKey === key;
-                const canRename = !b.remote;
-                const canDelete = !b.remote && !isCurrent;
-                return (
-                  <div
-                    key={key}
-                    data-branch-index={i}
-                    className={`group relative flex w-full items-center transition-colors hover:bg-[var(--bg-hover)] ${
-                      i === clampedIndex ? "bg-[var(--bg-hover)]" : ""
-                    }`}
-                  >
-                    {isRenaming ? (
-                      <div className="flex w-full items-center gap-2.5 px-4 py-2 text-[13px]">
-                        <BranchIcon size={14} />
-                        <input
-                          autoFocus
-                          value={renameValue}
-                          onChange={(e) => setRenameValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              submitRename(b);
-                            } else if (e.key === "Escape") {
-                              e.preventDefault();
-                              setRenamingKey(null);
-                            }
-                          }}
-                          onBlur={() => setRenamingKey(null)}
-                          className="min-w-0 flex-1 rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1.5 py-0.5 text-[13px] text-[var(--text-primary)] focus:border-[var(--text-muted)] focus:outline-none"
-                        />
-                        <button
-                          type="button"
-                          title="Save"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => submitRename(b)}
-                          disabled={
-                            busy ||
-                            !renameValue.trim() ||
-                            renameValue.trim() === b.name
-                          }
-                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--accent-blue)] transition-colors hover:bg-[var(--bg-active)] disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => checkout(b)}
-                          disabled={busy}
-                          title={
-                            b.remote
-                              ? `Create local tracking branch from ${b.remote}/${b.name}`
-                              : undefined
-                          }
-                          className={`flex min-w-0 flex-1 items-center gap-2.5 px-4 py-2 text-left text-[13px] disabled:opacity-50 ${isCurrent ? "text-[var(--accent-blue)]" : "text-[var(--text-secondary)]"}`}
-                        >
-                          {b.remote ? (
-                            <CloudBranchIcon size={14} />
-                          ) : (
-                            <BranchIcon size={14} />
-                          )}
-                          <span className="flex min-w-0 flex-1 flex-col">
-                            <span className="flex min-w-0 items-center gap-1.5">
-                              <span className="truncate">{b.name}</span>
-                              {b.remote && <RemoteBadge remote={b.remote} />}
-                            </span>
-                            {isCurrent && status.uncommitted > 0 && (
-                              <span className="text-[11px] text-[var(--text-muted)]">
-                                Uncommitted: {status.uncommitted} file
-                                {status.uncommitted === 1 ? "" : "s"}
-                              </span>
-                            )}
-                          </span>
-                        </button>
-                        <div className="flex shrink-0 items-center gap-1 pr-4">
-                          <div className="flex items-center gap-0.5 pr-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
-                            <BranchActionButton
-                              title="Copy branch name"
-                              onClick={() => copyBranchName(b.name)}
-                            >
-                              <CopyIcon size={13} />
-                            </BranchActionButton>
-                            {canRename && (
-                              <BranchActionButton
-                                title="Rename branch"
-                                onClick={() => startRename(b)}
-                              >
-                                <PencilIcon size={13} />
-                              </BranchActionButton>
-                            )}
-                            {canDelete && (
-                              <BranchActionButton
-                                title="Delete branch"
-                                onClick={() => setDeletingBranch(b)}
-                                danger
-                              >
-                                <TrashIcon size={13} />
-                              </BranchActionButton>
-                            )}
-                            {b.remote && (
-                              <BranchActionButton
-                                title="Remove from list"
-                                onClick={() => setRemovingRemote(b)}
-                              >
-                                <CloudOffIcon size={13} />
-                              </BranchActionButton>
-                            )}
-                          </div>
-                          {age && (
-                            <span className="text-[11px] tabular-nums text-[var(--text-muted)]">
-                              {age}
-                            </span>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="border-t border-[var(--border)]">
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  setCreating(true);
-                }}
-                disabled={busy}
-                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
-              >
-                <PlusIcon />
-                <span>Create and checkout new branch…</span>
-              </button>
-            </div>
-          </div>
+          <BranchSearchMenu
+            projectPath={projectPath}
+            branches={branches}
+            current={status.branch}
+            uncommitted={status.uncommitted}
+            busy={busy}
+            pruning={pruning}
+            onCheckout={checkout}
+            onCreate={create}
+            onRename={renameBranch}
+            onDelete={setDeletingBranch}
+            onRemoveRemote={setRemovingRemote}
+            onCopyName={copyBranchName}
+            onNewBranch={(prefill) => {
+              setCreatePrefill(prefill);
+              setOpen(false);
+              setCreating(true);
+            }}
+          />
         )}
       </div>
       <div
@@ -849,9 +620,15 @@ export function BranchSwitcher({
         busy={busy}
         projectName={projectName}
         projectPath={projectPath}
-        initialName={query.trim()}
+        status={status}
+        branches={branches}
+        initialName={createPrefill}
         onClose={() => setCreating(false)}
         onCreate={create}
+        onSwitch={(branch) => {
+          setCreating(false);
+          void checkout(branch);
+        }}
       />
       <CommitModal
         open={committing}
@@ -941,32 +718,6 @@ export function BranchSwitcher({
   );
 }
 
-function BranchActionButton({
-  title,
-  onClick,
-  children,
-  danger = false,
-}: {
-  title: string;
-  onClick: () => void;
-  children: ReactNode;
-  danger?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      className={`flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-active)] ${danger ? "hover:text-[var(--accent-red)]" : "hover:text-[var(--text-primary)]"}`}
-    >
-      {children}
-    </button>
-  );
-}
-
 function SyncIcon({ spinning }: { spinning: boolean }) {
   return (
     <svg
@@ -1043,24 +794,6 @@ function MergeMenuIcon() {
       <circle cx="6" cy="18" r="3" />
       <path d="M6 9v6" />
       <path d="M6 21a12 12 0 0 0 12-12" />
-    </svg>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   );
 }

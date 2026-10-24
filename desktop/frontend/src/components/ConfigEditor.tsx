@@ -158,9 +158,14 @@ export function ConfigEditor({
 
   const [aiOpen, setAiOpen] = useState(false);
 
-  const handleAIGenerate = async (cli: AICLI, extraPrompt: string, genId: string) => {
-    const yaml = await GenerateProjectConfig(projectName, cli, extraPrompt, genId);
-    userEditor.setContent(yaml);
+  const handleAIGenerate = (cli: AICLI, extraPrompt: string, genId: string): Promise<string> =>
+    GenerateProjectConfig(projectName, cli, extraPrompt, genId);
+
+  // Reviewed first, the generated config replaces the user file in the editor:
+  // unsaved, or saved at once.
+  const applyGenerated = (yaml: string, save: boolean) => {
+    if (save) void userEditor.saveContent(yaml);
+    else userEditor.setContent(yaml);
     changeMode("yaml");
     changeTarget("user");
     setAiOpen(false);
@@ -271,8 +276,10 @@ export function ConfigEditor({
       <AIGenerateModal
         open={aiOpen}
         scope={projectName}
+        current={userEditor.content}
         onCancel={() => setAiOpen(false)}
         onGenerate={handleAIGenerate}
+        onApply={applyGenerated}
       />
     </div>
   );

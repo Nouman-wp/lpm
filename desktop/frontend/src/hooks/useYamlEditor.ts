@@ -26,22 +26,31 @@ export function useYamlEditor(
       .catch((err) => setError(`Failed to load: ${err}`));
   }, [load]);
 
-  const handleSave = useCallback(async () => {
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      await save(content);
-      setOriginal(content);
-    } catch (err) {
-      setError(`${err}`);
-    } finally {
-      setSaving(false);
-    }
-  }, [content, save, validationError]);
+  // Puts `next` in the editor and saves it, for content that arrives whole
+  // rather than typed (an AI-generated config).
+  const saveContent = useCallback(
+    async (next: string) => {
+      setContent(next);
+      const invalid = validate?.(next) ?? null;
+      if (invalid) {
+        setError(invalid);
+        return;
+      }
+      setSaving(true);
+      setError(null);
+      try {
+        await save(next);
+        setOriginal(next);
+      } catch (err) {
+        setError(`${err}`);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [save, validate],
+  );
+
+  const handleSave = useCallback(() => saveContent(content), [saveContent, content]);
 
   useKeyboardShortcut({ key: "s", meta: true, whileTyping: false }, () => {
     if (dirty) handleSave();
@@ -81,6 +90,7 @@ export function useYamlEditor(
     error,
     validationError,
     handleSave,
+    saveContent,
     handleSaveKey,
     handleTab,
   };

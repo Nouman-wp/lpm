@@ -362,6 +362,10 @@ class LpmClient internal constructor(
         // `closeOtherTerminals`.
         const val TAB_MENU_FEATURE = "tabMenu"
 
+        // `answerAgent` from a notification's buttons, and `liveActivity` updates.
+        const val ANSWER_AGENT_FEATURE = "answerAgent"
+        const val LIVE_ACTIVITY_FEATURE = "liveActivity"
+
         const val OFFLINE_HINT =
             "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 

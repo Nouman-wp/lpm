@@ -338,7 +338,12 @@ export function ClaudeAccountsSection({ source }: { source: ClaudeAccountsSource
         <ClaudeLoginModal
           account={loginAccount}
           startLogin={source.startLogin}
-          onSignedIn={() => void refresh()}
+          status={{
+            signedIn: signedInOf(loginAccount.id),
+            email: poolAccount(loginAccount.id)?.email || statuses[loginAccount.id]?.email || "",
+            planLabel: poolAccount(loginAccount.id)?.planLabel ?? "",
+          }}
+          refresh={refresh}
           onClose={() => setLoginAccount(null)}
         />
       )}

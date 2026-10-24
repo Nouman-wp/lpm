@@ -1,15 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ArrowRight, GitPullRequest, AlertCircle } from "lucide-react";
 import { Modal } from "./ui/Modal";
-import {
-  XIcon,
-  ChevronDownIcon,
-  BranchIcon,
-  CloudBranchIcon,
-  CheckIcon,
-} from "./icons";
-import { branchKey, branchMatches, RemoteBadge } from "./branchUtils";
+import { XIcon, BranchIcon } from "./icons";
 import { AIPickerButton } from "./ui/AIPickerButton";
 import {
   CheckGHCLI,
@@ -21,16 +14,17 @@ import {
   ListBranches,
 } from "../../bridge/commands";
 import { main } from "../../bridge/models";
-import { useOutsideClick } from "../hooks/useOutsideClick";
-import { useBranchSearch } from "../hooks/useBranchSearch";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { aiEffectiveFast } from "../types";
-import { EventsEmit } from "../../bridge/runtime";
 import { getSettings, saveSettings } from "../store/settings";
 import { rememberCreatedPr } from "../store/branchPr";
+import { prefersDraftPr, rememberDraftPr } from "../store/prDraft";
 import { Tooltip } from "./ui/Tooltip";
 import { PRCreatedView } from "./PRCreatedView";
+import { BranchPicker } from "./BranchPicker";
+import { CreatePRSplitButton } from "./CreatePRSplitButton";
+import { InstructionsChip } from "./InstructionsChip";
 
 type BranchCommit = main.BranchCommit;
 type Branch = main.Branch;
@@ -65,35 +59,19 @@ export function PRModal({
   const descGen = useAIGeneration(projectName);
   const [ghAvailable, setGhAvailable] = useState(true);
   const ai = useAIPicker(open, projectName);
-  const [baseMenuOpen, setBaseMenuOpen] = useState(false);
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [baseQuery, setBaseQuery] = useState("");
   const excludeCurrent = useCallback(
     (b: Branch) => b.name !== currentBranch,
     [currentBranch],
   );
-  const baseSearchResults = useBranchSearch(
-    projectPath,
-    baseQuery,
-    baseMenuOpen,
-    excludeCurrent,
-  );
   const [autoGenerate, setAutoGenerate] = useState(
     () => getSettings().autoGeneratePRDescription ?? false,
   );
+  const [draft, setDraft] = useState(false);
   const [prURL, setPrURL] = useState("");
 
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
-  const baseSearchRef = useRef<HTMLInputElement>(null);
-  const baseRef = useOutsideClick<HTMLDivElement>(() => {
-    setBaseMenuOpen(false);
-    setBaseQuery("");
-  }, baseMenuOpen);
-
-  useEffect(() => {
-    if (baseMenuOpen) baseSearchRef.current?.focus();
-  }, [baseMenuOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -104,6 +82,7 @@ export function PRModal({
     setCommits([]);
     setBranches([]);
     setPrURL("");
+    setDraft(prefersDraftPr(projectName));
     setLoading(true);
 
     (async () => {
@@ -134,7 +113,7 @@ export function PRModal({
     return () => {
       cancelled = true;
     };
-  }, [open, projectPath, currentBranch]);
+  }, [open, projectPath, projectName, currentBranch]);
 
   const autoGenTriggered = useRef(false);
 
@@ -169,17 +148,8 @@ export function PRModal({
     el.style.height = el.scrollHeight + "px";
   }, [description]);
 
-  const filteredBranches = useMemo(() => {
-    if (!baseQuery) return branches;
-    if (baseSearchResults !== null) return baseSearchResults;
-    // Fallback during the debounce window: filter the cached recent list.
-    return branches.filter((b) => branchMatches(b, baseQuery));
-  }, [branches, baseQuery, baseSearchResults]);
-
   const changeBase = async (newBase: string) => {
     setBase(newBase);
-    setBaseMenuOpen(false);
-    setBaseQuery("");
     setLoading(true);
     try {
       const log = await GitLogBranch(projectPath, newBase);
@@ -271,8 +241,10 @@ export function PRModal({
     return null;
   })();
 
-  const submit = async () => {
+  const submit = async (asDraft = draft) => {
     if (!canCreate) return;
+    setDraft(asDraft);
+    rememberDraftPr(projectName, asDraft);
     setBusy(true);
     try {
       const url = await CreatePullRequest(
@@ -280,9 +252,10 @@ export function PRModal({
         title.trim(),
         description.trim(),
         base,
+        asDraft,
       );
       setPrURL(url);
-      rememberCreatedPr(projectPath, currentBranch, url, title.trim());
+      rememberCreatedPr(projectPath, currentBranch, url, title.trim(), asDraft);
       onCreated();
     } catch (err) {
       toast.error(`Create PR failed: ${err}`);
@@ -343,6 +316,7 @@ export function PRModal({
             branch={currentBranch}
             base={base}
             url={prURL}
+            draft={draft}
             onSwitched={() => {
               onCreated();
               closeModal();
@@ -360,66 +334,15 @@ export function PRModal({
                 size={14}
                 className="shrink-0 text-[var(--text-muted)]"
               />
-              <div ref={baseRef} className="relative">
-                <button
-                  onClick={() => setBaseMenuOpen(!baseMenuOpen)}
-                  disabled={busy}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--text-muted)]/50 hover:bg-[var(--bg-hover)] disabled:opacity-50"
-                >
-                  <BranchIcon size={11} />
-                  <span className="max-w-[180px] truncate">{base || "…"}</span>
-                  <ChevronDownIcon />
-                </button>
-                {baseMenuOpen && (
-                  <div className="absolute left-0 top-full z-10 mt-1 w-96 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] shadow-lg">
-                    <div className="border-b border-[var(--border)] p-2">
-                      <input
-                        ref={baseSearchRef}
-                        value={baseQuery}
-                        onChange={(e) => setBaseQuery(e.target.value)}
-                        placeholder="Search branches"
-                        autoComplete="off"
-                        autoCorrect="off"
-                        autoCapitalize="off"
-                        spellCheck={false}
-                        className="w-full rounded-md bg-[var(--bg-hover)] px-2 py-1 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
-                      />
-                    </div>
-                    <div className="max-h-[200px] overflow-y-auto py-1">
-                      {filteredBranches.map((b) => {
-                        const selected = b.name === base;
-                        return (
-                          <button
-                            key={branchKey(b)}
-                            onClick={() => changeBase(b.name)}
-                            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-[var(--bg-hover)] ${
-                              selected
-                                ? "font-medium text-[var(--text-primary)]"
-                                : "text-[var(--text-secondary)]"
-                            }`}
-                          >
-                            {b.remote ? (
-                              <CloudBranchIcon size={10} />
-                            ) : (
-                              <BranchIcon size={10} />
-                            )}
-                            <span className="min-w-0 flex-1 truncate">
-                              {b.name}
-                            </span>
-                            {b.remote && <RemoteBadge remote={b.remote} />}
-                            {selected && <CheckIcon />}
-                          </button>
-                        );
-                      })}
-                      {filteredBranches.length === 0 && (
-                        <div className="px-3 py-2 text-xs text-[var(--text-muted)]">
-                          No matches
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <BranchPicker
+                projectPath={projectPath}
+                label={base}
+                branches={branches}
+                filter={excludeCurrent}
+                isSelected={(b) => b.name === base}
+                onSelect={(b) => changeBase(b.name)}
+                disabled={busy}
+              />
             </div>
 
             <div
@@ -586,15 +509,7 @@ export function PRModal({
               </Tooltip>
             )}
             {!prURL && (
-              <button
-                onClick={() => {
-                  EventsEmit("navigate-pr-instructions");
-                  closeModal();
-                }}
-                className="text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
-              >
-                Edit AI Instructions
-              </button>
+              <InstructionsChip projectName={projectName} target="pr" backTitle="Back to pull request" />
             )}
           </span>
           <div className="flex gap-2">
@@ -606,13 +521,12 @@ export function PRModal({
               {prURL ? "Close" : "Cancel"}
             </button>
             {!prURL && (
-              <button
-                onClick={submit}
+              <CreatePRSplitButton
+                draft={draft}
+                busy={busy}
                 disabled={!canCreate}
-                className="rounded-lg bg-[var(--text-primary)] px-4 py-1.5 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-30"
-              >
-                {busy ? "Creating..." : "Create PR"}
-              </button>
+                onCreate={submit}
+              />
             )}
           </div>
         </div>

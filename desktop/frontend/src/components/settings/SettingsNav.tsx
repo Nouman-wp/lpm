@@ -15,6 +15,7 @@ export function SettingsNav({
   activeView,
   query,
   results,
+  hints,
   onQueryChange,
   onActivate,
   onSelectTab,
@@ -31,13 +32,20 @@ export function SettingsNav({
   activeView?: View;
   query: string;
   results: SettingsSearchEntry[];
+  /// Searches to suggest when one finds nothing.
+  hints: string[];
   onQueryChange: (query: string) => void;
   onActivate: (entry: SettingsSearchEntry) => void;
   onSelectTab: (tab: SettingsTab) => void;
   onNavigate: (view: View) => void;
 }) {
+  const searching = query.trim() !== "";
   return (
-    <nav className="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-[var(--border)] bg-[var(--bg-sidebar)] px-3">
+    <nav
+      className={`flex shrink-0 flex-col overflow-y-auto border-r border-[var(--border)] bg-[var(--bg-sidebar)] px-3 transition-[width] duration-150 ${
+        searching ? "w-[340px]" : "w-56"
+      }`}
+    >
       {/* Settings stand in for the project sidebar, so this column starts at
           the window's edge and keeps the sidebar's room for the traffic lights. */}
       <div className="app-drag h-11 shrink-0 native-chrome:h-3" />
@@ -59,9 +67,10 @@ export function SettingsNav({
         query={query}
         onQueryChange={onQueryChange}
         results={results}
+        hints={hints}
         onActivate={onActivate}
       />
-      {query.trim() === "" &&
+      {!searching &&
         groups.map((group) => (
           <div key={group.title} className="mb-2">
             <div className="mb-1 mt-3 px-2.5 text-[10px] font-medium uppercase tracking-[0.09em] text-[var(--text-muted)] opacity-70">

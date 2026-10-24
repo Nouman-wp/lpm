@@ -1,20 +1,26 @@
+import { useState } from "react";
 import { GroupContextMenu } from "./GroupContextMenu";
+import { DeleteFolderDialog } from "./DeleteFolderDialog";
 import { RenameModal } from "./RenameModal";
 import { slotOf } from "../peer/hostFolders";
 import { applyHostFolderOp, useHostFolderDialogs, useHostFolders } from "../peer/useHostFolders";
 
-// The menu and the rename / new-folder dialogs of a paired host's folders. Each
-// change is one op the host applies to its own layout. Deleting a folder's
-// projects stays with the host: from here a folder only lets go of them.
+interface FolderRef {
+  slug: string;
+  id: string;
+}
+
+// The menu and the rename / new-folder / delete dialogs of a paired host's
+// folders. Each change is one op the host applies to its own layout. Deleting a
+// folder's projects stays with the host: from here a folder only lets go of them.
 export function PeerFolderMenus() {
   const { menu, renaming, creating } = useHostFolderDialogs();
   const bySlug = useHostFolders((s) => s.bySlug);
+  const [deleting, setDeleting] = useState<FolderRef | null>(null);
   const groupOf = (slug: string, id: string) => bySlug[slug]?.groups.find((g) => g.id === id);
   const menuGroup = menu ? groupOf(menu.slug, menu.id) : undefined;
   const renamingGroup = renaming ? groupOf(renaming.slug, renaming.id) : undefined;
-  const ungroup =
-    menu && menuGroup ? () => void applyHostFolderOp(menu.slug, { op: "ungroup", id: menu.id }) : undefined;
-  const hasMembers = Boolean(menuGroup?.members.length);
+  const deletingGroup = deleting ? groupOf(deleting.slug, deleting.id) : undefined;
 
   return (
     <>
@@ -22,13 +28,23 @@ export function PeerFolderMenus() {
         <GroupContextMenu
           x={menu.x}
           y={menu.y}
+          projectCount={menuGroup?.members.length ?? 0}
           onRename={() => useHostFolderDialogs.setState({ renaming: { slug: menu.slug, id: menu.id } })}
           onNewFolder={() => useHostFolderDialogs.setState({ creating: { slug: menu.slug } })}
-          onUngroup={hasMembers ? ungroup : undefined}
-          onDelete={hasMembers ? undefined : ungroup}
+          onDeleteFolder={() => setDeleting({ slug: menu.slug, id: menu.id })}
           onClose={() => useHostFolderDialogs.setState({ menu: null })}
         />
       )}
+      <DeleteFolderDialog
+        open={deletingGroup !== undefined}
+        folderName={deletingGroup?.name ?? ""}
+        projectCount={deletingGroup?.members.length ?? 0}
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => {
+          if (deleting) void applyHostFolderOp(deleting.slug, { op: "ungroup", id: deleting.id });
+          setDeleting(null);
+        }}
+      />
       <RenameModal
         open={renaming !== null}
         title="Rename folder"

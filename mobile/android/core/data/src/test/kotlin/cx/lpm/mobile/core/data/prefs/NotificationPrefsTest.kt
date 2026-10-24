@@ -7,27 +7,31 @@ import org.junit.Test
 
 class NotificationPrefsTest {
     @Test
-    fun `a fresh install wants every push except an automation starting`() = runTest {
-        val prefs = AppPreferences(InMemoryDataStore(), backgroundScope)
-        assertEquals(
-            NotificationPrefs(
-                enabled = true,
-                waiting = true,
-                done = true,
-                error = true,
-                automationStarted = false,
-                automationDone = true,
-                automationError = true
-            ),
-            prefs.notificationPrefs
-        )
-    }
+    fun `a fresh install wants every push except an automation starting, and live updates`() =
+        runTest {
+            val prefs = AppPreferences(InMemoryDataStore(), backgroundScope)
+            assertEquals(
+                NotificationPrefs(
+                    enabled = true,
+                    waiting = true,
+                    done = true,
+                    error = true,
+                    automationStarted = false,
+                    automationDone = true,
+                    automationError = true,
+                    liveActivity = true
+                ),
+                prefs.notificationPrefs
+            )
+        }
 
     @Test
     fun `a change stores every kind under the iOS keys`() = runTest {
         val store = InMemoryDataStore()
         val prefs = AppPreferences(store, backgroundScope)
-        prefs.setNotificationPrefs(NotificationPrefs(enabled = false, done = false))
+        prefs.setNotificationPrefs(
+            NotificationPrefs(enabled = false, done = false, liveActivity = false)
+        )
         testScheduler.runCurrent()
 
         val reloaded = AppPreferences(store, backgroundScope).also { it.load() }
@@ -38,7 +42,11 @@ class NotificationPrefsTest {
         assertEquals(false, reloaded.bool("lpm.notify.automation.started"))
         assertEquals(true, reloaded.bool("lpm.notify.automation.done"))
         assertEquals(true, reloaded.bool("lpm.notify.automation.error"))
-        assertEquals(NotificationPrefs(enabled = false, done = false), reloaded.notificationPrefs)
+        assertEquals(false, reloaded.bool("lpm.notify.liveActivity"))
+        assertEquals(
+            NotificationPrefs(enabled = false, done = false, liveActivity = false),
+            reloaded.notificationPrefs
+        )
     }
 
     @Test

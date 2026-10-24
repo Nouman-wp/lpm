@@ -7,6 +7,7 @@ struct LpmWidgets: WidgetBundle {
         AgentListWidget()
         UsageWidget()
         TokenActivityWidget()
+        AgentLiveActivity()
     }
 }
 

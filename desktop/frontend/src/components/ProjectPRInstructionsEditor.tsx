@@ -4,14 +4,16 @@ import {
   SaveProjectInstructions,
 } from "../../bridge/commands";
 import { PRInstructionsForm } from "./PRInstructionsForm";
-import { ChevronLeftIcon } from "./icons";
+import { InstructionsHeader } from "./InstructionsHeader";
 
 export function ProjectPRInstructionsEditor({
   projectName,
   onBack,
+  backTitle = "Back to AI Instructions",
 }: {
   projectName: string;
   onBack: () => void;
+  backTitle?: string;
 }) {
   const titleLoad = useCallback(
     () => ReadProjectInstructions(projectName, "pr-title"),
@@ -33,25 +35,19 @@ export function ProjectPRInstructionsEditor({
 
   return (
     <div className="flex flex-1 flex-col pt-6">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onBack}
-          className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          title="Back to AI Instructions"
-        >
-          <ChevronLeftIcon />
-        </button>
-        <h1 className="text-lg font-semibold tracking-tight">PR instructions</h1>
-      </div>
-      <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-        Custom instructions for this project's AI pull request titles and descriptions. Leave blank to use the global default.
-      </p>
+      <InstructionsHeader
+        title="PR instructions"
+        description="Custom instructions for this project's AI pull request titles and descriptions. Leave blank to use the global default."
+        onBack={onBack}
+        backTitle={backTitle}
+      />
 
       <PRInstructionsForm
         titleLoad={titleLoad}
         titleSave={titleSave}
         descLoad={descLoad}
         descSave={descSave}
+        resetClears
       />
     </div>
   );

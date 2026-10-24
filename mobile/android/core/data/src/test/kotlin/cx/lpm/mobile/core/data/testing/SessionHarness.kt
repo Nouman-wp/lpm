@@ -21,6 +21,7 @@ import cx.lpm.mobile.core.data.mac.ThisDevice
 import cx.lpm.mobile.core.data.machines.MachineImporter
 import cx.lpm.mobile.core.data.prefs.AppPreferences
 import cx.lpm.mobile.core.data.projects.ProjectsStore
+import cx.lpm.mobile.core.data.push.AgentAnswers
 import cx.lpm.mobile.core.data.push.PushRegistrar
 import cx.lpm.mobile.core.data.push.PushStore
 import cx.lpm.mobile.core.data.push.ResolvedPush
@@ -69,6 +70,8 @@ class SessionHarness(test: TestScope) {
         ThisDevice("Test Phone"),
         scope
     )
+    val answers =
+        AgentAnswers(prefs, credentials, macStore, clients, prober, ThisDevice("Test Phone"))
     val env = SessionEnvironment(
         scope = scope,
         clock = clock,
@@ -98,7 +101,7 @@ class SessionHarness(test: TestScope) {
             SessionStore.Factory(::MachineImporter),
             SessionStore.Factory(::AgentLaunchStore),
             SessionStore.Factory(::ProjectFilesStore),
-            SessionStore.Factory { PushStore(it, registrar) }
+            SessionStore.Factory { PushStore(it, registrar, answers) }
         )
     )
     val session = MacSession(env, visitHost = null)

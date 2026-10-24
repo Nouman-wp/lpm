@@ -53,6 +53,8 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Listener, Manager, State};
 use tungstenite::{accept, Error as WsError, Message, WebSocket};
 
+mod answer;
+mod live;
 mod relay;
 pub(crate) mod relayed;
 mod tab_menu;
@@ -147,6 +149,8 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_agents::LAUNCH_FEATURE,
     crate::remote_agents::SESSIONS_FEATURE,
     crate::remote_files::FEATURE,
+    answer::FEATURE,
+    live::FEATURE,
 ];
 
 /// The phone may send `restartService` / `stopService`.
@@ -256,6 +260,7 @@ struct Client {
 struct Ring {
     buf: VecDeque<u8>,
     base: u64,
+    modes: crate::ptymodes::Modes,
 }
 
 impl Ring {
@@ -663,6 +668,7 @@ impl RemoteHub {
     fn ring_push(&self, id: &str, text: &str) -> u64 {
         let mut rings = self.inner.rings.lock().unwrap();
         let ring = rings.entry(id.to_string()).or_default();
+        ring.modes.feed(text.as_bytes());
         ring.buf.extend(text.as_bytes());
         let over = ring.buf.len().saturating_sub(RING_CAP);
         if over > 0 {
@@ -694,6 +700,15 @@ impl RemoteHub {
 
     fn drop_ring(&self, id: &str) {
         self.inner.rings.lock().unwrap().remove(id);
+    }
+
+    fn bracketed_paste(&self, id: &str) -> bool {
+        self.inner
+            .rings
+            .lock()
+            .unwrap()
+            .get(id)
+            .is_some_and(|r| r.modes.bracketed_paste())
     }
 
     /// A paired device's friendly name (for the "Active on <name>" placeholder),
@@ -2308,6 +2323,8 @@ fn handle_msg(
                 away.remove(device_id);
             } else {
                 away.insert(device_id.to_string());
+                drop(away);
+                live::schedule(hub, app);
             }
         }
         // The palette rides along with the list so the phone's Status menu can
@@ -3736,16 +3753,18 @@ fn handle_msg(
                 )?,
             }
         }
-        // Create a new branch off HEAD and check it out (reuses the desktop's
-        // create_branch, which does `branch` + checkout, falling back to
-        // `switch -c`). Inline like gitCheckout; on success the phone refreshes its
-        // branch list + snapshot, so the new current branch shows.
+        // Create a new branch off HEAD, or off `from` when given, and check it
+        // out (reuses the desktop's create_branch, which does `branch` +
+        // checkout, falling back to `switch -c`). Inline like gitCheckout; on
+        // success the phone refreshes its branch list + snapshot, so the new
+        // current branch shows.
         "gitCreateBranch" => {
             let project = str_field("project").unwrap_or_default();
             let name = str_field("name").unwrap_or_default();
+            let from = str_field("from");
             match config::project_root(&project) {
                 Ok((cwd, _)) => {
-                    let r = crate::git::create_branch(cwd, name);
+                    let r = crate::git::create_branch(cwd, name, from);
                     send(ws, git_result_reply("gitCreateBranch", &project, r))?;
                 }
                 Err(e) => send(
@@ -3910,12 +3929,15 @@ fn handle_msg(
             let project = str_field("project").unwrap_or_default();
             let title = str_field("title").unwrap_or_default();
             let body = str_field("body").unwrap_or_default();
+            let draft = v.get("draft").and_then(Value::as_bool);
             match config::project_root(&project) {
                 Ok((cwd, _)) => {
                     let out = out.clone();
                     std::thread::spawn(move || {
                         let base = crate::git::git_default_branch(cwd.clone());
-                        let reply = match crate::git::create_pull_request(cwd, title, body, base) {
+                        let reply = match crate::git::create_pull_request(
+                            cwd, title, body, base, draft,
+                        ) {
                             Ok(url) => {
                                 json!({ "t": "gitCreatePr", "project": project, "ok": true, "url": url })
                             }
@@ -4594,6 +4616,11 @@ fn handle_msg(
             let id = str_field("id").unwrap_or_default();
             let session = hub.inner.agent_sessions.lock().unwrap().get(&id).cloned();
             crate::remote_answers::handle(out, &v, session)
+        }
+        "answerAgent" => answer::handle(hub, app, out, &v),
+        "liveActivity" => {
+            let ok = live::register(hub, app, device_id, &v);
+            send(ws, json!({ "t": "liveActivity", "ok": ok }))?;
         }
         "uploadBegin" | "uploadChunk" | "uploadDone" | "uploadAbort" => {
             crate::remote_upload::handle(app, out, t, &v)
@@ -5293,6 +5320,8 @@ struct PushJob {
     ts: i64,
     key: String,
     collapse_id: String,
+    /// The answers the phone may send back from the notification (answer.rs).
+    actions: Vec<&'static str>,
 }
 
 /// The sealed plaintext for an alert push: the status entry plus this Mac's
@@ -5301,7 +5330,7 @@ struct PushJob {
 /// the file name every match keys off; `projectLabel` is what the phone shows,
 /// since a duplicate's file name is an id.
 fn alert_payload(server_id: &str, project: &str, project_label: &str, job: &PushJob) -> String {
-    json!({
+    let mut payload = json!({
         "serverId": server_id,
         "project": project,
         "projectLabel": project_label,
@@ -5311,8 +5340,11 @@ fn alert_payload(server_id: &str, project: &str, project_label: &str, job: &Push
         "status": job.value,
         "ts": job.ts,
         "key": job.key,
-    })
-    .to_string()
+    });
+    if !job.actions.is_empty() {
+        payload["actions"] = json!(job.actions);
+    }
+    payload.to_string()
 }
 
 fn automation_alert_payload(
@@ -5497,12 +5529,7 @@ fn relay_body(
     collapse_id: Option<&str>,
     background: bool,
 ) -> String {
-    let mut body = json!({ "token": dev.token, "blob": blob });
-    if dev.platform == PUSH_PLATFORM_FCM {
-        body["platform"] = json!(PUSH_PLATFORM_FCM);
-    } else {
-        body["env"] = json!(dev.env);
-    }
+    let mut body = relay_envelope(dev, blob);
     if let Some(id) = collapse_id {
         body["collapseId"] = json!(id);
     }
@@ -5510,6 +5537,18 @@ fn relay_body(
         body["type"] = json!("background");
     }
     body.to_string()
+}
+
+/// Where a sealed push goes: the device's token, with its APNs environment or,
+/// on FCM, its platform.
+fn relay_envelope(dev: &PushDevice, blob: String) -> Value {
+    let mut body = json!({ "token": dev.token, "blob": blob });
+    if dev.platform == PUSH_PLATFORM_FCM {
+        body["platform"] = json!(PUSH_PLATFORM_FCM);
+    } else {
+        body["env"] = json!(dev.env);
+    }
+    body
 }
 
 /// Seal and POST one alert per (device, wanted job). A 410 from the relay retires
@@ -5586,18 +5625,11 @@ fn spawn_deferred_codex_pushes(
             return;
         }
 
-        let client = match reqwest::blocking::Client::builder()
-            .timeout(Duration::from_secs(10))
-            .build()
-        {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("warning: push relay client init failed: {e}");
-                return;
-            }
+        let Some(client) = relay_client() else {
+            return;
         };
         send_alert_pushes(
-            &client,
+            client,
             &relay,
             &hub,
             &server_id,
@@ -5635,7 +5667,7 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
     // The project's pushable entries (Waiting/Done/Error), with pane id for label
     // resolution. Non-pushable statuses (Running) never notify.
     let store = app.state::<Arc<StatusStore>>();
-    let entries: Vec<(String, String, i64, String)> = store
+    let pushable: Vec<StatusEntry> = store
         .list(project)
         .into_iter()
         .filter(|e| {
@@ -5644,15 +5676,12 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
                 STATUS_WAITING | STATUS_DONE | STATUS_ERROR
             )
         })
-        .map(|e| (e.key, e.value, e.timestamp, e.pane_id))
         .collect();
-    let pane_of: HashMap<String, String> = entries
+    let by_key: HashMap<&str, &StatusEntry> =
+        pushable.iter().map(|e| (e.key.as_str(), e)).collect();
+    let plain: Vec<(String, String, i64)> = pushable
         .iter()
-        .map(|(k, _, _, p)| (k.clone(), p.clone()))
-        .collect();
-    let plain: Vec<(String, String, i64)> = entries
-        .iter()
-        .map(|(k, v, t, _)| (k.clone(), v.clone(), *t))
+        .map(|e| (e.key.clone(), e.value.clone(), e.timestamp))
         .collect();
 
     // Update the dedup map on every event (a transition fact, independent of who's
@@ -5726,16 +5755,16 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
         deltas
             .into_iter()
             .map(|(key, value, ts)| {
-                let terminal = pane_of
-                    .get(&key)
-                    .and_then(|pane| labels.get(pane).cloned())
-                    .unwrap_or_default();
+                let entry = by_key.get(key.as_str());
                 let collapse_id = push_collapse_id(&server_id, project, &key);
                 PushJob {
-                    terminal,
-                    terminal_id: pane_of.get(&key).cloned().unwrap_or_default(),
+                    terminal: entry
+                        .and_then(|e| labels.get(&e.pane_id).cloned())
+                        .unwrap_or_default(),
+                    terminal_id: entry.map(|e| e.pane_id.clone()).unwrap_or_default(),
                     value,
                     ts,
+                    actions: entry.map(|e| answer::actions(e)).unwrap_or_default(),
                     key,
                     collapse_id,
                 }
@@ -5762,19 +5791,12 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
 
     let (hub, project) = (hub.clone(), project.to_string());
     std::thread::spawn(move || {
-        let client = match reqwest::blocking::Client::builder()
-            .timeout(Duration::from_secs(10))
-            .build()
-        {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("warning: push relay client init failed: {e}");
-                return;
-            }
+        let Some(client) = relay_client() else {
+            return;
         };
 
         send_alert_pushes(
-            &client,
+            client,
             &relay,
             &hub,
             &server_id,
@@ -5792,7 +5814,7 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
                     continue;
                 };
                 let body = relay_body(dev, blob, None, true);
-                post_push(&client, &relay, &hub, &dev.id, body);
+                post_push(client, &relay, &hub, &dev.id, body);
             }
         }
     });
@@ -5859,29 +5881,67 @@ fn push_automation_notification(
 
     let hub = (*hub).clone();
     std::thread::spawn(move || {
-        let client = match reqwest::blocking::Client::builder()
-            .timeout(Duration::from_secs(10))
-            .build()
-        {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("warning: push relay client init failed: {e}");
-                return;
-            }
+        let Some(client) = relay_client() else {
+            return;
         };
         for dev in &recipients {
             let Some(blob) = seal_push(&dev.key, plaintext.as_bytes()) else {
                 continue;
             };
             let body = relay_body(dev, blob, Some(&collapse_id), false);
-            post_push(&client, &relay, &hub, &dev.id, body);
+            post_push(client, &relay, &hub, &dev.id, body);
         }
     });
 }
 
+/// One client for every relay POST, so its connections are reused.
+fn relay_client() -> Option<&'static reqwest::blocking::Client> {
+    static CLIENT: std::sync::OnceLock<reqwest::blocking::Client> = std::sync::OnceLock::new();
+    if let Some(client) = CLIENT.get() {
+        return Some(client);
+    }
+    match reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+    {
+        Ok(client) => Some(CLIENT.get_or_init(|| client)),
+        Err(e) => {
+            eprintln!("warning: push relay client init failed: {e}");
+            None
+        }
+    }
+}
+
+enum Delivery {
+    Sent,
+    /// The relay reported the token dead (HTTP 410 / Unregistered).
+    Dead,
+    Failed,
+}
+
+fn post_relay(client: &reqwest::blocking::Client, relay: &str, body: String) -> Delivery {
+    match client
+        .post(relay)
+        .header("content-type", "application/json")
+        .body(body)
+        .send()
+    {
+        Ok(resp) if resp.status().as_u16() == 410 => Delivery::Dead,
+        Ok(resp) if resp.status().is_success() => Delivery::Sent,
+        Ok(resp) => {
+            eprintln!("warning: push relay returned {}", resp.status());
+            Delivery::Failed
+        }
+        Err(e) => {
+            eprintln!("warning: push relay POST failed: {e}");
+            Delivery::Failed
+        }
+    }
+}
+
 /// POST one sealed push body to the relay. Returns true when the relay reported
-/// the device token dead (HTTP 410 / Unregistered) and cleared it, so the caller
-/// stops pushing to that device.
+/// the device token dead and it was cleared, so the caller stops pushing to that
+/// device.
 fn post_push(
     client: &reqwest::blocking::Client,
     relay: &str,
@@ -5889,25 +5949,11 @@ fn post_push(
     device_id: &str,
     body: String,
 ) -> bool {
-    match client
-        .post(relay)
-        .header("content-type", "application/json")
-        .body(body)
-        .send()
-    {
-        Ok(resp) => {
-            let status = resp.status().as_u16();
-            if status == 410 {
-                clear_push_token(hub, device_id);
-                return true;
-            }
-            if !(200..300).contains(&status) {
-                eprintln!("warning: push relay returned {status}");
-            }
-        }
-        Err(e) => eprintln!("warning: push relay POST failed: {e}"),
+    let dead = matches!(post_relay(client, relay, body), Delivery::Dead);
+    if dead {
+        clear_push_token(hub, device_id);
     }
-    false
+    dead
 }
 
 fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
@@ -5922,6 +5968,7 @@ fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
         let project = serde_json::from_str::<String>(e.payload()).unwrap_or_default();
         broadcast(&h, json!({ "t": "status-changed", "project": project }));
         push_notifications(&h, &a, &project);
+        live::schedule(&h, &a);
     });
     // Agent CLIs write session files through the lpm-memory skill while a phone
     // has the Memory screen open, so the FSEvents watcher's settle-debounced
@@ -6377,9 +6424,10 @@ fn port_to_store(configured: u16, requested: u16, dev: bool) -> u16 {
 /// command's other half.
 pub(crate) fn arm_pairing_payload(hub: &RemoteHub, by_peer: bool) -> Result<Value, String> {
     let code = gen_pairing_code();
+    let armed_at = crate::status::now_millis();
     let (tailscale, port) = hub.try_update_config(|cfg| {
         cfg.pairing_code = code.clone();
-        cfg.pairing_code_armed_at = crate::status::now_millis();
+        cfg.pairing_code_armed_at = armed_at;
         cfg.pairing_code_by_peer = by_peer;
         cfg.enabled = true;
         (cfg.tailscale, effective_port(cfg.port))
@@ -6401,6 +6449,7 @@ pub(crate) fn arm_pairing_payload(hub: &RemoteHub, by_peer: bool) -> Result<Valu
         "port": port,
         "fingerprint": fingerprint,
         "serverId": hub.server_id(),
+        "expiresAt": armed_at + PAIRING_CODE_TTL.as_millis() as i64,
     }))
 }
 
@@ -7382,6 +7431,17 @@ mod tests {
     }
 
     #[test]
+    fn a_pairing_code_says_when_it_stops_working() {
+        let _cfg = TestConfig::new();
+        let hub = loaded_hub();
+        let payload = arm_pairing_payload(&hub, false).expect("armed");
+        assert_eq!(
+            payload["expiresAt"].as_i64(),
+            Some(hub.config().pairing_code_armed_at + PAIRING_CODE_TTL.as_millis() as i64)
+        );
+    }
+
+    #[test]
     fn an_unstamped_code_is_not_expired() {
         assert!(!pairing_code_expired(0));
         assert!(!pairing_code_expired(crate::status::now_millis()));
@@ -7820,6 +7880,9 @@ mod tests {
                 push_automation_started: false,
                 push_automation_done: true,
                 push_automation_error: false,
+                live_updates: true,
+                live_token: String::new(),
+                live_env: String::new(),
                 paired_server_id: Some("srv-1".into()),
                 alias: "Work iPhone".into(),
                 last_seen: 43,
@@ -8252,6 +8315,7 @@ mod tests {
             ts: 123,
             key: "pane-1".into(),
             collapse_id: "ignored".into(),
+            actions: Vec::new(),
         };
         let v: Value = serde_json::from_str(&alert_payload(
             "srv-a",
@@ -8260,6 +8324,7 @@ mod tests {
             &job,
         ))
         .unwrap();
+        assert!(v.get("actions").is_none(), "no answers offered, no key");
         assert_eq!(v["serverId"], "srv-a");
         // Matching keys off the file name; the phone shows the label.
         assert_eq!(v["project"], "web-app-a1b2c3");

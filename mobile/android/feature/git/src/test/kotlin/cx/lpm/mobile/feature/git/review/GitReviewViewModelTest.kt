@@ -1,6 +1,7 @@
 package cx.lpm.mobile.feature.git.review
 
 import cx.lpm.mobile.core.data.git.GitStore
+import cx.lpm.mobile.core.data.prefs.PreferenceKeys
 import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.data.terminals.TerminalHooks
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
@@ -36,6 +37,7 @@ class GitReviewViewModelTest {
         val vm = GitReviewViewModel(
             GitReviewKey("storefront"),
             t.sessions,
+            t.prefs,
             StandardTestDispatcher(testScheduler)
         )
         keepCollecting(vm.uiState)
@@ -90,6 +92,21 @@ class GitReviewViewModelTest {
         vm.toggleViewed("README.md")
         t.settle(0)
         assertEquals(ReviewRow.Summary(total = 4, viewed = 0), vm.uiState.value.rows.first())
+    }
+
+    @Test
+    fun `long lines wrap until Wrap is turned off, a choice every review remembers`() = runTest {
+        val t = demoSession()
+        val vm = review(t)
+        assertTrue(vm.uiState.value.wrap)
+        vm.toggleWrap()
+        t.settle(0)
+        assertFalse(vm.uiState.value.wrap)
+        assertEquals(false, t.prefs.bool(PreferenceKeys.GIT_REVIEW_WRAP))
+        assertFalse(review(t).uiState.value.wrap)
+        vm.toggleWrap()
+        t.settle(0)
+        assertTrue(vm.uiState.value.wrap)
     }
 
     @Test

@@ -148,8 +148,8 @@ export function MovePaneStatus(project, oldPaneID, newPaneID) {
     newPaneId: newPaneID,
   });
 }
-export function CreateBranch(cwd, name) {
-  return invoke("create_branch", { cwd, name });
+export function CreateBranch(cwd, name, from) {
+  return invoke("create_branch", { cwd, name, from });
 }
 export function CreateProject(name, root) {
   return invoke("create_project", { name, root });
@@ -172,8 +172,8 @@ export function DuplicateStatus(name) {
 export function BranchPullRequest(cwd) {
   return invoke("branch_pull_request", { cwd });
 }
-export function CreatePullRequest(cwd, title, body, base) {
-  return invoke("create_pull_request", { cwd, title, body, base });
+export function CreatePullRequest(cwd, title, body, base, draft) {
+  return invoke("create_pull_request", { cwd, title, body, base, draft });
 }
 export function CreateSSHProject(name, ssh) {
   return invoke("create_ssh_project", { name, ssh });
@@ -327,6 +327,18 @@ export function GitMerge(cwd, branch) {
 }
 export function GitMergeConflicts(cwd) {
   return invoke("git_merge_conflicts", { cwd });
+}
+export function GitMergeState(cwd) {
+  return invoke("git_merge_state", { cwd });
+}
+export function GitTakeConflictSide(cwd, path, side) {
+  return invoke("git_take_conflict_side", { cwd, path, side });
+}
+export function GitMarkConflictResolved(cwd, path) {
+  return invoke("git_mark_conflict_resolved", { cwd, path });
+}
+export function GitContinueMerge(cwd) {
+  return invoke("git_continue_merge", { cwd });
 }
 export function GitAutoPull(cwd) {
   return invoke("git_auto_pull", { cwd });
@@ -744,6 +756,15 @@ export function ReadConfig(name) {
 }
 export function ReadProjectFile(root, rel) {
   return invoke("read_project_file", { root, rel });
+}
+export function CreateProjectEntry(root, rel, isDir) {
+  return invoke("create_project_entry", { root, rel, isDir });
+}
+export function RenameProjectEntry(root, from, to) {
+  return invoke("rename_project_entry", { root, from, to });
+}
+export function TrashProjectEntry(root, rel) {
+  return invoke("trash_project_entry", { root, rel });
 }
 export function RevealInFinder(absPath) {
   return invoke("reveal_in_finder", { absPath });

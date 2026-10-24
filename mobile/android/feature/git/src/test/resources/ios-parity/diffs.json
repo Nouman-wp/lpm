@@ -180,6 +180,51 @@
   "diff": "@@ -1,50 +1,50 @@ chunk\n     context 0\n     context 1\n     context 2\n     context 3\n     context 4\n     context 5\n     context 6\n     context 7\n     context 8\n     context 9\n     context 10\n     context 11\n     context 12\n     context 13\n     context 14\n     context 15\n     context 16\n     context 17\n     context 18\n     context 19\n-    old line 0 \n-    old line 1 x\n-    old line 2 xx\n-    old line 3 xxx\n-    old line 4 xxxx\n-    old line 5 xxxxx\n-    old line 6 xxxxxx\n-    old line 7 \n-    old line 8 x\n-    old line 9 xx\n-    old line 10 xxx\n-    old line 11 xxxx\n-    old line 12 xxxxx\n-    old line 13 xxxxxx\n-    old line 14 \n-    old line 15 x\n-    old line 16 xx\n-    old line 17 xxx\n-    old line 18 xxxx\n-    old line 19 xxxxx\n-    old line 20 xxxxxx\n-    old line 21 \n-    old line 22 x\n-    old line 23 xx\n-    old line 24 xxx\n-    old line 25 xxxx\n-    old line 26 xxxxx\n-    old line 27 xxxxxx\n-    old line 28 \n-    old line 29 x\n+    new line 0  // tail\n+    new line 1 y\n+    new line 2 yy\n+    new line 3 yyy\n+    new line 4 yyyy\n+    new line 5 yyyyy // tail\n+    new line 6 yyyyyy\n+    new line 7 yyyyyyy\n+    new line 8 yyyyyyyy\n+    new line 9 yyyyyyyyy\n+    new line 10 yyyyyyyyyy // tail\n+    new line 11 \n+    new line 12 y\n+    new line 13 yy\n+    new line 14 yyy\n+    new line 15 yyyy // tail\n+    new line 16 yyyyy\n+    new line 17 yyyyyy\n+    new line 18 yyyyyyy\n+    new line 19 yyyyyyyy\n+    new line 20 yyyyyyyyy // tail\n+    new line 21 yyyyyyyyyy\n+    new line 22 \n+    new line 23 y\n+    new line 24 yy\n+    new line 25 yyy // tail\n+    new line 26 yyyy\n+    new line 27 yyyyy\n+    new line 28 yyyyyy\n+    new line 29 yyyyyyy\n"
  },
  {
+  "name": "emphasis-uneven",
+  "ext": "tsx",
+  "diff": "@@ -1,4 +1,8 @@\n async function handleSubmit() {\n-    await submitOrder({ email, items: cart.items })\n-    onComplete()\n+    setError(null)\n+    try {\n+      const intent = await createPaymentIntent(cart, method)\n+      await submitOrder({ email, intent, items: cart.items })\n+      onComplete()\n+    } catch {\n }\n"
+ },
+ {
+  "name": "emphasis-reindent",
+  "ext": "tsx",
+  "diff": "@@ -1,3 +1,5 @@\n <main>\n-  <main className=\"mx-auto max-w-lg px-4 py-8\">\n-  <h1 className=\"title\">Checkout</h1>\n+  <main className=\"mx-auto grid max-w-4xl gap-8 px-4 py-8 md:grid-cols-[1fr_360px]\">\n+  <section>\n+    <h1 className=\"title\">Checkout</h1>\n+  </section>\n"
+ },
+ {
+  "name": "emphasis-reindent-trimmed",
+  "ext": "tsx",
+  "diff": "@@ -4,2 +4,3 @@\n-  <h1>Checkout</h1>\n+  <section>\n+      <h1>Checkout</h1>\n"
+ },
+ {
+  "name": "emphasis-bridge",
+  "ext": "ts",
+  "diff": "@@ -1,3 +1,3 @@\n-let label = first second + tail\n+let label = other words + tail\n-call(a,  b)\n+call(a, b)\n-x = 1\n+x = 1  \n-}\n+})\n"
+ },
+ {
+  "name": "emphasis-window",
+  "ext": "ts",
+  "diff": "@@ -1,2 +1,9 @@\n-alpha(1)\n-target(1)\n+inserted(0)\n+inserted(1)\n+inserted(2)\n+inserted(3)\n+inserted(4)\n+inserted(5)\n+inserted(6)\n+inserted(7)\n+target(2)\n@@ -20,1 +27,8 @@\n-target(1)\n+inserted(0)\n+inserted(1)\n+inserted(2)\n+inserted(3)\n+inserted(4)\n+inserted(5)\n+inserted(6)\n+target(2)\n"
+ },
+ {
+  "name": "emphasis-long-line",
+  "ext": "ts",
+  "diff": "@@ -1,2 +1,2 @@\n-const s = \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\" // a\n+const s = \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\" // b\n-const t = \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\" // a\n+const t = \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\" // b\n"
+ },
+ {
+  "name": "emphasis-grid",
+  "ext": "ts",
+  "diff": "@@ -1 +1 @@\n-k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20 a21 a22 a23 a24 a25 a26 a27 a28 a29 a30 a31 a32 a33 a34 k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k\n+k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k b0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20 a21 a22 a23 a24 a25 a26 a27 a28 a29 a30 a31 a32 a33 b34 k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k k\n"
+ },
+ {
+  "name": "emphasis-canonical",
+  "ext": "ts",
+  "diff": "@@ -1,2 +1,2 @@\n-const café = 1\n-let été = \"é\"\n+const café = 2\n+let été = \"é!\"\n"
+ },
+ {
+  "name": "wrap-empty-in-comment",
+  "ext": "ts",
+  "diff": "@@ -1,4 +1,4 @@\n /* open\n-\n+\n close */\n"
+ },
+ {
   "name": "hl-swift",
   "ext": "swift",
   "lines": [

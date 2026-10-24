@@ -1,23 +1,43 @@
 import SwiftUI
 
-/// The commit sheet, the phone's take on the desktop's Commit dialog: the message
-/// with an AI "Generate message", every changed file to include or leave out, and
-/// Commit. The message and selection belong to the review screen, so closing the
-/// sheet keeps the draft; a successful commit closes it.
+/// The commit sheet, the phone's take on the desktop's Commit dialog: the message,
+/// which the Mac drafts from the diff as the sheet opens when there's none yet, a
+/// Files row opening the list of changed files to include or leave out, the branch
+/// and where it pushes, then Commit and Push or Commit only. The message and
+/// selection belong to the review screen, so closing the sheet keeps the draft; a
+/// commit that lands (with its push, if it pushes) closes it.
 struct GitCommitSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let project: String
     @Binding var message: String
     @Binding var deselected: Set<String>
+    let drafted: String?
+    @Binding var autoDraftTried: Bool
+    // The commit landed while the sheet was up, so the alert it shows (a push that
+    // failed after it) closes the sheet once read.
+    @State private var committed = false
 
-    private var files: [GitFile] { model.git.snapshots[project]?.files ?? [] }
+    private var snapshot: GitSnapshot? { model.git.snapshots[project] }
+    private var files: [GitFile] { snapshot?.files ?? [] }
     private var selectedPaths: [String] { files.map(\.path).filter { !deselected.contains($0) } }
     private var committing: Bool { model.git.committing.contains(project) }
+    private var pushing: Bool { model.git.pushing.contains(project) }
     private var generating: Bool { model.git.generatingMessage.contains(project) }
     private var trimmedMessage: String { message.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var canCommit: Bool {
-        !selectedPaths.isEmpty && !trimmedMessage.isEmpty && !committing && !model.git.pushing.contains(project)
+        !selectedPaths.isEmpty && !trimmedMessage.isEmpty && !committing && !pushing
+    }
+
+    private var busy: CommitButtons.Busy? {
+        let pushes = model.git.commitPushing.contains(project)
+        if committing { return pushes ? .committing : .committingOnly }
+        return pushing && pushes ? .pushing : nil
+    }
+
+    private var branch: String? {
+        guard let snapshot, !snapshot.detached, !snapshot.branch.isEmpty else { return nil }
+        return snapshot.branch
     }
 
     var body: some View {
@@ -33,42 +53,23 @@ struct GitCommitSheet: View {
                 Section {
                     TextField("Commit message", text: $message, axis: .vertical)
                         .lineLimit(3...8)
-                    Button {
+                    CommitDraftRow(
+                        generating: generating,
+                        drafted: drafted != nil && message == drafted,
+                        canGenerate: !selectedPaths.isEmpty
+                    ) {
                         model.git.genMessage(project, files: selectedPaths)
-                    } label: {
-                        HStack(spacing: 8) {
-                            if generating {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Image(systemName: "sparkles")
-                            }
-                            Text(generating ? "Generating…" : "Generate message")
-                        }
                     }
-                    .disabled(generating || selectedPaths.isEmpty)
                 }
                 Section {
-                    ForEach(files) { file in
-                        CommitFileRow(project: project, file: file, selected: !deselected.contains(file.path)) {
-                            toggle(file.path)
-                        }
+                    NavigationLink {
+                        GitCommitFilesPage(project: project, deselected: $deselected)
+                    } label: {
+                        LabeledContent("Files") { filesSummary }
                     }
-                } header: {
-                    HStack {
-                        Text("Files")
-                        Spacer()
-                        Button(selectedPaths.count == files.count ? "Deselect All" : "Select All") {
-                            if selectedPaths.count == files.count {
-                                deselected = Set(files.map(\.path))
-                            } else {
-                                deselected = []
-                            }
-                        }
-                        .font(.subheadline)
-                        .disabled(files.isEmpty)
+                    if let branch {
+                        LabeledContent("Branch", value: "\(branch) → origin")
                     }
-                } footer: {
-                    Text("Only the selected files are committed.")
                 }
             }
             .navigationTitle("Commit")
@@ -77,30 +78,53 @@ struct GitCommitSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(action: commit) {
-                        if committing {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Text("Commit").fontWeight(.semibold)
-                        }
-                    }
-                    .disabled(!canCommit)
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                CommitButtons(busy: busy, enabled: canCommit) {
+                    model.git.commitAndPush(project, message: trimmedMessage, files: selectedPaths)
+                } commitOnly: {
+                    model.git.commit(project, message: trimmedMessage, files: selectedPaths)
                 }
             }
-            .onChange(of: model.git.commitTick[project]) { _, _ in dismiss() }
+            .onChange(of: model.git.commitTick[project]) { _, _ in
+                committed = true
+                if model.git.opError[project] == nil { dismiss() }
+            }
             // The review screen holds its own alert back while this sheet is up, so
-            // a failed commit or message generation is reported here.
+            // a failed commit, push or message is reported here.
             .alert(
                 model.git.opError[project]?.title ?? "",
                 isPresented: Binding(get: { model.git.opError[project] != nil },
                                      set: { if !$0 { model.git.opError[project] = nil } })
             ) {
-                Button("OK", role: .cancel) { model.git.opError[project] = nil }
+                Button("OK", role: .cancel) {
+                    model.git.opError[project] = nil
+                    if committed { dismiss() }
+                }
             } message: {
                 Text(model.git.opError[project]?.message ?? "")
             }
         }
+        .onAppear(perform: autoDraft)
+    }
+
+    /// "4 of 4 · +52 −5": the files going in and the lines they change, once parsed.
+    private var filesSummary: some View {
+        var added = 0, removed = 0
+        for path in selectedPaths {
+            if let parsed = model.git.parsedDiff(project, path: path) {
+                added += parsed.addedCount
+                removed += parsed.removedCount
+            }
+        }
+        return HStack(spacing: 6) {
+            Text("\(selectedPaths.count) of \(files.count)")
+            if added > 0 || removed > 0 {
+                Text("·")
+                DiffStat(added: added, removed: removed)
+            }
+        }
+        .monospacedDigit()
     }
 
     /// The desktop's ConflictNotice: which files still have merge conflicts.
@@ -114,44 +138,11 @@ struct GitCommitSheet: View {
         return "\(named) \(paths.count == 1 ? "has" : "have") merge conflicts. Resolve the conflict markers (<<<<<<< … >>>>>>>) before committing."
     }
 
-    private func toggle(_ path: String) {
-        if deselected.contains(path) { deselected.remove(path) } else { deselected.insert(path) }
-    }
-
-    private func commit() {
-        model.git.commit(project, message: trimmedMessage, files: selectedPaths)
-    }
-}
-
-/// A file in the commit sheet: its checkmark, status letter, name over folder, and
-/// +N −M. The whole row includes or leaves it out.
-private struct CommitFileRow: View {
-    @Environment(AppModel.self) private var model
-    let project: String
-    let file: GitFile
-    let selected: Bool
-    let toggle: () -> Void
-
-    var body: some View {
-        Button(action: toggle) {
-            HStack(spacing: 12) {
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22))
-                    .foregroundStyle(selected ? Color.accentColor : Color.secondary)
-                GitStatusBadge(status: file.status)
-                GitFileName(file: file)
-                    .foregroundStyle(.primary)
-                Spacer(minLength: 8)
-                if let parsed = model.git.parsedDiff(project, path: file.path) {
-                    DiffStat(added: parsed.addedCount, removed: parsed.removedCount)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(file.path)
-        .accessibilityValue(selected ? "Included" : "Excluded")
-        .accessibilityAddTraits(.isButton)
+    /// With no message yet, the Mac drafts one as the sheet opens. Once per draft:
+    /// after a failed try the sheet waits for "Generate message".
+    private func autoDraft() {
+        guard !autoDraftTried, trimmedMessage.isEmpty, !selectedPaths.isEmpty, !generating else { return }
+        autoDraftTried = true
+        model.git.genMessage(project, files: selectedPaths)
     }
 }

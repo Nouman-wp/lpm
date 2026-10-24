@@ -88,9 +88,7 @@ internal enum class GitOpCopy(
         "Couldn't undo the auto pull",
         "Undoing the auto pull timed out. Check your Mac and try again.",
         null
-    );
-
-    val timedOut: GitOpError get() = GitOpError(failed, timedOutMessage)
+    )
 }
 
 private const val LONG_MS = 120_000L

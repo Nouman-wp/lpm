@@ -333,6 +333,23 @@ enum Wire {
                          "automationError": notifyAutomationError]])
     }
 
+    /// Answer the agent a notification is about, naming the report it answers.
+    /// Only for a Mac whose `features` has "answerAgent".
+    static func answerAgent(_ answer: AgentAnswer, reqId: String) -> String {
+        var frame: [String: Any] = ["t": "answerAgent", "project": answer.project,
+                                    "terminalId": answer.terminalId, "key": answer.key,
+                                    "ts": answer.ts, "action": answer.action.rawValue, "reqId": reqId]
+        if let text = answer.text { frame["text"] = text }
+        return json(frame)
+    }
+    /// Live updates on or off for this phone, naming the Live Activity's own push
+    /// token. Only for a Mac whose `features` has "liveActivity".
+    static func liveActivity(on: Bool, token: String?, env: String) -> String {
+        var frame: [String: Any] = ["t": "liveActivity", "on": on]
+        if on, let token { frame["token"] = token; frame["env"] = env }
+        return json(frame)
+    }
+
     // MARK: git review
 
     static func git(project: String) -> String { json(["t": "git", "project": project]) }
@@ -674,6 +691,9 @@ enum Wire {
         case gitAutoSwitchBase(project: String, base: String, error: String?, pullError: String?)
         // Ack for an apnsToken registration.
         case apnsToken(ok: Bool)
+        // How an answer sent from a notification went; `error` is a sentence to show.
+        case answerAgent(reqId: String, error: String?)
+        case liveActivity(ok: Bool)
         // Composer parity replies.
         case composerActions([ComposerAction])
         // One transform variant settled (`text` on success, `error` on failure);
@@ -1055,6 +1075,11 @@ enum Wire {
                                           error: ok ? nil : (obj["error"] as? String ?? "Couldn't switch branch."),
                                           pullError: obj["pullError"] as? String)
             case "apnsToken": return .apnsToken(ok: obj["ok"] as? Bool ?? false)
+            case "answerAgent":
+                let ok = obj["ok"] as? Bool ?? false
+                return .answerAgent(reqId: Wire.reqIdString(obj["reqId"]),
+                                    error: ok ? nil : (obj["error"] as? String ?? "The Mac couldn't send it."))
+            case "liveActivity": return .liveActivity(ok: obj["ok"] as? Bool ?? false)
             case "composerActions":
                 return .composerActions((obj["actions"] as? [[String: Any]] ?? []).map(ComposerAction.init))
             case "transform":

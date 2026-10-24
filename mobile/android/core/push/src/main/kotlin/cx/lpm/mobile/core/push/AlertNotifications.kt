@@ -1,0 +1,136 @@
+package cx.lpm.mobile.core.push
+
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
+import cx.lpm.mobile.core.data.push.AgentAnswerAction
+import cx.lpm.mobile.core.data.push.NotificationOpenTarget
+import cx.lpm.mobile.core.data.push.PushAlert
+import cx.lpm.mobile.core.data.push.PushKind
+
+/** What an alert's notification carries to be opened, answered and withdrawn later. */
+internal object AlertExtras {
+    const val STATUS_KEY = "statusKey"
+    const val STATUS = "status"
+    const val TITLE = "alert.title"
+    const val BODY = "alert.body"
+    const val KIND = "alert.kind"
+    const val TS = "alert.ts"
+    const val ACTIONS = "alert.actions"
+
+    /** Alerts share one id; the tag tells them apart. */
+    const val NOTIFICATION_ID = 1
+}
+
+internal fun PushAlert.extras(): Bundle = Bundle().apply {
+    putString(NotificationOpenTarget.PROJECT, project)
+    putString(NotificationOpenTarget.TARGET, target)
+    putString(NotificationOpenTarget.TERMINAL_ID, terminalId)
+    putString(NotificationOpenTarget.AUTOMATION_ID, automationId)
+    putString(NotificationOpenTarget.SERVER_ID, serverId)
+    putString(AlertExtras.STATUS_KEY, statusKey)
+    putString(AlertExtras.STATUS, status.ifEmpty { null })
+    putString(AlertExtras.TITLE, title)
+    putString(AlertExtras.BODY, body)
+    putString(AlertExtras.KIND, kind.name)
+    ts?.let { putLong(AlertExtras.TS, it) }
+    putStringArrayList(AlertExtras.ACTIONS, ArrayList(actions.map { it.wire }))
+}
+
+internal fun Bundle.toAlert(): PushAlert? = PushAlert(
+    serverId = getString(NotificationOpenTarget.SERVER_ID),
+    project = getString(NotificationOpenTarget.PROJECT) ?: return null,
+    title = getString(AlertExtras.TITLE).orEmpty(),
+    body = getString(AlertExtras.BODY).orEmpty(),
+    kind = PushKind.entries.firstOrNull { it.name == getString(AlertExtras.KIND) } ?: return null,
+    target = getString(NotificationOpenTarget.TARGET),
+    terminalId = getString(NotificationOpenTarget.TERMINAL_ID),
+    automationId = getString(NotificationOpenTarget.AUTOMATION_ID),
+    statusKey = getString(AlertExtras.STATUS_KEY).orEmpty(),
+    status = getString(AlertExtras.STATUS).orEmpty(),
+    ts = if (containsKey(AlertExtras.TS)) getLong(AlertExtras.TS) else null,
+    actions = getStringArrayList(AlertExtras.ACTIONS).orEmpty().mapNotNull(AgentAnswerAction::of)
+)
+
+/** Opens the app's launcher activity, which reads `extras` to know where to go. */
+internal fun Context.openIntent(requestCode: Int, extras: Bundle): PendingIntent {
+    val open = Intent(PushNotifier.ACTION_OPEN)
+        .setPackage(packageName)
+        .addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+        )
+        .putExtras(extras)
+    packageManager.getLaunchIntentForPackage(packageName)?.component?.let(open::setComponent)
+    return PendingIntent.getActivity(
+        this,
+        requestCode,
+        open,
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    )
+}
+
+/**
+ * An alert as the notification shows it: on its kind's channel, the project as
+ * title, `body`, and a tap that opens what it is about. The answers it offers are
+ * buttons unless `answers` is false.
+ */
+internal fun Context.alertNotification(
+    alert: PushAlert,
+    tag: String,
+    body: String = alert.body,
+    answers: Boolean = true
+): NotificationCompat.Builder {
+    val extras = alert.extras()
+    val builder = NotificationCompat.Builder(this, alert.kind.channelId)
+        .setSmallIcon(R.drawable.ic_stat_lpm)
+        .setContentTitle(alert.title)
+        .setContentText(body)
+        .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+        .setPriority(
+            if (alert.kind.importance == NotificationManager.IMPORTANCE_HIGH) {
+                NotificationCompat.PRIORITY_HIGH
+            } else {
+                NotificationCompat.PRIORITY_DEFAULT
+            }
+        )
+        .setAutoCancel(true)
+        .setContentIntent(openIntent(tag.hashCode(), extras))
+        .addExtras(extras)
+    if (answers) answerActions(alert, tag).forEach(builder::addAction)
+    return builder
+}
+
+internal fun Context.mayPostNotifications(): Boolean {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+        PackageManager.PERMISSION_GRANTED
+    ) {
+        return false
+    }
+    return NotificationManagerCompat.from(this).areNotificationsEnabled()
+}
+
+/** Posts `build()` unless this app may not post notifications. */
+internal fun Context.notifyIfAllowed(tag: String, id: Int, build: () -> Notification) {
+    if (!mayPostNotifications()) return
+    try {
+        NotificationManagerCompat.from(this).notify(tag, id, build())
+    } catch (e: SecurityException) {
+        // The permission was revoked between the check and the post.
+    }
+}
+
+internal fun appOnScreen(): Boolean =
+    ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)

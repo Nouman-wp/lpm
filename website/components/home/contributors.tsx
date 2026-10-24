@@ -1,9 +1,20 @@
 import Image from "next/image";
+import { Plus } from "lucide-react";
 import { GithubLink } from "@/components/github-link";
 import { SectionHeader } from "@/components/section-header";
 import { fetchRecentFixes } from "@/lib/github-fixes";
-import { fetchContributors, type Contributor } from "@/lib/github-stats";
+import {
+  fetchContributors,
+  fetchLastCommit,
+  getDownloadStats,
+  type Contributor,
+} from "@/lib/github-stats";
+import { REPO_URL } from "@/lib/links";
 import { RecentFixes } from "./recent-fixes";
+import { RepoNumbers } from "./repo-numbers";
+
+const CARD =
+  "group flex items-center gap-3 rounded-2xl border pl-3 pr-5 py-3 transition-colors duration-200";
 
 function avatarSrc(url: string, size: number): string {
   const u = new URL(url);
@@ -22,7 +33,7 @@ function ContributorCard({ contributor }: { contributor: Contributor }) {
         href={contributor.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="group flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/40 dark:bg-white/[0.02] pl-3 pr-5 py-3 hover:border-gray-300 dark:hover:border-gray-700 transition-colors duration-200"
+        className={`${CARD} border-gray-200 dark:border-gray-800 bg-gray-50/40 dark:bg-white/[0.02] hover:border-gray-300 dark:hover:border-gray-700`}
       >
         <Image
           src={avatarSrc(contributor.avatarUrl, 40)}
@@ -44,10 +55,39 @@ function ContributorCard({ contributor }: { contributor: Contributor }) {
   );
 }
 
+// The empty seat at the end of the row: open issues are where a first
+// commit usually starts.
+function NextContributorCard() {
+  return (
+    <li>
+      <a
+        href={`${REPO_URL}/issues`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`${CARD} border-dashed border-gray-300 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500`}
+      >
+        <span className="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-400">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <span className="flex flex-col leading-tight">
+          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            You?
+          </span>
+          <span className="text-xs text-gray-500 underline-offset-4 decoration-gray-300 group-hover:underline dark:text-gray-400 dark:decoration-gray-600">
+            Pick an open issue
+          </span>
+        </span>
+      </a>
+    </li>
+  );
+}
+
 export async function Contributors() {
-  const [contributors, fixes] = await Promise.all([
+  const [contributors, fixes, stats, lastCommit] = await Promise.all([
     fetchContributors(),
     fetchRecentFixes(),
+    getDownloadStats().catch(() => null),
+    fetchLastCommit(),
   ]);
   if (contributors.length === 0) return null;
 
@@ -60,10 +100,12 @@ export async function Contributors() {
           description="lpm is free and open source. Thanks to everyone who has landed a commit."
           className="mb-10"
         />
+        <RepoNumbers stats={stats} lastCommit={lastCommit} />
         <ul className="flex flex-wrap justify-center gap-3">
           {contributors.map((c) => (
             <ContributorCard key={c.login} contributor={c} />
           ))}
+          <NextContributorCard />
         </ul>
         <RecentFixes fixes={fixes} />
         <div className="mt-8 text-center">

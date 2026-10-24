@@ -10,6 +10,7 @@ import { disposeInteractivePaneSession } from "../../components/InteractivePane"
 import { forgetComposerDraft } from "../../store/composerDrafts";
 import { showUndoCloseToast } from "../../components/UndoCloseToast";
 import {
+  UNDO_CLOSE_DURATION_MS,
   pendingClosesForProject,
   registerPendingClose,
   takePendingClose,
@@ -38,9 +39,7 @@ import {
 import { IS_MIRROR_WINDOW } from "../../mirror";
 import { nextId, appendTerminal, resolveActiveAfterClose } from "./util";
 import { onTerminalsClosed } from "../../sendLater/closeout";
-
-// Grace period the closed tab stays recoverable behind the undo toast.
-const UNDO_CLOSE_DURATION_MS = 5000;
+import { usePaneClose } from "./usePaneClose";
 
 interface UseTabCloseProps {
   projectName: string;
@@ -203,7 +202,7 @@ export function useTabClose({
       if (isTerminalTab(tab)) HoldPaneStatus(projectName, tab.id).catch(() => {});
       showUndoCloseToast({
         toastId,
-        label: terminalDisplayLabel(tab),
+        title: `${terminalDisplayLabel(tab)} closed`,
         durationMs: UNDO_CLOSE_DURATION_MS,
         onUndo: () => undoPendingClose(tab.id),
         onFinalize: () => finalizePendingClose(tab.id),
@@ -348,25 +347,14 @@ export function useTabClose({
     [applyTree, disposeTabs],
   );
 
-  const closePane = useCallback(
-    (paneId: string) => {
-      if (IS_MIRROR_WINDOW) return forward("closePane", paneId);
-      const current = treeRef.current;
-      if (!current) return;
-      const pane = findPane(current, paneId);
-      if (!pane) return;
-      pane.tabs.forEach((t) => {
-        StopTerminal(t.id).catch(() => {});
-        if (isTerminalTab(t)) {
-          ClearPaneStatus(projectName, t.id).catch(() => {});
-        }
-      });
-      recordClosingTabs(pane.tabs);
-      onTerminalsClosed(projectName, pane.tabs.map((t) => t.historyKey));
-      collapsePane(current, paneId);
-    },
-    [collapsePane, recordClosingTabs, projectName, forward],
-  );
+  const { closePane, finalizePendingPaneClosesForProject } = usePaneClose({
+    projectName,
+    treeRef,
+    applyTree,
+    forward,
+    collapsePane,
+    disposeTabs,
+  });
 
   // Owner-side resolvers for the mirror's id-addressed close actions: map the
   // terminal id back to its current index in the authoritative tree, then run
@@ -389,12 +377,14 @@ export function useTabClose({
 
   // Teardown helper for the orchestrator's unmount effect: pending-close tabs
   // aren't in the tree, so the unmount's stop loop won't stop their PTYs —
-  // finalize each now so nothing orphans on unmount/quit.
+  // finalize each now so nothing orphans on unmount/quit. Whole panes go first,
+  // so their tabs are disposed with them rather than one by one.
   const finalizePendingClosesForProject = useCallback(() => {
+    finalizePendingPaneClosesForProject();
     for (const entry of pendingClosesForProject(projectName)) {
       finalizePendingCloseRef.current(entry.tab.id);
     }
-  }, [projectName]);
+  }, [projectName, finalizePendingPaneClosesForProject]);
 
   return {
     closeTerminal,

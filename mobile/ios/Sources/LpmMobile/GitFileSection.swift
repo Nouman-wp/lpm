@@ -3,9 +3,10 @@ import UIKit
 
 /// One changed file as its own section (GitHub "Files changed" style): a header
 /// that pins while its diff scrolls — collapse chevron, status letter, name over
-/// folder and +N −M, the "Viewed" toggle, a "…" menu — over the whole diff, one
-/// List row per block, edge-to-edge. Diffs fetch lazily on first appearance; the
-/// List virtualizes the rows, so even huge diffs render fully with no cap.
+/// folder and +N −M, the "Wrap" and "Viewed" toggles, a "…" menu — over the whole
+/// diff, one List row per block, edge-to-edge. Diffs fetch lazily on first
+/// appearance; the List virtualizes the rows, so even huge diffs render fully with
+/// no cap.
 struct GitFileSection: View {
     @Environment(AppModel.self) private var model
     let project: String
@@ -19,6 +20,7 @@ struct GitFileSection: View {
     let pins: HeaderPins
 
     @State private var expanded = false
+    @AppStorage("gitReview.wrap") private var wrap = true
     private let softCap = 600
 
     private var key: String { model.git.diffKey(project, file.path) }
@@ -76,7 +78,17 @@ struct GitFileSection: View {
             .accessibilityValue(collapsed ? "Collapsed" : "Expanded")
             .accessibilityAddTraits(.isButton)
 
-            ViewedToggle(viewed: viewed, action: toggleViewed)
+            // Long diff lines wrap to the screen (the default) or scroll sideways,
+            // one choice for every file.
+            TogglePill(label: "Wrap", tint: .accentColor, on: wrap) { wrap.toggle() }
+
+            TogglePill(
+                label: "Viewed",
+                icon: viewed ? "checkmark.circle.fill" : "circle",
+                tint: .green,
+                on: viewed,
+                action: toggleViewed
+            )
 
             Menu {
                 menuItems
@@ -199,11 +211,20 @@ struct GitFileSection: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color(.secondarySystemFill))
         } else {
-            DiffCodeBlock(block: block)
+            codeBlock(block)
                 .modifier(FirstRowTracker(path: first ? file.path : nil, pins: pins))
                 .listRowInsets(EdgeInsets())
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color(.systemBackground))
+        }
+    }
+
+    @ViewBuilder
+    private func codeBlock(_ block: DiffBlock) -> some View {
+        if wrap {
+            WrappedDiffCodeBlock(block: block)
+        } else {
+            DiffCodeBlock(block: block)
         }
     }
 
@@ -250,32 +271,5 @@ private struct FirstRowTracker: ViewModifier {
         } else {
             content
         }
-    }
-}
-
-/// GitHub's "Viewed" checkbox as a capsule: a ring while unviewed, a green check
-/// once viewed. Marking a file viewed collapses it.
-private struct ViewedToggle: View {
-    let viewed: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                Image(systemName: viewed ? "checkmark.circle.fill" : "circle")
-                Text("Viewed")
-            }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(viewed ? Color.green : Color.secondary)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .background(viewed ? Color.green.opacity(0.15) : Color(.tertiarySystemFill), in: Capsule())
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Viewed")
-        .accessibilityValue(viewed ? "On" : "Off")
-        .accessibilityAddTraits(.isButton)
     }
 }

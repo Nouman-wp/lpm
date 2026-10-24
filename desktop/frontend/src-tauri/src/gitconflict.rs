@@ -150,7 +150,7 @@ fn files_after(err: &str, heading: &str) -> Option<Vec<String>> {
     )
 }
 
-fn name_files(files: &[String]) -> String {
+pub(crate) fn name_files(files: &[String]) -> String {
     const SHOWN: usize = 3;
     match files.len() {
         0 => "some files".into(),

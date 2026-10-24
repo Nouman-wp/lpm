@@ -39,8 +39,9 @@ fun NotificationSettingsPage(
 
 /**
  * The master switch, then each kind of agent and automation news. The kinds dim
- * while the master is off but keep their values. Where the phone won't let lpm Link
- * post at all, the footer says so and offers the way to fix it.
+ * while the master is off but keep their values; the agents-at-work card has a
+ * switch of its own. Where the phone won't let lpm Link post at all, the footer says
+ * so and offers the way to fix it.
  */
 @Composable
 fun ColumnScope.NotificationSettingsContent(
@@ -98,6 +99,14 @@ fun ColumnScope.NotificationSettingsContent(
         }
         Toggle(R.string.notify_error_or_timeout, prefs.automationError, on) { v ->
             onChange { it.copy(automationError = v) }
+        }
+    }
+    FormSection(
+        header = stringResource(R.string.notify_live_header),
+        footer = { FooterText(stringResource(R.string.notify_live_footer)) }
+    ) {
+        Toggle(R.string.notify_live, prefs.liveActivity) { v ->
+            onChange { it.copy(liveActivity = v) }
         }
     }
 }

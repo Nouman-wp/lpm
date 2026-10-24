@@ -426,13 +426,13 @@ identical to the desktop submenu, so behavior stays consistent across surfaces.
 | `{ "t": "gitAutoPullUndo", "project": "<name>" }` | `{ "t": "gitAutoPullUndo", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — undoes the project's last auto pull (the one `autoPulled` describes) with `git reset --keep <from>`. Auto pull then skips those commits until origin moves again. The phone reloads the `git` snapshot on success. Async (worker) |
 | `{ "t": "gitBranches", "project": "<name>" }` | `{ "t": "gitBranches", "project": "<name>", "ok": true, "current": "<branch>", "branches": [{ name, committerDate, remote? }…] }` / `{ "ok": false, "error": "…" }` — the branch list for the "Switch branch" picker (local + remote, newest first). `remote` is **omitted** for a local branch (present only for a remote-tracking one). `current` is the checked-out branch. Inline |
 | `{ "t": "gitCheckout", "project": "<name>", "branch": "<name>", "remote": "<remote>" }` | `{ "t": "gitCheckout", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — checks out `branch`; pass the `remote` from a `gitBranches` entry to create a local tracking branch (empty `remote` for a plain local checkout). Inline |
-| `{ "t": "gitCreateBranch", "project": "<name>", "name": "<branch>" }` | `{ "t": "gitCreateBranch", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — creates a new branch off HEAD and checks it out (reuses the desktop's `create_branch`: `git branch` + checkout, falling back to `git switch -c`). Rejects an empty or already-existing name. Inline; on success the phone re-requests `gitBranches` + `git` so the new current branch shows |
+| `{ "t": "gitCreateBranch", "project": "<name>", "name": "<branch>", "from"?: "<branch>" }` | `{ "t": "gitCreateBranch", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — creates a new branch off HEAD and checks it out (reuses the desktop's `create_branch`: `git branch` + checkout, falling back to `git switch -c`). Optional `from` starts it at that branch instead (a `gitBranches` name, or `<remote>/<name>` for a remote one; the new branch tracks nothing); older Macs ignore it and branch off HEAD. Rejects an empty or already-existing name. Inline; on success the phone re-requests `gitBranches` + `git` so the new current branch shows |
 | `{ "t": "gitDiscardAll", "project": "<name>" }` | `{ "t": "gitDiscardAll", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — discards all working-tree changes (reset + clean). Inline |
 | `{ "t": "gitWatch", "project": "<name>" }` | `{ "t": "gitWatch", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — starts watching the project's working tree **for this connection**; while watched, the desktop sends a debounced `git-changed` push (below) on each burst of file changes so the review screen self-refreshes. Watching an already-watched project is a no-op (still `ok:true`). The watch is scoped to the connection and is dropped on `gitUnwatch`, disconnect, and device revocation. Inline |
 | `{ "t": "gitUnwatch", "project": "<name>" }` | `{ "t": "gitUnwatch", "project": "<name>", "ok": true }` — stops watching the project for this connection (no-op if it wasn't watched). Inline |
 | `{ "t": "gitGenMessage", "project": "<name>", "files": ["<path>"…] }` | `{ "t": "gitGenMessage", "project": "<name>", "ok": true, "message": "…" }` / `{ "ok": false, "error": "…" }` — AI-drafts a commit message from the diff of the given files. Async (AI). Uses the desktop's persisted AI settings (`aiCli` default `claude`, `aiModel`, `aiEffort`, `aiFast`) |
 | `{ "t": "gitGenPr", "project": "<name>" }` | `{ "t": "gitGenPr", "project": "<name>", "ok": true, "title": "…", "body": "…" }` / `{ "ok": false, "error": "…" }` — AI-drafts a PR title and description for the current branch vs the default branch. Async (AI); same AI settings as above |
-| `{ "t": "gitCreatePr", "project": "<name>", "title": "…", "body": "…" }` | `{ "t": "gitCreatePr", "project": "<name>", "ok": true, "url": "<pr url>" }` / `{ "ok": false, "error": "…" }` — pushes the current branch and opens a PR via the `gh` CLI against the default branch, returning its URL. Async (network) |
+| `{ "t": "gitCreatePr", "project": "<name>", "title": "…", "body": "…", "draft"?: bool }` | `{ "t": "gitCreatePr", "project": "<name>", "ok": true, "url": "<pr url>" }` / `{ "ok": false, "error": "…" }` — pushes the current branch and opens a PR via the `gh` CLI against the default branch, returning its URL. Optional `draft: true` opens it as a draft (`gh pr create --draft`); omitted means ready for review, and older Macs ignore it. Async (network) |
 
 #### Auto Commit, Auto Commit and Push, Auto Create PR
 
@@ -849,6 +849,74 @@ the registration token answers `410` like APNs' `Unregistered`; FCM out of reach
 answers `502` with `reason: "fcm unreachable"`. Each platform answers `503` with
 `reason: "relay not configured"` while its own credentials are missing, so a
 relay can serve one platform without the other.
+
+#### Answering from a notification
+
+Only when `features` has `"answerAgent"`. A terminal alert's plaintext may carry
+`"actions"`: the answers the phone may send back without opening the app.
+`["allow", "deny"]` on a `Waiting` that is a plain permission prompt of Claude
+Code or Codex (not a question form — AskUserQuestion, a plan to approve — not an
+MCP dialog, and not another agent's prompt); `["reply"]` on any agent's `Done`.
+Absent means none — every other alert, and every alert from an older Mac. The
+phone shows them as notification buttons: **Allow** and **Deny** (both need the
+phone unlocked; Deny is destructive), and **Reply** with a text field; the plain
+tap still opens the tab.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "answerAgent", "project": "<name>", "terminalId": "<id>", "key": "<status key>", "ts": N, "action": "allow"\|"deny"\|"reply", "text"?: "…", "reqId"?: <any> }` | `{ "t": "answerAgent", "ok": true, "reqId": <any> }` / `{ "t": "answerAgent", "ok": false, "error": "…", "reqId": <any> }` — `project`, `terminalId`, `key` and `ts` are the alert's own. `allow` types Enter and `deny` Esc into the terminal, only while that same report (`key`, `terminalId`, `ts`) is still a plain permission prompt — otherwise `error: "This prompt was already answered."` and nothing is typed. `reply` types `text` (trimmed; 1–4000 characters) into the agent and submits it, as the desktop composer does: bracketed paste when the program turned it on, then Enter as its own write once the screen is quiet, sent once more if nothing redrew. It's refused while the terminal has an agent `Waiting` or working on it, and the reply joins the shared prompt history. Runs off the read loop; `error` is a sentence to show the user |
+
+The phone sends it on its live connection to that Mac, or — when the app was
+woken in the background by the tap, or is talking to another Mac — on a
+short-lived connection of its own, as the push-registration sweep does, then
+tells the user how it went with a local notification only when it failed.
+
+#### Live Activity
+
+Only when `features` has `"liveActivity"`. A phone can show the agents at work on
+a Mac while it is locked: an iPhone as a Live Activity (Lock Screen and Dynamic
+Island), an Android phone as an ongoing notification. The phone starts it itself
+while it shows that Mac and keeps it current from the live connection; from the
+moment its app leaves the screen the Mac takes over and sends every change as a
+push, until nothing is at work.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "liveActivity", "on": bool, "token"?: "<hex>", "env"?: "production"\|"sandbox" }` | `{ "t": "liveActivity", "ok": bool }` — turns live updates on or off for this device; persisted on its record in `remote.json` (`live_updates`, and for an iPhone `live_token` / `live_env`). An APNs device names the Live Activity's own push token (hex, ≤200 characters) and its environment, and sends it again whenever the activity's token changes or a new activity starts; an FCM device sends no token — its updates go to its push token. `on: false` clears it. `ok` is false for a missing or malformed APNs token, an unknown device, or a registration that couldn't be saved |
+
+**When the Mac sends.** On every agent status change (coalesced over ~0.8 s) and
+when a phone reports `presence` `active: false`, to every device with live
+updates on whose app is not on screen for this Mac — skipping a device whose
+last update said the same. The plaintext, sealed under the device's push key
+exactly like an alert:
+```
+{ "serverId": "<uuid>", "ts": <unix millis>, "live": bool, "waiting": N, "working": N,
+  "agents": [ { "project": "<name>", "projectLabel": "<display name>", "terminal": "<tab label>", "terminalId": "<id>", "key": "<status key>", "agent": "claude"|"codex"|"gemini"|"cursor"|"opencode"|"omp", "state": "Waiting"|"Running"|"Done"|"Error", "since": <ms>, "turnStart": <ms|0>, "endedAt": <ms|0> }… ] }
+```
+`agents` holds at most four, most urgent first: every `Waiting`, then every
+`Running`, then `Done` / `Error` from the last 30 minutes; newest first within
+each. `waiting` and `working` count all of them. `since` is when the state
+began, `turnStart` when the turn did (0 when unseen), `endedAt` when it ended.
+`live: false` means nothing is at work any more: that update **ends** the
+activity, left up for 15 minutes, and the Mac forgets an iPhone's activity token
+(the phone registers the next activity it starts).
+
+**Relay contract.** The desktop POSTs:
+```
+{ "token": "<activity token>", "env": "production"|"sandbox", "blob": "<base64>", "type": "liveactivity", "event": "update"|"end", "urgent": bool, "dismissAt"?: <unix seconds> }
+{ "platform": "fcm", "token": "<FCM token>", "blob": "<base64>", "type": "liveactivity", "event": "update"|"end", "urgent": bool }
+```
+`urgent` is true when more agents wait on the user than in the last update, and
+on `end`. For APNs the relay sends a `liveactivity` push to the topic
+`<APNS_TOPIC>.push-type.liveactivity`, priority 10 when `urgent` and 5
+otherwise, expiring after an hour, with the content state still sealed — the
+phone's widget opens `blob` itself:
+```
+{ "aps": { "timestamp": <unix seconds>, "event": "update"|"end", "content-state": { "blob": "<base64>" }, "dismissal-date"?: <dismissAt> } }
+```
+For FCM it is a data message `{ "blob", "type": "liveactivity", "event" }` at
+`HIGH` priority when `urgent`, `NORMAL` otherwise, with a one-hour `ttl`. A `410`
+retires the activity token (APNs) or the push token (FCM).
 
 ### Server-initiated pushes (desktop → phone)
 

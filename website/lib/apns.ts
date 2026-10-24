@@ -18,6 +18,8 @@ export interface ApnsResult {
 const JWT_TTL_MS = 50 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 10_000;
 const EXPIRATION_SECONDS = 6 * 60 * 60;
+// A Live Activity update older than this is already out of date.
+const LIVE_EXPIRATION_SECONDS = 60 * 60;
 
 export function loadApnsConfig(): ApnsConfig | null {
   const key = process.env.APNS_KEY;
@@ -59,7 +61,7 @@ function signProviderToken(config: ApnsConfig): string {
   return value;
 }
 
-export type ApnsPushType = "alert" | "background";
+export type ApnsPushType = "alert" | "background" | "liveactivity";
 
 export function sendPush(
   env: ApnsEnv,
@@ -68,6 +70,7 @@ export function sendPush(
   config: ApnsConfig,
   pushType: ApnsPushType = "alert",
   collapseId?: string,
+  urgent = pushType !== "background",
 ): Promise<ApnsResult | null> {
   return new Promise((resolve) => {
     let jwt: string;
@@ -95,14 +98,17 @@ export function sendPush(
 
     session.on("error", () => finish(null));
 
+    const live = pushType === "liveactivity";
+    const expiresIn = live ? LIVE_EXPIRATION_SECONDS : EXPIRATION_SECONDS;
     const headers: Record<string, string> = {
       ":method": "POST",
       ":path": `/3/device/${deviceToken}`,
       authorization: `bearer ${jwt}`,
-      "apns-topic": config.topic,
+      // A Live Activity's token belongs to the app's Live Activity topic.
+      "apns-topic": live ? `${config.topic}.push-type.liveactivity` : config.topic,
       "apns-push-type": pushType,
-      "apns-priority": pushType === "background" ? "5" : "10",
-      "apns-expiration": String(Math.floor(Date.now() / 1000) + EXPIRATION_SECONDS),
+      "apns-priority": urgent ? "10" : "5",
+      "apns-expiration": String(Math.floor(Date.now() / 1000) + expiresIn),
       "content-type": "application/json",
     };
     if (pushType === "alert" && collapseId) {

@@ -37,17 +37,25 @@ tags: [demo, git]
     timeout: 3000
 - assertVisible: "lib/payments.ts"
 - takeScreenshot: 3-jumped
-# The pinned commit button opens the commit sheet.
+# The pinned commit button opens the commit sheet, which drafts the message from
+# the diff right away when there's none yet.
 - tapOn: "Commit 4 files"
-- extendedWaitUntil:
-    visible: "Generate message"
-    timeout: 5000
-- assertVisible: "Commit message"
-- assertVisible: "Deselect All"
-- assertVisible: "Only the selected files are committed."
-- takeScreenshot: 4-commit
-- tapOn: "Generate message"
 - extendedWaitUntil:
     visible: "feat\\(checkout\\): redesign the checkout form and add a payments module"
     timeout: 10000
-- takeScreenshot: 5-generated
+- assertVisible: "Drafted from the diff"
+- assertVisible: "Regenerate"
+# One row for the files going in, one for where they push. Their values sit
+# beside the labels, which is all both platforms name the same way.
+- assertVisible: "Files.*"
+- assertVisible: "Branch.*"
+- assertVisible: "Commit and Push"
+- assertVisible: "Commit only"
+- takeScreenshot: 4-commit
+# The Files row opens the list of files to include or leave out.
+- tapOn: "Files.*"
+- extendedWaitUntil:
+    visible: "Deselect All"
+    timeout: 5000
+- assertVisible: "Only the selected files are committed."
+- takeScreenshot: 5-files

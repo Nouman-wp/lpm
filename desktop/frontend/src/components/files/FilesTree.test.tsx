@@ -2,9 +2,13 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isMac } from "../../platform";
+import type { NameEditView } from "./FilesNameInput";
 import { FilesTree } from "./FilesTree";
+import { DRAFT_PATH } from "./treeEdits";
 import type { Listing, TreeRow } from "./treeModel";
 import type { Changes } from "./useChangedFiles";
+import type { TreeEdits } from "./useTreeEdits";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -196,5 +200,114 @@ describe("FilesTree changes only", () => {
       changes: { status: "error", message: "not a git repository" },
     });
     expect(list.textContent).toContain("not a git repository");
+  });
+});
+
+describe("FilesTree edits", () => {
+  const edits = (over: Partial<TreeEdits> = {}): TreeEdits => ({
+    edit: null,
+    view: null,
+    pending: [],
+    blocked: null,
+    create: vi.fn(),
+    rename: vi.fn(),
+    trash: vi.fn(),
+    ...over,
+  });
+  const draft = (over: Partial<NameEditView> = {}): NameEditView => ({
+    path: DRAFT_PATH,
+    initial: "",
+    isDir: false,
+    problem: null,
+    busy: false,
+    onChange: vi.fn(),
+    onCommit: vi.fn(),
+    onBlur: vi.fn(),
+    onCancel: vi.fn(),
+    ...over,
+  });
+  const newFile = () => container.querySelector<HTMLButtonElement>('button[aria-label="New file"]')!;
+  const type = (input: HTMLInputElement, value: string) => {
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    act(() => {
+      setValue.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  };
+
+  it("makes a new file in the open file's folder from beside the filter", () => {
+    const e = edits();
+    render({ edits: e, selectedPath: "src/a.ts" });
+    act(() => newFile().click());
+    expect(e.create).toHaveBeenCalledWith("src", false);
+  });
+
+  it("offers no New file where the tree is read-only", () => {
+    render({ edits: edits({ blocked: "Not here" }) });
+    expect(newFile().disabled).toBe(true);
+    act(() => root.unmount());
+    root = createRoot(container);
+    render();
+    expect(newFile()).toBe(null);
+  });
+
+  it("names a new entry in a focused field at the top of its folder", () => {
+    const view = draft();
+    render({ edits: edits({ edit: { kind: "create", dir: "src", isDir: false }, view }) });
+    const field = container.querySelector<HTMLInputElement>('input[aria-label="New file name"]')!;
+    expect(document.activeElement).toBe(field);
+    const items = [...container.querySelectorAll('[role="treeitem"]')];
+    expect(items[1].contains(field)).toBe(true);
+    type(field, "c.ts");
+    expect(view.onChange).toHaveBeenLastCalledWith("c.ts");
+    press(field, "Enter");
+    expect(view.onCommit).toHaveBeenCalledWith("c.ts");
+    press(field, "Escape");
+    expect(view.onCancel).toHaveBeenCalled();
+  });
+
+  it("renames in place, with the name before the extension selected", () => {
+    const view = draft({ path: "src/a.ts", initial: "a.ts" });
+    render({ edits: edits({ edit: { kind: "rename", path: "src/a.ts", isDir: false }, view }) });
+    const field = container.querySelector<HTMLInputElement>('input[aria-label="Rename a.ts"]')!;
+    expect([field.selectionStart, field.selectionEnd]).toEqual([0, 1]);
+    expect(container.querySelectorAll('[role="treeitem"]')).toHaveLength(3);
+  });
+
+  it("shows what's wrong with the name under the field", () => {
+    render({
+      edits: edits({
+        edit: { kind: "create", dir: "", isDir: true },
+        view: draft({ isDir: true, problem: "src already exists" }),
+      }),
+    });
+    expect(container.querySelector('[role="alert"]')!.textContent).toBe("src already exists");
+    expect(container.querySelector("input[aria-invalid]")!.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("hides what is on its way to the Trash", () => {
+    const { list } = render({ edits: edits({ pending: ["src/a.ts"] }) });
+    const names = [...list.querySelectorAll('[role="treeitem"] span.truncate')].map((el) => el.textContent);
+    expect(names).toEqual(["src", "b.ts"]);
+  });
+
+  it("moves the cursor's row to the Trash on the chord", () => {
+    const e = edits();
+    const { list } = render({ edits: e });
+    act(() => list.focus());
+    press(list, "ArrowDown");
+    press(list, "ArrowDown");
+    act(() => {
+      list.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Backspace",
+          metaKey: isMac,
+          ctrlKey: !isMac,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    expect(e.trash).toHaveBeenCalledWith(ROWS[1]);
   });
 });

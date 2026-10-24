@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The iOS palette's orange, which "Needs you" wears everywhere. -->
+    <color name="push_needs_you">#FF8D28</color>
+    <!-- The desktop's working sweep held at its start. -->
+    <color name="push_working">#3B82F6</color>
+    <!-- The iOS palette's blue, which "Done" wears everywhere. -->
+    <color name="push_done">#0088FF</color>
+</resources>

@@ -4,12 +4,15 @@ import {
   DEFAULT_PR_DESCRIPTION_INSTRUCTIONS,
 } from "../aiInstructions";
 import { chordLabel } from "../keys";
+import { InstructionsDefaultActions } from "./InstructionsDefaultActions";
 
 interface PRInstructionsFormProps {
   titleLoad: () => Promise<string>;
   titleSave: (content: string) => Promise<void>;
   descLoad: () => Promise<string>;
   descSave: (content: string) => Promise<void>;
+  // A project's reset clears its texts so the global ones apply again.
+  resetClears?: boolean;
 }
 
 export function PRInstructionsForm({
@@ -17,6 +20,7 @@ export function PRInstructionsForm({
   titleSave,
   descLoad,
   descSave,
+  resetClears,
 }: PRInstructionsFormProps) {
   const title = useYamlEditor(titleLoad, titleSave);
   const desc = useYamlEditor(descLoad, descSave);
@@ -36,7 +40,15 @@ export function PRInstructionsForm({
     <>
       <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-medium text-[var(--text-muted)]">Title</span>
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-medium text-[var(--text-muted)]">Title</span>
+            <InstructionsDefaultActions
+              content={title.content}
+              defaultText={DEFAULT_PR_TITLE_INSTRUCTIONS}
+              resetClears={resetClears}
+              onChange={title.setContent}
+            />
+          </div>
           <textarea
             value={title.content}
             onChange={(e) => title.setContent(e.target.value)}
@@ -48,7 +60,15 @@ export function PRInstructionsForm({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-          <span className="text-[11px] font-medium text-[var(--text-muted)]">Description</span>
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-medium text-[var(--text-muted)]">Description</span>
+            <InstructionsDefaultActions
+              content={desc.content}
+              defaultText={DEFAULT_PR_DESCRIPTION_INSTRUCTIONS}
+              resetClears={resetClears}
+              onChange={desc.setContent}
+            />
+          </div>
           <textarea
             value={desc.content}
             onChange={(e) => desc.setContent(e.target.value)}

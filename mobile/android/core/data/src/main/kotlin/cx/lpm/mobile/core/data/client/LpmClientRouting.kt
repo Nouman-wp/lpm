@@ -201,6 +201,10 @@ private fun LpmClientCallbacks.routeGitAndMore(frame: Inbound) {
 
         is Inbound.PushToken -> onPushToken?.invoke(frame.ok)
 
+        is Inbound.AnswerAgent -> onAnswerAgent?.invoke(frame.reqId, frame.error)
+
+        is Inbound.LiveActivity -> onLiveActivity?.invoke(frame.ok)
+
         is Inbound.ComposerActions -> onComposerActions?.invoke(frame.actions)
 
         is Inbound.TransformVariant ->

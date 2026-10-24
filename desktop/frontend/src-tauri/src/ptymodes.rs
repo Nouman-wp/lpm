@@ -94,6 +94,12 @@ impl Modes {
         }
     }
 
+    /// Whether the program has bracketed paste on, so text typed in on its behalf
+    /// must be wrapped for its newlines to stay part of the text.
+    pub fn bracketed_paste(&self) -> bool {
+        self.flags.iter().any(|&(mode, set)| mode == 2004 && set)
+    }
+
     /// The sequences that restore these modes on a screen just cleared back to
     /// the normal buffer, ahead of the replayed tail. Only modes the stream has
     /// touched are named, so a viewer whose emulator survived also drops a mode
@@ -143,6 +149,13 @@ mod tests {
             modes.prelude(),
             "\x1b[?1049h\x1b[?1003h\x1b[?1006h\x1b[?2004h"
         );
+    }
+
+    #[test]
+    fn bracketed_paste_follows_the_last_switch() {
+        assert!(!modes_after(&["$ "]).bracketed_paste());
+        assert!(modes_after(&["\x1b[?2004h"]).bracketed_paste());
+        assert!(!modes_after(&["\x1b[?2004h", "\x1b[?2004l"]).bracketed_paste());
     }
 
     #[test]

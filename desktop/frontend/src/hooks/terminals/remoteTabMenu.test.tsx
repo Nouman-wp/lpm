@@ -16,6 +16,7 @@ vi.mock("../../mirror", () => ({ IS_MIRROR_WINDOW: false }));
 vi.mock("../../sendLater/closeout", () => ({ onTerminalsClosed: vi.fn() }));
 vi.mock("../../components/InteractivePane", () => ({ disposeInteractivePaneSession: vi.fn() }));
 vi.mock("../../components/UndoCloseToast", () => ({ showUndoCloseToast: vi.fn() }));
+vi.mock("../../projectStatusEntries", () => ({ projectStatusEntries: () => [] }));
 
 import {
   collectPanes,

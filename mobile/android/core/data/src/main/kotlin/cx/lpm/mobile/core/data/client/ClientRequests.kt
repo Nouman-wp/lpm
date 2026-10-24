@@ -1,5 +1,6 @@
 package cx.lpm.mobile.core.data.client
 
+import cx.lpm.mobile.core.data.push.AgentAnswer
 import cx.lpm.mobile.core.data.push.PushRegistration
 import cx.lpm.mobile.core.model.AgentLaunch
 import cx.lpm.mobile.core.model.AgentSession
@@ -163,6 +164,13 @@ fun LpmClient.sendPushToken(p: PushRegistration) = send(
         notifyAutomationDone = p.automationDone,
         notifyAutomationError = p.automationError
     )
+)
+
+fun LpmClient.sendLiveActivity(on: Boolean) = send(Wire.liveActivity(on))
+
+/** A notification's answer; live only, so a dead link times out rather than resending it. */
+fun LpmClient.answerAgent(a: AgentAnswer, reqId: String) = sendLive(
+    Wire.answerAgent(a.project, a.terminalId, a.key, a.ts, a.action.wire, a.text, reqId)
 )
 
 fun LpmClient.startProject(name: String, profile: String = "") = send(Wire.start(name, profile))

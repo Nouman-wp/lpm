@@ -10,6 +10,7 @@ import {
   type SettingsSearchEntry,
 } from "../../settings-registry";
 import type { SettingsMachine } from "../../settingsMachine";
+import { searchHints } from "../../settingsSearchHits";
 import { shortcutRequirementHint } from "../../shortcutRecord";
 import { useAppStore, type SettingsTab, type View } from "../../store/app";
 import { settingsReturnLabel, useSettingsReturn } from "../../store/settingsReturn";
@@ -69,6 +70,7 @@ export function SettingsLayout({
     [experimentalTTS, machine],
   );
   const searchResults = useMemo(() => matchSettings(searchEntries, query), [searchEntries, query]);
+  const hints = useMemo(() => searchHints(searchEntries), [searchEntries]);
   const tab = shownTab(navGroups, activeTab);
 
   const selectTab = (next: SettingsTab) => {
@@ -127,6 +129,7 @@ export function SettingsLayout({
         activeView={onGlobalConfig ? view : undefined}
         query={query}
         results={searchResults}
+        hints={hints}
         onQueryChange={setQuery}
         onActivate={activateEntry}
         onSelectTab={selectTab}

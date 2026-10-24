@@ -1,7 +1,8 @@
 #!/bin/sh
 # Regenerates src/test/resources/ios-parity/{diffs,expected}.json: the diffs in
-# cases.py, parsed and highlighted by the iOS ParsedDiff and DiffHighlighter
-# (mobile/ios/Sources/LpmMobile/Diff*.swift) compiled for macOS. DiffParityTest then
+# cases.py, parsed, highlighted and word-diffed by the iOS ParsedDiff,
+# DiffHighlighter and WordDiff (mobile/ios/Sources/LpmMobile/Diff*.swift) compiled
+# for macOS. DiffParityTest then
 # checks the Android port renders the same text in the same colors. Run it after
 # changing the iOS diff code. Needs swiftc (Xcode) and python3.
 set -eu
@@ -11,7 +12,7 @@ out="$here/../src/test/resources/ios-parity"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-cp "$ios/DiffHighlighter.swift" "$ios/DiffRendering.swift" "$work/"
+cp "$ios/DiffHighlighter.swift" "$ios/DiffRendering.swift" "$ios/DiffWordDiff.swift" "$work/"
 python3 "$here/patch.py" "$work"
 cp "$here/Stubs.swift" "$work/Stubs.swift"
 cp "$here/Harness.swift" "$work/main.swift"

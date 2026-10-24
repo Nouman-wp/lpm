@@ -106,7 +106,7 @@ private struct AgentWidgetLine: View {
                 .agentWidgetTone(row.state)
             Spacer(minLength: 0)
             HStack(spacing: small ? 3 : 4) {
-                mark.frame(width: small ? 13 : 18)
+                AgentStateMark(state: row.state, size: small ? 11 : 13).frame(width: small ? 13 : 18)
                 if let elapsed = row.elapsed(now: now) {
                     Text(elapsed)
                         .font(.system(size: small ? 12 : 14))
@@ -118,35 +118,5 @@ private struct AgentWidgetLine: View {
         }
         // As tall as the design where four rows fit, shorter on a smaller widget.
         .frame(maxHeight: small ? 26 : 28)
-    }
-
-    /// A bell while it waits on you, an alert for a problem, a check once done.
-    /// Working says so through the name alone, and keeps the slot so times line up.
-    @ViewBuilder
-    private var mark: some View {
-        let symbol: String? = switch row.state {
-        case .needsYou: "bell.fill"
-        case .error: "exclamationmark.circle.fill"
-        case .done: "checkmark"
-        case .working, .idle: nil
-        }
-        if let symbol {
-            Image(systemName: symbol)
-                .font(.system(size: small ? 11 : 13, weight: .semibold))
-                .foregroundStyle(row.state.tint)
-        }
-    }
-}
-
-private extension View {
-    /// The app's tones held still, as a widget can't animate: the working sweep at
-    /// its start, orange for a wait, red for a problem, blue once done.
-    @ViewBuilder
-    func agentWidgetTone(_ state: AgentState) -> some View {
-        switch state {
-        case .working: foregroundStyle(AgentSweep.still)
-        case .needsYou, .error, .done: foregroundStyle(state.tint)
-        case .idle: self
-        }
     }
 }

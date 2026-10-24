@@ -1,7 +1,6 @@
 "use client";
 
-import { OS_NAMES, type DesktopOs } from "@/lib/downloads";
-import { DOWNLOAD_OS_ORDER } from "./download-table";
+import { DOWNLOAD_OS_ORDER, OS_NAMES, type DesktopOs } from "@/lib/downloads";
 import { OsIcon } from "./os-icon";
 
 type Props = {

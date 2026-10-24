@@ -266,6 +266,76 @@ long_ctx = [f"     context {i}" for i in range(20)]
 cases.append({"name": "chunked", "ext": "ts",
               "diff": "@@ -1,50 +1,50 @@ chunk\n" + "\n".join(long_ctx + long_old + long_new) + "\n"})
 
+inserted = [f"+inserted({i})" for i in range(8)]
+grid_words = 35
+grid_old = "k " * 60 + " ".join(f"a{i}" for i in range(grid_words)) + " k" * 60
+grid_new = "k " * 60 + " ".join(
+    f"b{i}" if i in (0, grid_words - 1) else f"a{i}" for i in range(grid_words)) + " k" * 60
+cases += [
+    {"name": "emphasis-uneven", "ext": "tsx", "diff": d("""
+        @@ -1,4 +1,8 @@
+         async function handleSubmit() {
+        -    await submitOrder({ email, items: cart.items })
+        -    onComplete()
+        +    setError(null)
+        +    try {
+        +      const intent = await createPaymentIntent(cart, method)
+        +      await submitOrder({ email, intent, items: cart.items })
+        +      onComplete()
+        +    } catch {
+         }
+        """)},
+    {"name": "emphasis-reindent", "ext": "tsx", "diff": d("""
+        @@ -1,3 +1,5 @@
+         <main>
+        -  <main className="mx-auto max-w-lg px-4 py-8">
+        -  <h1 className="title">Checkout</h1>
+        +  <main className="mx-auto grid max-w-4xl gap-8 px-4 py-8 md:grid-cols-[1fr_360px]">
+        +  <section>
+        +    <h1 className="title">Checkout</h1>
+        +  </section>
+        """)},
+    {"name": "emphasis-reindent-trimmed", "ext": "tsx", "diff": d("""
+        @@ -4,2 +4,3 @@
+        -  <h1>Checkout</h1>
+        +  <section>
+        +      <h1>Checkout</h1>
+        """)},
+    {"name": "emphasis-bridge", "ext": "ts", "diff": "\n".join([
+        "@@ -1,3 +1,3 @@",
+        "-let label = first second + tail",
+        "+let label = other words + tail",
+        "-call(a,  b)",
+        "+call(a, b)",
+        "-x = 1",
+        "+x = 1  ",
+        "-}",
+        "+})",
+    ]) + "\n"},
+    {"name": "emphasis-window", "ext": "ts", "diff": "\n".join(
+        ["@@ -1,2 +1,9 @@", "-alpha(1)", "-target(1)"] + inserted + ["+target(2)",
+         "@@ -20,1 +27,8 @@", "-target(1)"] + inserted[:7] + ["+target(2)"]) + "\n"},
+    {"name": "emphasis-long-line", "ext": "ts", "diff": "\n".join([
+        "@@ -1,2 +1,2 @@",
+        "-const s = \"" + "x" * 490 + "\" // a",
+        "+const s = \"" + "x" * 490 + "\" // b",
+        "-const t = \"" + "x" * 480 + "\" // a",
+        "+const t = \"" + "x" * 480 + "\" // b",
+    ]) + "\n"},
+    {"name": "emphasis-grid", "ext": "ts",
+     "diff": "@@ -1 +1 @@\n-" + grid_old + "\n+" + grid_new + "\n"},
+    {"name": "emphasis-canonical", "ext": "ts",
+     "diff": "@@ -1,2 +1,2 @@\n-const café = 1\n-let été = \"é\"\n"
+             "+const café = 2\n+let été = \"é!\"\n"},
+    {"name": "wrap-empty-in-comment", "ext": "ts", "diff": d("""
+        @@ -1,4 +1,4 @@
+         /* open
+        -
+        +
+         close */
+        """)},
+]
+
 cases += [
     {"name": "hl-swift", "ext": "swift", "lines": [
         "let x = 0b1010 + 0o17 + 1.5e3 // done",

@@ -2,6 +2,14 @@ package cx.lpm.mobile.feature.git.diff
 
 enum class DiffLineKind { Added, Removed, Hunk, Context }
 
+/** The diff's own prefix: "+", "-", or a space for context. */
+internal val DiffLineKind.marker: String
+    get() = when (this) {
+        DiffLineKind.Added -> "+"
+        DiffLineKind.Removed -> "-"
+        else -> " "
+    }
+
 /**
  * One line of a parsed diff: the code with its +/- prefix stripped and the hunk's
  * common indent trimmed (for a hunk line, the header's trailing context), and the

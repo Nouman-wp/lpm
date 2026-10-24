@@ -9,9 +9,11 @@ import { DEFAULT_COMMIT_INSTRUCTIONS } from "../aiInstructions";
 export function ProjectCommitInstructionsEditor({
   projectName,
   onBack,
+  backTitle = "Back to AI Instructions",
 }: {
   projectName: string;
   onBack: () => void;
+  backTitle?: string;
 }) {
   const load = useCallback(
     () => ReadProjectInstructions(projectName, "commit"),
@@ -26,10 +28,12 @@ export function ProjectCommitInstructionsEditor({
     <InstructionsEditor
       title="Commit instructions"
       description="Custom instructions for this project's AI commit messages. Leave blank to use the global default."
-      placeholder={DEFAULT_COMMIT_INSTRUCTIONS}
+      defaultText={DEFAULT_COMMIT_INSTRUCTIONS}
+      resetClears
       load={load}
       save={save}
       onBack={onBack}
+      backTitle={backTitle}
     />
   );
 }

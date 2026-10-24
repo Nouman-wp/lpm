@@ -6,8 +6,9 @@ import java.util.Base64
 
 /**
  * Everything a Mac is told about this phone's push identity (iOS
- * `PushRegistrar.Payload`): the token, its platform, the shared push key and the
- * effective preferences. The same for every Mac; only the destination differs.
+ * `PushRegistrar.Payload`): the token, its platform, the shared push key, the
+ * effective preferences and whether it wants live updates (told only to a Mac that
+ * offers them). The same for every Mac; only the destination differs.
  */
 data class PushRegistration(
     val platform: String,
@@ -18,7 +19,8 @@ data class PushRegistration(
     val error: Boolean,
     val automationStarted: Boolean,
     val automationDone: Boolean,
-    val automationError: Boolean
+    val automationError: Boolean,
+    val live: Boolean
 ) {
     /**
      * A digest of everything a Mac holds, so a Mac is contacted again exactly when
@@ -33,7 +35,8 @@ data class PushRegistration(
                 error,
                 automationStarted,
                 automationDone,
-                automationError
+                automationError,
+                live
             )
                 .joinToString("") { if (it) "1" else "0" }
             val digest = MessageDigest.getInstance("SHA-256")
@@ -53,7 +56,8 @@ data class PushRegistration(
                 error = prefs.enabled && prefs.error,
                 automationStarted = prefs.enabled && prefs.automationStarted,
                 automationDone = prefs.enabled && prefs.automationDone,
-                automationError = prefs.enabled && prefs.automationError
+                automationError = prefs.enabled && prefs.automationError,
+                live = prefs.liveActivity
             )
     }
 }

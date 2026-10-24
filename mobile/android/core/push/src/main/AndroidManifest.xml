@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Lets Android 16 promote the agents-at-work card to a Live Update. -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
 
     <application>
         <!-- FCM targets this install by its Firebase Installation ID (onRegistered). -->
@@ -20,6 +22,13 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <receiver
+            android:name=".AnswerReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".LiveDismissedReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

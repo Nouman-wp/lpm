@@ -71,6 +71,14 @@ struct NotificationSettingsView: View {
             }
             .disabled(!model.notifyEnabled)
             .opacity(model.notifyEnabled ? 1 : 0.4)
+
+            Section {
+                Toggle("Show agents on the Lock Screen", isOn: $model.liveActivitiesEnabled)
+            } header: {
+                Text("Live Activity")
+            } footer: {
+                Text("While agents work, a Live Activity shows them on the Lock Screen and in the Dynamic Island.")
+            }
         }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)

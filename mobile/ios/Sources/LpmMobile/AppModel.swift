@@ -243,6 +243,18 @@ final class AppModel {
     var notifyAutomationError: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationErrorKey) {
         didSet { persistNotifyPrefs(); syncPushRegistration() }
     }
+    // The live Mac's agents on the Lock Screen while any is at work.
+    var liveActivitiesEnabled: Bool = AppModel.loadBoolPref(AppModel.liveActivitiesKey) {
+        didSet {
+            UserDefaults.standard.set(liveActivitiesEnabled, forKey: Self.liveActivitiesKey)
+            if liveActivitiesEnabled {
+                sendLiveActivityTokenIfPossible()
+            } else {
+                stopLiveActivityUpdates()
+                Task { await liveActivities.endAll() }
+            }
+        }
+    }
 
     // Sidebar folders, matching the desktop: `order` interleaves project names and
     // "group:<id>" tokens; `groups` are the folder defs.
@@ -369,6 +381,9 @@ final class AppModel {
     // The payload of the last registration sent over the live socket, recorded as
     // registered once that Mac acknowledges it.
     @ObservationIgnored private var lastSentPushPayload: PushRegistrar.Payload?
+    // Notification answers sent over the live socket, waiting on the Mac's word.
+    @ObservationIgnored var answerWaiters: [String: CheckedContinuation<String??, Never>] = [:]
+    @ObservationIgnored let liveActivities = LiveActivityController()
     // Guards the opportunistic host migration in onState against overlapping
     // re-probes while one is already in flight.
     @ObservationIgnored private var repicking = false
@@ -431,6 +446,7 @@ final class AppModel {
         machineImporter.onPaired = { [weak self] paired in
             self?.adoptMachine(paired)
         }
+        wireLiveActivities()
     }
 
     func bootstrap() {
@@ -1419,14 +1435,9 @@ final class AppModel {
     /// One source for the live frame and the sweep, so the two can't drift.
     private func pushPayload() -> PushRegistrar.Payload? {
         guard let hex = apnsTokenHex else { return nil }
-        #if DEBUG
-        let env = "sandbox"
-        #else
-        let env = "production"
-        #endif
         return PushRegistrar.Payload(
             token: hex,
-            env: env,
+            env: Self.apnsEnvironment,
             key: PushKey.loadOrCreate().base64EncodedString(),
             waiting: notifyEnabled && notifyWaiting,
             done: notifyEnabled && notifyDone,
@@ -1486,6 +1497,7 @@ final class AppModel {
     static let notifyAutomationStartedKey = "lpm.notify.automation.started"
     static let notifyAutomationDoneKey = "lpm.notify.automation.done"
     static let notifyAutomationErrorKey = "lpm.notify.automation.error"
+    static let liveActivitiesKey = "lpm.notify.liveActivity"
 
     // Absent keys default to enabled, so a fresh install opts in to every push type
     // that reports something the user has to act on. An automation starting isn't
@@ -2648,6 +2660,7 @@ final class AppModel {
                 if !self.demoMode && !self.isVisit {
                     self.requestPushRegistration()
                     self.syncPushRegistration()
+                    self.sendLiveActivityTokenIfPossible()
                     c.requestMachines()
                 }
             }
@@ -2687,6 +2700,9 @@ final class AppModel {
             guard let self, let c, c === self.client, c.deviceId != nil, !self.demoMode,
                   !self.isVisit, let id = self.activeMacId else { return }
             self.link.snapshots.record(text, for: id)
+        }
+        c.onAnswerAgent = { [weak self] reqId, error in
+            self?.noteAnswerAgent(reqId: reqId, error: error)
         }
         c.onApnsToken = { [weak self, weak c] ok in
             guard let self else { return }

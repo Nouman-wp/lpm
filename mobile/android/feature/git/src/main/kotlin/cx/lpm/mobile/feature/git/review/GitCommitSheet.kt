@@ -3,10 +3,12 @@ package cx.lpm.mobile.feature.git.review
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -19,27 +21,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.R as DesignR
-import cx.lpm.mobile.core.designsystem.component.ActivityIndicator
-import cx.lpm.mobile.core.designsystem.component.ActivityIndicatorSize
+import cx.lpm.mobile.core.designsystem.component.DisclosureChevron
 import cx.lpm.mobile.core.designsystem.component.GlassCapsuleButton
-import cx.lpm.mobile.core.designsystem.component.LinkButton
 import cx.lpm.mobile.core.designsystem.component.ListDefaults
-import cx.lpm.mobile.core.designsystem.component.ListHeaderStyle
 import cx.lpm.mobile.core.designsystem.component.ListLeadingSlot
 import cx.lpm.mobile.core.designsystem.component.ListRow
 import cx.lpm.mobile.core.designsystem.component.ListSection
 import cx.lpm.mobile.core.designsystem.component.ModalSheet
 import cx.lpm.mobile.core.designsystem.component.TextFieldRow
+import cx.lpm.mobile.core.designsystem.component.ValueRow
 import cx.lpm.mobile.core.designsystem.component.rememberModalSheetState
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
-import cx.lpm.mobile.core.ui.GitStatusBadge
+import cx.lpm.mobile.core.navigation.SheetStack
+import cx.lpm.mobile.core.navigation.rememberSheetNavigator
 import cx.lpm.mobile.feature.git.R
-import cx.lpm.mobile.feature.git.ui.BarSpinner
 import cx.lpm.mobile.feature.git.ui.SheetBar
 
 /** What the commit sheet's controls do. */
@@ -48,14 +45,20 @@ class CommitActions(
     val generateMessage: () -> Unit = {},
     val toggleSelected: (String) -> Unit = {},
     val selectAll: (Boolean) -> Unit = {},
-    val commit: () -> Unit = {}
+    val commit: () -> Unit = {},
+    val commitAndPush: () -> Unit = {}
 )
+
+/** A page of the commit sheet: the form, or the files pushed from its Files row. */
+private enum class CommitPage { Form, Files }
 
 /**
  * The commit sheet (iOS `GitCommitSheet`), the phone's take on the desktop's Commit
- * dialog: the message with "Generate message", every changed file to include or
- * leave out, and Commit. The message and selection live with the review, so closing
- * the sheet keeps the draft; a successful commit closes it.
+ * dialog: the message, which the Mac drafts from the diff as the sheet opens when
+ * there's none yet, a Files row opening the list of changed files to include or
+ * leave out, the branch and where it pushes, then Commit and Push or Commit only.
+ * The message and selection live with the review, so closing the sheet keeps the
+ * draft; a commit that lands (with its push, if it pushes) closes it.
  */
 @Composable
 internal fun GitCommitSheet(
@@ -64,185 +67,135 @@ internal fun GitCommitSheet(
     onDismiss: () -> Unit
 ) {
     val sheet = rememberModalSheetState()
+    val pages = rememberSheetNavigator(CommitPage.Form)
     val opened = remember { state.commitTick }
-    LaunchedEffect(state.commitTick) {
-        if (state.commitTick != opened) sheet.dismiss(onDismiss)
+    val committed = state.commitTick != opened
+    // A push that failed after its commit closes the sheet once its alert is read.
+    LaunchedEffect(committed, state.opError) {
+        if (committed && state.opError == null) sheet.dismiss(onDismiss)
     }
     ModalSheet(onDismissRequest = onDismiss, state = sheet) {
+        SheetStack(pages, Modifier.weight(1f)) { page ->
+            when (page) {
+                CommitPage.Form -> CommitFormPage(
+                    state = state,
+                    actions = actions,
+                    onCancel = { sheet.dismiss(onDismiss) },
+                    onFiles = { pages.push(CommitPage.Files) }
+                )
+
+                CommitPage.Files -> CommitFilesPage(
+                    files = state.commitFiles,
+                    onToggle = actions.toggleSelected,
+                    onSelectAll = actions.selectAll,
+                    onBack = pages::back
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommitFormPage(
+    state: GitReviewUiState,
+    actions: CommitActions,
+    onCancel: () -> Unit,
+    onFiles: () -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .imePadding()
+    ) {
         SheetBar(
             title = stringResource(R.string.git_commit_title),
             leading = {
-                GlassCapsuleButton(
-                    text = stringResource(R.string.cancel),
-                    onClick = { sheet.dismiss(onDismiss) }
-                )
-            },
-            trailing = {
-                if (state.committing) {
-                    BarSpinner()
-                } else {
-                    GlassCapsuleButton(
-                        text = stringResource(R.string.git_review_commit),
-                        onClick = actions.commit,
-                        enabled = state.canCommit,
-                        textStyle = LpmTheme.typography.headline
-                    )
-                }
+                GlassCapsuleButton(text = stringResource(R.string.cancel), onClick = onCancel)
             }
         )
-        CommitForm(state, actions)
-    }
-}
-
-@Composable
-private fun CommitForm(state: GitReviewUiState, actions: CommitActions) {
-    val allSelected = state.commitFiles.all { it.selected }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .imePadding()
-            .verticalScroll(rememberScrollState())
-            .padding(top = ListDefaults.ContentTopPadding, bottom = 24.dp)
-    ) {
-        if (state.conflicted.isNotEmpty()) {
+        Column(
+            Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(top = ListDefaults.ContentTopPadding, bottom = 24.dp)
+        ) {
+            if (state.conflicted.isNotEmpty()) ConflictSection(state.conflicted)
             ListSection {
-                ListRow(
-                    leadingSlot = ListLeadingSlot(width = 20.dp, spacing = 12.dp),
-                    leading = {
-                        Icon(
-                            painter = painterResource(DesignR.drawable.ic_warning_fill),
-                            contentDescription = null,
-                            tint = LpmTheme.colors.red,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                ) {
-                    Text(
-                        text = conflictNotice(state.conflicted),
-                        style = LpmTheme.typography.footnote,
-                        color = LpmTheme.colors.red
+                TextFieldRow(
+                    value = state.message,
+                    onValueChange = actions.setMessage,
+                    placeholder = stringResource(R.string.git_commit_message),
+                    minLines = 3,
+                    maxLines = 8
+                )
+                CommitDraftRow(
+                    generating = state.generating,
+                    drafted = state.drafted,
+                    canGenerate = state.selectedCount > 0,
+                    onGenerate = actions.generateMessage
+                )
+            }
+            ListSection {
+                FilesRow(state.commitFiles, onClick = onFiles)
+                state.branch?.let {
+                    ValueRow(
+                        title = stringResource(R.string.git_commit_branch),
+                        value = stringResource(R.string.git_commit_branch_target, it)
                     )
                 }
             }
         }
-        ListSection {
-            TextFieldRow(
-                value = state.message,
-                onValueChange = actions.setMessage,
-                placeholder = stringResource(R.string.git_commit_message),
-                minLines = 3,
-                maxLines = 8
-            )
-            GenerateRow(
-                generating = state.generating,
-                enabled = !state.generating && state.selectedCount > 0,
-                onClick = actions.generateMessage
-            )
-        }
-        ListSection(
-            header = stringResource(R.string.git_commit_files),
-            headerStyle = ListHeaderStyle.Title,
-            headerAction = {
-                val label = if (allSelected) {
-                    R.string.git_commit_deselect_all
-                } else {
-                    R.string.git_commit_select_all
-                }
-                LinkButton(
-                    text = stringResource(label),
-                    onClick = { actions.selectAll(!allSelected) },
-                    enabled = state.commitFiles.isNotEmpty()
-                )
-            },
-            footer = stringResource(R.string.git_commit_footer)
-        ) {
-            state.commitFiles.forEach { file ->
-                CommitFileRow(file, onToggle = { actions.toggleSelected(file.file.path) })
-            }
-        }
+        CommitButtons(
+            busy = state.busy,
+            enabled = state.canCommit,
+            onCommitAndPush = actions.commitAndPush,
+            onCommitOnly = actions.commit
+        )
     }
 }
 
-/** "Generate message", a spinner and "Generating…" while the Mac writes it. */
+/** "Files  4 of 4 · +52 −5 ›": the files going in and the lines they change, once parsed. */
 @Composable
-private fun GenerateRow(generating: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    val colors = LpmTheme.colors
+private fun FilesRow(files: List<CommitFile>, onClick: () -> Unit) {
+    val chosen = files.filter { it.selected }
+    val added = chosen.sumOf { it.added ?: 0 }
+    val removed = chosen.sumOf { it.removed ?: 0 }
+    val style = LpmTheme.typography.body.copy(fontFeatureSettings = "tnum")
+    val secondary = LpmTheme.colors.secondaryLabel
     ListRow(
         onClick = onClick,
-        enabled = enabled,
-        leadingSlot = ListLeadingSlot(width = 20.dp, spacing = 8.dp),
-        leading = {
-            if (generating) {
-                ActivityIndicator(size = ActivityIndicatorSize.Small)
-            } else {
-                Icon(
-                    painter = painterResource(DesignR.drawable.ic_auto_awesome),
-                    contentDescription = null,
-                    tint = if (enabled) colors.tint else colors.tertiaryLabel,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-    ) {
-        val label = if (generating) {
-            R.string.git_commit_generating
-        } else {
-            R.string.git_commit_generate_message
-        }
-        Text(
-            text = stringResource(label),
-            style = LpmTheme.typography.body,
-            color = if (enabled) colors.tint else colors.tertiaryLabel
-        )
-    }
-}
-
-/**
- * A file in the commit sheet: its checkmark, status letter, name over folder, and
- * +N −M. The whole row includes or leaves it out, and reads as the file's path.
- */
-@Composable
-private fun CommitFileRow(file: CommitFile, onToggle: () -> Unit) {
-    val colors = LpmTheme.colors
-    val path = file.file.path
-    val value = stringResource(
-        if (file.selected) R.string.git_commit_included else R.string.git_commit_excluded
-    )
-    ListRow(
-        onClick = onToggle,
-        modifier = Modifier.semantics(mergeDescendants = true) {
-            contentDescription = path
-            stateDescription = value
-        },
-        leadingSlot = ListLeadingSlot(width = 24.dp, spacing = 12.dp),
-        leading = {
-            Icon(
-                painter = painterResource(if (file.selected) CHECKED_ICON else UNCHECKED_ICON),
-                contentDescription = null,
-                tint = if (file.selected) colors.tint else colors.secondaryLabel,
-                modifier = Modifier.size(24.dp)
-            )
-        },
         trailing = {
-            if (file.added != null && file.removed != null) {
-                DiffStat(file.added, file.removed, Modifier.padding(start = 8.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.git_commit_files_count, chosen.size, files.size),
+                    style = style,
+                    color = secondary,
+                    maxLines = 1
+                )
+                if (added > 0 || removed > 0) {
+                    Text(text = "·", style = style, color = secondary)
+                    DiffStat(added, removed)
+                }
             }
+            Spacer(Modifier.width(13.dp))
+            DisclosureChevron()
         }
     ) {
-        Row(
+        Text(
+            text = stringResource(R.string.git_commit_files),
+            style = LpmTheme.typography.body,
             modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            GitStatusBadge(file.file.status)
-            FileName(file.file, Modifier.weight(1f))
-        }
+            maxLines = 1
+        )
     }
 }
 
 /** The desktop's ConflictNotice: which files still have merge conflicts. */
 @Composable
-private fun conflictNotice(paths: List<String>): String {
+private fun ConflictSection(paths: List<String>) {
     val named = if (paths.size > SHOWN_CONFLICTS) {
         stringResource(
             R.string.git_commit_conflicts_more,
@@ -252,9 +205,25 @@ private fun conflictNotice(paths: List<String>): String {
     } else {
         paths.joinToString(", ")
     }
-    return pluralStringResource(R.plurals.git_commit_conflicts, paths.size, named)
+    ListSection {
+        ListRow(
+            leadingSlot = ListLeadingSlot(width = 20.dp, spacing = 12.dp),
+            leading = {
+                Icon(
+                    painter = painterResource(DesignR.drawable.ic_warning_fill),
+                    contentDescription = null,
+                    tint = LpmTheme.colors.red,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        ) {
+            Text(
+                text = pluralStringResource(R.plurals.git_commit_conflicts, paths.size, named),
+                style = LpmTheme.typography.footnote,
+                color = LpmTheme.colors.red
+            )
+        }
+    }
 }
 
 private const val SHOWN_CONFLICTS = 3
-private val CHECKED_ICON = DesignR.drawable.ic_check_circle_fill
-private val UNCHECKED_ICON = DesignR.drawable.ic_circle

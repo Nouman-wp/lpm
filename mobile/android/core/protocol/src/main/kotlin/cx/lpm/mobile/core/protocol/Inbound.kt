@@ -257,6 +257,8 @@ sealed interface Inbound {
 
     data class ApnsToken(val ok: Boolean) : Inbound
     data class PushToken(val ok: Boolean) : Inbound
+    data class AnswerAgent(val reqId: String, val error: String?) : Inbound
+    data class LiveActivity(val ok: Boolean) : Inbound
     data class ComposerActions(val actions: List<ComposerAction>) : Inbound
 
     // One transform variant settled; `reqId` matches the request, `idx` the variant slot.

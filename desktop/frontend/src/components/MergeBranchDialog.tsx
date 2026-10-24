@@ -7,7 +7,6 @@ import {
   GitDefaultBranch,
   GitFetchAll,
   GitMerge,
-  GitMergeConflicts,
   ResolveMergeConflictsWithAI,
 } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
@@ -16,11 +15,13 @@ import { useBranchSearch } from "../hooks/useBranchSearch";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
+import { useMergeConflicts } from "../hooks/useMergeConflicts";
+import { mergeTitle, needsResolving, remainingFiles } from "../mergeConflicts";
 import { aiEffectiveFast } from "../types";
 import { branchKey, branchMatches, RemoteBadge } from "./branchUtils";
 import { BranchIcon, ChevronDownIcon, CloudBranchIcon, XIcon } from "./icons";
 import { relativeTime } from "../relativeTime";
-import { AIPickerButton } from "./ui/AIPickerButton";
+import { MergeConflictsPanel } from "./MergeConflictsPanel";
 
 const MERGE_CONFLICT_PROGRESS_EVENT = "merge-conflict-progress";
 const FETCH_DEBOUNCE_MS = 30_000;
@@ -45,9 +46,7 @@ interface MergeBranchDialogProps {
   onMerged: () => void;
 }
 
-type Mode =
-  | { kind: "picking" }
-  | { kind: "conflicts"; files: string[] };
+type Mode = "picking" | "conflicts";
 
 export function MergeBranchDialog({
   open,
@@ -58,7 +57,7 @@ export function MergeBranchDialog({
   onClose,
   onMerged,
 }: MergeBranchDialogProps) {
-  const [mode, setMode] = useState<Mode>({ kind: "picking" });
+  const [mode, setMode] = useState<Mode>("picking");
   const [source, setSource] = useState<main.Branch | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -73,6 +72,7 @@ export function MergeBranchDialog({
   const initRef = useRef(false);
 
   const ai = useAIPicker(open, projectName);
+  const conflicts = useMergeConflicts(projectPath, open && mode === "conflicts");
 
   const excludeCurrent = useMemo(
     () => (b: main.Branch) => b.name !== currentBranch || !!b.remote,
@@ -94,7 +94,7 @@ export function MergeBranchDialog({
     if (initRef.current) return;
     initRef.current = true;
 
-    setMode({ kind: "picking" });
+    setMode("picking");
     setPickerOpen(false);
     setQuery("");
     setBusy(false);
@@ -120,12 +120,9 @@ export function MergeBranchDialog({
         .catch(() => {})
         .finally(() => { if (!cancelled) setFetching(false); });
     }
-    GitMergeConflicts(projectPath)
-      .then((files) => {
-        if (cancelled || !files || files.length === 0) return;
-        setMode({ kind: "conflicts", files });
-      })
-      .catch(() => {});
+    conflicts.reload().then((state) => {
+      if (!cancelled && needsResolving(state)) setMode("conflicts");
+    });
     GitDefaultBranch(projectPath)
       .then((name) => {
         if (cancelled || !name || name === currentBranch) return;
@@ -148,7 +145,7 @@ export function MergeBranchDialog({
   }, [pickerOpen]);
 
   useEffect(() => {
-    if (!open || mode.kind !== "picking" || !source) {
+    if (!open || mode !== "picking" || !source) {
       setCommitCount(null);
       return;
     }
@@ -157,7 +154,7 @@ export function MergeBranchDialog({
       .then((n) => { if (!cancelled) setCommitCount(n); })
       .catch(() => { if (!cancelled) setCommitCount(null); });
     return () => { cancelled = true; };
-  }, [open, mode.kind, source, projectPath, fetchTick]);
+  }, [open, mode, source, projectPath, fetchTick]);
 
   useEffect(() => {
     if (!aiBusy) return;
@@ -188,10 +185,10 @@ export function MergeBranchDialog({
       onMerged();
       onClose();
     } catch (err) {
-      const conflicts = await GitMergeConflicts(projectPath).catch(() => [] as string[]);
+      const state = await conflicts.reload();
       onMerged();
-      if (conflicts.length > 0) {
-        setMode({ kind: "conflicts", files: conflicts });
+      if (state.files.length > 0) {
+        setMode("conflicts");
       } else {
         toast.error(`Merge failed: ${err}`);
       }
@@ -201,7 +198,7 @@ export function MergeBranchDialog({
   };
 
   const resolveWithAI = async () => {
-    if (aiBusy || mode.kind !== "conflicts") return;
+    if (aiBusy || mode !== "conflicts") return;
     setProgressLine("");
     try {
       await gen.run((genId) =>
@@ -215,14 +212,16 @@ export function MergeBranchDialog({
           genId,
         ),
       );
-      const remaining = await GitMergeConflicts(projectPath).catch(() => [] as string[]);
+      const state = await conflicts.reload();
       onMerged();
-      if (remaining.length === 0) {
+      const left = remainingFiles(state).length;
+      if (left > 0) {
+        toast.warning(`${left} file${left === 1 ? "" : "s"} still ${left === 1 ? "has" : "have"} conflicts`);
+      } else if (state.merging) {
+        toast.success("Conflicts resolved — continue the merge to commit it");
+      } else {
         toast.success("Conflicts resolved — review and commit");
         onClose();
-      } else {
-        setMode({ ...mode, files: remaining });
-        toast.warning(`${remaining.length} file(s) still have conflicts`);
       }
     } catch (err) {
       if (!isCanceledError(err)) toast.error(`AI resolve failed: ${err}`);
@@ -235,6 +234,14 @@ export function MergeBranchDialog({
   // conflicts are still listed when the dialog is reopened.
   const closeDialog = () => {
     gen.cancel();
+    onClose();
+  };
+
+  const continueMerge = async () => {
+    const merged = conflicts.state?.source;
+    if (!(await conflicts.continueMerge())) return;
+    toast.success(merged ? `Merged ${merged} into ${currentBranch}` : "Merge committed");
+    onMerged();
     onClose();
   };
 
@@ -268,21 +275,17 @@ export function MergeBranchDialog({
       draggable
       closeOnEscape={!busy}
       zIndexClassName="z-[60]"
-      contentClassName="w-[480px] overflow-visible rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
+      contentClassName={`${mode === "conflicts" ? "w-[580px]" : "w-[480px]"} overflow-visible rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl`}
     >
       <div
         data-modal-drag-handle
         className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3"
       >
-        <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-          {mode.kind === "conflicts" ? "Merge conflicts" : "Merge"}
+        <h3 className="min-w-0 truncate text-sm font-semibold text-[var(--text-primary)]">
+          {mode === "conflicts" && conflicts.state
+            ? mergeTitle(conflicts.state, currentBranch)
+            : "Merge"}
         </h3>
-        {mode.kind === "conflicts" && (
-          <span className="ml-3 flex-1 truncate text-[11px] text-[var(--text-muted)]">
-            {mode.files.length} file{mode.files.length === 1 ? "" : "s"} need resolving in{" "}
-            <span className="font-mono text-[var(--text-secondary)]">{currentBranch}</span>
-          </span>
-        )}
         <button
           onClick={closeDialog}
           disabled={busy}
@@ -293,7 +296,7 @@ export function MergeBranchDialog({
         </button>
       </div>
 
-      {mode.kind === "picking" ? (
+      {mode === "picking" ? (
         <>
           <div
             className="px-4 py-4"
@@ -404,56 +407,19 @@ export function MergeBranchDialog({
           </div>
         </>
       ) : (
-        <>
-          <div className="max-h-[260px] overflow-y-auto px-4 py-3">
-            <ul className="flex flex-col gap-1 font-mono text-[12px] text-[var(--text-secondary)]">
-              {mode.files.map((f) => (
-                <li key={f} className="truncate" title={f}>
-                  {f}
-                </li>
-              ))}
-            </ul>
-          </div>
-          {aiBusy && progressLine && (
-            <div className="border-t border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2 text-[11px] text-[var(--text-muted)]">
-              <span className="line-clamp-2">{progressLine}</span>
-            </div>
-          )}
-          <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-4 py-3">
-            <button
-              onClick={abort}
-              disabled={!interactive}
-              className="text-[12px] text-[var(--accent-red)] transition-colors hover:underline disabled:opacity-40"
-            >
-              Abort merge
-            </button>
-            <div className="flex items-center gap-2">
-              {ai.anyAvailable ? (
-                <AIPickerButton
-                  onGenerate={resolveWithAI}
-                  onCancel={gen.cancel}
-                  generating={aiBusy}
-                  disabled={aiBusy || busy}
-                  title={`Resolve with ${ai.cliLabel}`}
-                  label="Resolve with AI"
-                  generatingLabel="Resolving…"
-                  aiCLIs={ai.aiCLIs}
-                  selectedCLI={ai.selectedCLI}
-                  selectedModel={ai.selectedModel}
-                  selectedEffort={ai.selectedEffort}
-                  selectedFast={ai.selectedFast}
-                  onSelect={ai.selectAI}
-                  onSelectEffort={ai.selectEffort}
-                  onSelectFast={ai.selectFast}
-                />
-              ) : (
-                <span className="text-[11px] text-[var(--text-muted)]">
-                  Install Claude Code, Codex, Gemini, or OpenCode to resolve with AI
-                </span>
-              )}
-            </div>
-          </div>
-        </>
+        <MergeConflictsPanel
+          projectPath={projectPath}
+          conflicts={conflicts}
+          interactive={interactive}
+          aiBusy={aiBusy}
+          progressLine={progressLine}
+          ai={ai}
+          onResolveWithAI={resolveWithAI}
+          onCancelAI={gen.cancel}
+          onAbort={abort}
+          onContinue={continueMerge}
+          onDone={onClose}
+        />
       )}
     </Modal>
   );

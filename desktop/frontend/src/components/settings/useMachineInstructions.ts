@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { withDefault } from "../../aiInstructions";
+import { globalTextToSave } from "../../instructionSources";
 import type { InstructionKind, MachineCommands } from "./machineCommands";
 
 // One kind of a machine's AI instructions, loaded as `fallback` while none are
@@ -9,7 +10,10 @@ export function useMachineInstructions(commands: MachineCommands, kind: Instruct
     () => withDefault(() => commands.readInstructions(kind), fallback),
     [commands, kind, fallback],
   );
-  const save = useCallback((content: string) => commands.saveInstructions(kind, content), [commands, kind]);
+  const save = useCallback(
+    (content: string) => commands.saveInstructions(kind, globalTextToSave(content, fallback)),
+    [commands, kind, fallback],
+  );
   return { load, save };
 }
 

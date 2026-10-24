@@ -8,7 +8,8 @@ private let inputKeyOrder = ["key", "label", "type", "required", "placeholder", 
                              "persist", "options", "value", "position"]
 
 /// Demo handlers for config editing — raw-YAML read/write per layer and structured
-/// service/profile/action edits — plus the harmless `apnsToken` ack. Reads reply
+/// service/profile/action edits — plus the harmless push acks (`apnsToken`,
+/// `liveActivity`, `answerAgent`), which nothing in Demo Mode sends. Reads reply
 /// inline; every write replies after a short simulated worker-thread delay and
 /// emits `projects-changed`, mirroring the desktop.
 extension DemoServer {
@@ -19,6 +20,14 @@ extension DemoServer {
         registerActionHandlers()
         register("apnsToken") { [weak self] _ in
             self?.push(["t": "apnsToken", "ok": true])
+        }
+        register("liveActivity") { [weak self] _ in
+            self?.push(["t": "liveActivity", "ok": true])
+        }
+        register("answerAgent") { [weak self] o in
+            var reply: [String: Any] = ["t": "answerAgent", "ok": true]
+            reply["reqId"] = o["reqId"]
+            self?.push(reply)
         }
     }
 

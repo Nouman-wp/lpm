@@ -97,6 +97,27 @@ class InboundSessionTest {
     }
 
     @Test
+    fun answerAgentMatchesItsRequestAndSaysWhyItFailed() {
+        assertEquals(
+            Inbound.AnswerAgent(reqId = "r-1", error = null),
+            decode<Inbound.AnswerAgent>("""{ "t": "answerAgent", "ok": true, "reqId": "r-1" }""")
+        )
+        assertEquals(
+            Inbound.AnswerAgent(reqId = "7", error = "This prompt was already answered."),
+            decode<Inbound.AnswerAgent>(
+                """{ "t": "answerAgent", "ok": false, "error": "This prompt was already answered.",
+                     "reqId": 7 }"""
+            )
+        )
+        assertEquals(
+            Inbound.AnswerAgent(reqId = "", error = "The Mac couldn't send it."),
+            decode<Inbound.AnswerAgent>("""{ "t": "answerAgent", "ok": false }""")
+        )
+        assertTrue(decode<Inbound.LiveActivity>("""{ "t": "liveActivity", "ok": true }""").ok)
+        assertFalse(decode<Inbound.LiveActivity>("""{ "t": "liveActivity", "ok": false }""").ok)
+    }
+
+    @Test
     fun stats() {
         val ok = decode<Inbound.Stats>(
             """{ "t": "stats", "ok": true, "stats": { "generatedAt": 1760000000000, "days": 7, "sessions": 3,

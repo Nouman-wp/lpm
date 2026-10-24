@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { loadUnsavedWork, unsavedWorkLines, worktreeBranchName } from "../unsavedWork";
+import { unsavedWorkLines, worktreeBranchName } from "../unsavedWork";
+import { useUnsavedWork } from "../hooks/useUnsavedWork";
 import { peerRawName } from "../peer/markers";
 import type { ProjectInfo } from "../types";
 
@@ -11,17 +11,8 @@ interface DeleteCopyBodyProps {
 // The confirm text for deleting a duplicate or worktree, warning about work
 // that lives only in that copy.
 export function DeleteCopyBody({ project, label }: DeleteCopyBodyProps) {
-  const [lines, setLines] = useState<string[] | null>(null);
-  useEffect(() => {
-    let live = true;
-    setLines(null);
-    loadUnsavedWork(project.root)
-      .then((work) => live && setLines(work ? unsavedWorkLines(work) : []))
-      .catch(() => live && setLines([]));
-    return () => {
-      live = false;
-    };
-  }, [project.root]);
+  const work = useUnsavedWork(project.root);
+  const lines = work === undefined ? null : work ? unsavedWorkLines(work) : [];
 
   const name = <span className="font-medium text-[var(--text-primary)]">{label}</span>;
   return (

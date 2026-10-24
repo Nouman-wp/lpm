@@ -14,6 +14,7 @@ interface FileViewerModalProps {
   projectRoot: string;
   choices?: string[];
   layout?: FileViewerLayout;
+  overDialog?: boolean;
   onClose: () => void;
 }
 
@@ -46,6 +47,7 @@ export function FileViewerModal({
   projectRoot,
   choices,
   layout,
+  overDialog,
   onClose,
 }: FileViewerModalProps) {
   const path = normalizePath(absPath);
@@ -64,6 +66,7 @@ export function FileViewerModal({
       passive={mode !== "open"}
       draggable={mode === "minimized"}
       backdropClassName="bg-black/50 backdrop-blur-sm"
+      zIndexClassName={overDialog ? "z-[70]" : undefined}
       containerClassName={placement.container}
       contentClassName={placement.content}
     >

@@ -512,6 +512,21 @@ impl StatusStore {
         out
     }
 
+    /// Every agent report on a terminal, whatever it says, with its project.
+    pub fn agent_entries(&self) -> Vec<(String, StatusEntry)> {
+        let m = self.entries.read().unwrap();
+        let closing = self.closing.read().unwrap();
+        m.iter()
+            .flat_map(|(project, bucket)| {
+                bucket
+                    .values()
+                    .filter(|e| is_agent_key(&e.key) && !e.pane_id.is_empty())
+                    .filter(|e| !closing.contains(&e.pane_id))
+                    .map(move |e| (project.clone(), e.clone()))
+            })
+            .collect()
+    }
+
     /// Every entry that names the process it speaks for (`--pid`), with its
     /// project — the agent sweep retires them once that process is gone.
     pub fn pid_entries(&self) -> Vec<(String, StatusEntry)> {

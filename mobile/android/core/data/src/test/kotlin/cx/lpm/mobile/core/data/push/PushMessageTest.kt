@@ -84,6 +84,73 @@ class PushMessageTest {
         )
     }
 
+    private fun answerable(actions: String, extra: String = """"ts":1792089000123,""") =
+        PushAlert.parse(
+            json(
+                """{"serverId":"srv-1","project":"api","target":"terminal","terminal":"Claude",""" +
+                    """"terminalId":"t-1","status":"Waiting","key":"claude_code_t-1",$extra""" +
+                    """"actions":$actions}"""
+            )
+        )!!
+
+    @Test
+    fun theOfferedActionsPickTheButtons() {
+        val permission = answerable("""["allow","deny"]""")
+        assertEquals(listOf(AgentAnswerAction.Allow, AgentAnswerAction.Deny), permission.actions)
+        assertEquals(1792089000123, permission.ts)
+        assertEquals(listOf(AgentAnswerAction.Reply), answerable("""["reply"]""").actions)
+        // Allow alone isn't a permission prompt's pair; unknown answers are skipped.
+        assertEquals(emptyList<AgentAnswerAction>(), answerable("""["allow"]""").actions)
+        assertEquals(
+            listOf(AgentAnswerAction.Reply),
+            answerable("""["approve","reply"]""").actions
+        )
+        assertEquals(emptyList<AgentAnswerAction>(), answerable("[]").actions)
+        assertEquals(emptyList<AgentAnswerAction>(), answerable("""[1,"reply"]""").actions)
+        assertEquals(emptyList<AgentAnswerAction>(), answerable("null").actions)
+    }
+
+    @Test
+    fun anAlertWithoutItsReportOffersNothing() {
+        // The Mac checks the report (key, terminal, ts) before typing anything in.
+        assertEquals(
+            emptyList<AgentAnswerAction>(),
+            answerable("""["reply"]""", extra = "").actions
+        )
+        val automation = PushAlert.parse(
+            json(
+                """{"project":"api","target":"automation","automationId":"j1","terminalId":"t",""" +
+                    """"key":"k","ts":1,"status":"Automation finished","actions":["reply"]}"""
+            )
+        )
+        assertEquals(emptyList<AgentAnswerAction>(), automation?.actions)
+        val noTerminal = PushAlert.parse(
+            json("""{"project":"api","key":"k","ts":1,"status":"Done","actions":["reply"]}""")
+        )
+        assertEquals(emptyList<AgentAnswerAction>(), noTerminal?.actions)
+    }
+
+    @Test
+    fun anAnswerNamesTheAlertsOwnReport() {
+        val alert = answerable("""["allow","deny"]""")
+        assertEquals(
+            AgentAnswer(
+                serverId = "srv-1",
+                project = "api",
+                terminalId = "t-1",
+                key = "claude_code_t-1",
+                ts = 1792089000123,
+                action = AgentAnswerAction.Deny
+            ),
+            alert.answer(AgentAnswerAction.Deny)
+        )
+        assertNull(alert.answer(AgentAnswerAction.Reply, "hi"))
+        assertEquals(
+            "Ship it",
+            answerable("""["reply"]""").answer(AgentAnswerAction.Reply, "Ship it")?.text
+        )
+    }
+
     @Test
     fun aWithdrawalNamesEntriesAndItsMac() {
         val clear = PushClear.parse(

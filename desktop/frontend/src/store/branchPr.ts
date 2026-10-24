@@ -23,16 +23,22 @@ export const useBranchPr = create<BranchPrState>((set) => ({
 }));
 
 // `gh pr create` prints only the new PR's URL; the number is its last path
-// segment and a just-created PR is open and, from the modal, never a draft.
-export function prFromCreatedUrl(url: string, title: string): PullRequestInfo | null {
+// segment and a just-created PR is open.
+export function prFromCreatedUrl(url: string, title: string, isDraft = false): PullRequestInfo | null {
   const trimmed = url.trim();
   const match = /\/pull\/(\d+)\/?$/.exec(trimmed);
   if (!match) return null;
-  return { number: Number(match[1]), url: trimmed, state: "OPEN", title, isDraft: false };
+  return { number: Number(match[1]), url: trimmed, state: "OPEN", title, isDraft };
 }
 
-export function rememberCreatedPr(projectPath: string, branch: string, url: string, title: string) {
-  const pr = prFromCreatedUrl(url, title);
+export function rememberCreatedPr(
+  projectPath: string,
+  branch: string,
+  url: string,
+  title: string,
+  isDraft = false,
+) {
+  const pr = prFromCreatedUrl(url, title, isDraft);
   if (!pr) return;
   useBranchPr.getState().setEntry(projectPath, { branch, pr, checkedAt: Date.now() });
 }

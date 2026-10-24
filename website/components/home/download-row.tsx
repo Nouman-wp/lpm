@@ -1,8 +1,8 @@
 "use client";
 
 import { ArrowDown } from "lucide-react";
-import { trackDownload } from "@/lib/analytics";
 import { formatSize, type DownloadEntry } from "@/lib/downloads";
+import { DownloadLink } from "./download-link";
 
 type RowProps = {
   entry: DownloadEntry;
@@ -39,16 +39,8 @@ export function DownloadRow({ entry, size, recommended }: RowProps) {
       <span className="hidden text-right font-mono text-[12px] tabular-nums text-gray-500 sm:block dark:text-gray-400">
         {sizeLabel}
       </span>
-      <a
-        href={entry.href}
-        aria-label={entry.ariaLabel}
-        onClick={() =>
-          trackDownload({
-            source: "downloads",
-            platform: entry.platform,
-            href: entry.href,
-          })
-        }
+      <DownloadLink
+        entry={entry}
         className={`inline-flex items-center gap-1.5 justify-self-end whitespace-nowrap rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors ${
           recommended
             ? "bg-gray-900 text-white hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
@@ -57,7 +49,7 @@ export function DownloadRow({ entry, size, recommended }: RowProps) {
       >
         <ArrowDown className="h-3.5 w-3.5" aria-hidden />
         Download
-      </a>
+      </DownloadLink>
     </div>
   );
 }

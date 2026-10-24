@@ -1,7 +1,9 @@
 package cx.lpm.mobile.core.data.push
 
+import cx.lpm.mobile.core.model.long
 import cx.lpm.mobile.core.model.objects
 import cx.lpm.mobile.core.model.string
+import cx.lpm.mobile.core.model.strings
 import java.security.GeneralSecurityException
 import java.util.Base64
 import javax.crypto.Cipher
@@ -71,8 +73,26 @@ data class PushAlert(
     val terminalId: String?,
     val automationId: String?,
     val statusKey: String,
-    val status: String
+    val status: String,
+    /** The alert's own report time, which an answer names back. */
+    val ts: Long? = null,
+    /** The buttons it offers; only a terminal alert that names its terminal and report. */
+    val actions: List<AgentAnswerAction> = emptyList()
 ) {
+    /** What the Mac needs to take an answer to this alert. */
+    fun answer(action: AgentAnswerAction, text: String? = null): AgentAnswer? {
+        if (action !in actions) return null
+        return AgentAnswer(
+            serverId = serverId,
+            project = project,
+            terminalId = terminalId ?: return null,
+            key = statusKey,
+            ts = ts ?: return null,
+            action = action,
+            text = text
+        )
+    }
+
     companion object {
         fun parse(o: JsonObject): PushAlert? {
             val project = o.string("project")?.takeIf { it.isNotEmpty() } ?: return null
@@ -80,6 +100,11 @@ data class PushAlert(
             val status = o.string("status").orEmpty()
             val target = o.string("target")?.takeIf { it.isNotEmpty() }
             val label = o.string("projectLabel").orEmpty()
+            val terminalId = o.string("terminalId")?.takeIf { it.isNotEmpty() }
+            val key = o.string("key").orEmpty()
+            val ts = o.long("ts")
+            val answerable = target != "automation" && terminalId != null && key.isNotEmpty() &&
+                ts != null
             return PushAlert(
                 serverId = o.string("serverId")?.takeIf { it.isNotEmpty() },
                 project = project,
@@ -87,10 +112,16 @@ data class PushAlert(
                 body = body(terminal, status),
                 kind = kind(target, status),
                 target = target,
-                terminalId = o.string("terminalId")?.takeIf { it.isNotEmpty() },
+                terminalId = terminalId,
                 automationId = o.string("automationId")?.takeIf { it.isNotEmpty() },
-                statusKey = o.string("key").orEmpty(),
-                status = status
+                statusKey = key,
+                status = status,
+                ts = ts,
+                actions = if (answerable) {
+                    AgentAnswerAction.offered(o.strings("actions").orEmpty())
+                } else {
+                    emptyList()
+                }
             )
         }
 

@@ -26,6 +26,9 @@ final class GitReviewStore {
     // conflicting ops can be serialized.
     var pushing: Set<String> = []
     var committing: Set<String> = []
+    // Commits that push once they land (the commit sheet's Commit and Push), kept
+    // until that push finishes: the commit's draft clears and its sheet closes then.
+    var commitPushing: Set<String> = []
     var generatingMessage: Set<String> = []
     var generatingPr: Set<String> = []
     var creatingPr: Set<String> = []
@@ -224,9 +227,16 @@ final class GitReviewStore {
         opError[project] = nil
         client?.gitCommit(project: project, message: message, files: files)
         armTimeout("commit", project, seconds: 120) { [weak self] in
-            guard let self, self.committing.remove(project) != nil else { return }
-            self.opError[project] = GitOpError(title: "Commit failed", message: "Commit timed out. Check your Mac and try again.")
+            guard let self, self.committing.contains(project) else { return }
+            self.finishCommit(project, error: "Commit timed out. Check your Mac and try again.")
         }
+    }
+
+    /// Commit, then push once the commit lands. A failed push keeps the commit.
+    func commitAndPush(_ project: String, message: String, files: [String]) {
+        guard !committing.contains(project), !pushing.contains(project) else { return }
+        commitPushing.insert(project)
+        commit(project, message: message, files: files)
     }
 
     func push(_ project: String) {
@@ -235,8 +245,8 @@ final class GitReviewStore {
         opError[project] = nil
         client?.gitPush(project: project)
         armTimeout("push", project, seconds: 120) { [weak self] in
-            guard let self, self.pushing.remove(project) != nil else { return }
-            self.opError[project] = GitOpError(title: "Push failed", message: "Push timed out. Check your Mac and try again.")
+            guard let self, self.pushing.contains(project) else { return }
+            self.finishPush(project, error: "Push timed out. Check your Mac and try again.")
         }
     }
 
@@ -483,7 +493,11 @@ final class GitReviewStore {
         clearTimeout("commit", project)
         committing.remove(project)
         if let error {
+            commitPushing.remove(project)
             opError[project] = GitOpError(title: "Commit failed", message: error)
+        } else if commitPushing.contains(project) {
+            load(project)
+            push(project)
         } else {
             announce(project, "Committed successfully")
             commitTick[project, default: 0] += 1
@@ -494,12 +508,14 @@ final class GitReviewStore {
     func finishPush(_ project: String, error: String?) {
         clearTimeout("push", project)
         pushing.remove(project)
+        let afterCommit = commitPushing.remove(project) != nil
         if let error {
-            opError[project] = GitOpError(title: "Push failed", message: error)
+            opError[project] = GitOpError(title: afterCommit ? "Committed, but not pushed" : "Push failed", message: error)
         } else {
-            announce(project, "Pushed")
+            announce(project, afterCommit ? "Committed and pushed" : "Pushed")
             load(project)
         }
+        if afterCommit { commitTick[project, default: 0] += 1 }
     }
 
     func finishGenMessage(_ project: String, message: String?, error: String?) {

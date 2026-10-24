@@ -1,17 +1,19 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { CheckoutBranch, PullBranch } from "../../bridge/commands";
+import { CheckoutBranch, PullBranch, SetClipboardText } from "../../bridge/commands";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { getSettings } from "../store/settings";
+import { prFromCreatedUrl } from "../store/branchPr";
 import { DEFAULT_PULL_CONFIG, pullFlags } from "../gitOptions";
 import { pullErrorText } from "../gitPullErrors";
-import { BranchIcon } from "./icons";
+import { BranchIcon, CopyIcon } from "./icons";
 
 interface PRCreatedViewProps {
   projectPath: string;
   branch: string;
   base: string;
   url: string;
+  draft?: boolean;
   onSwitched: () => void;
   onBusyChange?: (busy: boolean) => void;
 }
@@ -21,10 +23,22 @@ export function PRCreatedView({
   branch,
   base,
   url,
+  draft = false,
   onSwitched,
   onBusyChange,
 }: PRCreatedViewProps) {
   const [switching, setSwitching] = useState(false);
+  const pr = prFromCreatedUrl(url, "");
+  const link = url.trim();
+
+  const copyLink = async () => {
+    try {
+      await SetClipboardText(link);
+      toast.success("Copied pull request link");
+    } catch (err) {
+      toast.error(`Copy failed: ${err}`);
+    }
+  };
 
   const switchToBase = async () => {
     if (switching || !base) return;
@@ -69,13 +83,34 @@ export function PRCreatedView({
         </svg>
       </div>
       <div className="flex flex-col items-center gap-1">
-        <span className="text-base font-medium text-[var(--text-primary)]">
-          Pull request created
+        <span className="flex items-center gap-2 text-base font-medium text-[var(--text-primary)]">
+          {pr ? `Pull request #${pr.number} created` : "Pull request created"}
+          {draft && (
+            <span className="rounded-full bg-[var(--bg-active)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]">
+              Draft
+            </span>
+          )}
         </span>
         <span className="text-xs text-[var(--text-muted)]">
           {branch} &rarr; {base}
         </span>
       </div>
+      {link && (
+        <div className="flex w-full max-w-[460px] items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] py-1 pl-3 pr-1">
+          <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-[var(--text-secondary)]" title={link}>
+            {link}
+          </span>
+          <button
+            type="button"
+            onClick={copyLink}
+            aria-label="Copy link"
+            title="Copy link"
+            className="shrink-0 rounded-md p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            <CopyIcon size={13} />
+          </button>
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <button
           onClick={switchToBase}

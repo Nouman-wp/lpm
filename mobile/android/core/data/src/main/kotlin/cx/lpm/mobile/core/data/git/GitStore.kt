@@ -168,6 +168,14 @@ class GitStore(private val session: MacSession) : SessionStore {
     fun commit(project: String, message: String, files: List<String>) =
         start(GitOpCopy.Commit, project) { it.gitCommit(project, message, files) }
 
+    /** Commit, then push once the commit lands. A failed push keeps the commit. */
+    fun commitAndPush(project: String, message: String, files: List<String>) {
+        val s = state.value
+        if (project in s.committing || project in s.pushing) return
+        mutable.update { it.copy(commitPushing = it.commitPushing + project) }
+        commit(project, message, files)
+    }
+
     fun genMessage(project: String, files: List<String>) =
         start(GitOpCopy.GenMessage, project) { it.gitGenMessage(project, files) }
 
@@ -259,15 +267,19 @@ class GitStore(private val session: MacSession) : SessionStore {
         client?.let(send)
         arm(op.name, project, op.timeoutMs) {
             if (project !in op.running(state.value)) return@arm
-            mutable.update {
-                op.mark(it, project, false).copy(opError = it.opError + (project to copy.timedOut))
-            }
+            finish(copy, project, copy.timedOutMessage)
         }
     }
 
     private fun finish(copy: GitOpCopy, project: String, error: String?) {
         timeout.cancel(gitTimeoutKey(copy.op.name, project))
         mutable.update { copy.op.mark(it, project, false) }
+        if (copy == GitOpCopy.Commit && project in state.value.commitPushing) {
+            return finishCommitBeforePush(project, error)
+        }
+        if (copy == GitOpCopy.Push && project in state.value.commitPushing) {
+            return finishPushAfterCommit(project, error)
+        }
         // A pull that went through but left conflicts says so itself ("Pulled,
         // but…"), so it isn't called a failure and the new state is fetched.
         if (copy == GitOpCopy.Pull && error != null && error.startsWith("Pulled")) {
@@ -286,6 +298,34 @@ class GitStore(private val session: MacSession) : SessionStore {
             }
         }
         load(project)
+    }
+
+    private fun finishCommitBeforePush(project: String, error: String?) {
+        if (error != null) {
+            mutable.update { it.copy(commitPushing = it.commitPushing - project) }
+            showOpError(project, GitOpError(GitOpCopy.Commit.failed, error))
+            return
+        }
+        load(project)
+        push(project)
+    }
+
+    private fun finishPushAfterCommit(project: String, error: String?) {
+        mutable.update {
+            it.copy(
+                commitPushing = it.commitPushing - project,
+                opError = if (error != null) {
+                    it.opError + (project to GitOpError("Committed, but not pushed", error))
+                } else {
+                    it.opError
+                },
+                commitTick = it.commitTick + (project to (it.commitTick[project] ?: 0) + 1)
+            )
+        }
+        if (error == null) {
+            announce(project, "Committed and pushed")
+            load(project)
+        }
     }
 
     private fun finishGenMessage(project: String, message: String?, error: String?) {

@@ -69,6 +69,7 @@ import { peerSlugOf } from "../peer/markers";
 import { TerminalCopyAnswerOverlay } from "./TerminalCopyAnswerOverlay";
 import { useClearStatusOnInteraction } from "../hooks/useClearStatusOnInteraction";
 import { paneAgentStatus, type PaneStatus } from "../hooks/usePaneStatus";
+import { closePaneTooltip, runningAgentCount } from "../paneCloseSummary";
 import { useBrowserUrls } from "../store/browserUrls";
 import { useFilesView } from "../store/filesView";
 import { canForkSession } from "../forkSession";
@@ -733,7 +734,11 @@ function PaneViewImpl(props: PaneViewProps) {
             </IconBtn>
           </Tooltip>
           {canClose && (
-            <Tooltip content="Close pane" side="bottom" align="end">
+            <Tooltip
+              content={closePaneTooltip(pane.tabs, runningAgentCount(pane.tabs, paneStatus?.running))}
+              side="bottom"
+              align="end"
+            >
               <IconBtn onClick={() => onClosePane(pane.id)} ariaLabel="Close pane">
                 <XIcon />
               </IconBtn>

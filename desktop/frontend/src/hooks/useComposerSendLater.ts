@@ -32,6 +32,8 @@ interface Options {
   retire: (id: string) => void;
   // Put a prompt back into the input.
   restore: (text: string, images: Record<string, string>) => void;
+  // Whether the input is on screen.
+  shown: boolean;
 }
 
 // The picker is open for the prompt in the input, or to move a waiting one.
@@ -49,10 +51,16 @@ export function useComposerSendLater({
   release,
   retire,
   restore,
+  shown,
 }: Options) {
   const [picker, setPicker] = useState<SendLaterPicker | null>(null);
+  // History › Drafts, asked for by a Saved to Drafts toast. Asked for while
+  // the input is off screen, it opens once the input is back.
+  const [draftsOpen, setDraftsOpen] = useState(false);
   const restoreRef = useRef(restore);
   restoreRef.current = restore;
+  const shownRef = useRef(shown);
+  shownRef.current = shown;
 
   const openForPrompt = useCallback(() => {
     if (!readPrompt()) return;
@@ -73,11 +81,16 @@ export function useComposerSendLater({
       registerComposerHost(historyKey, {
         restore: (text, images) => restoreRef.current(text, images),
         openPicker: openForItem,
+        openDrafts: () => {
+          setDraftsOpen(true);
+          return shownRef.current;
+        },
       }),
     [historyKey, openForItem],
   );
 
   const close = useCallback(() => setPicker(null), []);
+  const closeDrafts = useCallback(() => setDraftsOpen(false), []);
 
   const pick = useCallback(
     async (at: number, kind: ScheduledPromptKind, choice: LastChoice | null) => {
@@ -121,5 +134,5 @@ export function useComposerSendLater({
     [picker, readPrompt, claim, release, retire, projectName, historyKey, targetLabel, agent],
   );
 
-  return { picker, openForPrompt, openForItem, close, pick };
+  return { picker, openForPrompt, openForItem, close, pick, draftsOpen: draftsOpen && shown, closeDrafts };
 }

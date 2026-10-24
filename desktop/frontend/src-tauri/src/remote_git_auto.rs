@@ -519,7 +519,7 @@ fn run_pr(t: &Tracker, cwd: &str) -> Result<(), String> {
             }
             t.check()?;
             t.report("branch", RUNNING, format!("Creating {name}…"));
-            crate::git::create_branch(cwd.to_string(), name.clone())?;
+            crate::git::create_branch(cwd.to_string(), name.clone(), None)?;
             Ok(name)
         })?;
         t.update(|run| {
@@ -584,6 +584,7 @@ fn run_pr(t: &Tracker, cwd: &str) -> Result<(), String> {
             title.clone(),
             body.trim().to_string(),
             base.clone(),
+            None,
         )?;
         Ok((title, url.trim().to_string()))
     })?;

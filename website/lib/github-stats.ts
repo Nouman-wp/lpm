@@ -211,3 +211,23 @@ export async function fetchContributors(): Promise<Contributor[]> {
     return [];
   }
 }
+
+export type LastCommit = { at: string; url: string };
+
+export async function fetchLastCommit(): Promise<LastCommit | null> {
+  try {
+    const res = await fetch(`${REPO_API_URL}/commits?per_page=1`, {
+      headers: { Accept: "application/vnd.github+json" },
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return null;
+    const [latest] = (await res.json()) as {
+      html_url: string;
+      commit: { committer: { date: string } | null };
+    }[];
+    const at = latest?.commit.committer?.date;
+    return at ? { at, url: latest.html_url } : null;
+  } catch {
+    return null;
+  }
+}

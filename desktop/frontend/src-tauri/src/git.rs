@@ -1131,13 +1131,23 @@ pub fn checkout_branch(cwd: String, branch: String, remote: String) -> Result<()
 }
 
 #[tauri::command(async)]
-pub fn create_branch(cwd: String, name: String) -> Result<(), String> {
+pub fn create_branch(cwd: String, name: String, from: Option<String>) -> Result<(), String> {
     let name = name.trim().to_string();
     if name.is_empty() {
         return Err("branch name required".into());
     }
     if branch_exists(&cwd, &format!("refs/heads/{name}")) {
         return Err(format!("branch {name:?} already exists"));
+    }
+    if let Some(from) = from.as_deref().map(str::trim).filter(|f| !f.is_empty()) {
+        if from.starts_with('-') {
+            return Err(format!("invalid start point {from:?}"));
+        }
+        // --no-track: a branch started from origin/x must not adopt x as its
+        // upstream, or its first push would go to someone else's branch.
+        let start = resolve_branch_ref(&cwd, from);
+        return git_out(&cwd, &["checkout", "--no-track", "-b", &name, &start])
+            .map(|_| crate::gitmoved::announce(&cwd));
     }
     match git_out(&cwd, &["branch", &name]) {
         Ok(_) => checkout_branch(cwd, name, String::new()),
@@ -1382,6 +1392,7 @@ pub fn create_pull_request(
     title: String,
     body: String,
     base: String,
+    draft: Option<bool>,
 ) -> Result<String, String> {
     if title.trim().is_empty() {
         return Err("title required".into());
@@ -1394,6 +1405,9 @@ pub fn create_pull_request(
     if !base.is_empty() {
         args.push("--base");
         args.push(&base);
+    }
+    if draft.unwrap_or(false) {
+        args.push("--draft");
     }
     let out = tool_command(&cwd, "gh", &args, &[])
         .output()
@@ -1729,7 +1743,7 @@ fn spawn_remote_poll(
 #[cfg(test)]
 mod tests {
     use super::{
-        cat_file_size, cat_file_spec_ok, coalesce, fill_has_remote, git_show_prefix,
+        cat_file_size, cat_file_spec_ok, coalesce, create_branch, fill_has_remote, git_show_prefix,
         parse_status_and_files, relative_to, should_ignore, split_diff_by_file, Change, GitStatus,
         CHANGE_CAP, MAX_COALESCE,
     };
@@ -1896,6 +1910,37 @@ mod tests {
         };
         fill_has_remote(&mut tracking, "/nonexistent");
         assert!(tracking.has_remote);
+    }
+
+    #[test]
+    fn create_branch_starts_from_the_branch_it_is_given() {
+        let dir = tempfile::tempdir().unwrap();
+        let cwd = dir.path().to_str().unwrap();
+        let git = |args: &[&str]| {
+            let out = std::process::Command::new("git")
+                .args(["-c", "user.name=t", "-c", "user.email=t@t"])
+                .args(args)
+                .current_dir(cwd)
+                .output()
+                .unwrap();
+            assert!(out.status.success(), "git {args:?}");
+            String::from_utf8_lossy(&out.stdout).trim().to_string()
+        };
+        git(&["init", "-q", "-b", "main"]);
+        git(&["commit", "-q", "--allow-empty", "-m", "first"]);
+        git(&["checkout", "-q", "-b", "other"]);
+        git(&["commit", "-q", "--allow-empty", "-m", "second"]);
+        let other = git(&["rev-parse", "HEAD"]);
+        git(&["checkout", "-q", "main"]);
+
+        create_branch(cwd.into(), "feat".into(), Some("other".into())).unwrap();
+        assert_eq!(git(&["rev-parse", "--abbrev-ref", "HEAD"]), "feat");
+        assert_eq!(git(&["rev-parse", "HEAD"]), other);
+
+        create_branch(cwd.into(), "fix".into(), None).unwrap();
+        assert_eq!(git(&["rev-parse", "--abbrev-ref", "HEAD"]), "fix");
+        assert!(create_branch(cwd.into(), "fix".into(), None).is_err());
+        assert!(create_branch(cwd.into(), "x".into(), Some("--orphan".into())).is_err());
     }
 
     #[test]

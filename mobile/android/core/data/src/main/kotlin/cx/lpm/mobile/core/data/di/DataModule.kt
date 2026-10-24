@@ -37,6 +37,7 @@ import cx.lpm.mobile.core.data.mac.ThisDevice
 import cx.lpm.mobile.core.data.machines.MachineImporter
 import cx.lpm.mobile.core.data.prefs.AppPreferences
 import cx.lpm.mobile.core.data.projects.ProjectsStore
+import cx.lpm.mobile.core.data.push.AgentAnswers
 import cx.lpm.mobile.core.data.push.NoPushTokens
 import cx.lpm.mobile.core.data.push.PushRegistrar
 import cx.lpm.mobile.core.data.push.PushStore
@@ -275,8 +276,10 @@ object DataModule {
 
     @Provides
     @IntoSet
-    fun pushStoreFactory(registrar: Provider<PushRegistrar>): SessionStore.Factory =
-        SessionStore.Factory { PushStore(it, registrar.get()) }
+    fun pushStoreFactory(
+        registrar: Provider<PushRegistrar>,
+        answers: Provider<AgentAnswers>
+    ): SessionStore.Factory = SessionStore.Factory { PushStore(it, registrar.get(), answers.get()) }
 
     /**
      * The live session's stores, for app-level code (root, settings). Screens resolve

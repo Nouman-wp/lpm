@@ -10,6 +10,8 @@ export interface FileViewerRequest {
   // Files a terminal reference could mean when it names more than one; the
   // viewer asks which before opening.
   choices?: string[];
+  // Opened from a dialog, which it has to sit above.
+  overDialog?: boolean;
 }
 
 // Minimized and docked keep the file (and a playing video) up while the app

@@ -53,15 +53,9 @@ final class PushRegistrar {
     // Per-Mac budget from "start dialing" to "ack received". Generous: a Tailscale
     // path can take seconds to come up, and nothing is waiting on the result.
     private static let attemptTimeout: TimeInterval = 20
-    private static let probeTimeout: TimeInterval = 6
 
     private let deviceName: String
     private var pending: Task<Void, Never>?
-    // The registration connection currently in flight. Held here because nothing
-    // else retains it: the client's callbacks and the watchdog are all weak, so a
-    // dropped `Attempt` would strand its continuation forever. The sweep is
-    // sequential, so one slot is enough.
-    private var inFlight: Attempt?
     private var sweeping = false
     // Set when a sweep is requested while one is running: the prefs may have moved
     // under it, so run once more at the end rather than dropping the request.
@@ -135,21 +129,23 @@ final class PushRegistrar {
     /// Register with one Mac. Returns whether the Mac acknowledged — false covers
     /// unreachable, refused (a credential it no longer honors), and timed out
     /// alike, none of which are worth surfacing: the sweep just retries later.
-    private func register(_ mac: MacRecord, payload: Payload) async -> Bool {
-        guard let credential = Keychain.load(for: mac.localId) else { return false }
-        let port = Int(mac.port)
-        guard let host = await HostProbe.firstReachable(mac.hosts, port: port,
-                                                        timeout: Self.probeTimeout)
-        else { return false }
-
-        let attempt = Attempt(deviceName: deviceName, onIdentity: onIdentity)
-        inFlight = attempt
-        defer { inFlight = nil }
-        return await withCheckedContinuation { continuation in
-            attempt.start(host: host, port: port, credential: credential, mac: mac,
-                          payload: payload, timeout: Self.attemptTimeout) { ok in
-                continuation.resume(returning: ok)
+    private func register(_ mac: MacRecord, payload p: Payload) async -> Bool {
+        let localId = mac.localId
+        let onIdentity = onIdentity
+        return await MacErrand.run(
+            to: mac, deviceName: deviceName, timeout: Self.attemptTimeout,
+            onIdentity: { serverId, serverName, platform in
+                onIdentity?(localId, serverId, serverName, platform)
             }
+        ) { client, done in
+            client.onApnsToken = done
+            client.sendApnsToken(token: p.token, env: p.env, key: p.key,
+                                 notifyWaiting: p.waiting,
+                                 notifyDone: p.done,
+                                 notifyError: p.error,
+                                 notifyAutomationStarted: p.automationStarted,
+                                 notifyAutomationDone: p.automationDone,
+                                 notifyAutomationError: p.automationError)
         }
     }
 
@@ -179,78 +175,5 @@ final class PushRegistrar {
 
     private static func storeSignature(_ signature: String, for localId: UUID) {
         UserDefaults.standard.set(signature, forKey: signatureKey(localId))
-    }
-}
-
-/// One Mac's registration connection: dials, sends the frame once the session is
-/// ready, and resolves exactly once — on the Mac's ack, on a terminal failure, or
-/// on the watchdog — tearing the throwaway client down on the way out.
-///
-/// This client is never handed to the app: it subscribes to no terminals, watches
-/// no projects, and takes control of nothing, so it can't disturb the live
-/// session or the state the UI renders.
-@MainActor
-private final class Attempt {
-    private let deviceName: String
-    private let onIdentity: ((UUID, String?, String?, String?) -> Void)?
-    private var client: LpmClient?
-    private var watchdog: DispatchWorkItem?
-    private var completion: ((Bool) -> Void)?
-
-    init(deviceName: String, onIdentity: ((UUID, String?, String?, String?) -> Void)?) {
-        self.deviceName = deviceName
-        self.onIdentity = onIdentity
-    }
-
-    func start(host: String, port: Int, credential: LpmClient.Credential, mac: MacRecord,
-               payload: PushRegistrar.Payload, timeout: TimeInterval,
-               completion: @escaping (Bool) -> Void) {
-        self.completion = completion
-        let localId = mac.localId
-        let c = LpmClient(endpoint: .init(host: host, port: port),
-                          credential: credential,
-                          deviceName: deviceName,
-                          pinProvider: { Keychain.loadPin(for: localId) })
-        client = c
-        c.onState = { [weak self] state in
-            switch state {
-            case .ready: self?.send(payload)
-            case .failed: self?.finish(false)
-            case .idle, .connecting: break
-            }
-        }
-        c.onApnsToken = { [weak self] ok in self?.finish(ok) }
-        c.onIdentity = { [weak self] serverId, serverName, platform in
-            self?.onIdentity?(localId, serverId, serverName, platform)
-        }
-        let w = DispatchWorkItem { [weak self] in self?.finish(false) }
-        watchdog = w
-        DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: w)
-        c.connect()
-    }
-
-    private func send(_ p: PushRegistrar.Payload) {
-        client?.sendApnsToken(token: p.token, env: p.env, key: p.key,
-                              notifyWaiting: p.waiting,
-                              notifyDone: p.done,
-                              notifyError: p.error,
-                              notifyAutomationStarted: p.automationStarted,
-                              notifyAutomationDone: p.automationDone,
-                              notifyAutomationError: p.automationError)
-    }
-
-    private func finish(_ ok: Bool) {
-        guard let completion else { return }
-        self.completion = nil
-        watchdog?.cancel()
-        watchdog = nil
-        // Drop the callbacks before tearing down: `shutdown()` sets the client to
-        // `.idle`, which would otherwise re-enter `onState` on a dead attempt.
-        client?.onState = nil
-        client?.onApnsToken = nil
-        client?.onIdentity = nil
-        client?.shutdown()
-        client = nil
-        completion(ok)
     }
 }

@@ -38,7 +38,13 @@ side by side (see `mobile/parity/README.md`).
   targeting it off the local network until it holds `ACCESS_LOCAL_NETWORK`, so the app asks
   for it ("nearby devices") when the pairing screen opens, or at launch with a Mac saved,
   where iOS shows Local Network on first use by itself — a refusal shows iOS's "Allow Local
-  Network access" row.
+  Network access" row; a notification's Deny button isn't red (Android has no
+  destructive notification action), and the agents-at-work card is an ongoing
+  notification where iOS shows a Live Activity, so its Settings → Notifications
+  section is "Live updates" with "While agents work, an ongoing notification shows
+  them." under it; that notification's text can't wear the widget's state colors and
+  marks, so its accent color carries the state and a tab with a problem reads
+  "problem" before its time.
 - **Same persisted keys and semantics** as iOS (table below), so behavior and
   defaults match.
 - Desktop changes that touch the phone now update both apps (AGENTS.md).
@@ -210,7 +216,7 @@ Port order is top to bottom within each milestone below. Lines are iOS sizes.
 | Actions → `:feature:actions` | ActionColorPicker, ActionEditorSheet, ActionInputsSheet, ActionPlacement, ActionTint, ActionZoneView, ActionZones, DesktopActionButton, ProjectActionsSheet(+Host), BackgroundRunSheet | 1,840 |
 | Activity → `:feature:activity` | ActivityBuild, ActivityChrome, ActivityModel, ActivityRowViews, ActivityScreen, AgentStateStyle | 1,322 |
 | Automations → `:feature:automations` | AutomationConversationView, AutomationDetailRows, AutomationDetailView, AutomationEditorSheet, AutomationFormat, AutomationViews | 2,283 |
-| Git → `:feature:git` | GitReviewView, GitFileSection, GitReviewParts, GitCommitSheet, GitPrSheet, GitReviewStore, GitBranchSheet, GitAutoSheet, GitAutoStore, GitNotice, GitOpError, DiffHighlighter, DiffRendering, AgentAskSheet | 3,359 |
+| Git → `:feature:git` | GitReviewView, GitFileSection, GitReviewParts, GitCommitSheet, GitCommitFilesPage, CommitDraftRow, CommitButtons, GitPrSheet, GitReviewStore, GitBranchSheet, GitAutoSheet, GitAutoStore, GitNotice, GitOpError, DiffHighlighter, DiffRendering, AgentAskSheet | 3,359 |
 | Notes → `:feature:notes` | NotesScreen, NotesChatView, NotesComposer, NotesMessageRow, NotesAttachmentView, NotesSearchStore, NotesStore, NotesTypes, NoteAttachmentStore | 1,736 |
 | Memory → `:feature:memory` | MemoryScreen, MemorySessionView, MemoryCreateSheet, MemoryEditorSheet, MemoryStore, MemoryTypes, ComposerMemorySheet | 1,167 |
 | Files / preview → `:feature:files`, `:core:web` | FileFetch, FilePreviewContent, FilePreviewKind, FilePreviewPlatformViews, FilePreviewSheet, MarkdownWebView, MarkdownImageLoader, MarkdownLink | 854 |
@@ -228,6 +234,8 @@ Port order is top to bottom within each milestone below. Lines are iOS sizes.
 | iOS | Android |
 |---|---|
 | APNs + Notification Service Extension (decrypts AES-GCM payload, rewrites text) | FCM **data** messages decrypted in `FirebaseMessagingService`, notification posted by the app; `POST_NOTIFICATIONS` on 13+ |
+| Notification categories (Allow / Deny / Reply, `authenticationRequired`) | notification actions to `AnswerReceiver` (`goAsync`, `RemoteInput` for Reply, `setAuthenticationRequired`); the answer goes over the live link or a short-lived connection (`AgentAnswers`, `MacErrand`) |
+| ActivityKit Live Activity (Lock Screen, Dynamic Island), updated by `liveactivity` pushes | one ongoing notification per Mac on the "Agents at work" channel (`LiveNotifier`), requesting promotion to a Live Update (Android 16, `POST_PROMOTED_NOTIFICATIONS`); fed by the live link (`LivePublisher`) and FCM `liveactivity` data messages alike |
 | `NWBrowser` Bonjour `_lpm._tcp` (TXT `id`, `name`, `v`, `rp`, `dev`) | `NsdManager` + `MulticastLock` |
 | `NWPathMonitor` | `ConnectivityManager.NetworkCallback` |
 | AVFoundation QR scanner | CameraX + ML Kit barcode scanning |
@@ -244,10 +252,10 @@ Port order is top to bottom within each milestone below. Lines are iOS sizes.
 | Embedded Go `LpmTailnet` static lib | `gomobile bind` AAR from a new `tailnet/android` module (own `go.mod` with `replace lpm.cx/tailnet => ..` and `tool golang.org/x/mobile/cmd/gobind`, so the desktop sidecar's module stays clean). Android 11+ blocks netlink, so register a netmon interface getter fed from `ConnectivityManager` (the role `defaultroute_darwin.go` plays on iOS). The `.so` is already 16 KB page-aligned, as Play requires for native code |
 
 Manifest needs: `INTERNET`, `ACCESS_NETWORK_STATE`, `CHANGE_WIFI_MULTICAST_STATE`,
-`CAMERA`, `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`; cleartext is not
-needed (the Mac speaks `wss` with a pinned self-signed cert). Not used on iOS, so not
-needed here: background tasks, live activities, app intents beyond the Token activity
-widget's pills, speech recognition, biometrics.
+`CAMERA`, `POST_NOTIFICATIONS`, `POST_PROMOTED_NOTIFICATIONS`,
+`FOREGROUND_SERVICE_MEDIA_PLAYBACK`; cleartext is not needed (the Mac speaks `wss` with
+a pinned self-signed cert). Not used on iOS, so not needed here: background tasks, app
+intents beyond the Token activity widget's pills, speech recognition, biometrics.
 
 ## Persisted state (same keys)
 
@@ -259,11 +267,12 @@ widget's pills, speech recognition, biometrics.
 | Keychain `cx.lpm.mobile.push` | `push-key` | 32 random bytes, one per phone, registered with every Mac |
 | UserDefaults | `lpm.macs`, `lpm.activeMacId`, `lpm.machineImports`, `lpm.machineImportsRevoked` | saved Macs (`MacRecord` JSON), active Mac, machine-import ledger, machines that removed this phone |
 | UserDefaults | `lpm.push.registered.<localId>` | last acknowledged push registration |
-| UserDefaults | `lpm.notify.enabled` / `.waiting` / `.done` / `.error` / `.automation.started` / `.automation.done` / `.automation.error` | missing = on, except `automation.started` (off) |
+| UserDefaults | `lpm.notify.enabled` / `.waiting` / `.done` / `.error` / `.automation.started` / `.automation.done` / `.automation.error` / `.liveActivity` | missing = on, except `automation.started` (off) |
+| Android only | `liveActivity.dismissed` | Macs whose agents-at-work card was swiped away, kept off until their agents are done (iOS's system ends a dismissed Live Activity) |
 | UserDefaults | `appearanceMode`, `terminalFontSize` (12, 8–24), `terminalTheme` (`claude-dark`) | appearance |
 | UserDefaults | `speech.engine`, `speech.voiceId`, `speech.rate` | read aloud |
 | UserDefaults | `builtInTailscale.enabled`, `pairing.usesTailscaleApp` | Tailscale |
-| UserDefaults | `activity.groupByProject`, `automation.scheduleOpen`, `automation.setupOpen`, `filePreviewMarkdownSource`, `actionPrimaryLastUsed`, `zoneOpenLayers`, `newTab.lastPick`, `macUpdate.dismissed.<id>` | UI memory |
+| UserDefaults | `activity.groupByProject`, `automation.scheduleOpen`, `automation.setupOpen`, `filePreviewMarkdownSource`, `actionPrimaryLastUsed`, `zoneOpenLayers`, `newTab.lastPick`, `gitReview.wrap` (missing = on), `macUpdate.dismissed.<id>` | UI memory |
 | Files | `Caches/project-lists/<localId>.json`; `ApplicationSupport/tailnet/` (no backup) | offline project list; tailnet state (`noBackupFilesDir`) |
 | App group `group.cx.lpm.mobile` | `token-activity.json` (Android: `filesDir`); UserDefaults `tokenActivity.range` (7, 14 or 30; missing = 7) | the Token activity widget's last 30-day read and the range its pills picked |
 | App group `group.cx.lpm.mobile` | `usage-widget.json` (Android: `filesDir`) | the Usage widget's rows from the Mac last live, and when the phone last had them |

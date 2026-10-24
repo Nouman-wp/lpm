@@ -1,6 +1,5 @@
 """Makes the iOS diff sources compile on macOS: UIKit becomes AppKit plus Stubs.swift,
-the SwiftUI views go, and blocks keep their NSAttributedStrings."""
-import re
+and blocks and their lines keep their NSAttributedStrings."""
 import sys
 
 work = sys.argv[1]
@@ -22,7 +21,4 @@ for old, new in [
 ]:
     assert old in src, old
     src = src.replace(old, new)
-views = re.compile(r"/// One hunk's merged code beside.*?(?=/// GitHub-style opaque pastel)", re.S)
-src, count = views.subn("", src)
-assert count == 1
 open(path, "w").write(src)

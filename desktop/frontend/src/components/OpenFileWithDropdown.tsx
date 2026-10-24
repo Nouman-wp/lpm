@@ -1,22 +1,10 @@
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
 import { useOutsideClick } from "../hooks/useOutsideClick";
-import { EDITOR_IDS, useOpenInTargets, type OpenInTarget } from "../hooks/useOpenInTargets";
-import { OpenFileInEditor, OpenPathInDefaultApp } from "../../bridge/commands";
-import { basename } from "../path";
-import { isPeerMarked, peerSlugOf } from "../peer/markers";
-import { isEditable, noteReadOnlyCopy } from "../peer/readOnlyCopy";
-import { trackPeerDownload } from "../peer/uploadProgress";
+import { launchOpenFileTarget, useOpenFileTargets } from "../hooks/useOpenFileTargets";
+import type { OpenInTarget } from "../hooks/useOpenInTargets";
+import { OpenTargetIcon } from "./OpenTargetIcon";
 
 const SELECTED_KEY = "lpm.openFileWith.selectedId";
-const DEFAULT_APP_ID = "__default_app__";
-// Synthetic target injected after the editor list. Empty `icon` is a
-// sentinel — TargetIcon renders an inline SVG instead of an <img>.
-const DEFAULT_APP_TARGET: OpenInTarget = {
-  id: DEFAULT_APP_ID,
-  label: "Default app",
-  icon: "",
-};
 
 interface OpenFileWithDropdownProps {
   absPath: string;
@@ -28,14 +16,7 @@ interface OpenFileWithDropdownProps {
 
 export function OpenFileWithDropdown({ absPath, line, col, compact = false }: OpenFileWithDropdownProps) {
   const [open, setOpen] = useState(false);
-  const editorTargets = useOpenInTargets();
-  // A file on a paired machine opens on this Mac, where a terminal or a file
-  // manager would have no folder of the file's to show.
-  const onPeer = isPeerMarked(absPath);
-  const targets = useMemo<OpenInTarget[]>(
-    () => [...editorTargets.filter((t) => !onPeer || EDITOR_IDS.has(t.id)), DEFAULT_APP_TARGET],
-    [editorTargets, onPeer],
-  );
+  const targets = useOpenFileTargets(absPath);
   const [selectedId, setSelectedId] = useState<string>(
     () => localStorage.getItem(SELECTED_KEY) ?? "",
   );
@@ -47,19 +28,7 @@ export function OpenFileWithDropdown({ absPath, line, col, compact = false }: Op
 
   if (!selected) return null;
 
-  const launch = async (t: OpenInTarget) => {
-    try {
-      const opening =
-        t.id === DEFAULT_APP_ID
-          ? OpenPathInDefaultApp(absPath)
-          : OpenFileInEditor(t.id, absPath, line, col, isEditable(absPath));
-      const slug = peerSlugOf(absPath);
-      const opened = await (slug ? trackPeerDownload(absPath, slug, basename(absPath), opening) : opening);
-      noteReadOnlyCopy(absPath, opened);
-    } catch (err) {
-      toast.error(`Open in ${t.label}: ${err}`);
-    }
-  };
+  const launch = (t: OpenInTarget) => launchOpenFileTarget(t, absPath, line, col);
 
   const pick = (t: OpenInTarget) => {
     setSelectedId(t.id);
@@ -78,7 +47,7 @@ export function OpenFileWithDropdown({ absPath, line, col, compact = false }: Op
             compact ? "gap-1.5 rounded-l-md px-2 py-1 text-[11px]" : "gap-2 rounded-l-lg px-2.5 py-1.5 text-[13px]"
           }`}
         >
-          <TargetIcon target={selected} />
+          <OpenTargetIcon target={selected} />
           <span>{compact ? "Open" : `Open in ${selected.label}`}</span>
         </button>
         <button
@@ -101,7 +70,7 @@ export function OpenFileWithDropdown({ absPath, line, col, compact = false }: Op
                 t.id === selected.id ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
               }`}
             >
-              <TargetIcon target={t} />
+              <OpenTargetIcon target={t} />
               <span className="flex-1 truncate">{t.label}</span>
             </button>
           ))}
@@ -109,29 +78,6 @@ export function OpenFileWithDropdown({ absPath, line, col, compact = false }: Op
       )}
     </div>
   );
-}
-
-function TargetIcon({ target }: { target: OpenInTarget }) {
-  if (target.id === DEFAULT_APP_ID) {
-    return (
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="h-4 w-4 shrink-0 text-[var(--text-secondary)]"
-      >
-        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-        <polyline points="15 3 21 3 21 9" />
-        <line x1="10" y1="14" x2="21" y2="3" />
-      </svg>
-    );
-  }
-  return <img src={target.icon} alt="" className="h-4 w-4 shrink-0" />;
 }
 
 function ChevronDown() {

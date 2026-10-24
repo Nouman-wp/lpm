@@ -1,9 +1,12 @@
 import { useMemo, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { ServerIcon } from "./icons";
 import { LaptopIcon } from "./connections/LaptopIcon";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { RenameModal } from "./RenameModal";
-import { PairingModal, type Pairing } from "./PairingModal";
+import { PairingModal } from "./PairingModal";
+import { usePairingFlow } from "./mobile/usePairingFlow";
+import { peerCommands } from "./settings/machineCommands";
 import { peerSlugOf } from "../peer/markers";
 import { SidebarHeaderShell } from "./SidebarHeaderShell";
 import { SidebarRollupLine } from "./SidebarRollupLine";
@@ -16,7 +19,7 @@ import type { PeerStatus } from "../peer/peerStatus";
 import type { PeerNoun } from "../peer/platform";
 import { isMac } from "../platform";
 import { isPeerSectionCollapsed, setPeerSectionCollapsed } from "../peer/peerSectionCollapse";
-import { PeerReconnect, PeerRemotePair, PeerRemove, PeerSetAlias } from "../../bridge/commands";
+import { PeerReconnect, PeerRemove, PeerSetAlias } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import { hasPeerListing } from "../peer/route";
 import { SidebarHostEmptyRow } from "./SidebarHostEmptyRow";
@@ -106,19 +109,15 @@ export function SidebarPeerSection({
   const [renameOpen, setRenameOpen] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   // The QR minted by this machine for a phone to scan, and why one couldn't be.
-  const [phonePairing, setPhonePairing] = useState<Pairing | null>(null);
+  const phonePairing = usePairingFlow();
   const [phonePairError, setPhonePairError] = useState<string | null>(null);
-  const [phonePairBusy, setPhonePairBusy] = useState(false);
 
   const pairPhone = async () => {
-    if (phonePairBusy) return;
-    setPhonePairBusy(true);
+    if (phonePairing.busy) return;
     try {
-      setPhonePairing((await PeerRemotePair(slug)) as Pairing);
+      await phonePairing.start(peerCommands(slug).mobile);
     } catch (err) {
       setPhonePairError(String(err));
-    } finally {
-      setPhonePairBusy(false);
     }
   };
 
@@ -320,9 +319,15 @@ export function SidebarPeerSection({
       />
 
       <PairingModal
-        pairing={phonePairing}
+        pairing={phonePairing.pairing}
         machine={alias}
-        onClose={() => setPhonePairing(null)}
+        outcome={phonePairing.outcome}
+        busy={phonePairing.busy}
+        onClose={phonePairing.close}
+        onNewCode={() => void pairPhone()}
+        onRename={(id, name) =>
+          void phonePairing.rename(id, name).catch((err) => toast.error(`Couldn't rename it — ${String(err)}`))
+        }
       />
 
       <ConfirmDialog

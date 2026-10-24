@@ -59,6 +59,7 @@ export const gitCommands: CommandMap = {
     };
   },
   git_default_branch: () => "main",
+  git_merge_state: () => ({ merging: false, source: "", files: [] }),
   list_branches: ({ cwd }) => {
     const branches = repo(cwd)?.git.branches ?? [];
     const local = new Set(branches.filter((b) => !b.remote).map((b) => b.name));
