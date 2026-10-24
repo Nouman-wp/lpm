@@ -51,6 +51,7 @@ function PaneWithRowMenu() {
         onRunAction={() => {}}
         onFooterContextMenu={onFooterContextMenu}
         onNewTerminal={() => {}}
+        onEditService={() => {}}
         sessionHistory={[]}
         hiddenSessions={new Set()}
         onResumeRow={() => {}}

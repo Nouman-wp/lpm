@@ -9,6 +9,7 @@ import { useAIPicker } from "../../hooks/useAIPicker";
 import { isCanceledError, useAIGeneration } from "../../hooks/useAIGeneration";
 import { aiEffectiveFast } from "../../types";
 import { enterHint } from "../../shortcutHints";
+import { stripCodeFences } from "../../codeFences";
 
 const ACTION_YAML_PROGRESS_EVENT = "action-yaml-progress";
 
@@ -199,11 +200,4 @@ export function AIActionModal({
       </div>
     </Modal>
   );
-}
-
-function stripCodeFences(text: string): string {
-  const trimmed = text.trim();
-  const fence = /^```(?:yaml|yml)?\s*\n?([\s\S]*?)\n?```$/i;
-  const m = trimmed.match(fence);
-  return (m ? m[1] : trimmed).trim();
 }

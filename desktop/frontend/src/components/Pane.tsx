@@ -163,10 +163,12 @@ export interface PaneHandle {
 
 interface PaneProps {
   label?: string;
-  // Before the label (a state dot), and a line added to its tooltip (the
-  // command the pane runs).
+  // Before the label (a state dot), and a line added to its link's tooltip
+  // (the command the pane runs).
   labelLead?: ReactNode;
   labelHint?: string;
+  // After the label, when it isn't a link to the pane's tab.
+  labelDetail?: ReactNode;
   onLabelClick?: () => void;
   labelActions?: ReactNode;
   output: string;
@@ -179,7 +181,7 @@ interface PaneProps {
   ref?: Ref<PaneHandle>;
 }
 
-export function Pane({ label, labelLead, labelHint, onLabelClick, labelActions, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride, sessionKey, cwd = "", ref }: PaneProps) {
+export function Pane({ label, labelLead, labelHint, labelDetail, onLabelClick, labelActions, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride, sessionKey, cwd = "", ref }: PaneProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const sessionRef = useRef<PaneSession | null>(null);
     const filterRef = useRef<FilterMirror | null>(null);
@@ -450,9 +452,10 @@ export function Pane({ label, labelLead, labelHint, onLabelClick, labelActions, 
                 </span>
               </button>
             ) : (
-              <span className="flex min-w-0 items-center gap-1" title={labelHint}>
+              <span className="flex min-w-0 items-center gap-1">
                 {labelLead}
                 <span className="truncate">{label}</span>
+                {labelDetail}
               </span>
             )}
             {labelActions && (

@@ -59,6 +59,7 @@ const ASK_INSTRUCTION: &str = "If you can't go on without a decision or informat
 pub(crate) mod ask;
 pub(crate) mod askform;
 pub(crate) mod machines;
+mod signin;
 
 // ---- config parsing ---------------------------------------------------------
 
@@ -2445,8 +2446,10 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
     // The project's fixed Claude account, as a scheduled terminal gets; a
     // resumed session goes back to the account holding its transcript.
     let target = copy.as_deref().unwrap_or(split_key(key).0);
-    let claude =
-        crate::claude_pool::spawn_env(target, resumed.as_deref().map(|sid| (root, sid)), false).env;
+    let crate::claude_pool::Spawn {
+        env: claude,
+        account,
+    } = crate::claude_pool::spawn_env(target, resumed.as_deref().map(|sid| (root, sid)), false);
     let log_path = logs.join(format!("{}-{}.log", key.replace('/', "_"), now_secs()));
     let cmdline = capture_cmdline(agent.as_deref(), &cmdline, &log_path);
     let is_agent = agent.is_some();
@@ -2485,6 +2488,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                 let (mut result, mut output, mut session, mut cost) =
                     reap_run(&mut child, &key2, &log_path, is_reply, agent.as_deref());
                 let mut compacted = compacted;
+                let mut last_log = log_path.clone();
                 // The session had no room left: retry once as a fresh session
                 // seeded with the thread's condensed transcript. The key stays
                 // registered as running throughout, so nothing overlaps it.
@@ -2517,8 +2521,12 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                             (result, output, session, cost) =
                                 reap_run(&mut retry, &key2, &log2, true, agent.as_deref());
                             compacted = true;
+                            last_log = log2;
                         }
                     }
+                }
+                if result == ERROR && agent.as_deref() == Some("claude") {
+                    output = signin::explain(output, &last_log, account.as_deref(), &claude);
                 }
                 active_runs().lock().unwrap().remove(&key2);
                 if ended_quietly(&app2, &key2, quiet, manual, result, output.as_deref()) {

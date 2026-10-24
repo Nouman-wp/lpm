@@ -44,6 +44,7 @@ interface TerminalPaneProps {
   onZoneContextMenu?: (e: MouseEvent, zone: ZoneInfo) => void;
   onFooterContextMenu?: (e: MouseEvent<HTMLDivElement>) => void;
   onNewTerminal: () => void;
+  onEditService: (serviceName: string) => void;
   onResumeSession?: () => void;
   // The empty state's recent conversations, and how one of them resumes.
   sessionHistory: PersistedHistoryEntry[];
@@ -80,6 +81,7 @@ export function TerminalPane({
   onZoneContextMenu,
   onFooterContextMenu,
   onNewTerminal,
+  onEditService,
   onResumeSession,
   sessionHistory,
   hiddenSessions,
@@ -112,6 +114,7 @@ export function TerminalPane({
           onResumeSession={onResumeSession}
           actions={actions}
           onRunAction={onRunAction}
+          onEditService={onEditService}
         />
       </div>
       {showEmptyState && (

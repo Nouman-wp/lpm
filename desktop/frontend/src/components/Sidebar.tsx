@@ -1181,7 +1181,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
                     <SpinnerIcon />
                   </span>
                 ) : project.configError ? (
-                  <span className="h-2 w-2 rounded-full bg-[var(--accent-red)]" title="Config error" />
+                  <span className="h-2 w-2 rounded-full bg-[var(--accent-red)]" title={`Config error: ${project.configError}`} />
                 ) : (
                   <StatusDot
                     running={projectUp(project)}

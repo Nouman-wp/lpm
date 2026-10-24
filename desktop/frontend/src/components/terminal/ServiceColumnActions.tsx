@@ -1,4 +1,4 @@
-import { RefreshIcon, StopIcon } from "../icons";
+import { PencilIcon, RefreshIcon, StopIcon } from "../icons";
 import { Tooltip } from "../ui/Tooltip";
 import { ServicePortLinks } from "./ServicePortLinks";
 
@@ -9,14 +9,15 @@ interface ServiceColumnActionsProps {
   exited: boolean;
   onRestart: () => void;
   onStop: () => void;
+  onEdit?: () => void;
 }
 
 const BUTTON =
   "flex items-center rounded p-0.5 text-[var(--terminal-header-text)] transition-colors hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)] [&>svg]:h-3 [&>svg]:w-3";
 
-// The right end of a service's column header in the All view: where it
-// listens, and restart/stop without leaving the view.
-export function ServiceColumnActions({ projectName, name, ports, exited, onRestart, onStop }: ServiceColumnActionsProps) {
+// The right end of a service's bar, on its own pane and on its column in the
+// All view: where it listens, and restart/stop/edit without leaving the view.
+export function ServiceColumnActions({ projectName, name, ports, exited, onRestart, onStop, onEdit }: ServiceColumnActionsProps) {
   return (
     <>
       {!exited && ports.length > 0 && (
@@ -31,6 +32,13 @@ export function ServiceColumnActions({ projectName, name, ports, exited, onResta
         <Tooltip content={`Stop ${name}`} side="bottom" align="end">
           <button type="button" onClick={onStop} aria-label={`Stop ${name}`} className={BUTTON}>
             <StopIcon />
+          </button>
+        </Tooltip>
+      )}
+      {onEdit && (
+        <Tooltip content={`Edit ${name}`} side="bottom" align="end">
+          <button type="button" onClick={onEdit} aria-label={`Edit ${name}`} className={BUTTON}>
+            <PencilIcon />
           </button>
         </Tooltip>
       )}

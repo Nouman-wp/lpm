@@ -1,7 +1,8 @@
-import { type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { useYamlEditor } from "../hooks/useYamlEditor";
 import { validateYaml } from "../yamlValidation";
+import { configProblems } from "../configProblems";
 import { ChevronLeftIcon } from "./icons";
 import { MonacoEditor } from "./MonacoEditor";
 import { primaryHint } from "../shortcutHints";
@@ -35,6 +36,7 @@ export function YamlConfigEditor({
     handleSave,
   } = useYamlEditor(load, save, validateYaml);
   const activeError = validationError ?? error;
+  const problems = useMemo(() => configProblems(activeError), [activeError]);
 
   return (
     <div className="flex flex-1 flex-col pt-6">
@@ -69,6 +71,7 @@ export function YamlConfigEditor({
             language="yaml"
             modelUri={modelUri}
             onSave={handleSave}
+            problems={problems}
           />
         </div>
         {(dirty || activeError) && (

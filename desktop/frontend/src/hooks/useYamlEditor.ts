@@ -12,6 +12,7 @@ export function useYamlEditor(
   const [original, setOriginal] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   const dirty = content !== original;
   const validationError = useMemo(
@@ -21,7 +22,7 @@ export function useYamlEditor(
 
   useEffect(() => {
     load()
-      .then((data) => { setContent(data); setOriginal(data); })
+      .then((data) => { setContent(data); setOriginal(data); setLoaded(true); })
       .catch((err) => setError(`Failed to load: ${err}`));
   }, [load]);
 
@@ -74,6 +75,7 @@ export function useYamlEditor(
   return {
     content,
     setContent,
+    loaded,
     dirty,
     saving,
     error,

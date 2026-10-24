@@ -867,6 +867,10 @@ export function ProjectDetail({
           keysActive={focused}
           showEmptyState={showEmptyState}
           onNewTerminal={handleNewTerminal}
+          onEditService={(name) => {
+            const service = project.allServices.find((s) => s.name === name);
+            if (service) serviceEditor.startEdit(service);
+          }}
           actions={project.actions}
           newTabAsked={newTabAsked}
           onNewTabHandled={clearNewTabAsked}

@@ -106,6 +106,8 @@ interface TerminalViewProps {
   actions?: ActionInfo[];
   // A project action started from the + popup.
   onRunAction: (action: ActionInfo, opts?: RunActionOpts) => void;
+  // Opens a service's form; absent where services can't be edited.
+  onEditService?: (serviceName: string) => void;
   ref?: React.Ref<TerminalViewHandle>;
 }
 
@@ -151,7 +153,7 @@ export interface TerminalViewHandle {
   openAutomationsTab(): Promise<void>;
 }
 
-export function TerminalView({ projectName, projectLabel, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, paneStatus, visible = true, onScreen = visible, keysActive = true, onResumeSession, actions, onRunAction, ref }: TerminalViewProps) {
+export function TerminalView({ projectName, projectLabel, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, paneStatus, visible = true, onScreen = visible, keysActive = true, onResumeSession, actions, onRunAction, onEditService, ref }: TerminalViewProps) {
   const duplicateProject = useAppStore(
     (s) => s.projects.find((p) => p.name === projectName) ?? null,
   );
@@ -1066,6 +1068,9 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     },
     [restartServiceIn, projectName],
   );
+  const onEditServiceRef = useRef(onEditService);
+  onEditServiceRef.current = onEditService;
+  const editService = useCallback((serviceName: string) => onEditServiceRef.current?.(serviceName), []);
 
   // "Run in duplicates" from a composer's split button: the current prompt (with
   // its agent command) opens the seeded Duplicate dialog, where the user picks
@@ -1237,6 +1242,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
             onFocusService={focusService}
             onStopService={stopService}
             onRestartService={restartService}
+            onEditService={onEditService ? editService : undefined}
             onAddTerminal={addTerminalToPane}
             newTabProject={newTabProject}
             onLaunchAgent={launchAgentInPane}

@@ -19,6 +19,7 @@ import { TabContextMenu } from "./terminal/TabContextMenu";
 import { ServiceTabContextMenu } from "./terminal/ServiceTabContextMenu";
 import { ServiceExitBar } from "./terminal/ServiceExitBar";
 import { ServicePortLinks } from "./terminal/ServicePortLinks";
+import { ServiceCommand } from "./terminal/ServiceCommand";
 import { TerminalEndedBar } from "./terminal/TerminalEndedBar";
 import { useEndedTerminals } from "../store/endedTerminals";
 import { serviceCrashed } from "../serviceExit";
@@ -164,7 +165,7 @@ export interface ServiceTabInfo {
   // The service's command has ended; its tab stays with the last output.
   exited?: boolean;
   exitCode?: number | null;
-  // The command the service runs, for its column's tooltip in the All view.
+  // The command the service runs, shown on its pane's bar.
   cmd?: string;
 }
 
@@ -192,6 +193,8 @@ export interface PaneViewProps {
   onFocusService: (paneId: string, serviceName: string) => void;
   onStopService: (serviceName: string) => void;
   onRestartService: (serviceName: string) => void;
+  // Absent where services can't be edited from here.
+  onEditService?: (serviceName: string) => void;
   onAddTerminal: (paneId: string) => void;
   // The project the + popup starts things in.
   newTabProject: LaunchpadProject;
@@ -291,6 +294,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onFocusService,
     onStopService,
     onRestartService,
+    onEditService,
     onAddTerminal,
     newTabProject,
     onLaunchAgent,
@@ -771,9 +775,10 @@ function PaneViewImpl(props: PaneViewProps) {
                 fontSize={fontSize}
                 themeOverride={themeOverride}
                 cwd={svc.cwd}
-                label={isAllActive ? svc.name : undefined}
+                label={svc.name}
                 labelLead={<ServiceStateDot exited={svc.exited} exitCode={svc.exitCode} />}
                 labelHint={svc.cmd}
+                labelDetail={svc.cmd ? <ServiceCommand cmd={svc.cmd} /> : undefined}
                 labelActions={
                   <ServiceColumnActions
                     projectName={projectName}
@@ -782,6 +787,7 @@ function PaneViewImpl(props: PaneViewProps) {
                     exited={svc.exited ?? false}
                     onRestart={() => onRestartService(svc.name)}
                     onStop={() => onStopService(svc.name)}
+                    onEdit={onEditService ? () => onEditService(svc.name) : undefined}
                   />
                 }
                 onLabelClick={

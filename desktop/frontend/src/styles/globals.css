@@ -767,6 +767,35 @@ body {
   background: rgb(234 179 8 / 0.15);
 }
 
+/* A config problem's line (monacoProblems.ts): a faint red band, a dot in the
+   gutter, and the message on a line of its own underneath. */
+.monaco-editor .lpm-problem-line {
+  background: color-mix(in srgb, var(--accent-red) 8%, transparent);
+}
+
+.monaco-editor .lpm-problem-gutter::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--accent-red);
+  transform: translateY(-50%);
+}
+
+.monaco-editor .lpm-problem-zone {
+  overflow: hidden;
+  padding-left: 2px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--accent-red-text);
+  background: color-mix(in srgb, var(--accent-red) 5%, transparent);
+}
+
 /* Modern "N hidden lines" band for the review diff editors — retones Monaco's
    default collapsed hideUnchangedRegions widget (heavy inset band + busy "unfold"
    snowflake glyph) into a clean, clickable divider bar on the app's theme tokens.

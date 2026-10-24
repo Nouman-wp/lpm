@@ -2,6 +2,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import type * as monacoNs from "monaco-editor";
 import { parseDocument } from "yaml";
 import { setupMonaco } from "../monaco-setup";
+import { showProblems } from "../monacoProblems";
+import type { ConfigProblem } from "../configProblems";
 import {
   DEFAULT_MONACO_FONT_SIZE,
   MONACO_FONT_FAMILY,
@@ -32,6 +34,19 @@ interface MonacoEditorProps {
   // Opens scrolled to this line, cursor on it and the line marked, and takes
   // focus; read once, when the editor mounts.
   reveal?: { line: number; col: number };
+  // Moves the cursor to this line of an open editor, each time a new object is
+  // passed.
+  jumpTo?: { line: number; col: number };
+  problems?: ConfigProblem[];
+}
+
+function placeCursor(editor: monacoNs.editor.IStandaloneCodeEditor, line: number, col: number): number | null {
+  const model = editor.getModel();
+  if (!model || line < 1) return null;
+  const lineNumber = Math.min(line, model.getLineCount());
+  editor.setPosition({ lineNumber, column: Math.max(1, col) });
+  editor.revealLineInCenter(lineNumber);
+  return lineNumber;
 }
 
 export function MonacoEditor({
@@ -44,6 +59,8 @@ export function MonacoEditor({
   onToggleView,
   readOnly = false,
   reveal,
+  jumpTo,
+  problems,
 }: MonacoEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monacoNs.editor.IStandaloneCodeEditor | null>(null);
@@ -118,10 +135,8 @@ export function MonacoEditor({
 
     const at = revealRef.current;
     if (at) {
-      if (at.line > 0) {
-        const lineNumber = Math.min(at.line, model.getLineCount());
-        editor.setPosition({ lineNumber, column: Math.max(1, at.col) });
-        editor.revealLineInCenter(lineNumber);
+      const lineNumber = placeCursor(editor, at.line, at.col);
+      if (lineNumber !== null) {
         editor.createDecorationsCollection([
           {
             range: new monaco.Range(lineNumber, 1, lineNumber, 1),
@@ -267,6 +282,22 @@ export function MonacoEditor({
     if (!ready) return;
     editorRef.current?.updateOptions({ readOnly, domReadOnly: readOnly });
   }, [readOnly, ready]);
+
+  const jumpedRef = useRef(jumpTo);
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!ready || !editor || !jumpTo || jumpTo === jumpedRef.current) return;
+    jumpedRef.current = jumpTo;
+    placeCursor(editor, jumpTo.line, jumpTo.col);
+    editor.focus();
+  }, [jumpTo, ready]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!ready || !editor || !monaco || !problems?.length) return;
+    return showProblems(monaco, editor, problems);
+  }, [problems, ready]);
 
   // Another editor, or a zoom control, changed the shared font size.
   useEffect(() => {

@@ -1,4 +1,5 @@
-import { useRef, useCallback, useState } from "react";
+import { useRef, useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   ReadConfig,
   SaveConfig,
@@ -23,6 +24,9 @@ import { type AICLI } from "../types";
 import { getSettings, saveSettings } from "../store/settings";
 import { validateYaml } from "../yamlValidation";
 import { primaryHint } from "../shortcutHints";
+import { configProblems, type ConfigProblem } from "../configProblems";
+import { useConfigFix } from "../hooks/useConfigFix";
+import { ConfigProblemNotice } from "./ConfigProblemNotice";
 
 type ConfigTarget = "user" | "repo" | "global";
 
@@ -49,6 +53,10 @@ interface ConfigEditorProps {
   onBack?: () => void;
   onToggleView?: () => void;
   isRemote?: boolean;
+  // Why the project's own file doesn't load, as the project page reported it.
+  loadError?: string;
+  // Opened from that error: at the line it names, or asking AI for a fix.
+  startWith?: "line" | "fix";
 }
 
 export function ConfigEditor({
@@ -57,6 +65,8 @@ export function ConfigEditor({
   onBack,
   onToggleView,
   isRemote = false,
+  loadError,
+  startWith,
 }: ConfigEditorProps) {
   const onSavedRef = useRef(onSaved);
   onSavedRef.current = onSaved;
@@ -65,10 +75,21 @@ export function ConfigEditor({
   const targets = isRemote ? [USER_TARGET, GLOBAL_TARGET] : [USER_TARGET, REPO_TARGET, GLOBAL_TARGET];
 
   const [target, setTarget] = useState<ConfigTarget>("user");
-  const [mode, setMode] = useState<"form" | "yaml">(() => getSettings().configEditorMode ?? "form");
+  const [mode, setMode] = useState<"form" | "yaml">(() =>
+    startWith ? "yaml" : (getSettings().configEditorMode ?? "form"),
+  );
+  // Where the YAML editor opens, or moves to once open.
+  const [goTo, setGoTo] = useState<{ line: number; col: number } | undefined>(() =>
+    startWith ? configProblems(loadError)[0] : undefined,
+  );
+  const changeTarget = (next: ConfigTarget) => {
+    setTarget(next);
+    setGoTo(undefined);
+  };
 
   const changeMode = (next: "form" | "yaml") => {
     if (next === mode) return;
+    if (next === "form") setGoTo(undefined);
     setMode(next);
     saveSettings({ configEditorMode: next });
   };
@@ -108,6 +129,32 @@ export function ConfigEditor({
   // force YAML for repo and global targets.
   const effectiveMode = target === "user" ? mode : "yaml";
   const activeError = active.validationError ?? active.error;
+  // The project page's error is about the saved user file, so it holds until
+  // that file is edited.
+  const shownError =
+    activeError ?? (target === "user" && active.loaded && !active.dirty ? loadError ?? null : null);
+  const problems = useMemo(() => configProblems(shownError), [shownError]);
+  const firstProblem = problems.at(0);
+
+  const goToProblem = (problem: ConfigProblem) => {
+    setGoTo({ line: problem.line, col: problem.col });
+    if (effectiveMode === "form") changeMode("yaml");
+  };
+
+  const fixer = useConfigFix();
+  const fixWithAI = async (editor: typeof active, error: string) => {
+    const fixed = await fixer.fix(editor.content, error);
+    if (fixed === null) return;
+    if (fixed.trim() === editor.content.trim()) toast("AI found nothing to change");
+    else editor.setContent(fixed);
+  };
+  const autoFixed = useRef(false);
+  useEffect(() => {
+    if (startWith !== "fix" || autoFixed.current || !userEditor.loaded || !loadError) return;
+    autoFixed.current = true;
+    void fixWithAI(userEditor, loadError);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startWith, userEditor.loaded, loadError]);
 
   const [aiOpen, setAiOpen] = useState(false);
 
@@ -115,7 +162,7 @@ export function ConfigEditor({
     const yaml = await GenerateProjectConfig(projectName, cli, extraPrompt, genId);
     userEditor.setContent(yaml);
     changeMode("yaml");
-    setTarget("user");
+    changeTarget("user");
     setAiOpen(false);
   };
 
@@ -142,7 +189,7 @@ export function ConfigEditor({
           </div>
           <div className="flex items-center gap-2">
             {targets.length > 1 && (
-              <SegmentedControl value={target} onChange={setTarget} options={targets} />
+              <SegmentedControl value={target} onChange={changeTarget} options={targets} />
             )}
             <div
               className={`flex items-center gap-2 ${
@@ -174,28 +221,41 @@ export function ConfigEditor({
         <VisualConfigEditor
           content={active.content}
           onChange={active.setContent}
-          onEditYaml={() => changeMode("yaml")}
+          onEditYaml={() => (firstProblem ? goToProblem(firstProblem) : changeMode("yaml"))}
           isRemote={isRemote}
         />
       ) : (
         <div className="relative flex-1 overflow-hidden">
-          <MonacoEditor
-            value={active.content}
-            onChange={active.setContent}
-            language="yaml"
-            modelUri={modelUri}
-            onSave={active.handleSave}
-            onToggleView={onToggleView}
-          />
+          {(active.loaded || active.error) && (
+            <MonacoEditor
+              key={modelUri}
+              value={active.content}
+              onChange={active.setContent}
+              language="yaml"
+              modelUri={modelUri}
+              onSave={active.handleSave}
+              onToggleView={onToggleView}
+              readOnly={fixer.fixing}
+              reveal={goTo}
+              jumpTo={goTo}
+              problems={problems}
+            />
+          )}
         </div>
       )}
 
-      {(active.dirty || activeError) && (
+      {(active.dirty || shownError) && (
         <div className="absolute bottom-4 right-4 z-10 flex items-end gap-2">
-          {activeError && (
-            <pre className="max-w-[420px] whitespace-pre-wrap rounded-lg border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/10 px-3 py-2 text-left text-[11px] leading-relaxed text-[var(--accent-red)] shadow-lg">
-              {activeError}
-            </pre>
+          {shownError && (
+            <ConfigProblemNotice
+              message={shownError}
+              goTo={firstProblem && { line: firstProblem.line, onClick: () => goToProblem(firstProblem) }}
+              fix={
+                fixer.available
+                  ? { fixing: fixer.fixing, onFix: () => void fixWithAI(active, shownError), onCancel: fixer.cancel }
+                  : undefined
+              }
+            />
           )}
           <span className="mb-2 text-[10px] text-[var(--text-muted)]">{primaryHint("s")}</span>
           <button
