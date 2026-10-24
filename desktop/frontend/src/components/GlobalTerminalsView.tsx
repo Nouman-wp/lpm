@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "../store/app";
 import { TerminalView, type TerminalViewHandle } from "./TerminalView";
-import { ActionView } from "./ActionView";
+import { TerminalFooter } from "./TerminalFooter";
+import { headerWrapKey } from "./actionsDndLayout";
 import { Header } from "./project-detail/Header";
-import { EMPTY_SERVICES, noop, NO_DRAG_STYLE } from "./project-detail/constants";
+import { HeaderActions } from "./project-detail/HeaderActions";
+import { EMPTY_SERVICES, noop } from "./project-detail/constants";
 import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { useProjectActions } from "../hooks/useProjectActions";
+import { useActionsByDisplay } from "../hooks/useActionsByDisplay";
+import { useOverflowWrap } from "../hooks/useOverflowWrap";
 import type { LaunchpadProject } from "../hooks/useLaunchpad";
 import { useGlobalTerminalStatus } from "../hooks/useGlobalTerminalStatus";
 import { ActionInputsModal } from "./project-detail/ActionInputsModal";
@@ -15,7 +19,7 @@ import { ActionRunCard } from "./project-detail/ActionRunCard";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { TerminalIcon } from "./icons";
 import { GetProject } from "../../bridge/commands";
-import type { ActionInfo, ProjectInfo } from "../types";
+import type { ActionInfo, ProjectInfo, ZoneInfo } from "../types";
 import {
   GLOBAL_TERMINALS_KEY,
   countPersistedTabs,
@@ -31,6 +35,7 @@ interface GlobalTerminalsViewProps {
 }
 
 const LABEL = "Terminals";
+const NO_ACTIONS: { actions: ActionInfo[]; zones: ZoneInfo[] } = { actions: [], zones: [] };
 
 export function GlobalTerminalsView({
   visible = true,
@@ -42,8 +47,6 @@ export function GlobalTerminalsView({
   });
 
   const terminalRef = useRef<TerminalViewHandle>(null);
-  const headerRowRef = useRef<HTMLDivElement>(null);
-  const headerInnerRef = useRef<HTMLDivElement>(null);
   const { theme: terminalTheme, themeStyle } = useTerminalTheme();
   const { fontSize, zoomIn, zoomOut } = useTerminalFontSize();
   const paneStatus = useGlobalTerminalStatus();
@@ -68,15 +71,18 @@ export function GlobalTerminalsView({
     terminalRef.current?.focusTerminalById(terminalId);
   }, [visible, pendingFocusTerminal, clearPendingFocusTerminal]);
 
-  const [actions, setActions] = useState<ActionInfo[]>([]);
+  const [{ actions, zones }, setConfig] = useState(NO_ACTIONS);
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
     GetProject(GLOBAL_TERMINALS_KEY)
-      .then((info: ProjectInfo) => { if (!cancelled) setActions(info.actions); })
-      .catch(() => { if (!cancelled) setActions([]); });
+      .then((info: ProjectInfo) => { if (!cancelled) setConfig({ actions: info.actions, zones: info.zones ?? [] }); })
+      .catch(() => { if (!cancelled) setConfig(NO_ACTIONS); });
     return () => { cancelled = true; };
   }, [visible]);
+  const { headerItems, footerItems, layout } = useActionsByDisplay(actions, zones);
+  const hasZones = headerItems.some((item) => item.kind === "zone");
+  const { wrapped, rowRef, innerRef } = useOverflowWrap([headerWrapKey(layout, zones)]);
   const newTabProject = useMemo<LaunchpadProject>(
     () => ({ name: GLOBAL_TERMINALS_KEY, label: LABEL, root: "", actions }),
     [actions],
@@ -108,18 +114,16 @@ export function GlobalTerminalsView({
   });
 
   const showEmptyState = terminalCount === 0;
-  const actionsRow = actions.length > 0 && (
-    <div className="flex flex-wrap items-center justify-end gap-2" style={NO_DRAG_STYLE}>
-      {actions.map((a) => (
-        <ActionView
-          key={a.name}
-          action={a}
-          size="default"
-          disabled={runningAction !== null}
-          onRun={handleRunAction}
-        />
-      ))}
-    </div>
+  const actionsRow = headerItems.length > 0 && (
+    <HeaderActions
+      items={headerItems}
+      layout={layout}
+      wrapped={wrapped}
+      alignTop={hasZones}
+      projectName={GLOBAL_TERMINALS_KEY}
+      disabled={runningAction !== null}
+      onRun={handleRunAction}
+    />
   );
 
   return (
@@ -128,67 +132,71 @@ export function GlobalTerminalsView({
         projectName={LABEL}
         showProjectName={true}
         sidebarCollapsed={sidebarCollapsed}
-        rowRef={headerRowRef}
-        innerRef={headerInnerRef}
-        actionsWrapped={false}
+        rowRef={rowRef}
+        innerRef={innerRef}
+        actionsWrapped={wrapped}
         actions={actionsRow}
         controls={null}
+        alignTop={hasZones}
       />
 
-      {showEmptyState && (
-        <div className="mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">
-          <div className="flex max-w-sm flex-col items-center gap-5 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg-hover)] text-[var(--text-muted)] [&_svg]:h-[26px] [&_svg]:w-[26px]">
-              <TerminalIcon />
+      <div className="relative mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden" style={themeStyle}>
+        {showEmptyState && (
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">
+            <div className="flex max-w-sm flex-col items-center gap-5 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg-hover)] text-[var(--text-muted)] [&_svg]:h-[26px] [&_svg]:w-[26px]">
+                <TerminalIcon />
+              </div>
+              <div className="flex flex-col items-center gap-1.5">
+                <h3 className="text-sm font-medium text-[var(--text-primary)]">No terminals yet</h3>
+                <p className="text-xs text-[var(--text-muted)]">
+                  Quick shells for scripts, system commands, and anything that isn't tied to a single project.
+                </p>
+              </div>
+              <NewTerminalButton
+                project={newTabProject}
+                onNewTerminal={handleNewTerminal}
+                onRunCommand={runCommand}
+                onOpenAgent={openAgent}
+                onRunAction={handleRunAction}
+                openRequested={newTabAsked}
+                onOpenRequestHandled={clearNewTabAsked}
+                className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85"
+              >
+                <TerminalIcon />
+                New Terminal
+                <kbd className="ml-1 text-[10px] opacity-70">{chordLabel({ key: "t", meta: true })}</kbd>
+              </NewTerminalButton>
             </div>
-            <div className="flex flex-col items-center gap-1.5">
-              <h3 className="text-sm font-medium text-[var(--text-primary)]">No terminals yet</h3>
-              <p className="text-xs text-[var(--text-muted)]">
-                Quick shells for scripts, system commands, and anything that isn't tied to a single project.
-              </p>
-            </div>
-            <NewTerminalButton
-              project={newTabProject}
-              onNewTerminal={handleNewTerminal}
-              onRunCommand={runCommand}
-              onOpenAgent={openAgent}
-              onRunAction={handleRunAction}
-              openRequested={newTabAsked}
-              onOpenRequestHandled={clearNewTabAsked}
-              className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85"
-            >
-              <TerminalIcon />
-              New Terminal
-              <kbd className="ml-1 text-[10px] opacity-70">{chordLabel({ key: "t", meta: true })}</kbd>
-            </NewTerminalButton>
           </div>
-        </div>
-      )}
+        )}
 
-      <div
-        className={
-          showEmptyState
-            ? "hidden"
-            : "relative mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden"
-        }
-        style={themeStyle}
-      >
-        <TerminalView
-          ref={terminalRef}
+        <div className={showEmptyState ? "hidden" : "contents"}>
+          <TerminalView
+            ref={terminalRef}
+            projectName={GLOBAL_TERMINALS_KEY}
+            projectLabel={LABEL}
+            projectRoot=""
+            services={EMPTY_SERVICES}
+            terminalTheme={terminalTheme}
+            onTerminalCountChange={setTerminalCount}
+            fontSize={fontSize}
+            onZoomIn={zoomIn}
+            onZoomOut={zoomOut}
+            paneStatus={paneStatus}
+            visible={visible && !showEmptyState}
+            onScreen={visible}
+            actions={actions}
+            onRunAction={handleRunAction}
+          />
+        </div>
+        <TerminalFooter
           projectName={GLOBAL_TERMINALS_KEY}
-          projectLabel={LABEL}
-          projectRoot=""
-          services={EMPTY_SERVICES}
-          terminalTheme={terminalTheme}
-          onTerminalCountChange={setTerminalCount}
-          fontSize={fontSize}
-          onZoomIn={zoomIn}
-          onZoomOut={zoomOut}
-          paneStatus={paneStatus}
-          visible={visible && !showEmptyState}
-          onScreen={visible}
-          actions={actions}
+          projectPath=""
+          items={footerItems}
+          layout={layout}
           onRunAction={handleRunAction}
+          disabled={runningAction !== null}
         />
       </div>
 

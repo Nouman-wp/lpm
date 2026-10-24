@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { toast } from "sonner";
 import { ActionsDnd } from "./ActionsDnd";
-import { type ActionGroup, applyMove, groupOf, listOf, movedByZoneResize, zoneOfButton } from "./actionsDndLayout";
+import { type ActionGroup, applyMove, groupOf, headerWrapKey, listOf, zoneOfButton } from "./actionsDndLayout";
 import { ActionDragOverlay } from "./ActionDragOverlay";
 import { ConfigEditor } from "./ConfigEditor";
 import { NotesView } from "./NotesView";
@@ -668,21 +668,13 @@ export function ProjectDetail({
     if (!showEmptyState) setNewTabAsked(false);
   }, [showEmptyState, newTabAsked]);
 
-  // project.zones is a new array on every refresh and preview; keying the
-  // wrap check on the zone shape keeps it from re-measuring each time.
-  const zonesKey = (project.zones ?? []).map((z) => `${z.name}:${z.rows}:${z.collapsed ? 1 : 0}`).join("|");
-  // The header's items and its zones' buttons; the footer's never change its width.
-  const headerKey = movedByZoneResize(actionsLayout, "header").join("\n");
   const {
     wrapped: actionsWrapped,
     rowRef: headerRowRef,
     innerRef: innerContainerRef,
   } = useOverflowWrap(
     [
-      // Re-measures whenever a button moves into, out of or within the header
-      // or its zones, which can change its width without changing its item count.
-      headerKey,
-      zonesKey,
+      headerWrapKey(actionsLayout, project.zones ?? []),
       showProjectName,
       project.running,
       project.allServices.length,

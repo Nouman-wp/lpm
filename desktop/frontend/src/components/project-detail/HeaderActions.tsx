@@ -17,7 +17,8 @@ interface HeaderActionsProps {
   onRun: (action: ActionInfo) => void;
   onContextMenu?: (e: MouseEvent, action: ActionInfo) => void;
   onZoneContextMenu?: (e: MouseEvent, zone: ZoneInfo) => void;
-  onAddAction: () => void;
+  // The Terminals page has nowhere to add an action to.
+  onAddAction?: () => void;
 }
 
 // While dragging, the header only re-measures on drop, so a button brought in
@@ -43,7 +44,7 @@ export function HeaderActions({ wrapped, alignTop, onAddAction, ...row }: Header
       }
       style={inlineDrag ? INLINE_DRAG_STYLE : NO_DRAG_STYLE}
     >
-      <AddActionButton onAddAction={onAddAction} />
+      {onAddAction && <AddActionButton onAddAction={onAddAction} />}
     </ActionsRow>
   );
 }

@@ -187,6 +187,15 @@ export function movedByZoneResize(layout: ActionsLayout, row: ZoneDisplay): stri
   ];
 }
 
+// What the header's wrap check is keyed on. A button moving into, out of or
+// within the header or its zones can change its width without changing its
+// item count; the footer's never do. Zones arrive as a new array on every
+// refresh and preview, so their shape, not their identity, is the key.
+export function headerWrapKey(layout: ActionsLayout, zones: ZoneInfo[]): string {
+  const shape = zones.map((z) => `${z.name}:${z.rows}:${z.collapsed ? 1 : 0}`).join("|");
+  return `${movedByZoneResize(layout, "header").join("\n")}\n${shape}`;
+}
+
 export interface DropTarget {
   group: ActionGroup;
   index: number;
