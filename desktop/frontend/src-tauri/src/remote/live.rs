@@ -157,7 +157,7 @@ fn send_all(hub: &RemoteHub, app: &AppHandle) {
         let Some(blob) = seal_push(&dev.key, plaintext.to_string().as_bytes()) else {
             continue;
         };
-        let body = relay_body(&dev, blob, ended, urgent);
+        let body = relay_body(&dev, blob, ended.then(|| dismiss_at(&snap)), urgent);
         match post_relay(client, &relay, body) {
             Delivery::Sent if ended => {
                 sent().lock().unwrap().remove(&dev.id);
@@ -245,17 +245,24 @@ fn finished_at(e: &StatusEntry) -> i64 {
     }
 }
 
+/// When the final snapshot comes down, in unix seconds: after a while when it
+/// still lists an agent, at once when it has none left to show.
+fn dismiss_at(snap: &Value) -> i64 {
+    let listed = snap["agents"].as_array().is_some_and(|a| !a.is_empty());
+    now_millis() / 1000 + if listed { LINGER_SECS } else { 0 }
+}
+
 /// The relay body for one update: the Live Activity's own token on APNs, the
-/// phone's push token on FCM. `urgent` asks for immediate delivery — something
-/// newly waits on the user, or it ended — and the rest go at a lower priority,
-/// which APNs budgets less tightly.
-fn relay_body(dev: &PushDevice, blob: String, ended: bool, urgent: bool) -> String {
+/// phone's push token on FCM. An update with `dismiss_at` ends it. `urgent` asks
+/// for immediate delivery — something newly waits on the user, or it ended — and
+/// the rest go at a lower priority, which APNs budgets less tightly.
+fn relay_body(dev: &PushDevice, blob: String, dismiss_at: Option<i64>, urgent: bool) -> String {
     let mut body = relay_envelope(dev, blob);
     body["type"] = json!("liveactivity");
-    body["event"] = json!(if ended { "end" } else { "update" });
+    body["event"] = json!(if dismiss_at.is_some() { "end" } else { "update" });
     body["urgent"] = json!(urgent);
-    if ended {
-        body["dismissAt"] = json!(now_millis() / 1000 + LINGER_SECS);
+    if let Some(at) = dismiss_at {
+        body["dismissAt"] = json!(at);
     }
     body.to_string()
 }
@@ -323,6 +330,15 @@ mod tests {
         let snap = snapshot(&entries, &HashMap::new(), now);
         assert_eq!(snap["live"], false);
         assert_eq!(snap["agents"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn an_end_with_no_agent_left_comes_down_at_once() {
+        let now = 10 * RECENT_MS;
+        let done = [entry("claude_code_a", STATUS_DONE, "t1", now - 1_000)];
+        let soon = now_millis() / 1000;
+        assert!(dismiss_at(&snapshot(&done, &HashMap::new(), now)) >= soon + LINGER_SECS);
+        assert!(dismiss_at(&snapshot(&[], &HashMap::new(), now)) <= soon + 1);
     }
 
     #[test]

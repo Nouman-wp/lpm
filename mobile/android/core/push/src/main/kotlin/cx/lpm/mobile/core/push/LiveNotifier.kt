@@ -17,7 +17,7 @@ import kotlinx.coroutines.runBlocking
  * counterpart of iOS's Live Activity), titled with the Mac's saved name and fed by
  * the live link and by the Mac's `liveactivity` pushes alike. When nothing is at work
  * it shows the final reading a while — only if one was showing, and not while the app
- * is on screen, where it just goes.
+ * is on screen or when it has no agent left to list, where it just goes.
  * A card the user swiped away stays away until that Mac's agents are done; the
  * Macs it was swiped for are kept, since each push may start a new process.
  */
@@ -48,7 +48,7 @@ class LiveNotifier @Inject constructor(
         if (card.ended) {
             val shown = shown().firstOrNull { it.macId == macId }
             if (shown == null || shown.ended) return
-            if (onScreen) return cancel(macId)
+            if (onScreen || card.entries.isEmpty()) return cancel(macId)
         }
         context.notifyIfAllowed(macId, LiveNotification.ID) {
             LiveNotification.build(context, card)

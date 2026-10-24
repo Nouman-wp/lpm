@@ -11,7 +11,8 @@ private typealias AgentActivity = ActivityKit.Activity<AgentActivityAttributes>
 /// Another Mac's activity, from when that one was on screen, runs on its pushes.
 @MainActor
 final class LiveActivityController {
-    /// How long the last reading stays up once nothing is at work.
+    /// How long the last reading stays up once nothing is at work — when it still
+    /// lists an agent; with none left it goes at once.
     private static let linger: TimeInterval = 15 * 60
 
     var onToken: ((_ serverId: String, _ token: String) -> Void)?
@@ -35,6 +36,8 @@ final class LiveActivityController {
         if let current {
             if snapshot.live {
                 await current.update(content)
+            } else if snapshot.agents.isEmpty {
+                await current.end(content, dismissalPolicy: .immediate)
             } else {
                 await current.end(content, dismissalPolicy: .after(Date().addingTimeInterval(Self.linger)))
             }

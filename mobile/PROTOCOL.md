@@ -898,7 +898,8 @@ exactly like an alert:
 each. `waiting` and `working` count all of them. `since` is when the state
 began, `turnStart` when the turn did (0 when unseen), `endedAt` when it ended.
 `live: false` means nothing is at work any more: that update **ends** the
-activity, left up for 15 minutes, and the Mac forgets an iPhone's activity token
+activity, left up for 15 minutes — or taken down at once when `agents` is empty,
+so no blank card stays up — and the Mac forgets an iPhone's activity token
 (the phone registers the next activity it starts).
 
 **Relay contract.** The desktop POSTs:

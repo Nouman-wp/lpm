@@ -207,6 +207,14 @@ class LiveNotifierTest {
     }
 
     @Test
+    fun anEndWithNoAgentLeftTakesTheCardDown() = runTest {
+        val (live, _) = notifier()
+        live.post("srv-1", working, onScreen = false)
+        live.post("srv-1", finished.copy(agents = emptyList()), onScreen = false)
+        assertTrue(manager.activeNotifications.isEmpty())
+    }
+
+    @Test
     fun eachMacHasItsOwnCardAndOpeningKeepsTheLiveOnes() = runTest {
         val (live, _) = notifier()
         live.post("srv-1", working, onScreen = false)
