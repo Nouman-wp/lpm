@@ -1,5 +1,5 @@
 import { useCallback, useState, type MouseEvent } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 
 interface NamedEntity {
   name: string;

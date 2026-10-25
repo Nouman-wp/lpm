@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { AddPortForward } from "../../../bridge/commands";
 import { projectPortUrl } from "../../peer/projectPorts";
 import { openPortInLpm } from "../../portLinks";

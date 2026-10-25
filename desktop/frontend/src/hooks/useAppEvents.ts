@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { EventsOn } from "../../bridge/runtime";
 import {
   DrainPendingJobTasks,
@@ -16,6 +16,7 @@ import { getSettings, useSettingsStore } from "../store/settings";
 import { applySettingsOutsideStore } from "../settingsEffects";
 import type { SpawnTask } from "../types";
 import { displayNameForProjectName } from "../components/ProjectNameDisplay";
+import { announceJobResult } from "../jobResultToast";
 import { isPeerName, peerSlugOf, stripMarker } from "../peer/markers";
 import { peerAlias, usePeerState, type PeerClient } from "../peer/usePeerState";
 
@@ -60,49 +61,28 @@ export function useAmbientAppEvents(
         manual?: boolean;
         notify?: boolean;
       }) => {
-        // The name the user gave it, not the id it is filed under.
-        const name = payload?.label || payload?.jobId;
-        // A quiet job's run that found nothing stays silent — unless someone
-        // pressed Run now and is waiting to hear it finished.
-        if (payload?.result === "quiet") {
-          if (payload.manual) toast(`"${name}" found nothing to report.`);
-          return;
-        }
-        // The job sends its results elsewhere, not to lpm.
-        if (payload?.notify === false) return;
-        // A run waiting on the user — in any project, or none.
-        if (payload?.result === "asked") {
-          const inProject = !!payload.project && !!stripMarker(payload.project);
-          const where = inProject ? ` in ${projectPhrase(payload.project, peersRef.current)}` : "";
-          toast(`"${name}"${where} is waiting for your answer.`, {
-            description: payload.detail,
-            duration: 15000,
-            action: openAutomation && {
-              label: "Answer",
-              onClick: () => openAutomation(payload.jobId, inProject ? payload.project : null),
-            },
-          });
-          return;
-        }
-        if (!payload?.project || !stripMarker(payload.project)) return;
-        const project = projectPhrase(payload.project, peersRef.current);
-        const copy = payload.copy ? projectPhrase(payload.copy, peersRef.current) : "";
-        // What the run actually reported — "finished" alone doesn't say whether
-        // it did what it was asked.
-        const detail = payload.detail ? ` ${payload.detail}` : "";
-        if (payload.result === "found-work") {
-          toast.success(
-            copy
-              ? `"${name}" found work in ${project} — running in ${copy}.`
-              : `"${name}" found work in ${project}.`,
-          );
-        } else if (payload.result === "completed") {
-          toast.success(`"${name}" in ${project} finished.${detail}`);
-        } else if (payload.result === "error") {
-          toast.error(`"${name}" in ${project} hit a problem.${detail}`);
-        } else if (payload.result === "timed-out") {
-          toast.error(`"${name}" in ${project} ran too long and was stopped.`);
-        }
+        if (!payload?.result) return;
+        // A quiet run that found nothing stays silent unless someone pressed
+        // Run now and is waiting to hear it finished; a job that sends its
+        // results elsewhere stays silent here.
+        if (payload.result === "quiet" ? !payload.manual : payload.notify === false) return;
+        const inProject = !!payload.project && !!stripMarker(payload.project);
+        // Outcomes of a run inside a project need the project to make sense;
+        // only a question can come from an app-wide automation.
+        if (!inProject && payload.result !== "asked" && payload.result !== "quiet") return;
+        announceJobResult(
+          {
+            jobId: payload.jobId,
+            name: payload.label || payload.jobId,
+            result: payload.result,
+            project: inProject ? projectPhrase(payload.project, peersRef.current) : "",
+            projectKey: payload.project,
+            copy: payload.copy ? projectPhrase(payload.copy, peersRef.current) : undefined,
+            detail: payload.detail,
+            manual: payload.manual,
+          },
+          openAutomation,
+        );
       },
     );
 

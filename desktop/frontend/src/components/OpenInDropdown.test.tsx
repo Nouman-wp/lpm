@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
+vi.mock("../notifications/toast", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 vi.mock("../../bridge/commands", () => ({
   ListOpenInTargets: vi.fn(() =>
     Promise.resolve([

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { IS_MIRROR_WINDOW } from "../mirror";
 import type { PeerClient } from "./usePeerState";
 import { autoSyncToast, type AutoSyncResult } from "./autoSyncToast";
@@ -40,7 +40,7 @@ export function usePeerAutoSyncToasts(peers: PeerClient[]): void {
         lastErrorAt.current.set(res.slug, now);
         toast.error(decision.message);
       } else {
-        toast(decision.message);
+        toast(decision.message, { event: "peers" });
       }
     })
       .then((un) => {

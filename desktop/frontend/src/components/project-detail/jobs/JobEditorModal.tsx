@@ -6,7 +6,7 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
-import { toast } from "sonner";
+import { toast } from "../../../notifications/toast";
 import { Modal } from "../../ui/Modal";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { VideoLink } from "../../ui/VideoLink";

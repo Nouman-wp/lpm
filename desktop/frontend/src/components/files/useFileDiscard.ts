@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { GitDiscardFiles } from "../../../bridge/commands";
 import type { Item } from "./treeModel";
 import type { Changes } from "./useChangedFiles";

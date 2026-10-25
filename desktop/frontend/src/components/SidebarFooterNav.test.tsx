@@ -112,10 +112,11 @@ describe("SidebarFooterNav", () => {
     expect(moreButton()!.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("starts with Terminals as the only row outside the menu", () => {
+  it("starts with Terminals and Notifications as the only rows outside the menu", () => {
     renderNav();
 
     expect(buttonWithText("Terminals")).toBeDefined();
+    expect(buttonWithText("Notifications")).toBeDefined();
     expect(buttonWithText("Stats")).toBeUndefined();
     expect(buttonWithText("Reset to default")).toBeUndefined();
   });
@@ -128,7 +129,7 @@ describe("SidebarFooterNav", () => {
     openRowMenu("Stats");
     pick("Move to the sidebar");
 
-    expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual(["terminals", "stats"]);
+    expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual(["terminals", "notifications", "stats"]);
 
     // Now a sidebar row: reachable with the menu shut, and gone from it.
     act(() => moreButton()!.click());
@@ -146,7 +147,7 @@ describe("SidebarFooterNav", () => {
 
     openRowMenu("Terminals");
     pick("Move to the More menu");
-    expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual([]);
+    expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual(["notifications"]);
     expect(buttonWithText("Terminals")).toBeUndefined();
 
     openMore();
@@ -179,7 +180,12 @@ describe("SidebarFooterNav", () => {
     pick("Move to the sidebar");
     openRowMenu("Usage");
     pick("Move to the sidebar");
-    expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual(["terminals", "usage", "stats"]);
+    expect(useSettingsStore.getState().sidebarNavInSidebar).toEqual([
+      "terminals",
+      "notifications",
+      "usage",
+      "stats",
+    ]);
 
     // The menu stays open across moves, so Reset is right there.
     pick("Reset to default");
@@ -193,6 +199,7 @@ describe("SidebarFooterNav", () => {
     useSettingsStore.setState({
       sidebarNavInSidebar: [
         "terminals",
+        "notifications",
         "automations",
         "usage",
         "stats",

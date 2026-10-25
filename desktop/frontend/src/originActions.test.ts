@@ -16,7 +16,7 @@ vi.mock("../bridge/commands", () => ({
   GitPush: mocks.push,
   GitMerge: mocks.merge,
 }));
-vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
+vi.mock("./notifications/toast", () => ({ toast: { error: mocks.toastError } }));
 vi.mock("./store/settings", () => ({
   getSettings: () => ({
     gitPull: { strategy: "ff-only", autostash: mocks.autostash, noVerify: false },
@@ -95,7 +95,9 @@ describe("runOriginAction", () => {
     mocks.status.mockResolvedValue(status({ conflicted: true }));
     await runOriginAction(ROOT, { kind: "behind", behind: 3 });
 
-    expect(mocks.toastError).toHaveBeenCalledWith("Pull failed: Not possible to fast-forward, aborting.");
+    expect(mocks.toastError).toHaveBeenCalledWith("Pull failed: Not possible to fast-forward, aborting.", {
+      retry: expect.any(Function),
+    });
     expect(entry()).toMatchObject({ running: false, done: undefined });
     expect(entry().status.conflicted).toBe(true);
   });
@@ -193,6 +195,7 @@ describe("pullDeck", () => {
     expect(mocks.pull).toHaveBeenCalledTimes(2);
     expect(mocks.toastError).toHaveBeenCalledWith(
       "Pull failed in reader: Your local changes would be overwritten by merge",
+      { retry: expect.any(Function) },
     );
     vi.advanceTimersByTime(2500);
     expect(pulls()).toMatchObject({ running: false, failed: [ROOT] });

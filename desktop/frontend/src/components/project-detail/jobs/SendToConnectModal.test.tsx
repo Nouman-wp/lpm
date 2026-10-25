@@ -36,7 +36,7 @@ vi.mock("../../../../bridge/commands", () => ({
 }));
 const opened = vi.fn();
 vi.mock("../../../../bridge/runtime", () => ({ BrowserOpenURL: (url: string) => opened(url) }));
-vi.mock("sonner", () => ({ toast: Object.assign(() => {}, { success: () => {}, error: () => {} }) }));
+vi.mock("../../../notifications/toast", () => ({ toast: Object.assign(() => {}, { success: () => {}, error: () => {} }) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

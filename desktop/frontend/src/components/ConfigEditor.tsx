@@ -1,5 +1,5 @@
 import { useRef, useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import {
   ReadConfig,
   SaveConfig,

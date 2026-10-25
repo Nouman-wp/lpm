@@ -17,7 +17,7 @@ vi.mock("../../bridge/runtime", () => ({
     return () => {};
   },
 }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("../notifications/toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { dictationLevel, useDictationStore } from "./dictation";
 import { captureDictationTarget } from "../dictation/insert";

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { RefreshAgentTools } from "../../bridge/commands";
 import {
   agentToolsAction,

@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { DeleteMemorySession, RenameMemorySession } from "../../bridge/commands";
 import type { InputComposerMemorySource, InputComposerMemoryState } from "../hooks/useInputComposerMemory";
 import type { MentionItem } from "../mentions";

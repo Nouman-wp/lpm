@@ -1,5 +1,7 @@
 import { BrowserOpenURL } from "../../../bridge/runtime";
 import { sendToRequestUrl } from "../../githubIssue";
+import { channelEnabled } from "../../notifications/channels";
+import type { NotificationEvent } from "../../notifications/types";
 import { rowProps, SOUND_EVENTS } from "../../settings-registry";
 import type { Settings } from "../../store/settings";
 import { SettingsRow } from "../SettingsRow";
@@ -8,50 +10,64 @@ import { SoundPicker } from "../SoundPicker";
 import { TelegramRow } from "../TelegramRow";
 import { BTN_SECONDARY } from "../ui/buttons";
 import { Toggle } from "../ui/Toggle";
+import { NotificationChannelsTable } from "./NotificationChannelsTable";
 import { useRowReach, useSettingsTarget } from "./settingsTarget";
 import { useMachineList } from "./useMachineList";
 
 type SoundEvent = (typeof SOUND_EVENTS)[number]["event"];
 
-// Where each event's sound is kept.
+// Each sound's agent event, and where its choice is kept.
 const SOUND_SETTINGS: Record<
   SoundEvent,
-  { value: (s: Settings) => string | undefined; patch: (sound: string) => Partial<Settings> }
+  {
+    event: NotificationEvent;
+    value: (s: Settings) => string | undefined;
+    patch: (sound: string) => Partial<Settings>;
+  }
 > = {
-  done: { value: (s) => s.doneSound, patch: (doneSound) => ({ doneSound }) },
-  waiting: { value: (s) => s.waitingSound, patch: (waitingSound) => ({ waitingSound }) },
-  error: { value: (s) => s.errorSound, patch: (errorSound) => ({ errorSound }) },
+  done: { event: "agentDone", value: (s) => s.doneSound, patch: (doneSound) => ({ doneSound }) },
+  waiting: { event: "agentWaiting", value: (s) => s.waitingSound, patch: (waitingSound) => ({ waitingSound }) },
+  error: { event: "agentError", value: (s) => s.errorSound, patch: (errorSound) => ({ errorSound }) },
 };
 
 export function NotificationsPane() {
   const { machine, settings, update, commands } = useSettingsTarget();
   const shows = useRowReach();
-  const sounds = useMachineList(shows("notifications.sound") ? commands.listSystemSounds : null);
-  const soundEnabled = settings.soundNotifications ?? true;
+  const sounds = useMachineList(shows("notifications.channels") ? commands.listSystemSounds : null);
+  const audible = SOUND_EVENTS.filter((r) => channelEnabled(settings, SOUND_SETTINGS[r.event].event, "sound"));
 
-  const alerts = shows("notifications.system") || shows("notifications.sound");
+  const alerts = shows("notifications.channels") || shows("notifications.holdWhileTyping");
   const sendsResults = shows("notifications.telegram") || shows("notifications.sendToRequest");
 
   return (
     <>
       {alerts && (
         <SettingsSection title="Alerts and sounds">
-          {shows("notifications.system") && (
-            <SettingsRow {...rowProps("notifications.system")}>
+          {shows("notifications.channels") && (
+            <SettingsRow
+              {...rowProps("notifications.channels")}
+              footer={
+                <>
+                  <NotificationChannelsTable settings={settings} update={update} />
+                  <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+                    Phones choose their own in lpm Link, under Settings › Notifications.
+                  </p>
+                </>
+              }
+            >
+              {null}
+            </SettingsRow>
+          )}
+          {shows("notifications.holdWhileTyping") && (
+            <SettingsRow {...rowProps("notifications.holdWhileTyping")}>
               <Toggle
-                enabled={settings.systemNotifications ?? true}
-                onChange={(v) => void update({ systemNotifications: v })}
+                enabled={settings.holdToastsWhileTyping === true}
+                onChange={(v) => void update({ holdToastsWhileTyping: v })}
               />
             </SettingsRow>
           )}
-          {shows("notifications.sound") && (
-            <SettingsRow {...rowProps("notifications.sound")}>
-              <Toggle enabled={soundEnabled} onChange={(v) => void update({ soundNotifications: v })} />
-            </SettingsRow>
-          )}
-          {shows("notifications.sound") &&
-            soundEnabled &&
-            SOUND_EVENTS.map((r) => (
+          {shows("notifications.channels") &&
+            audible.map((r) => (
               <SettingsRow key={r.event} id={`sound.${r.event}`} label={r.label} description={r.description}>
                 <SoundPicker
                   event={r.event}

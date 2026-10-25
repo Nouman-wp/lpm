@@ -18,7 +18,7 @@ vi.mock("../../../bridge/commands", () => ({
   ReadAgentCapability: mocks.read,
   UpdateAgentSkill: mocks.update,
 }));
-vi.mock("sonner", () => ({ toast: { success: mocks.success, error: mocks.error } }));
+vi.mock("../../notifications/toast", () => ({ toast: { success: mocks.success, error: mocks.error } }));
 
 // The prose fields are the app's composer, which brings dictation, the rewrite
 // actions and a contentEditable the tests would have to drive by hand. The stub

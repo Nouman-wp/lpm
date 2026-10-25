@@ -50,7 +50,7 @@ vi.mock("./ui/AIPickerButton", () => ({
     return <button onClick={props.onGenerate}>{props.label}</button>;
   },
 }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("../notifications/toast", () => ({ toast: { error: vi.fn() } }));
 
 const { AiRefineBar } = await import("./AiRefineBar");
 

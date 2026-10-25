@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { followStop } from "../followApi";
 import { trashName } from "../platform";

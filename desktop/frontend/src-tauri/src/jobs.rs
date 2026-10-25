@@ -6,6 +6,7 @@
 use crate::config;
 use askform::Ask;
 use crate::jobcal::{self, AtValue, DateRule, DaysValue, IntervalLimits, ParsedDays, DAY_NAMES};
+use crate::notifychannels::NotificationEvent;
 use crate::sendto;
 use chrono::{Datelike, TimeZone};
 use serde::{Deserialize, Serialize};
@@ -3159,7 +3160,7 @@ fn notify_if_unattended(
     let Some((title, verb, _)) = outcome_words(result) else {
         return;
     };
-    if !crate::statusnotify::should_notify(app) {
+    if !crate::statusnotify::should_notify(app, NotificationEvent::Automation) {
         return;
     }
     let mut body = format!("\"{label}\"{} {verb}.", project_suffix(project));

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { PeerInvoke } from "../../bridge/commands";
 import { readHostClaude, translatePool, type MachineClaudeAccounts } from "../peer/hostClaude";
 import { subscribeEveryPeer, watchConnectedPeers } from "../peer/route";

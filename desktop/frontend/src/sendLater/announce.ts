@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { NotifyUnattended } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import type { ScheduledPrompt } from "../store/sendLater";

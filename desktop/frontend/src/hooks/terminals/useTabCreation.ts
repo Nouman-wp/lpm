@@ -1,5 +1,5 @@
 import { useCallback, type RefObject } from "react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import {
   CopyClaudeSessionForFork,
   StartTerminal,

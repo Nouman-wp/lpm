@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { rowProps } from "../../settings-registry";
 import { SettingsRow } from "../SettingsRow";
 import { BTN_SECONDARY } from "../ui/buttons";

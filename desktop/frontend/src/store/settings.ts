@@ -19,6 +19,7 @@ import { normalizeComposerToolbar, type ComposerToolId } from "../composerTools"
 import type { PeerRowOrder } from "../components/peerRowOrder";
 import type { SideBySideLayout } from "../sideBySide";
 import { normalizeAutoPullMode, type AutoPullMode } from "../autoPull";
+import type { NotificationChannelPrefs } from "../notifications/channels";
 
 export interface DetachedWindowState {
   detached: boolean;
@@ -40,6 +41,11 @@ export interface Settings {
   defaultProjectDirectory?: string;
   soundNotifications?: boolean;
   systemNotifications?: boolean;
+  // Where each kind of notification reaches you. Unset means each event's
+  // default, after the two switches above.
+  notificationChannels?: NotificationChannelPrefs;
+  // Toasts wait while the composer is being typed in.
+  holdToastsWhileTyping?: boolean;
   doneSound?: string;
   waitingSound?: string;
   errorSound?: string;
@@ -130,6 +136,7 @@ const defaults: Settings = {
   doubleClickToToggle: false,
   soundNotifications: true,
   systemNotifications: true,
+  holdToastsWhileTyping: true,
   autoCloseComposerOnSend: true,
   usageInSidebar: true,
 };
@@ -154,6 +161,8 @@ function normalize(s: main.Settings): Settings {
     defaultProjectDirectory: s.defaultProjectDirectory || undefined,
     soundNotifications: s.soundNotifications ?? defaults.soundNotifications,
     systemNotifications: s.systemNotifications ?? defaults.systemNotifications,
+    notificationChannels: s.notificationChannels,
+    holdToastsWhileTyping: s.holdToastsWhileTyping ?? defaults.holdToastsWhileTyping,
     doneSound: s.doneSound || undefined,
     waitingSound: s.waitingSound || undefined,
     errorSound: s.errorSound || undefined,

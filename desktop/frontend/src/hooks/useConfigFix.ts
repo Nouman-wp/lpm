@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { TransformText } from "../../bridge/commands";
 import { stripCodeFences } from "../codeFences";
 import { resolveTransformParams } from "../composerVariants";

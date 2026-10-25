@@ -7,7 +7,7 @@ import type { ScheduledJob } from "./useJobs";
 import { useAutomationOpenRequest } from "./useAutomationOpenRequest";
 
 const toastError = vi.hoisted(() => vi.fn());
-vi.mock("sonner", () => ({ toast: { error: toastError } }));
+vi.mock("../notifications/toast", () => ({ toast: { error: toastError } }));
 
 const local: ScheduledJob = { id: "nightly", source: "project", targets: ["web"], project: "web" } as ScheduledJob;
 const shared: ScheduledJob = { id: "audit", source: "global", targets: ["web", "api"] } as ScheduledJob;

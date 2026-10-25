@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { FileExists } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
 import { composerDragActive } from "./useComposerDragMove";

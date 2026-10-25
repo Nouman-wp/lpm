@@ -3,7 +3,9 @@ import { SettingsRow } from "./SettingsRow";
 import { TelegramChatList } from "./TelegramChatList";
 import { SendToConnectModal } from "./project-detail/jobs/SendToConnectModal";
 import { BTN_SECONDARY } from "./ui/buttons";
+import { ConfirmLabel } from "./ui/ConfirmLabel";
 import { rowProps } from "../settings-registry";
+import { useConfirmFlashFor } from "../hooks/useConfirmFlash";
 import { useTelegramLink } from "../hooks/useTelegramLink";
 import type { ConnectIntent } from "../sendToConnectors";
 
@@ -18,6 +20,11 @@ export function TelegramRow({ host }: { host: string | null }) {
   const link = useTelegramLink({ host });
   const { status, waiting, busy, bot } = link;
   const [dialog, setDialog] = useState<ConnectIntent | null>(null);
+  const [testedKey, flashTested] = useConfirmFlashFor<string>();
+
+  const sendTest = async (key: string) => {
+    if (await link.test(key)) flashTested(key);
+  };
 
   const description =
     status === undefined
@@ -39,8 +46,12 @@ export function TelegramRow({ host }: { host: string | null }) {
                 chats={status.chats}
                 actions={(chat) => (
                   <>
-                    <button onClick={() => link.test(chat.key)} disabled={busy} className={CHAT_BTN}>
-                      Send test
+                    <button onClick={() => sendTest(chat.key)} disabled={busy} className={CHAT_BTN}>
+                      <ConfirmLabel
+                        confirmed={testedKey === chat.key}
+                        label="Send test"
+                        done="Sent"
+                      />
                     </button>
                     <button onClick={() => link.removeChat(chat.key)} disabled={busy} className={CHAT_BTN}>
                       Remove

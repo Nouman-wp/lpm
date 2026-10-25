@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { ReadAgentCapability, WriteAgentCapability } from "../../../bridge/commands";
 import type { AgentCapability, CapabilityDoc } from "../../toolkit";
 import {
@@ -14,6 +14,7 @@ import {
   upfrontBytes,
 } from "../../toolkit";
 import { editableSkill } from "../../toolkitSkill";
+import { useConfirmFlash } from "../../hooks/useConfirmFlash";
 import { ChevronLeftIcon, PencilIcon, TrashIcon } from "../icons";
 import { MessageMarkdown } from "../MessageMarkdown";
 import { OpenFileWithDropdown } from "../OpenFileWithDropdown";
@@ -63,6 +64,7 @@ export function ToolkitDetail({
   const [draft, setDraft] = useState("");
   const [baseline, setBaseline] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saved, flashSaved] = useConfirmFlash();
   const [view, setView] = useState<View>("doc");
   const [confirming, setConfirming] = useState(false);
 
@@ -111,7 +113,7 @@ export function ToolkitDetail({
     try {
       await WriteAgentCapability(cap.path, draft, baseline);
       setBaseline(draft);
-      toast.success("Saved");
+      flashSaved();
       onSaved();
     } catch (err) {
       if (String(err).includes("modified")) {
@@ -234,6 +236,7 @@ export function ToolkitDetail({
           baseline={baseline}
           editable={editable}
           saving={saving}
+          saved={saved}
           onChange={setDraft}
           onSave={save}
           onRevert={() => setDraft(baseline)}

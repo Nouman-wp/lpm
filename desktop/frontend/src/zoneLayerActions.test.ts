@@ -12,7 +12,7 @@ const h = vi.hoisted(() => ({
   setOpen: vi.fn(),
 }));
 
-vi.mock("sonner", () => ({ toast: { error: h.toastError } }));
+vi.mock("./notifications/toast", () => ({ toast: { error: h.toastError } }));
 vi.mock("./store/app", () => ({
   useAppStore: {
     getState: () => ({ reorderActions: h.reorderActions, refreshProjects: h.refreshProjects }),

@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   projects: [] as { name: string; isRemote: boolean }[],
 }));
 
-vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
+vi.mock("../../notifications/toast", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 vi.mock("../../../bridge/commands", () => ({
   CreateProjectEntry: mocks.create,
   RenameProjectEntry: mocks.rename,

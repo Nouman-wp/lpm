@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { saveDraft } from "../store/messageHistory";
 import { removePrompt, useSendLater, type ScheduledPrompt } from "../store/sendLater";
 import { promptPreview } from "./preview";

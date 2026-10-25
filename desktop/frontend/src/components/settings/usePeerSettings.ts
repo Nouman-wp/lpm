@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { PeerSettingsGet, PeerSettingsSet } from "../../../bridge/commands";
 import type { PeerMachine } from "../../settingsMachine";
 import { settingsFromFile, type Settings } from "../../store/settings";

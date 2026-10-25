@@ -1,6 +1,8 @@
-import { toast } from "sonner";
+import { createElement } from "react";
+import { toast } from "./notifications/toast";
 import { GitAutoPull, GitAutoPullUndo, SetAutoPull } from "../bridge/commands";
 import { autoPullState, autoPullTarget, commitsText, normalizeAutoPullMode, wantsAutoPull } from "./autoPull";
+import { AutoPullRows } from "./components/AutoPullRows";
 import { displayNameForProjectName } from "./components/ProjectNameDisplay";
 import { recheckOrigin, showOriginDone } from "./originActions";
 import { projectAgentRows } from "./sidebarAgents";
@@ -19,7 +21,7 @@ export interface AutoPulled {
 
 type AutoPullOutcome = ({ kind: "pulled" } & AutoPulled) | { kind: "skipped"; reason: string };
 
-interface Announced {
+export interface Announced {
   root: string;
   project: string;
   name: string;
@@ -27,8 +29,8 @@ interface Announced {
 }
 
 const TOAST_ID = "auto-pull";
-// What an Undo click led to. Sonner closes a toast once its action is clicked,
-// so the result is a note of its own, with a full lifetime.
+// What an Undo click led to. A toast closes once its action is clicked, so the
+// result is a note of its own, with a full lifetime.
 const RESULT_ID = "auto-pull-result";
 const TOAST_MS = 10_000;
 const SETTLE_MS = 1_500;
@@ -121,22 +123,47 @@ function announce(item: Announced): void {
   announcedTimer = setTimeout(() => {
     announced = [];
   }, TOAST_MS);
+  showAnnounced();
+}
+
+function openAutoPullSettings(): void {
+  const { setSettingsTab, setView } = useAppStore.getState();
+  setSettingsTab("general");
+  setView("settings");
+}
+
+// The pulls of the last few seconds as one toast: a single pull says what came
+// in; several list each project with its own Undo.
+function showAnnounced(): void {
   const items = announced;
+  if (items.length === 0) {
+    toast.dismiss(TOAST_ID);
+    return;
+  }
   if (items.length === 1) {
+    const [item] = items;
     const { pulled } = item;
     toast.success(`Pulled ${commitsText(pulled.count)} into ${item.name}`, {
       id: TOAST_ID,
       description: `${pulled.branch} · ${pulled.from} → ${pulled.to}`,
       duration: TOAST_MS,
+      event: "autoPull",
       action: { label: "Undo", onClick: () => void undoAutoPull(item.root, item.project, item.name) },
     });
     return;
   }
-  toast.success(`Auto-pulled ${items.length} projects`, {
+  const commits = items.reduce((sum, i) => sum + i.pulled.count, 0);
+  toast.success(`Pulled ${items.length} projects`, {
     id: TOAST_ID,
-    description: items.map((i) => i.name).join(", "),
+    description: `${commitsText(commits)} from origin`,
     duration: TOAST_MS,
+    event: "autoPull",
+    content: createElement(AutoPullRows, {
+      rows: items,
+      onUndo: (item) => void undoAutoPull(item.root, item.project, item.name),
+    }),
     action: { label: "Undo all", onClick: () => void undoAll(items) },
+    cancel: { label: "Auto pull settings", onClick: openAutoPullSettings },
   });
 }
 
@@ -145,7 +172,7 @@ async function undoOne(root: string): Promise<AutoPulled> {
     return (await GitAutoPullUndo(root)) as AutoPulled;
   } finally {
     announced = announced.filter((a) => a.root !== root);
-    if (announced.length === 0) toast.dismiss(TOAST_ID);
+    showAnnounced();
     await recheckOrigin(root);
     heldAt.set(root, { key: attemptKey(root), reason: "undone" });
   }

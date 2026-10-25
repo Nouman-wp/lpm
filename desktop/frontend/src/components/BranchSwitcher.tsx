@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import {
   CheckoutBranch,
   CreateBranch,
@@ -179,7 +179,11 @@ export function BranchSwitcher({
       await refresh();
       toast.success(pulledText(behind, branch));
     } catch (err) {
-      toastPullError(err, "Pull", () => runPull({ ...cfg, autostash: true }));
+      toastPullError(err, {
+        label: "Couldn't pull",
+        retry: () => void runPull(cfg),
+        retryWithAutostash: () => void runPull({ ...cfg, autostash: true }),
+      });
       await refresh();
     } finally {
       setBusy(false);
@@ -199,7 +203,7 @@ export function BranchSwitcher({
       await refresh();
       toast.success(pushedText(ahead, branch));
     } catch (err) {
-      toast.error(`Push: ${err}`);
+      toast.error(`Couldn't push: ${err}`, { retry: () => void runPush(cfg) });
     } finally {
       setBusy(false);
     }
@@ -217,7 +221,7 @@ export function BranchSwitcher({
       await refresh();
       toast.success("Fetched");
     } catch (err) {
-      toast.error(`Fetch: ${err}`);
+      toast.error(`Couldn't fetch: ${err}`, { retry: () => void runFetch(cfg) });
     } finally {
       setBusy(false);
     }
@@ -287,7 +291,7 @@ export function BranchSwitcher({
       await refresh();
       toast.success(syncedText(behind, ahead, branch));
     } catch (err) {
-      toast.error(`Sync: ${err}`);
+      toast.error(`Couldn't sync: ${err}`, { retry: () => void runSync() });
     } finally {
       setBusy(false);
     }
@@ -330,9 +334,10 @@ export function BranchSwitcher({
   const copyBranchName = async (name: string) => {
     try {
       await navigator.clipboard.writeText(name);
-      toast.success("Copied branch name");
+      return true;
     } catch {
       toast.error("Copy failed");
+      return false;
     }
   };
 

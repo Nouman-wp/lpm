@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { MAIN_LOGIN, accountLabel, skipChip } from "../claudePoolText";
 import { useAgentLimits } from "../hooks/useAgentLimits";
 import { useNow } from "../hooks/useNow";

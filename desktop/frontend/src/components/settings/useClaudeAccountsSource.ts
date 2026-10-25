@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { ApplyClaudeLimits, PeerSettingsSet, StartClaudeLogin } from "../../../bridge/commands";
 import {
   removeHostAccount,

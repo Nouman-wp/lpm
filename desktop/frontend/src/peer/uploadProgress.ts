@@ -2,7 +2,7 @@
 // every `peer-upload-progress` / `peer-download-progress` event with the token
 // the caller minted (a download's is the file's path), so one toast per transfer
 // can follow it and vanish the moment the transfer settles either way.
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { PeerState } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import { formatBytes } from "../syncApi";

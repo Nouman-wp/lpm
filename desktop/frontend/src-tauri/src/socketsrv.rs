@@ -1217,7 +1217,10 @@ pub(crate) fn publish(app: &AppHandle, store: &StatusStore, project: &str, entry
     }
     if !store.is_closing(pane_id) {
         let _ = app.emit("status-changed", project);
-        crate::statusroute::announce(app, project, &stored.value, pane_id);
+        if crate::notifychannels::NotificationEvent::of_status(&stored.value).is_some() {
+            let timed = store.get_if_unchanged(project, &stored);
+            crate::statusroute::announce(app, project, timed.as_ref().unwrap_or(&stored));
+        }
     }
     if watched {
         crate::agentturn::nudge();

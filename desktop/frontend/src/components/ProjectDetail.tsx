@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { ActionsDnd } from "./ActionsDnd";
 import { type ActionGroup, applyMove, groupOf, headerWrapKey, listOf, zoneOfButton } from "./actionsDndLayout";
 import { ActionDragOverlay } from "./ActionDragOverlay";

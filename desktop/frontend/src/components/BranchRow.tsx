@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { main } from "../../bridge/models";
 import { relativeTime } from "../relativeTime";
 import { BranchActionButton } from "./BranchActionButton";
@@ -13,6 +14,7 @@ interface BranchRowProps {
   uncommitted: number;
   busy: boolean;
   renaming: boolean;
+  copied: boolean;
   renameValue: string;
   onRenameChange: (value: string) => void;
   onRenameSubmit: () => void;
@@ -32,6 +34,7 @@ export function BranchRow({
   uncommitted,
   busy,
   renaming,
+  copied,
   renameValue,
   onRenameChange,
   onRenameSubmit,
@@ -121,8 +124,15 @@ export function BranchRow({
                 active ? "opacity-100" : "opacity-0"
               }`}
             >
-              <BranchActionButton title={`Copy branch name (${branchKeyLabel("copy")})`} onClick={onCopy}>
-                <CopyIcon size={13} />
+              <BranchActionButton
+                title={copied ? "Copied" : `Copy branch name (${branchKeyLabel("copy")})`}
+                onClick={onCopy}
+              >
+                {copied ? (
+                  <Check size={13} className="text-[var(--accent-green)]" />
+                ) : (
+                  <CopyIcon size={13} />
+                )}
               </BranchActionButton>
               {canRename && (
                 <BranchActionButton

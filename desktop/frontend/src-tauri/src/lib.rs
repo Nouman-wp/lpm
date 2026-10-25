@@ -142,6 +142,7 @@ mod netif;
 mod notes_blobs;
 mod notes_cmds;
 mod notes_store;
+mod notifychannels;
 mod openin;
 mod osproc;
 mod paneexit;
@@ -229,6 +230,7 @@ mod sshsync;
 mod sshsync_tar;
 mod status;
 mod statusask;
+mod statusbanner;
 mod statusfwd;
 mod statusnotify;
 #[cfg(any(windows, test))]

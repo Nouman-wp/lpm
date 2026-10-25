@@ -4,11 +4,13 @@
 // agent got its answer, went back to work, or its tab closed — still saying
 // what is no longer true. Each status banner is remembered with the status it
 // announced; on every status change of its project, one whose status is gone
-// from its tab is withdrawn.
+// from its tab is withdrawn. A banner is found again by its title and body
+// together: the body alone ("Needs your approval.") is the same for every tab.
 //
 // macOS only: there the app can read back what it delivered. The notification
 // plugin keeps no handle on Windows or Linux, so banners there stay as before.
 use crate::status::StatusStore;
+use crate::statusbanner::Banner;
 use std::sync::{Arc, Mutex, OnceLock};
 use tauri::{AppHandle, Listener, Manager};
 
@@ -16,6 +18,7 @@ struct Announced {
     project: String,
     pane: String,
     value: String,
+    title: String,
     body: String,
 }
 
@@ -25,7 +28,7 @@ fn announced() -> &'static Mutex<Vec<Announced>> {
 }
 
 /// A banner went out for `value` on `pane`.
-pub fn record(project: &str, pane: &str, value: &str, body: &str) {
+pub fn record(project: &str, pane: &str, value: &str, banner: &Banner) {
     if pane.is_empty() || !cfg!(target_os = "macos") {
         return;
     }
@@ -33,7 +36,8 @@ pub fn record(project: &str, pane: &str, value: &str, body: &str) {
         project: project.to_string(),
         pane: pane.to_string(),
         value: value.to_string(),
-        body: body.to_string(),
+        title: banner.title.clone(),
+        body: banner.body.clone(),
     });
 }
 
@@ -49,7 +53,7 @@ pub fn start(app: &AppHandle) {
 }
 
 fn withdraw_settled(app: &AppHandle, project: &str) {
-    let over: Vec<String> = {
+    let over: Vec<(String, String)> = {
         let mut list = announced().lock().unwrap();
         if !list.iter().any(|a| a.project == project) {
             return;
@@ -64,7 +68,7 @@ fn withdraw_settled(app: &AppHandle, project: &str) {
             .drain(..)
             .partition(|a| a.project == project && !still(a));
         *list = kept;
-        gone.into_iter().map(|a| a.body).collect()
+        gone.into_iter().map(|a| (a.title, a.body)).collect()
     };
     if !over.is_empty() {
         remove_delivered(&over);
@@ -75,16 +79,17 @@ fn withdraw_settled(app: &AppHandle, project: &str) {
 // so that is where its banners are found again.
 #[cfg(target_os = "macos")]
 #[allow(deprecated)]
-fn remove_delivered(bodies: &[String]) {
+fn remove_delivered(banners: &[(String, String)]) {
     use objc2_foundation::NSUserNotificationCenter;
     let center = NSUserNotificationCenter::defaultUserNotificationCenter();
     for banner in center.deliveredNotifications().iter() {
-        let text = banner.informativeText().map(|t| t.to_string());
-        if text.is_some_and(|text| bodies.contains(&text)) {
+        let title = banner.title().map(|t| t.to_string()).unwrap_or_default();
+        let body = banner.informativeText().map(|t| t.to_string()).unwrap_or_default();
+        if banners.contains(&(title, body)) {
             center.removeDeliveredNotification(&banner);
         }
     }
 }
 
 #[cfg(not(target_os = "macos"))]
-fn remove_delivered(_bodies: &[String]) {}
+fn remove_delivered(_banners: &[(String, String)]) {}

@@ -20,7 +20,7 @@ vi.mock("../bridge/commands", () => ({
   GitAutoPullUndo: mocks.undo,
   SetAutoPull: mocks.setAutoPull,
 }));
-vi.mock("sonner", () => ({ toast: { success: mocks.toastSuccess, error: mocks.toastError, dismiss: vi.fn() } }));
+vi.mock("./notifications/toast", () => ({ toast: { success: mocks.toastSuccess, error: mocks.toastError, dismiss: vi.fn() } }));
 vi.mock("./originActions", () => ({ recheckOrigin: mocks.recheck, showOriginDone: mocks.done }));
 vi.mock("./store/settings", () => ({ getSettings: () => mocks.settings }));
 vi.mock("./store/app", () => ({ useAppStore: { getState: () => ({ projects: mocks.projects }) } }));

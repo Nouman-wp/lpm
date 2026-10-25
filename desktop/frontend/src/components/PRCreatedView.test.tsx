@@ -21,7 +21,7 @@ vi.mock("../../bridge/commands", () => ({
 vi.mock("../../bridge/runtime", () => ({
   BrowserOpenURL: (url: string) => mocks.open(url),
 }));
-vi.mock("sonner", () => ({
+vi.mock("../notifications/toast", () => ({
   toast: { success: mocks.success, error: mocks.error },
 }));
 vi.mock("../store/settings", () => ({
@@ -74,6 +74,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   vi.clearAllMocks();
+  vi.useRealTimers();
 });
 
 describe("PRCreatedView", () => {
@@ -87,7 +88,8 @@ describe("PRCreatedView", () => {
     expect(mocks.open).toHaveBeenCalledWith("https://github.com/o/r/pull/9");
   });
 
-  it("marks a draft and copies the link", async () => {
+  it("marks a draft and confirms the copy on the button itself", async () => {
+    vi.useFakeTimers();
     mocks.copy.mockResolvedValue(undefined);
     render(vi.fn(), vi.fn(), true);
     expect(container.textContent).toContain("Draft");
@@ -96,7 +98,21 @@ describe("PRCreatedView", () => {
     act(() => container.querySelector<HTMLButtonElement>('[aria-label="Copy link"]')!.click());
     await flush();
     expect(mocks.copy).toHaveBeenCalledWith("https://github.com/o/r/pull/9");
-    expect(mocks.success).toHaveBeenCalledWith("Copied pull request link");
+    expect(container.querySelector('[aria-label="Copied"]')).not.toBeNull();
+    expect(mocks.success).not.toHaveBeenCalled();
+
+    act(() => vi.advanceTimersByTime(1500));
+    expect(container.querySelector('[aria-label="Copy link"]')).not.toBeNull();
+  });
+
+  it("reports a failed copy and keeps the button as it was", async () => {
+    mocks.copy.mockRejectedValue("denied");
+    render();
+
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Copy link"]')!.click());
+    await flush();
+    expect(mocks.error).toHaveBeenCalledWith("Copy failed: denied");
+    expect(container.querySelector('[aria-label="Copied"]')).toBeNull();
   });
 
   it("checks out the base, pulls with the saved strategy, then reports back", async () => {

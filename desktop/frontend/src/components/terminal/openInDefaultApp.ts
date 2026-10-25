@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { OpenPathInDefaultApp } from "../../../bridge/commands";
 import { runsWhenOpened } from "../../path";
 import { revealInFinder } from "../files/fileActions";

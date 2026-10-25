@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, Copy } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 
 export function CopyCodeButton({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);

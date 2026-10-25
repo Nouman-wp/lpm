@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { OpenFileInEditor, OpenPathInDefaultApp } from "../../bridge/commands";
 import { basename } from "../path";
 import { isPeerMarked, peerSlugOf } from "../peer/markers";

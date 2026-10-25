@@ -10,7 +10,7 @@ vi.mock("../../bridge/commands", () => ({
   PeerUpdateMac: mocks.updateMac,
   PeerCancelMacUpdate: mocks.cancelMacUpdate,
 }));
-vi.mock("sonner", () => ({ toast: mocks.toast }));
+vi.mock("../notifications/toast", () => ({ toast: mocks.toast }));
 
 import {
   cancelMacUpdate,

@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { RunJobNow, SetJobEnabled, StopJobRun } from "../../bridge/commands";
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));

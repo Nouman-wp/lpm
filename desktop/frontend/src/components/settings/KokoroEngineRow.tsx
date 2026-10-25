@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
+import { useConfirmFlash } from "../../hooks/useConfirmFlash";
 import { SettingsRow } from "../SettingsRow";
 import { BTN_SECONDARY } from "../ui/buttons";
+import { ConfirmNote } from "../ui/ConfirmNote";
 import { useSettingsTarget } from "./settingsTarget";
 import { Spinner } from "./Spinner";
 
@@ -18,6 +20,7 @@ const KOKORO_DESCRIPTION: Record<KokoroStatus, string> = {
 export function KokoroEngineRow() {
   const { commands } = useSettingsTarget();
   const [status, setStatus] = useState<KokoroStatus>("checking");
+  const [confirmed, flashConfirmed] = useConfirmFlash();
 
   useEffect(() => {
     commands
@@ -31,7 +34,7 @@ export function KokoroEngineRow() {
     try {
       await commands.installKokoro();
       setStatus("installed");
-      toast.success("Kokoro installed");
+      flashConfirmed();
     } catch (err) {
       toast.error(`Install failed: ${err}`);
       setStatus("not-installed");
@@ -43,7 +46,7 @@ export function KokoroEngineRow() {
     try {
       await commands.uninstallKokoro();
       setStatus("not-installed");
-      toast.success("Kokoro uninstalled");
+      flashConfirmed();
     } catch (err) {
       toast.error(`Uninstall failed: ${err}`);
       setStatus("installed");
@@ -52,7 +55,9 @@ export function KokoroEngineRow() {
 
   return (
     <SettingsRow id="tts.kokoro" label="Kokoro Engine" description={KOKORO_DESCRIPTION[status]}>
-      {status === "installed" ? (
+      {confirmed ? (
+        <ConfirmNote>{status === "installed" ? "Installed" : "Uninstalled"}</ConfirmNote>
+      ) : status === "installed" ? (
         <button onClick={handleUninstall} className={BTN_SECONDARY}>Uninstall</button>
       ) : status === "not-installed" ? (
         <button onClick={handleInstall} className={BTN_SECONDARY}>Install</button>

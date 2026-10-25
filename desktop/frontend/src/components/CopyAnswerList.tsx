@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { AgentRecentAnswers, SetClipboardText } from "../../bridge/commands";
 import type { AgentSessionRef } from "../agentSession";
 import { relativeTime } from "../relativeTime";

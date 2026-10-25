@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { EventsOn } from "../../bridge/runtime";
 
 interface NotSaved {

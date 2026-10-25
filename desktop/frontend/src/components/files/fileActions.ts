@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { RevealInFinder, SetClipboardText } from "../../../bridge/commands";
 import { stripMarker } from "../../peer/markers";
 import { chordLabel, type Chord } from "../../keys";

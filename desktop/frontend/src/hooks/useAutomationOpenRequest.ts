@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { jobTargets } from "../jobsFormat";
 import { useAutomationOpen, type AutomationOpenRequest } from "../store/automationOpen";
 import type { ScheduledJob } from "./useJobs";

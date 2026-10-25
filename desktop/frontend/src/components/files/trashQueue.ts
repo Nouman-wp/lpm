@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { create } from "zustand";
 import { TrashProjectEntry } from "../../../bridge/commands";
 import { basename } from "../../path";

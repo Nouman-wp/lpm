@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { ExportConfig, ImportConfig, VaultExportKey, VaultImportKey } from "../../../bridge/commands";
 import type { main } from "../../../bridge/models";
 import { MACHINE } from "../../machineWords";

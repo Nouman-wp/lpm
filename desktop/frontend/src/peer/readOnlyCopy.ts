@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { isSourceImage, mediaKind } from "../components/fileMedia";
 import { basename } from "../path";
 

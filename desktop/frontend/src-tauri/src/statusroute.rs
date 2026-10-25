@@ -5,8 +5,11 @@
 // own windows were last in front — the chime and banner go to that Mac, which
 // plays them under its own settings. A headless host has nobody at it and hands
 // every transition to all of its Macs (sound.rs).
+use crate::notifychannels::NotificationEvent;
 use crate::sound::{StatusSound, STATUS_SOUND_EVENT};
+use crate::status::StatusEntry;
 use serde_json::json;
+use std::cell::OnceCell;
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
@@ -42,19 +45,42 @@ fn used_last(a: &Activity) -> Option<&str> {
     a.here.is_none_or(|here| *at > here).then_some(device.as_str())
 }
 
-/// Chime and post a banner for a status transition, wherever the person is.
-pub fn announce(app: &AppHandle, project: &str, value: &str, pane_id: &str) {
+/// Chime and post a banner for a status transition, wherever the person is. A
+/// banner that may quote the session's answer is told from a thread of its own:
+/// reading that answer waits on the transcript, and the caller is answering
+/// the hook that reported the finish.
+pub fn announce(app: &AppHandle, project: &str, entry: &StatusEntry) {
+    if !crate::statusbanner::reads_answer(entry) {
+        return tell(app, project, entry);
+    }
+    let (app, project, entry) = (app.clone(), project.to_string(), entry.clone());
+    std::thread::spawn(move || tell(&app, &project, &entry));
+}
+
+fn tell(app: &AppHandle, project: &str, entry: &StatusEntry) {
+    let Some(event) = NotificationEvent::of_status(&entry.value) else {
+        return;
+    };
+    // What the banner says, worked out once and only if a banner may show.
+    let told = OnceCell::new();
+    let news = || {
+        told.get_or_init(|| StatusSound {
+            answer: crate::statusbanner::last_answer(project, entry),
+            ..StatusSound::of(app, project, entry)
+        })
+        .clone()
+    };
     if !crate::sys::headless() && !crate::statusnotify::window_attended(app) {
-        let elsewhere = with(|a| used_last(a).map(str::to_string));
-        if let (Some(device), Some(sound)) = (elsewhere, StatusSound::of(app, project, value, pane_id)) {
-            let frame = json!({ "t": "evt", "name": STATUS_SOUND_EVENT, "payload": sound });
+        if let Some(device) = with(|a| used_last(a).map(str::to_string)) {
+            let frame = json!({ "t": "evt", "name": STATUS_SOUND_EVENT, "payload": news() });
             if crate::peer::send_to_device(app, &device, &frame.to_string()) {
                 return;
             }
         }
     }
-    crate::sound::announce_status(app, project, value, pane_id);
-    crate::statusnotify::notify_status(app, project, value, pane_id);
+    let settings = crate::config::load_settings();
+    crate::sound::announce_status(app, event, &settings, &news);
+    crate::statusnotify::notify_status(app, event, &settings, project, &entry.pane_id, &news);
 }
 
 #[cfg(test)]

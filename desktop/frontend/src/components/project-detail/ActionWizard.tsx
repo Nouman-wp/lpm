@@ -9,7 +9,7 @@ import {
   type Ref,
 } from "react";
 import YAML from "yaml";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import {
   appendActionToLayer,
   findActionSource,

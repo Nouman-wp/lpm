@@ -239,24 +239,23 @@ export const ROWS = {
     description: removeAppDescription(),
     keywords: ["uninstall", "delete", "trash"],
   },
-  "notifications.sound": {
+  "notifications.channels": {
     kind: "row",
     tab: "notifications",
-    id: "notifications.sound",
+    id: "notifications.channels",
     reach: "attended",
-    label: "Sound notifications",
-    description: "Play a sound when agents finish or need approval",
-    keywords: ["audio", "alert", "chime"],
+    label: "Where notifications reach you",
+    description: "For each kind of news: a toast in the app, a sound, or a system banner",
+    keywords: ["sound", "banner", "toast", "alert", "chime", "system", "desktop", "away", "agent", "automation"],
   },
-  "notifications.system": {
+  "notifications.holdWhileTyping": {
     kind: "row",
     tab: "notifications",
-    id: "notifications.system",
+    id: "notifications.holdWhileTyping",
     reach: "attended",
-    label: "System notifications",
-    description:
-      "Show a notification when an agent or automation needs you and lpm isn't in front",
-    keywords: ["banner", "alert", "desktop", "background", "away"],
+    label: "Hold toasts while I type",
+    description: "They wait until the composer goes quiet, then show",
+    keywords: ["toast", "composer", "typing", "quiet", "focus", "interrupt"],
   },
   "notifications.telegram": {
     kind: "row",

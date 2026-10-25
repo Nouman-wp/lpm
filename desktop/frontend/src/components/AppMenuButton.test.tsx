@@ -19,7 +19,7 @@ vi.mock("../../bridge/commands", () => ({
   GetVersion: () => Promise.resolve("1.2.3"),
 }));
 vi.mock("../../bridge/runtime", () => ({ EventsEmit: bridge.emit, EventsOn: () => () => {} }));
-vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
+vi.mock("../notifications/toast", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 
 import { AppMenuButton } from "./AppMenuButton";
 

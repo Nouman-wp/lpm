@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { PeerPortForward, SetClipboardText } from "../../bridge/commands";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { peerSlugOf } from "./markers";

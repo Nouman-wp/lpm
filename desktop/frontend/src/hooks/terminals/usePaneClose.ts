@@ -1,5 +1,5 @@
 import { useCallback, useRef, type RefObject } from "react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { HoldPaneStatus, ReleasePaneStatus } from "../../../bridge/commands";
 import { disposeInteractivePaneSession } from "../../components/InteractivePane";
 import { showUndoCloseToast } from "../../components/UndoCloseToast";

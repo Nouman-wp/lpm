@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { WandSparkles } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { GenerateClaudeStatusline } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import { useAIPicker } from "../hooks/useAIPicker";

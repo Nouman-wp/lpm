@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import type { MachineScope } from "./settings/machineCommands";
 import { ChevronLeftIcon } from "./icons";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";

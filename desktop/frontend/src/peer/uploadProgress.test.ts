@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   handlers: {} as Record<string, (payload: unknown) => void>,
 }));
 
-vi.mock("sonner", () => ({
+vi.mock("../notifications/toast", () => ({
   toast: { loading: mocks.loading, dismiss: mocks.dismiss },
 }));
 vi.mock("../../bridge/commands", () => ({ PeerState: mocks.peerState }));

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { AutoPullMenuItems } from "./AutoPullMenuItems";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
@@ -38,6 +38,8 @@ import {
   type GitPullConfig,
 } from "../gitOptions";
 import { toastPullError } from "../gitPullErrors";
+import { useAppStore } from "../store/app";
+import { displayNameForProjectName } from "./ProjectNameDisplay";
 import { pulledText, pushedText } from "../gitToastText";
 import type { AutoPullMode } from "../autoPull";
 import { useAutoPullMode } from "../hooks/useAutoPullMode";
@@ -149,24 +151,36 @@ function GitSubmenuItems({
     onClose();
   };
 
-  const runOp = (
-    loadingMsg: string,
-    successMsg: string,
-    errorLabel: string,
-    op: () => Promise<unknown>,
-  ) => {
+  // Read when the work starts: the toast names the project the menu was for.
+  const label = () => displayNameForProjectName(projectName, useAppStore.getState().projects);
+
+  const runOp = (verb: string, failure: string, successMsg: string, op: () => Promise<unknown>) => {
     onClose();
-    toast.promise(op(), {
-      loading: loadingMsg,
-      success: successMsg,
-      error: (err) => `${errorLabel} failed: ${err}`,
-    });
+    const name = label();
+    const run = (): void => {
+      toast.promise(op(), {
+        loading: `${verb} ${name}`,
+        description: status.branch,
+        success: successMsg,
+        error: (err) => `${failure} ${name}: ${err}`,
+        retry: run,
+      });
+    };
+    run();
   };
 
-  const pull = (cfg: GitPullConfig, id: string | number = toast.loading("Pulling…")) => {
+  const pull = (cfg: GitPullConfig) => {
+    const name = label();
+    const id = toast.loading(`Pulling ${name}`, { description: `${status.branch} from origin` });
     PullBranch(projectPath, cfg.strategy, pullFlags(cfg)).then(
-      () => toast.success(pulledText(status.behind, status.branch), { id }),
-      (err) => toastPullError(err, "Pull failed", () => pull({ ...cfg, autostash: true }), id),
+      () => toast.success(pulledText(status.behind, status.branch), { id, description: name }),
+      (err) =>
+        toastPullError(err, {
+          label: `Couldn't pull ${name}`,
+          id,
+          retry: () => pull(cfg),
+          retryWithAutostash: () => pull({ ...cfg, autostash: true }),
+        }),
     );
   };
 
@@ -196,7 +210,7 @@ function GitSubmenuItems({
         label="Push"
         icon={<UploadIcon />}
         onClick={() =>
-          runOp("Pushing…", pushedText(status.ahead, status.branch), "Push", () => {
+          runOp("Pushing", "Couldn't push", pushedText(status.ahead, status.branch), () => {
             const cfg = getSettings().gitPush ?? DEFAULT_PUSH_CONFIG;
             return GitPush(projectPath, pushFlags(cfg));
           })
@@ -206,7 +220,7 @@ function GitSubmenuItems({
         label="Fetch"
         icon={<RefreshIcon />}
         onClick={() =>
-          runOp("Fetching…", "Fetched", "Fetch", () => {
+          runOp("Fetching", "Couldn't fetch", "Fetched", () => {
             const cfg = getSettings().gitFetch ?? DEFAULT_FETCH_CONFIG;
             return GitFetchAll(projectPath, fetchFlags(cfg));
           })

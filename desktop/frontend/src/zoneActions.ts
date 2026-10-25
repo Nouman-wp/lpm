@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "./notifications/toast";
 import type { ActionsLayout, ZoneInfo } from "./types";
 import { useAppStore } from "./store/app";
 import {

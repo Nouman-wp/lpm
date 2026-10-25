@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { GetVersion, UninstallApp } from "../../../bridge/commands";
 import { MACHINE } from "../../machineWords";
 import { isMac } from "../../platform";

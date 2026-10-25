@@ -1,5 +1,5 @@
 import type { Terminal } from "@xterm/xterm";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { SaveTextFile, SetClipboardText } from "../../../bridge/commands";
 
 // Lines the terminal only wrapped to fit are joined back into one.

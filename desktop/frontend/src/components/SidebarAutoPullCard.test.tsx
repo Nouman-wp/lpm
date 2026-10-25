@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../bridge/runtime", () => ({ EventsOn: vi.fn(() => () => {}) }));
-vi.mock("sonner", () => ({ toast: { success: mocks.toast, error: vi.fn() } }));
+vi.mock("../notifications/toast", () => ({ toast: { success: mocks.toast, error: vi.fn() } }));
 vi.mock("../store/app", () => ({
   useAppStore: (select: (state: unknown) => unknown) =>
     select({ projects: mocks.projects, setView: mocks.setView, setSettingsTab: mocks.setSettingsTab }),

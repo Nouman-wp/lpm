@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   download: vi.fn((_token: string, _slug: string, _name: string, p: Promise<unknown>) => p),
 }));
 
-vi.mock("sonner", () => ({ toast: mocks.toast }));
+vi.mock("../notifications/toast", () => ({ toast: mocks.toast }));
 vi.mock("../peer/uploadProgress", () => ({ trackPeerDownload: mocks.download }));
 vi.mock("../../bridge/commands", () => ({
   ListOpenInTargets: vi.fn(() =>

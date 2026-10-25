@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Ban, Check, ChevronDown, CircleAlert, Copy, Loader2, X } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import {
   clearBackgroundRun,
   getBackgroundRunLines,
@@ -85,7 +85,7 @@ export function BackgroundRunToast({
 
   return (
     <div
-      className={`overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl transition-[width,margin-left] duration-200 ${
+      className={`toast-surface overflow-hidden transition-[width,margin-left] duration-200 ${
         expanded ? "-ml-[284px] w-[640px]" : "ml-0 w-[356px]"
       }`}
     >

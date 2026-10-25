@@ -47,7 +47,7 @@ vi.mock("../InputComposer", () => ({
   InputComposer: () => <div data-testid="prompt-composer" />,
 }));
 
-vi.mock("sonner", () => ({
+vi.mock("../../notifications/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
 

@@ -10,7 +10,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import {
   DeleteMemorySession,
   GetServiceLogs,

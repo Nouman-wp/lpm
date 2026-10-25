@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../../../bridge/commands", () => ({ GenerateAgentSkill: mocks.generate }));
 vi.mock("../../../bridge/runtime", () => ({ EventsOn: () => () => {} }));
-vi.mock("sonner", () => ({ toast: mocks.toast }));
+vi.mock("../../notifications/toast", () => ({ toast: mocks.toast }));
 
 vi.mock("../../hooks/useAIPicker", () => ({
   useAIPicker: () => ({

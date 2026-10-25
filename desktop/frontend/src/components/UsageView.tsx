@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { LoaderCircle, RefreshCw, X } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { ApplyClaudeLimits } from "../../bridge/commands";
 import { useAgentLimits, pickProvider } from "../hooks/useAgentLimits";
 import type { ProviderLimits } from "../hooks/useAgentLimits";

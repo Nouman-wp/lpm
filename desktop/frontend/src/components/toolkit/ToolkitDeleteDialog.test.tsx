@@ -17,7 +17,7 @@ vi.mock("../../../bridge/commands", () => ({
   PreviewAgentSkillDelete: mocks.preview,
   DeleteAgentSkill: mocks.remove,
 }));
-vi.mock("sonner", () => ({
+vi.mock("../../notifications/toast", () => ({
   toast: { success: mocks.success, error: mocks.error },
 }));
 

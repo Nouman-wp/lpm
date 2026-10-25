@@ -34,6 +34,7 @@ import { PROJECT_JUMP_SHORTCUTS } from "./projectJumpShortcuts";
 import { useProjectSwitcher } from "./hooks/useProjectSwitcher";
 import { useProjectsSync } from "./hooks/useProjectsSync";
 import { useGlobalAgentStatusSync } from "./hooks/useGlobalTerminalStatus";
+import { useAgentToasts } from "./hooks/useAgentToasts";
 import { GLOBAL_TERMINALS_KEY } from "./terminals";
 import { useAppEvents } from "./hooks/useAppEvents";
 import { useSshStatusWarnings } from "./hooks/useSshStatusWarnings";
@@ -147,6 +148,7 @@ export default function App() {
 
   useProjectsSync();
   useGlobalAgentStatusSync();
+  useAgentToasts();
   useAppEvents();
   useEffect(() => startSendLaterRunner(), []);
   usePeerDispatcher();

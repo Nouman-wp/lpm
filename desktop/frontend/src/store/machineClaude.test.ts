@@ -8,7 +8,7 @@ const hooks = vi.hoisted(() => ({
   toast: vi.fn(),
 }));
 
-vi.mock("sonner", () => ({ toast: Object.assign(hooks.toast, { error: vi.fn() }) }));
+vi.mock("../notifications/toast", () => ({ toast: Object.assign(hooks.toast, { error: vi.fn() }) }));
 vi.mock("../../bridge/commands", () => ({ PeerInvoke: hooks.invoke }));
 vi.mock("../../bridge/runtime", () => ({ EventsOn: () => () => {} }));
 vi.mock("./settings", () => ({ useSettingsStore: { subscribe: () => () => {} } }));

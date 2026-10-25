@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { registerComposerHost, unschedule } from "../sendLater/actions";
 import { choiceAt, loadLastChoice, saveLastChoice, type LastChoice } from "../sendLater/lastChoice";
 import { shortWhenLabel } from "../sendLater/time";

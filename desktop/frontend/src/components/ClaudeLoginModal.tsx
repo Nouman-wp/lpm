@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { Modal } from "./ui/Modal";
 import { InteractivePane } from "./InteractivePane";
 import { ClaudeLoginStatusStrip } from "./ClaudeLoginStatusStrip";

@@ -27,7 +27,7 @@ vi.mock("../../bridge/runtime", () =>
     has: () => true,
     get: (_t, prop) => (prop === "then" ? undefined : vi.fn()),
   }));
-vi.mock("sonner", () => ({ toast: { error: h.toastError } }));
+vi.mock("../notifications/toast", () => ({ toast: { error: h.toastError } }));
 
 import { useAppStore } from "./app";
 import { buildActionsModel } from "../actionsLayoutModel";

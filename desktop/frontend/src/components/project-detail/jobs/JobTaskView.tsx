@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo} from "react";
-import { toast } from "sonner";
+import { toast } from "../../../notifications/toast";
 import {
   DeleteJobHistory,
   JobHistory,

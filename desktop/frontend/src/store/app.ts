@@ -1,6 +1,6 @@
 import { create, type StoreApi } from "zustand";
 import { type AdoptedTabOpts } from "../paneTree";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import YAML from "yaml";
 import {
   isDuplicate,
@@ -1455,7 +1455,23 @@ export const useAppStore = create<AppState>((set, get) => ({
         : worktree
           ? "worktrees"
           : "copies";
-    const toastId = toast.loading(`Creating ${count} ${noun(count)} of ${name}…`);
+    const label = displayNameForProjectName(name, get().projects);
+    const title = `Creating ${count} ${noun(count)} of ${label}`;
+    // The copy being made finishes; the ones not started yet are skipped.
+    let stopRest = false;
+    const stopRestAction =
+      count > 1
+        ? {
+            label: "Cancel rest",
+            onClick: () => {
+              stopRest = true;
+            },
+          }
+        : undefined;
+    const toastId = toast.loading(title, {
+      progress: count > 1 ? { step: 0, steps: count } : undefined,
+      cancel: stopRestAction,
+    });
     const created: string[] = [];
     const createdLocal: string[] = [];
     // A peer-hosted source clones on that host's background thread (a large copy
@@ -1505,9 +1521,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       // its tasks, refresh so it (with its actions) enters the list, then mark
       // it visited — that mounts its detail and fires the auto-run effect.
       for (let i = 0; i < count; i++) {
+        if (stopRest) break;
         if (count > 1) {
-          toast.loading(`Creating ${noun(1)} ${i + 1} of ${count} of ${name}…`, {
+          toast.loading(title, {
             id: toastId,
+            description: `${noun(1)} ${i + 1} of ${count}`,
+            progress: { step: i, steps: count },
+            cancel: stopRestAction,
           });
         }
         const source = sourceAt(i);
@@ -1578,20 +1598,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       if (folderName) await fileCopiesOnHosts(folderName, created, sources);
       if (created.length === 0) {
-        toast.error(`Failed to duplicate ${name}`, { id: toastId });
+        toast.error(`Failed to duplicate ${label}`, { id: toastId });
       } else if (created.length < count) {
-        toast.error(
-          `Created ${created.length} of ${count} ${noun(count)} of ${name}`,
-          { id: toastId },
-        );
+        const partial = `Created ${created.length} of ${count} ${noun(count)} of ${label}`;
+        if (stopRest) toast.success(partial, { id: toastId, description: "The rest were canceled" });
+        else toast.error(partial, { id: toastId });
       } else {
         toast.success(
-          `Created ${created.length} ${noun(created.length)} of ${name}`,
+          `Created ${created.length} ${noun(created.length)} of ${label}`,
           { id: toastId },
         );
       }
     } catch (err) {
-      toast.error(`Failed to duplicate ${name}: ${err}`, { id: toastId });
+      toast.error(`Failed to duplicate ${label}: ${err}`, { id: toastId });
     } finally {
       for (const collector of collectors.values()) collector.dispose();
       settlePending(new Set(pending.map((p) => p.id)));

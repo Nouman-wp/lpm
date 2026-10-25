@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { machineCommands } from "../components/settings/machineCommands";
 import { targetId, type SendToTarget } from "../sendTo";
 import { telegramLinkOf, useSendToStatus } from "../store/sendToStatus";
@@ -56,12 +56,15 @@ export function useTelegramLink({
     };
   }, [looking, refresh, telegram]);
 
+  // Resolves whether the work went through; a failure is reported here.
   const run = async (work: () => Promise<unknown>, failure: string) => {
     setBusy(true);
     try {
       await work();
+      return true;
     } catch (err) {
       toast.error(`${failure}: ${String(err)}`);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -84,11 +87,7 @@ export function useTelegramLink({
         await telegram.disconnect();
         await refresh();
       }, "Couldn't disconnect Telegram"),
-    test: (key?: string) =>
-      run(async () => {
-        await telegram.test(key);
-        toast.success("Test message sent");
-      }, "Couldn't send the test message"),
+    test: (key?: string) => run(() => telegram.test(key), "Couldn't send the test message"),
     removeChat: (key: string) =>
       run(async () => {
         await telegram.removeChat(key);

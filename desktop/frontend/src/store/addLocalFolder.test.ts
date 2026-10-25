@@ -26,7 +26,7 @@ vi.mock("../../bridge/runtime", () =>
     has: () => true,
     get: (_t, prop) => (prop === "then" ? undefined : vi.fn()),
   }));
-vi.mock("sonner", () => ({
+vi.mock("../notifications/toast", () => ({
   toast: Object.assign(vi.fn(), { error: mocks.toastError, info: vi.fn(), success: vi.fn() }),
 }));
 

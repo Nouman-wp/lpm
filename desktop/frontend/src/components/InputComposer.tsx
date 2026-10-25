@@ -10,7 +10,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import {
   FileExists,
   ListDirs,

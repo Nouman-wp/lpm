@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { PeerCancelMacUpdate, PeerUpdateMac } from "../../bridge/commands";
 import {
   reconnectOutcome,

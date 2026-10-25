@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { ArrowRight, GitPullRequest, AlertCircle } from "lucide-react";
 import { Modal } from "./ui/Modal";
 import { XIcon, BranchIcon } from "./icons";

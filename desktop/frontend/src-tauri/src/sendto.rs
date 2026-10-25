@@ -6,6 +6,7 @@
 // A destination id is a service ("telegram") or one of its targets
 // ("telegram:releases"); the bare service means its default target.
 
+use crate::notifychannels::NotificationEvent;
 use serde_json::json;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
@@ -83,7 +84,7 @@ pub fn deliver(app: &AppHandle, ids: &[String], report: Report) {
                     "send-to-failed",
                     json!({ "destination": dest.label(), "title": report.title, "error": error }),
                 );
-                if crate::statusnotify::should_notify(&app) {
+                if crate::statusnotify::should_notify(&app, NotificationEvent::Automation) {
                     crate::statusnotify::notify(
                         &app,
                         &format!("Couldn't send to {}", dest.label()),

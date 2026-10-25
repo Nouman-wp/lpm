@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { FOOTER_TOASTER_ID } from "../toasterOffset";
 
 interface UndoCloseToastProps {
@@ -21,10 +21,7 @@ export function UndoCloseToast({ toastId, title, detail, durationMs, onUndo }: U
   }, []);
 
   return (
-    <div
-      className="group relative flex w-max min-w-[300px] max-w-[356px] items-center gap-2 overflow-hidden rounded-[11px] border border-[var(--border)] py-1.5 pl-3.5 pr-2 shadow-lg backdrop-blur-md"
-      style={{ backgroundColor: "color-mix(in srgb, var(--bg-primary) 88%, transparent)" }}
-    >
+    <div className="toast-surface group relative flex w-max min-w-[300px] max-w-[356px] items-center gap-2 overflow-hidden py-1.5 pl-3.5 pr-2">
       <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-primary)]">
         {title}
         {detail && <span className="text-[var(--text-muted)]"> · {detail}</span>}

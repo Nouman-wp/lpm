@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { AGENT_STATE_LABEL, AGENT_STATE_TONE, computeProjectStatus } from "../agentStatus";
 import { useJobsAmbient } from "../hooks/useJobsAmbient";
+import { selectUnreadAttention, useNotificationHistory } from "../notifications/history";
+import { NotificationCenter } from "../notifications/NotificationCenter";
 import { projectAgentRows, sidebarProjectAlert } from "../sidebarAgents";
 import { useCollapsedAgents } from "../sidebarCollapsed";
 import {
@@ -17,6 +19,7 @@ import { useSettingsStore } from "../store/settings";
 import { useTerminalTitles } from "../store/terminalTitles";
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import {
+  BellIcon,
   HistoryIcon,
   MessageIcon,
   SettingsIcon,
@@ -78,6 +81,13 @@ export function SidebarFooterNav({
   const update = useSettingsStore((s) => s.update);
   const { running, unread, waiting } = useJobsAmbient();
   const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
+  const [notificationsAnchor, setNotificationsAnchor] = useState<DOMRect | null>(null);
+  const unreadAttention = useNotificationHistory(selectUnreadAttention);
+  // Opening the list is reading it: what it showed counts as seen once it closes.
+  const closeNotifications = () => {
+    useNotificationHistory.getState().markAllRead();
+    setNotificationsAnchor(null);
+  };
 
   // Agents in the global Terminals report under the reserved key, which no
   // project row speaks for — so the Terminals row does, the way a project row
@@ -148,6 +158,14 @@ export function SidebarFooterNav({
           agent.terminalId ? onOpenTerminalTab(agent.terminalId) : onTerminals(),
       },
     },
+    notifications: {
+      id: "notifications",
+      label: "Notifications",
+      icon: <BellIcon />,
+      active: notificationsAnchor !== null,
+      onSelect: (anchor) => (notificationsAnchor ? closeNotifications() : setNotificationsAnchor(anchor)),
+      trailing: <CountBadge count={unreadAttention} label="notifications that need you" />,
+    },
     automations: {
       id: "automations",
       label: "Automations",
@@ -205,15 +223,21 @@ export function SidebarFooterNav({
   // The button only speaks for what it is still hiding — a row moved out to the
   // sidebar carries its own badge and must not be counted twice.
   const automationsInMenu = menuIds.includes("automations");
-  const hints = automationsInMenu
-    ? [
-        waiting > 0
-          ? `${waiting} automation${waiting === 1 ? "" : "s"} waiting for your answer`
-          : "",
-        running > 0 ? "an automation is running" : "",
-        unread > 0 ? `${unread} automation${unread === 1 ? "" : "s"} with new messages` : "",
-      ].filter(Boolean)
-    : [];
+  const notificationsInMenu = menuIds.includes("notifications");
+  const hints = [
+    ...(automationsInMenu
+      ? [
+          waiting > 0
+            ? `${waiting} automation${waiting === 1 ? "" : "s"} waiting for your answer`
+            : "",
+          running > 0 ? "an automation is running" : "",
+          unread > 0 ? `${unread} automation${unread === 1 ? "" : "s"} with new messages` : "",
+        ]
+      : []),
+    notificationsInMenu && unreadAttention > 0
+      ? `${unreadAttention} notification${unreadAttention === 1 ? "" : "s"} need${unreadAttention === 1 ? "s" : ""} you`
+      : "",
+  ].filter(Boolean);
 
   return (
     <div className="flex flex-col p-2">
@@ -244,6 +268,9 @@ export function SidebarFooterNav({
           onMove={(id) => move(id, true)}
           onReset={reset}
         />
+      )}
+      {notificationsAnchor && (
+        <NotificationCenter anchor={notificationsAnchor} onClose={closeNotifications} />
       )}
       {rowMenu && (
         <SidebarNavRowMenu

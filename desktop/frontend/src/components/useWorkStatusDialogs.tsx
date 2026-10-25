@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { saveWorkStatuses, useWorkStatusesStore } from "../store/workStatuses";
 import type { CustomWorkStatus, ProjectInfo } from "../types";
 import {

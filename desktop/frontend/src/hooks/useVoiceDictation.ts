@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { VoiceToTextAvailable } from "../../bridge/commands";
 import { isMac } from "../platform";
 import { captureDictationTarget, focusDictationField } from "../dictation/insert";

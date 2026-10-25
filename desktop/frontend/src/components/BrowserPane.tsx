@@ -16,7 +16,7 @@ import { useBrowserUrls } from "../store/browserUrls";
 import { getSettings, saveSettings } from "../store/settings";
 import { isDarkTheme } from "../theme";
 import { isLinux, isWindows } from "../platform";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { projectAddress } from "../peer/projectPorts";
 import { toTarget } from "./browserTarget";
 import { browserStartUrl, forgetBrowserStartUrl } from "../browserStartUrls";

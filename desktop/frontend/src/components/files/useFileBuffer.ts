@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { ReadProjectFile, WriteFileIfUnchanged } from "../../../bridge/commands";
 import { useGitChanged } from "../../hooks/useGitChanged";
 import { joinAbs } from "../../path";

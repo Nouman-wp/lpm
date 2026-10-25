@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../../bridge/commands", () => ({ SendLaterSendNow: mocks.sendNow }));
 vi.mock("../../bridge/runtime", () => ({ EventsOn: vi.fn(() => () => {}) }));
-vi.mock("sonner", () => ({ toast: Object.assign(mocks.toast, { error: vi.fn(), success: mocks.success }) }));
+vi.mock("../notifications/toast", () => ({ toast: Object.assign(mocks.toast, { error: vi.fn(), success: mocks.success }) }));
 vi.mock("../store/app", () => ({
   useAppStore: { getState: () => ({ focusProjectTerminal: mocks.focusProjectTerminal }) },
 }));

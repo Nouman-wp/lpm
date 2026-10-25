@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { accountLabel } from "../claudePoolText";
 import { updateHostPool } from "../peer/hostClaude";
 import { peerSlugOf } from "../peer/markers";

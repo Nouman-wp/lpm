@@ -13,7 +13,7 @@ const commands = vi.hoisted(() => ({
 
 vi.mock("../../bridge/commands", () => commands);
 vi.mock("../../bridge/runtime", () => ({ EventsOnReady: async () => () => {} }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("../notifications/toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { useDictationKeys } from "./useDictationKeys";
 import { useDictationStore } from "../store/dictation";

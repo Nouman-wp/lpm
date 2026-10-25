@@ -21,7 +21,7 @@ vi.mock("../../../bridge/commands", () => ({
   PreviewAgentSkillDelete: vi.fn(),
   DeleteAgentSkill: vi.fn(),
 }));
-vi.mock("sonner", () => ({ toast: { success: mocks.success, error: mocks.error } }));
+vi.mock("../../notifications/toast", () => ({ toast: { success: mocks.success, error: mocks.error } }));
 
 // The doc pane's own dependencies — a syntax highlighter and the open-in list —
 // have nothing to do with what is under test and cost a second to load.
@@ -91,6 +91,10 @@ function tab(label: string): HTMLButtonElement | null {
 
 function pencil(): HTMLButtonElement | null {
   return document.querySelector<HTMLButtonElement>('[aria-label="Edit this skill"]');
+}
+
+function saveButton(): HTMLButtonElement | null {
+  return [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Save") ?? null;
 }
 
 function click(target: HTMLButtonElement) {
@@ -165,6 +169,32 @@ describe("ToolkitDetail", () => {
     click(tab("Source")!);
     type(source(), `${SKILL}\nAnd more.\n`);
     expect(pencil()?.disabled).toBe(true);
+  });
+
+  it("confirms a save in the editor's own footer", async () => {
+    await render();
+    click(tab("Source")!);
+    type(source(), `${SKILL}\nAnd more.\n`);
+    await act(async () => saveButton()!.click());
+
+    expect(mocks.write).toHaveBeenCalledWith(SKILL_PATH, `${SKILL}\nAnd more.\n`, SKILL);
+    expect(saveButton()).toBeNull();
+    expect(document.body.textContent).toContain("Saved");
+    expect(mocks.success).not.toHaveBeenCalled();
+    expect(mocks.onSaved).toHaveBeenCalledOnce();
+  });
+
+  it("reloads rather than overwrite a file that changed on disk", async () => {
+    mocks.write.mockRejectedValue("file modified since read");
+    await render();
+    click(tab("Source")!);
+    type(source(), `${SKILL}\nAnd more.\n`);
+    await act(async () => saveButton()!.click());
+
+    expect(mocks.error).toHaveBeenCalledWith("Changed on disk since you opened it — reloading.");
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+    expect(document.body.textContent).not.toContain("Saved");
+    expect(mocks.onSaved).not.toHaveBeenCalled();
   });
 
   // The form wrote to the file behind this, so what is on screen is a version

@@ -2724,12 +2724,7 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                         let app = app.clone();
                         std::thread::spawn(move || {
                             crate::sound::play_status_sound(&sound.value);
-                            crate::statusnotify::notify_status_named(
-                                &app,
-                                &sound.project,
-                                &sound.value,
-                                &sound.terminal,
-                            );
+                            crate::statusnotify::notify_status_named(&app, &sound);
                         });
                     }
                 }

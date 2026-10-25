@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ focusProjectTerminal: vi.fn() }));
 
-vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }) }));
+vi.mock("../../notifications/toast", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }) }));
 vi.mock("../../../bridge/commands", () => ({
   ListOpenInTargets: vi.fn(() => Promise.resolve([])),
   LoadSettings: vi.fn(() => Promise.resolve({})),

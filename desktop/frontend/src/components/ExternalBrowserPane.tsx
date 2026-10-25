@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { projectAddress } from "../peer/projectPorts";
 import { toTarget } from "./browserTarget";

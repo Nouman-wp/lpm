@@ -35,7 +35,7 @@ function render() {
     onRename: vi.fn(async () => true),
     onDelete: vi.fn(),
     onRemoveRemote: vi.fn(),
-    onCopyName: vi.fn(),
+    onCopyName: vi.fn(async () => true),
     onNewBranch: vi.fn(),
   };
   act(() =>
@@ -117,6 +117,22 @@ describe("BranchSearchMenu", () => {
     press(input, "r", { metaKey: true });
     const rename = container.querySelectorAll("input")[1];
     expect(rename?.value).toBe("feat-login");
+  });
+
+  it("confirms a copy on that row's own copy button", async () => {
+    const { input, onCopyName } = render();
+    press(input, "ArrowDown");
+    press(input, "c", { metaKey: true });
+    await act(async () => {});
+    const copied = container.querySelectorAll('[title="Copied"]');
+    expect(copied).toHaveLength(1);
+    expect(copied[0].closest("[data-branch-index]")?.getAttribute("data-branch-index")).toBe("1");
+
+    onCopyName.mockResolvedValueOnce(false);
+    press(input, "ArrowDown");
+    press(input, "c", { metaKey: true });
+    await act(async () => {});
+    expect(container.querySelector('[data-branch-index="2"] [title="Copied"]')).toBeNull();
   });
 
   it("never deletes the current branch", () => {

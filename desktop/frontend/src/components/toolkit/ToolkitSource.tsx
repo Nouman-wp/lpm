@@ -1,10 +1,12 @@
 import { primaryHint } from "../../shortcutHints";
+import { ConfirmNote } from "../ui/ConfirmNote";
 
 interface ToolkitSourceProps {
   draft: string;
   baseline: string;
   editable: boolean;
   saving: boolean;
+  saved: boolean;
   onChange: (text: string) => void;
   onSave: () => void;
   onRevert: () => void;
@@ -20,6 +22,7 @@ export function ToolkitSource({
   baseline,
   editable,
   saving,
+  saved,
   onChange,
   onSave,
   onRevert,
@@ -47,7 +50,7 @@ export function ToolkitSource({
             ? `${primaryHint("s")} save`
             : "Read-only — another tool owns this file's format. Change it with the agent's own command."}
         </span>
-        {editable && dirty && (
+        {editable && dirty ? (
           <>
             <button
               onClick={onRevert}
@@ -63,6 +66,8 @@ export function ToolkitSource({
               Save
             </button>
           </>
+        ) : (
+          saved && <ConfirmNote>Saved</ConfirmNote>
         )}
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type MouseEvent } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { CheckForUpdate, QuitApp } from "../../bridge/commands";
 import { EventsEmit } from "../../bridge/runtime";
 import { isQuitChord, QUIT_LABEL, SETTINGS_CHORD } from "../appMenuKeys";

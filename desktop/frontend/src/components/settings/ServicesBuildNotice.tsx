@@ -1,6 +1,6 @@
 import { TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { RestartServices, ServicesBuild } from "../../../bridge/commands";
 import { BTN_SECONDARY } from "../ui/buttons";
 import { ConfirmDialog } from "../ui/ConfirmDialog";

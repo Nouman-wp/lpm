@@ -1,5 +1,7 @@
 use crate::config;
-use crate::status::{STATUS_DONE, STATUS_ERROR, STATUS_WAITING};
+use crate::notifychannels::{self, NotificationChannel, NotificationEvent};
+use crate::status::{now_millis, StatusEntry};
+use serde_json::Value;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_dialog::DialogExt;
@@ -11,8 +13,9 @@ use tauri_plugin_dialog::DialogExt;
 pub const STATUS_SOUND_EVENT: &str = "status-sound";
 
 /// What a paired Mac needs to chime and post a banner for a host's agent: the
-/// status value plus the names the host shows for the project and the tab, so
-/// the banner reads the same as it would on the host's own screen.
+/// status value plus what the host's own banner says about it — the names it
+/// shows for the project and the tab, how long the turn took, the start of the
+/// answer — so the banner reads the same as it would on the host's own screen.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Default)]
 pub struct StatusSound {
     pub value: String,
@@ -20,6 +23,10 @@ pub struct StatusSound {
     pub project: String,
     #[serde(default)]
     pub terminal: String,
+    #[serde(rename = "elapsedMs", default, skip_serializing_if = "Option::is_none")]
+    pub elapsed_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answer: Option<String>,
 }
 
 impl StatusSound {
@@ -35,14 +42,16 @@ impl StatusSound {
         serde_json::from_value(payload.clone()).ok()
     }
 
-    /// A transition worth hearing, with the names this machine shows for it.
-    pub fn of(app: &AppHandle, project: &str, value: &str, pane_id: &str) -> Option<Self> {
-        status_meta(value)?;
-        Some(Self {
-            value: value.to_string(),
+    /// A transition as this machine tells it, all but the answer, which
+    /// waits on the transcript (statusbanner.rs).
+    pub fn of(app: &AppHandle, project: &str, entry: &StatusEntry) -> Self {
+        Self {
+            value: entry.value.clone(),
             project: config::project_display_name(project),
-            terminal: crate::remote::terminal_label(app, pane_id).unwrap_or_default(),
-        })
+            terminal: crate::remote::terminal_label(app, &entry.pane_id).unwrap_or_default(),
+            elapsed_ms: entry.turn_elapsed_ms(now_millis()),
+            answer: None,
+        }
     }
 }
 
@@ -92,11 +101,12 @@ const CHIME_DONE: &[u8] = include_bytes!("../assets/sounds/done.wav");
 const CHIME_WAITING: &[u8] = include_bytes!("../assets/sounds/waiting.wav");
 const CHIME_ERROR: &[u8] = include_bytes!("../assets/sounds/error.wav");
 
-fn status_meta(value: &str) -> Option<(&'static str, &'static str)> {
-    match value {
-        STATUS_DONE => Some(("doneSound", "done")),
-        STATUS_WAITING => Some(("waitingSound", "waiting")),
-        STATUS_ERROR => Some(("errorSound", "error")),
+/// The setting that picks an agent event's sound, and its built-in chime.
+fn sound_of(event: NotificationEvent) -> Option<(&'static str, &'static str)> {
+    match event {
+        NotificationEvent::AgentDone => Some(("doneSound", "done")),
+        NotificationEvent::AgentWaiting => Some(("waitingSound", "waiting")),
+        NotificationEvent::AgentError => Some(("errorSound", "error")),
         _ => None,
     }
 }
@@ -108,24 +118,32 @@ fn status_meta(value: &str) -> Option<(&'static str, &'static str)> {
 /// transition to the Macs paired with it, which play it where the person actually
 /// is. Those Macs apply their own sound settings to it, which is the right owner
 /// of that choice: it's their speaker.
-pub fn announce_status(app: &AppHandle, project: &str, value: &str, pane_id: &str) {
+pub fn announce_status(
+    app: &AppHandle,
+    event: NotificationEvent,
+    settings: &Value,
+    news: &dyn Fn() -> StatusSound,
+) {
     if cfg!(target_os = "macos") || !crate::sys::headless() {
-        play_status_sound(value);
-    } else if let Some(sound) = StatusSound::of(app, project, value, pane_id) {
-        let _ = app.emit(STATUS_SOUND_EVENT, sound);
+        play_event_sound(event, settings);
+    } else {
+        let _ = app.emit(STATUS_SOUND_EVENT, news());
     }
 }
 
+/// The sound for a paired host's agent status, under this Mac's settings.
 pub fn play_status_sound(value: &str) {
-    let Some((key, event)) = status_meta(value) else {
+    if let Some(event) = NotificationEvent::of_status(value) {
+        play_event_sound(event, &config::load_settings());
+    }
+}
+
+/// The sound for an agent event, when the user wants that event heard.
+fn play_event_sound(event: NotificationEvent, settings: &Value) {
+    let Some((key, chime)) = sound_of(event) else {
         return;
     };
-    let settings = config::load_settings();
-    if !settings
-        .get("soundNotifications")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true)
-    {
+    if !notifychannels::enabled_in(settings, event, NotificationChannel::Sound) {
         return;
     }
     let spec = settings
@@ -134,7 +152,7 @@ pub fn play_status_sound(value: &str) {
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .unwrap_or("chime");
-    play_spec(spec, event);
+    play_spec(spec, chime);
 }
 
 fn play_spec(spec: &str, event: &str) {
@@ -307,14 +325,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn status_meta_maps_notifying_statuses_only() {
-        assert_eq!(status_meta(STATUS_DONE), Some(("doneSound", "done")));
+    fn agent_events_have_sounds_and_the_rest_do_not() {
         assert_eq!(
-            status_meta(STATUS_WAITING),
+            sound_of(NotificationEvent::AgentDone),
+            Some(("doneSound", "done"))
+        );
+        assert_eq!(
+            sound_of(NotificationEvent::AgentWaiting),
             Some(("waitingSound", "waiting"))
         );
-        assert_eq!(status_meta(STATUS_ERROR), Some(("errorSound", "error")));
-        assert_eq!(status_meta("Running"), None);
+        assert_eq!(
+            sound_of(NotificationEvent::AgentError),
+            Some(("errorSound", "error"))
+        );
+        assert_eq!(sound_of(NotificationEvent::Automation), None);
     }
 
     #[test]
@@ -338,6 +362,7 @@ mod tests {
                 value: "Waiting".into(),
                 project: "Web App-a1b2c3".into(),
                 terminal: "refactor auth".into(),
+                ..StatusSound::default()
             })
         );
         assert_eq!(StatusSound::from_payload(&serde_json::json!(null)), None);
@@ -346,6 +371,20 @@ mod tests {
             None,
             "a value is the one required field"
         );
+    }
+
+    #[test]
+    fn status_sound_carries_what_the_banner_says() {
+        let done = StatusSound {
+            value: "Done".into(),
+            project: "web".into(),
+            terminal: "tests".into(),
+            elapsed_ms: Some(61_000),
+            answer: Some("All 42 tests pass.".into()),
+        };
+        let payload = serde_json::to_value(&done).unwrap();
+        assert_eq!(payload["elapsedMs"], 61_000);
+        assert_eq!(StatusSound::from_payload(&payload), Some(done));
     }
 
     #[test]

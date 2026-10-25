@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { useAppStore } from "../../store/app";
 import { SettingsSection } from "../SettingsSection";
 import { BTN_SECONDARY } from "../ui/buttons";

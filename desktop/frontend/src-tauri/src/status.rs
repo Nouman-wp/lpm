@@ -83,6 +83,16 @@ impl StatusEntry {
     pub fn sub_agent_asking(&self) -> bool {
         self.value == STATUS_WAITING && self.askers.iter().any(|a| a != MAIN_ASKER)
     }
+
+    /// How long the turn has run: up to its end once it ended, up to `now`
+    /// while it goes on. None when its start was never seen.
+    pub fn turn_elapsed_ms(&self, now: i64) -> Option<u64> {
+        if self.turn_start <= 0 {
+            return None;
+        }
+        let end = if self.ended_at > 0 { self.ended_at } else { now };
+        u64::try_from(end - self.turn_start).ok()
+    }
 }
 
 /// Carry `turn_start` from the entry being replaced, and stamp `ended_at` when
@@ -209,6 +219,13 @@ impl StatusStore {
     pub fn get(&self, project: &str, key: &str) -> Option<StatusEntry> {
         let m = self.entries.read().unwrap();
         m.get(project)?.get(key).cloned()
+    }
+
+    /// The report `seen` was taken of as the store holds it — dated into its
+    /// turn by [`Self::set`] — while it is still that report.
+    pub fn get_if_unchanged(&self, project: &str, seen: &StatusEntry) -> Option<StatusEntry> {
+        let m = self.entries.read().unwrap();
+        m.get(project)?.get(&seen.key).filter(|e| same_report(e, seen)).cloned()
     }
 
     /// Change the entry `key` holds in place, leaving everything that dates or
@@ -810,6 +827,28 @@ mod tests {
         let e = only(&s, "p");
         assert_eq!(e.turn_start, 0, "how long it ran is unknowable");
         assert_eq!(e.ended_at, 400);
+    }
+
+    #[test]
+    fn a_turn_is_timed_to_its_end_or_to_now() {
+        let s = StatusStore::new();
+        s.set("p", entry("k", STATUS_RUNNING, 0, 100, "p-1"));
+        assert_eq!(only(&s, "p").turn_elapsed_ms(250), Some(150));
+        s.set("p", entry("k", STATUS_DONE, 0, 400, "p-1"));
+        assert_eq!(only(&s, "p").turn_elapsed_ms(9_000), Some(300));
+        assert_eq!(entry("k", STATUS_DONE, 0, 400, "p-1").turn_elapsed_ms(900), None);
+    }
+
+    #[test]
+    fn a_report_reads_back_dated_into_its_turn_until_replaced() {
+        let s = StatusStore::new();
+        s.set("p", entry("k", STATUS_RUNNING, 0, 100, "p-1"));
+        let done = entry("k", STATUS_DONE, 0, 400, "p-1");
+        s.set("p", done.clone());
+        let held = s.get_if_unchanged("p", &done).unwrap();
+        assert_eq!((held.turn_start, held.ended_at), (100, 400));
+        s.set("p", entry("k", STATUS_RUNNING, 0, 500, "p-1"));
+        assert!(s.get_if_unchanged("p", &done).is_none());
     }
 
     #[test]

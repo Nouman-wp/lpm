@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { SetClaudeAccountChoice } from "../../bridge/commands";
 import { accountLabel } from "../claudePoolText";
 import { displayNameForProjectName } from "../components/ProjectNameDisplay";

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
+import { useConfirmFlash } from "../hooks/useConfirmFlash";
 import { useSettingsTarget } from "./settings/settingsTarget";
 import { SettingsRow } from "./SettingsRow";
 import { SettingsSelect } from "./SettingsSelect";
 import { BTN_SECONDARY } from "./ui/buttons";
+import { ConfirmNote } from "./ui/ConfirmNote";
 import { isMac } from "../platform";
 
 /// The key lives in the macOS Keychain (a 0600 file on a Linux host), never in
@@ -15,6 +17,7 @@ export function OpenAIKeyRow() {
   const [saved, setSaved] = useState<boolean | null>(null);
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
+  const [confirmed, flashConfirmed] = useConfirmFlash();
   const keychain = machine.kind === "local" ? isMac : machine.mac;
   const where = machine.kind === "local" ? "on this computer" : `on ${machine.name}`;
 
@@ -31,7 +34,7 @@ export function OpenAIKeyRow() {
       setValue("");
       setEditing(false);
       setSaved(true);
-      toast.success(keychain ? "OpenAI key saved to the Keychain" : "OpenAI key saved");
+      flashConfirmed();
     } catch (err) {
       toast.error(`Couldn't save key: ${String(err)}`);
     }
@@ -41,7 +44,7 @@ export function OpenAIKeyRow() {
     try {
       await commands.clearOpenAiKey();
       setSaved(false);
-      toast.success("OpenAI key removed");
+      flashConfirmed();
     } catch (err) {
       toast.error(`Couldn't remove key: ${String(err)}`);
     }
@@ -58,7 +61,9 @@ export function OpenAIKeyRow() {
 
   return (
     <SettingsRow id="tts.openaiKey" label="OpenAI API Key" description={description}>
-      {editing || saved === false ? (
+      {confirmed ? (
+        <ConfirmNote>{saved ? "Saved" : "Removed"}</ConfirmNote>
+      ) : editing || saved === false ? (
         <div className="flex items-center gap-2">
           <input
             type="password"

@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../../bridge/commands", () => ({
   CreateAgentSkill: mocks.create,
 }));
-vi.mock("sonner", () => ({ toast: mocks.toast }));
+vi.mock("../../notifications/toast", () => ({ toast: mocks.toast }));
 
 // The prose fields are the app's composer, which brings dictation, the rewrite
 // actions and a contentEditable the tests would have to drive by hand. The

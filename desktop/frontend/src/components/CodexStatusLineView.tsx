@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import type { MachineScope } from "./settings/machineCommands";
 import { getSettings, saveSettings } from "../store/settings";
 import { notifyStatusLineChanged } from "./statusLineChanges";

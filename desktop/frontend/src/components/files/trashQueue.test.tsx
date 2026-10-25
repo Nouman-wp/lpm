@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   trash: vi.fn((_root: string, _path: string) => Promise.resolve(null)),
 }));
 
-vi.mock("sonner", () => ({ toast: mocks.toast }));
+vi.mock("../../notifications/toast", () => ({ toast: mocks.toast }));
 vi.mock("../../../bridge/commands", () => ({ TrashProjectEntry: mocks.trash }));
 
 import { TRASH_UNDO_MS, trashLater, usePendingTrashPaths } from "./trashQueue";

@@ -1,0 +1,317 @@
+/* One card for every toast: the kind shows on its icon, and only the toasts
+   that need you (warnings, errors) tint the card. */
+:root {
+  --toast-hover: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  --toast-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+[data-sonner-toaster][data-sonner-theme="light"] {
+  --toast-surface: var(--bg-primary);
+  --toast-shadow: 0 8px 24px rgb(0 0 0 / 0.08);
+}
+
+[data-sonner-toaster][data-sonner-theme="dark"] {
+  --toast-surface: var(--bg-secondary);
+  --toast-shadow: 0 10px 28px rgb(0 0 0 / 0.45);
+}
+
+/* The surface every toast stands on, cards and hand-built toasts alike. */
+.toast-surface,
+.toast-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--toast-surface);
+  box-shadow: var(--toast-shadow);
+}
+
+.toast-card {
+  --toast-accent: var(--text-muted);
+  --toast-accent-text: var(--text-secondary);
+  --toast-indent: 26px;
+  position: relative;
+  box-sizing: border-box;
+  width: var(--width, 356px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 10px 12px 14px;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.toast-card[data-kind="default"] {
+  --toast-indent: 0px;
+}
+
+.toast-card[data-kind="success"] {
+  --toast-accent: var(--accent-green);
+  --toast-accent-text: var(--accent-green-text);
+}
+
+.toast-card[data-kind="info"] {
+  --toast-accent: var(--accent-blue);
+  --toast-accent-text: var(--accent-blue-text);
+}
+
+.toast-card[data-kind="warning"] {
+  --toast-accent: var(--accent-amber);
+  --toast-accent-text: var(--accent-amber-text);
+}
+
+.toast-card[data-kind="error"] {
+  --toast-accent: var(--accent-red);
+  --toast-accent-text: var(--accent-red-text);
+}
+
+.toast-card:is([data-kind="warning"], [data-kind="error"]) {
+  border-color: color-mix(in srgb, var(--toast-accent) 30%, var(--border));
+  background: color-mix(in srgb, var(--toast-accent) 8%, var(--toast-surface));
+}
+
+.toast-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.toast-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--toast-accent);
+}
+
+.toast-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 1px;
+}
+
+.toast-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.toast-title {
+  min-width: 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.toast-tag,
+.toast-count {
+  flex: none;
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.toast-tag {
+  color: var(--text-secondary);
+  background: var(--toast-hover);
+}
+
+.toast-count {
+  font-family: var(--toast-mono);
+  color: var(--toast-accent-text);
+  background: color-mix(in srgb, var(--toast-accent) 16%, transparent);
+}
+
+.toast-description {
+  font-size: 12.5px;
+  color: color-mix(in srgb, var(--text-muted) 85%, var(--text-primary));
+  overflow-wrap: anywhere;
+}
+
+.toast-close {
+  flex: none;
+  display: flex;
+  margin: -4px -2px 0 0;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.toast-close:hover {
+  color: var(--text-primary);
+  background: var(--toast-hover);
+}
+
+.toast-quote,
+.toast-details {
+  margin: 0 0 0 var(--toast-indent);
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: 11.5px/1.5 var(--toast-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: auto;
+  user-select: text;
+}
+
+.toast-quote {
+  max-height: 7.5em;
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+.toast-details {
+  max-height: 160px;
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  color: var(--text-secondary);
+}
+
+.toast-content {
+  min-width: 0;
+}
+
+.toast-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-left: calc(var(--toast-indent) - 6px);
+}
+
+.toast-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent-blue-text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.toast-button:hover {
+  background: var(--toast-hover);
+}
+
+.toast-button-solid {
+  padding: 0 10px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+}
+
+.toast-button-solid:hover {
+  background: color-mix(in srgb, var(--text-primary) 16%, transparent);
+}
+
+.toast-button-quiet {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.toast-button-inline {
+  flex: none;
+  margin-top: -4px;
+}
+
+.toast-details-toggle {
+  margin-left: auto;
+}
+
+.toast-details-toggle svg[data-open] {
+  transform: rotate(180deg);
+}
+
+.toast-steps {
+  display: flex;
+  gap: 4px;
+  margin-left: var(--toast-indent);
+}
+
+.toast-steps > span {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--toast-hover);
+}
+
+.toast-steps > span[data-done] {
+  background: var(--accent-blue);
+}
+
+/* The time a toast has left, draining while it's up and holding while the
+   pointer is on the stack (sonner pauses its timer then too). */
+.toast-countdown {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: color-mix(in srgb, var(--text-primary) 22%, transparent);
+  transform-origin: left;
+  animation-name: toast-countdown;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+[data-sonner-toast][data-expanded="true"] .toast-countdown {
+  animation-play-state: paused;
+}
+
+@keyframes toast-countdown {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-countdown {
+    display: none;
+  }
+}
+
+/* Cards tucked behind the front one show only their edge, like sonner's own. */
+[data-sonner-toast][data-expanded="false"][data-front="false"] .toast-card {
+  height: 100%;
+}
+
+[data-sonner-toast][data-expanded="false"][data-front="false"] .toast-card > * {
+  opacity: 0;
+}
+
+.toast-stack-chip {
+  position: fixed;
+  z-index: 999999998;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.18);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+.toast-stack-chip .toast-button {
+  height: 22px;
+  border-radius: 999px;
+  font-size: 12.5px;
+}
+
+.toast-button-compact {
+  height: 24px;
+  font-size: 12.5px;
+}

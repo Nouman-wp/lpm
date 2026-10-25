@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { Plus } from "lucide-react";
 import { main } from "../../bridge/models";
 import { useBranchSearch } from "../hooks/useBranchSearch";
+import { useConfirmFlashFor } from "../hooks/useConfirmFlash";
 import { BranchRow } from "./BranchRow";
 import { enterHint } from "../shortcutHints";
 import { branchKeyAction, branchKeyHints } from "./branchKeys";
@@ -21,7 +22,8 @@ interface BranchSearchMenuProps {
   onRename: (branch: main.Branch, newName: string) => Promise<boolean>;
   onDelete: (branch: main.Branch) => void;
   onRemoveRemote: (branch: main.Branch) => void;
-  onCopyName: (name: string) => void;
+  // Resolves whether the copy went through.
+  onCopyName: (name: string) => Promise<boolean>;
   onNewBranch: (prefill: string) => void;
 }
 
@@ -46,6 +48,7 @@ export function BranchSearchMenu({
   const [activeIndex, setActiveIndex] = useState(0);
   const [renamingKey, setRenamingKey] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [copiedKey, flashCopied] = useConfirmFlashFor<string>();
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const searchResults = useBranchSearch(projectPath, query, true);
@@ -116,6 +119,10 @@ export function BranchSearchMenu({
     if (await onRename(b, newName)) endRename();
   };
 
+  const copyName = async (b: main.Branch) => {
+    if (await onCopyName(b.name)) flashCopied(branchKey(b));
+  };
+
   const remove = (b: main.Branch) => {
     if (b.remote) onRemoveRemote(b);
     else if (b.name !== current) onDelete(b);
@@ -139,7 +146,7 @@ export function BranchSearchMenu({
     if (action === "copy") {
       if (hasSelection(e.currentTarget)) return;
       e.preventDefault();
-      onCopyName(activeBranch.name);
+      void copyName(activeBranch);
     } else if (action === "rename") {
       e.preventDefault();
       if (!activeBranch.remote) startRename(activeBranch);
@@ -163,12 +170,13 @@ export function BranchSearchMenu({
         uncommitted={uncommitted}
         busy={busy}
         renaming={renamingKey === key}
+        copied={copiedKey === key}
         renameValue={renameValue}
         onRenameChange={setRenameValue}
         onRenameSubmit={() => submitRename(b)}
         onRenameCancel={() => setRenamingKey(null)}
         onCheckout={() => onCheckout(b)}
-        onCopy={() => onCopyName(b.name)}
+        onCopy={() => void copyName(b)}
         onStartRename={() => startRename(b)}
         onDelete={() => onDelete(b)}
         onRemoveRemote={() => onRemoveRemote(b)}
@@ -197,7 +205,7 @@ export function BranchSearchMenu({
           onCopy={(e) => {
             if (hasSelection(e.currentTarget) || !activeBranch) return;
             e.preventDefault();
-            onCopyName(activeBranch.name);
+            void copyName(activeBranch);
           }}
           placeholder="Search or create a branch"
           autoComplete="off"

@@ -42,8 +42,16 @@ pub fn agent_last_answer(
     provider: String,
     session_id: String,
 ) -> Result<Option<String>, String> {
-    let answers = locate(&project_name, &provider, &session_id)?.newest(1)?;
-    Ok(answers.into_iter().next().map(|answer| answer.text))
+    Ok(newest_answer(&project_name, &provider, &session_id)?.map(|answer| answer.text))
+}
+
+pub(crate) fn newest_answer(
+    project_name: &str,
+    provider: &str,
+    session_id: &str,
+) -> Result<Option<RecentAnswer>, String> {
+    let answers = locate(project_name, provider, session_id)?.newest(1)?;
+    Ok(answers.into_iter().next())
 }
 
 #[tauri::command(async)]

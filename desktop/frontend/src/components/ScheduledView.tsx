@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { EventsOn } from "../../bridge/runtime";
 import {
   ClearJobState,

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { EventsOn } from "../../bridge/runtime";
 import { MACHINE as M } from "../machineWords";
 
@@ -11,6 +11,7 @@ export function usePeerRemovedNotices(): void {
       EventsOn("peer-removed-remotely", (event: { name: string }) => {
         toast(`${event.name} removed ${M.thisMachine}`, {
           description: `Pair again from there to connect to it.`,
+          event: "peers",
         });
       }),
     [],

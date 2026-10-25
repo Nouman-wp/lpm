@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { CreateAgentSkill } from "../../../bridge/commands";
 import type { AgentCapability, CapabilityRoot } from "../../toolkit";
 import { shortPath } from "../../toolkit";

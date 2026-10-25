@@ -1,4 +1,5 @@
-import { toast } from "sonner";
+import { toast } from "./notifications/toast";
+import type { ToastId } from "./notifications/types";
 
 // The backend ends the message for a pull blocked by uncommitted changes that
 // autostash would carry over with this phrase (gitconflict.rs).
@@ -16,16 +17,20 @@ export function pullErrorText(err: unknown, label: string, project?: string): st
   return project ? `${project}: ${text}` : text;
 }
 
-export function toastPullError(
-  err: unknown,
-  label: string,
-  retryWithAutostash: () => void,
-  id?: string | number,
-): void {
+interface PullErrorToast {
+  label: string;
+  id?: ToastId;
+  retry: () => void;
+  retryWithAutostash: () => void;
+}
+
+// A pull that local changes blocked is retried with autostash, since pulling
+// again as it was would only fail the same way.
+export function toastPullError(err: unknown, { label, id, retry, retryWithAutostash }: PullErrorToast): void {
   const autostash = offersAutostash(err);
   toast.error(pullErrorText(err, label), {
     id,
-    duration: autostash ? 12000 : undefined,
+    retry: autostash ? undefined : retry,
     action: autostash ? { label: "Pull with autostash", onClick: retryWithAutostash } : undefined,
   });
 }

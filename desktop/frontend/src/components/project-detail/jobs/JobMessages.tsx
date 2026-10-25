@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../../../notifications/toast";
 import { DeleteJobHistory, JobHistory } from "../../../../bridge/commands";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { ZoomControl } from "../../ui/ZoomControl";

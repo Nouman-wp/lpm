@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { Play, RefreshCw } from "lucide-react";
 import { RemoveSyncedCopyDialog } from "./RemoveSyncedCopyDialog";
 import { SyncGlyph } from "./SyncGlyph";

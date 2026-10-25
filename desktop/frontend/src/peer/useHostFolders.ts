@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { create } from "zustand";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { EventsOn } from "../../bridge/runtime";
 import {
   dropMove,

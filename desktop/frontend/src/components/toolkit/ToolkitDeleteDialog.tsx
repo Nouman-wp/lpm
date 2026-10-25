@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../../notifications/toast";
 import { DeleteAgentSkill, PreviewAgentSkillDelete } from "../../../bridge/commands";
 import { trashName } from "../../platform";
 import type { AgentCapability } from "../../toolkit";

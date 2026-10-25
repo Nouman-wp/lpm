@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { toast } from "sonner";
+import { Check } from "lucide-react";
+import { toast } from "../notifications/toast";
 import { CheckoutBranch, PullBranch, SetClipboardText } from "../../bridge/commands";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { getSettings } from "../store/settings";
 import { prFromCreatedUrl } from "../store/branchPr";
 import { DEFAULT_PULL_CONFIG, pullFlags } from "../gitOptions";
 import { pullErrorText } from "../gitPullErrors";
+import { useConfirmFlash } from "../hooks/useConfirmFlash";
 import { BranchIcon, CopyIcon } from "./icons";
 
 interface PRCreatedViewProps {
@@ -28,13 +30,14 @@ export function PRCreatedView({
   onBusyChange,
 }: PRCreatedViewProps) {
   const [switching, setSwitching] = useState(false);
+  const [copied, flashCopied] = useConfirmFlash();
   const pr = prFromCreatedUrl(url, "");
   const link = url.trim();
 
   const copyLink = async () => {
     try {
       await SetClipboardText(link);
-      toast.success("Copied pull request link");
+      flashCopied();
     } catch (err) {
       toast.error(`Copy failed: ${err}`);
     }
@@ -103,11 +106,13 @@ export function PRCreatedView({
           <button
             type="button"
             onClick={copyLink}
-            aria-label="Copy link"
-            title="Copy link"
-            className="shrink-0 rounded-md p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            aria-label={copied ? "Copied" : "Copy link"}
+            title={copied ? "Copied" : "Copy link"}
+            className={`shrink-0 rounded-md p-1.5 transition-colors hover:bg-[var(--bg-hover)] ${
+              copied ? "text-[var(--accent-green)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
           >
-            <CopyIcon size={13} />
+            {copied ? <Check size={13} /> : <CopyIcon size={13} />}
           </button>
         </div>
       )}

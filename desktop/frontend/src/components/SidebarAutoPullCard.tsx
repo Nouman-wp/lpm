@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject, type SyntheticEvent } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { autoPullState, normalizeAutoPullMode } from "../autoPull";
 import { autoPullSoon, autoPullWait, setProjectAutoPull, type AutoPullWait } from "../autoPullRun";
 import { originMarkTitle, type OriginMark } from "../originStatus";

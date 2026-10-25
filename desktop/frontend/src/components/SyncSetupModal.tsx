@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { FolderSync, X } from "lucide-react";
 import { Modal } from "./ui/Modal";
 import { ProgressBar } from "./ui/ProgressBar";

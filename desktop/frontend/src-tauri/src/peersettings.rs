@@ -32,6 +32,8 @@ enum Kind {
     OneOf(&'static [&'static str]),
     /// Hotkey id to key combo.
     Shortcuts,
+    /// Notification event to channel to on/off (notifychannels.rs).
+    NotificationChannels,
 }
 
 const SHARED: &[(&str, Kind)] = &[
@@ -43,6 +45,8 @@ const SHARED: &[(&str, Kind)] = &[
     ("defaultProjectDirectory", Kind::Path),
     ("systemNotifications", Kind::Flag),
     ("soundNotifications", Kind::Flag),
+    (crate::notifychannels::SETTINGS_KEY, Kind::NotificationChannels),
+    ("holdToastsWhileTyping", Kind::Flag),
     ("doneSound", Kind::Path),
     ("waitingSound", Kind::Path),
     ("errorSound", Kind::Path),
@@ -165,6 +169,10 @@ fn checked(key: &str, value: &Value) -> Result<Option<Value>, String> {
         Kind::Shortcuts => (
             is_shortcuts(value),
             "a map of shortcut names to keys".to_string(),
+        ),
+        Kind::NotificationChannels => (
+            crate::notifychannels::is_valid_choices(value),
+            "a map of notification events to channels switched on or off".to_string(),
         ),
     };
     if valid {
@@ -293,6 +301,8 @@ mod tests {
             "filesTreeSide": "left",
             "hotkeys": { "renameProject": "cmd+shift+r" },
             "ttsSpeed": 1.5,
+            "notificationChannels": { "agentDone": { "banner": false, "sound": true } },
+            "holdToastsWhileTyping": false,
         });
         apply_patch(&mut settings, &patch).unwrap();
         assert_eq!(settings, patch);
@@ -319,6 +329,11 @@ mod tests {
             json!({ "terminalLineHeight": "tall" }),
             json!({ "hotkeys": { "renameProject": 1 } }),
             json!({ "hotkeys": "cmd+r" }),
+            json!({ "notificationChannels": { "agentDone": { "banner": "off" } } }),
+            json!({ "notificationChannels": { "agentDone": { "phone": false } } }),
+            json!({ "notificationChannels": { "deploys": { "banner": false } } }),
+            json!({ "notificationChannels": ["agentDone"] }),
+            json!({ "holdToastsWhileTyping": 1 }),
             json!(["checkOrigin"]),
         ] {
             assert!(apply_patch(&mut settings, &bad).is_err(), "{bad} was accepted");

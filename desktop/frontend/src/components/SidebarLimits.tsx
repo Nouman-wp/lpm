@@ -4,7 +4,7 @@ import { useNow } from "../hooks/useNow";
 import { useSettingsStore } from "../store/settings";
 import { ApplyClaudeLimits } from "../../bridge/commands";
 import { SidebarLimitRow } from "./SidebarLimitRow";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 
 // Live usage meters for Claude Code and Codex in the sidebar footer. Codex needs
 // no setup; Claude appears once the user turns on "Claude usage limits", which

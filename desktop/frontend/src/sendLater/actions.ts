@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { useAppStore } from "../store/app";
 import { deliverPromptDraft } from "../store/composerDrafts";
 import { deleteMessage } from "../store/messageHistory";

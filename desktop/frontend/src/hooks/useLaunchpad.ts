@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { composerValueToText } from "../composerValue";
 import { EMPTY_COMPOSER, type ComposerValue } from "../components/InputComposer";
 import { inGroupColor, noteChildRun } from "../components/splitPrimary";

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { IS_MIRROR_WINDOW } from "../mirror";
 import {
   parseSshEnvMismatch,

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { actionErrorNotices } from "../actionErrorNotices";
 import { displayNameForProjectName } from "../components/ProjectNameDisplay";
 import { IS_MIRROR_WINDOW } from "../mirror";

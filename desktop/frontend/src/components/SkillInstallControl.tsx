@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "../notifications/toast";
 import { AgentSkillStatus, CliInstallStatus, InstallAgentSkill, InstallCli } from "../../bridge/commands";
+import { useConfirmFlash } from "../hooks/useConfirmFlash";
 import { BTN_SECONDARY } from "./ui/buttons";
 import { RefreshIcon } from "./icons";
 
@@ -54,9 +55,15 @@ export function agentToolsAction(skill: SkillStatus, cli: CliStatus): "install" 
   return null;
 }
 
-export async function installAgentTools() {
+// What got installed, or null when a failure has already said what happened.
+async function installAgentToolsQuietly() {
   await InstallAgentSkill();
-  await installCliIfNeeded();
+  return installCliIfNeeded();
+}
+
+export async function installAgentTools() {
+  const installed = await installAgentToolsQuietly();
+  if (installed) toast.success(installed);
 }
 
 const CTA_GREEN =
@@ -108,15 +115,13 @@ function VersionLine({ cliVersion, skillVersion }: { cliVersion?: string; skillV
 async function installCliIfNeeded() {
   try {
     const cli = await CliInstallStatus();
-    if (cli.status === "installed" || cli.status === "unavailable") {
-      toast.success("Skill installed");
-      return;
-    }
+    if (cli.status === "installed" || cli.status === "unavailable") return "Skill installed";
     await InstallCli();
-    toast.success("Skill and command line tool installed");
+    return "Skill and command line tool installed";
   } catch (err) {
     toast.success("Skill installed");
     toast.error(String(err));
+    return null;
   }
 }
 
@@ -125,6 +130,7 @@ export function SkillInstallControl() {
   const [cli, setCli] = useState<CliResult>({ status: "loading" });
   const [installing, setInstalling] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [updated, flashUpdated] = useConfirmFlash();
   const skillStatus = skill.status;
   const cliStatus = cli.status;
 
@@ -147,16 +153,23 @@ export function SkillInstallControl() {
     refresh();
   }, []);
 
+  // Resolves whether everything went in. A fresh install needs no word of its
+  // own: the button gives way to the "Installed" line.
   const install = async () => {
     setInstalling(true);
     try {
-      await installAgentTools();
+      return (await installAgentToolsQuietly()) !== null;
     } catch (err) {
       toast.error(String(err));
+      return false;
     } finally {
       await refresh();
       setInstalling(false);
     }
+  };
+
+  const update = async () => {
+    if (await install()) flashUpdated();
   };
 
   if (installing) {
@@ -201,7 +214,7 @@ export function SkillInstallControl() {
     return (
       <div className="flex items-center gap-1.5">
         {refreshButton}
-        <button onClick={install} className={CTA_GREEN}>
+        <button onClick={update} className={CTA_GREEN}>
           Update
         </button>
       </div>
@@ -237,7 +250,7 @@ export function SkillInstallControl() {
       <div className="flex flex-col items-end gap-0.5">
         <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
           <CheckIcon />
-          Installed
+          {updated ? "Updated" : "Installed"}
         </span>
         {versionLine}
       </div>
