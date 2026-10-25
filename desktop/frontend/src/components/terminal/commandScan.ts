@@ -172,7 +172,9 @@ function wholeLine(buffer: IBuffer, index: number): CommandMatch | null {
   const above = top > 0 ? readLineWindow(buffer, top - 1).text : "";
   if (above.trimEnd().endsWith("\\")) return null;
   if (!prompted && !opensBlock(buffer, top - 1)) return null;
+  let to = from + command.length - 1;
   if (command.endsWith("\\")) {
+    to = win.text.length - 1;
     const parts = [command.slice(0, -1).trim()];
     let next = win.y[win.y.length - 1] + 1;
     for (let n = 0; n < MAX_CONTINUED && buffer.getLine(next); n++) {
@@ -184,7 +186,7 @@ function wholeLine(buffer: IBuffer, index: number): CommandMatch | null {
     }
     command = parts.filter(Boolean).join(" ");
   }
-  return { command, range: windowRange(win, from, win.text.length - 1) };
+  return { command, range: windowRange(win, from, to) };
 }
 
 const atOrBefore = (a: IBufferRange["start"], b: IBufferRange["start"]) => a.y < b.y || (a.y === b.y && a.x <= b.x);

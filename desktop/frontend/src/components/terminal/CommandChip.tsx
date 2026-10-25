@@ -6,7 +6,7 @@ import { isMac } from "../../platform";
 import {
   hideCommandChip,
   keepCommandChip,
-  leaveCommand,
+  leaveCommandChip,
   type CommandChipTarget,
 } from "../../store/commandChip";
 import { placeCommandChip } from "./commandChipPlacement";
@@ -67,7 +67,7 @@ export function CommandChip({ target, onRun, onRunInNewTab }: CommandChipProps) 
       aria-label={target.command}
       data-command-chip
       onMouseEnter={keepCommandChip}
-      onMouseLeave={leaveCommand}
+      onMouseLeave={leaveCommandChip}
       style={{ ...place, visibility: place ? "visible" : "hidden" }}
       className={`fixed left-0 top-0 z-50 flex items-center gap-0.5 whitespace-nowrap rounded-lg border p-0.5 text-[11.5px] shadow-[0_6px_18px_rgba(0,0,0,0.3)] ${
         armed

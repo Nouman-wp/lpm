@@ -67,10 +67,25 @@ function unquoted(text: string): string {
   return text.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, " ");
 }
 
+// An agent's `npm test  # runs the suite`: the comment isn't part of what
+// runs, and an interactive zsh reads a `#` as a glob, not a comment.
+function withoutComment(text: string): string {
+  let quote: string | null = null;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === "\\" && quote !== "'") i++;
+    else if (quote) {
+      if (c === quote) quote = null;
+    } else if (c === "'" || c === '"') quote = c;
+    else if (c === "#" && (i === 0 || /\s/.test(text[i - 1]))) return text.slice(0, i);
+  }
+  return text;
+}
+
 /** The command `text` reads as, or null. `whole` holds a line with nothing to
  *  mark it as code (no colour, no backticks) to prose rules on top. */
 export function readCommand(text: string, whole = false): string | null {
-  const cmd = text.trim();
+  const cmd = withoutComment(text).trim();
   if (!cmd || cmd.length > 400 || cmd.includes("\n") || PLACEHOLDER.test(cmd)) return null;
   const words = cmd.split(/\s+/);
   const found = programOf(words);

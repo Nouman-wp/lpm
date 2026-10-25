@@ -52,6 +52,11 @@ describe("scanCommands on Claude Code's output", () => {
     expect(at(term, 10)).toEqual([{ command: "git status", from: [5, 10], to: [14, 10] }]);
   });
 
+  it("ends a code block line's command before its comment", async () => {
+    const term = await terminal("\x1b[97m⏺\x1b[39m npm \x1b[36mtest\x1b[39m       \x1b[32m# runs node --test\x1b[39m");
+    expect(at(term, 1)).toEqual([{ command: "npm test", from: [3, 1], to: [10, 1] }]);
+  });
+
   it("leaves prose and labels alone", async () => {
     const term = await terminal(CLAUDE);
     expect(at(term, 1)).toEqual([]);

@@ -77,7 +77,9 @@ function prepareState({ lpmDir, lesson, keepState, workspace: withWorkspace = tr
     fs.writeFileSync(settingsFile, JSON.stringify({ ...cur, ...patch }, null, 2));
   };
   if (!keepState) {
-    settings(lesson.settings || {});
+    // The weekly recap toast pops up early in the week, over whatever the
+    // take shows; a lesson about the recap turns it back on.
+    settings({ weeklyRecap: false, ...(lesson.settings || {}) });
     // The sidebar meters: Codex reads its own session files, Claude only the
     // app's last reading — copied in (the real directory is only read) so the
     // meters look like a configured app. `"limits": false` leaves them out.

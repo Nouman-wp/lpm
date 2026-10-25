@@ -99,7 +99,8 @@ export function TerminalCommandRuns({ projectName, tree, onRunInNewTab }: Termin
     <>
       {chip && owns(chip.terminalId) && (
         <CommandChip
-          key={chip.key}
+          // A ⌘-click on a risky command whose chip is already up opens it asking.
+          key={`${chip.key}:${chip.armed}`}
           target={chip}
           onRun={(t: CommandChipTarget) => void start(t.terminalId, t.command)}
           onRunInNewTab={(t: CommandChipTarget) => runInNewTab(t.terminalId, t.command)}

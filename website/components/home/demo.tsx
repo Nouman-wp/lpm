@@ -120,6 +120,10 @@ const LESSON_CAPTION: Record<
     heading: "Close the lid, come back to finished work",
     blurb: "A short video: start Claude Code and Codex on an always-on Mac, disconnect, and find both done.",
   },
+  "run-agent-commands-in-one-click": {
+    heading: "Run what your agent suggests in one click",
+    blurb: "A short video: run the commands Claude Code and Codex suggest without copying them, and see risky ones ask first.",
+  },
 };
 
 function DesktopOnlyPrompt({

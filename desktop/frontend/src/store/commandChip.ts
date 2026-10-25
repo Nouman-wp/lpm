@@ -47,6 +47,9 @@ const HIDE_MS = 250;
 
 let showTimer: ReturnType<typeof setTimeout> | null = null;
 let hideTimer: ReturnType<typeof setTimeout> | null = null;
+// Reaching the chip fires its enter before the terminal's leave starts the
+// hide timer, so the timer checks where the pointer is when it fires.
+let onChip = false;
 let nonce = 0;
 
 function clearTimers() {
@@ -71,8 +74,14 @@ export function openCommandChip(target: CommandChipTarget): void {
 }
 
 export function keepCommandChip(): void {
+  onChip = true;
   if (hideTimer) clearTimeout(hideTimer);
   hideTimer = null;
+}
+
+export function leaveCommandChip(): void {
+  onChip = false;
+  leaveCommand();
 }
 
 export function leaveCommand(): void {
@@ -81,12 +90,13 @@ export function leaveCommand(): void {
   if (!useCommandChip.getState().chip || hideTimer) return;
   hideTimer = setTimeout(() => {
     hideTimer = null;
-    useCommandChip.setState({ chip: null });
+    if (!onChip) useCommandChip.setState({ chip: null });
   }, HIDE_MS);
 }
 
 export function hideCommandChip(): void {
   clearTimers();
+  onChip = false;
   if (useCommandChip.getState().chip) useCommandChip.setState({ chip: null });
 }
 

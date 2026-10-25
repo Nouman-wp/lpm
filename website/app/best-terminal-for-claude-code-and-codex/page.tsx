@@ -24,6 +24,7 @@ import Faq from "./_components/faq";
 import Features from "./_components/features";
 import Hero from "./_components/hero";
 import Lesson from "./_components/lesson";
+import RunCommandsLesson from "./_components/run-commands-lesson";
 import WhyParallel from "./_components/why-parallel";
 import Workflows from "./_components/workflows";
 import { AGENTS_DEMO } from "./_components/demo-tour";
@@ -80,6 +81,7 @@ const structuredData = [
     },
   ]),
   youtubeLessonJsonLd("run-any-ai-coding-agent"),
+  youtubeLessonJsonLd("run-agent-commands-in-one-click"),
 ];
 
 export default function BestTerminalForClaudeCodeAndCodexPage() {
@@ -97,6 +99,7 @@ export default function BestTerminalForClaudeCodeAndCodexPage() {
       <Alerts />
       <Benefits />
       <Workflows />
+      <RunCommandsLesson />
       <Comparison />
       <Faq />
       <RelatedPages

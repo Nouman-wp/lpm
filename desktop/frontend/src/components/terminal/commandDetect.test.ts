@@ -37,6 +37,13 @@ describe("readCommand", () => {
     expect(readCommand('git commit -m "fix the login bug"', true)).toBe('git commit -m "fix the login bug"');
     expect(readCommand("git add .", true)).toBe("git add .");
   });
+
+  it("leaves an agent's trailing comment out of what runs", () => {
+    expect(readCommand("npm test       # runs node --test", true)).toBe("npm test");
+    expect(readCommand('git commit -m "fix #12"')).toBe('git commit -m "fix #12"');
+    expect(readCommand("curl https://lpm.cx/#install")).toBe("curl https://lpm.cx/#install");
+    expect(readCommand("# npm test")).toBeNull();
+  });
 });
 
 describe("commandRisk", () => {

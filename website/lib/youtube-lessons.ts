@@ -149,6 +149,13 @@ const LESSONS = {
       "Let an lpm automation stop and ask you before it makes a call that's yours: the agent asks a question, you answer with a click or in your own words, and it carries on where it stopped.",
     uploadDate: "2026-10-21T09:00:00+00:00",
   },
+  "run-agent-commands-in-one-click": {
+    id: "iOJNlm2Y10Y",
+    name: "Run Commands From Claude Code & Codex Output in One Click — No More Copy-Paste",
+    description:
+      "Claude Code and Codex end their answers with commands to run: npm test, npm run dev, a clean reinstall. In lpm you don't copy them into another terminal: hover a command and click Run to see its output in a card, open a long-running one in a new tab, or ⌘-click it to run it straight away. Risky commands like rm -rf ask once more first.",
+    uploadDate: "2026-10-25T09:00:00+00:00",
+  },
   "sixty-seconds": {
     id: "H46vW5DPbZk",
     name: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",
