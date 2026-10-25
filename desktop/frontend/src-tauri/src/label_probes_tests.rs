@@ -97,6 +97,17 @@ fn finish_keeps_the_last_output_when_a_run_fails() {
     assert_eq!(probes().lock().unwrap()[key].output.as_deref(), Some("v1"));
 }
 
+#[cfg(unix)]
+#[test]
+fn a_command_that_exits_non_zero_is_a_failed_run() {
+    let counted = crate::shellpath::sh_script("echo 3");
+    assert_eq!(run_with_timeout(counted).as_deref(), Some(&b"3\n"[..]));
+    let refused = crate::shellpath::sh_script(
+        "printf '{\\n  \"message\": \"You have exceeded a secondary rate limit.\"\\n}\\n'; exit 1",
+    );
+    assert_eq!(run_with_timeout(refused), None);
+}
+
 #[test]
 fn hovering_refreshes_the_action_and_its_menu_unless_it_just_ran() {
     let every = Duration::from_secs(60);

@@ -236,8 +236,9 @@ fn run_due() {
     }
 }
 
-/// A run that timed out or couldn't start keeps the last output, so a slow
-/// network doesn't blank a label that read fine a minute ago.
+/// A run that failed, timed out or couldn't start keeps the last output, so a
+/// slow network or a refused API call (whose error body `gh api` prints to
+/// stdout) doesn't replace a label that read fine a minute ago.
 pub(crate) fn finish(key: &str, output: Option<String>) {
     let mut probes = probes().lock().unwrap();
     let Some(probe) = probes.get_mut(key) else {
@@ -294,10 +295,7 @@ fn run_with_timeout(mut cmd: Command) -> Option<Vec<u8>> {
         let _ = tx.send(buf);
     });
     match rx.recv_timeout(TIMEOUT) {
-        Ok(buf) => {
-            let _ = child.wait();
-            Some(buf)
-        }
+        Ok(buf) => child.wait().ok()?.success().then_some(buf),
         Err(_) => {
             crate::proctree::kill_tree_async(child.id() as i32);
             let _ = child.wait();
