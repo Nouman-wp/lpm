@@ -187,7 +187,6 @@ mod projects_crud;
 mod pty;
 mod pull_request;
 mod ptymodes;
-mod recap_link;
 mod ptyring;
 mod remote;
 mod remotepresence;
@@ -320,7 +319,6 @@ use agent_usage::*;
 use agent_usage_machines::agent_usage_machines;
 use weekly_recap::weekly_recap;
 use image_share::{copy_png_image, save_png_image, share_png_image};
-use recap_link::upload_recap_image;
 use agent_caps::{
     create_agent_skill, delete_agent_skill, generate_agent_skill, list_agent_capabilities,
     preview_agent_skill_delete, read_agent_capability, update_agent_skill, write_agent_capability,

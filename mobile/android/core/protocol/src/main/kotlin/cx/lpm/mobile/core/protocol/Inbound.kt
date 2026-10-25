@@ -44,6 +44,7 @@ import cx.lpm.mobile.core.model.SshHostInfo
 import cx.lpm.mobile.core.model.StatusEntry
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.model.UploadStep as UploadReply
+import cx.lpm.mobile.core.model.WeeklyRecap as WeekRecap
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -95,6 +96,9 @@ sealed interface Inbound {
     data class Sidebar(val order: List<String>, val groups: List<ProjectFolder>) : Inbound
     data class Stats(val stats: AgentStats?, val error: String?) : Inbound
     data class Limits(val snapshot: LimitsSnapshot?, val error: String?) : Inbound
+
+    // `week` is "last" or "this", echoed so a reply lands on the week it answers.
+    data class WeeklyRecap(val week: String, val recap: WeekRecap?, val error: String?) : Inbound
     data class LimitsChanged(val snapshot: LimitsSnapshot) : Inbound
     data class TtsSpeak(val reqId: String, val audio: String?, val error: String?) : Inbound
     data class Terminals(val project: String, val terminals: List<TerminalInfo>) : Inbound

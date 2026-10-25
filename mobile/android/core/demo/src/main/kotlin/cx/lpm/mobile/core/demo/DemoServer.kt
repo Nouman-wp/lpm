@@ -42,6 +42,7 @@ class DemoServer(
         registerAutoPullHandlers()
         registerClaudeAccountHandlers()
         registerStatsHandlers()
+        registerRecapHandlers()
         registerJobsHandlers()
         registerConfigHandlers()
         registerMemoryHandlers()

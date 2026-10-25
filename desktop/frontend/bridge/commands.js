@@ -34,9 +34,6 @@ export function SavePngImage(b64Data, name) {
 export function SharePngImage(b64Data, name, anchor) {
   return invoke("share_png_image", { b64Data, name, anchor });
 }
-export function UploadRecapImage(b64Data) {
-  return invoke("upload_recap_image", { b64Data });
-}
 export function AgentLimits() {
   return invoke("agent_limits");
 }

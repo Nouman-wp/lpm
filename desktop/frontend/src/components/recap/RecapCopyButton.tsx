@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { Check, Image as ImageIcon } from "lucide-react";
 import { toast } from "../../notifications/toast";
+import type { RecapTheme } from "./recapCardTheme";
 import { copyRecapImage } from "./recapShare";
 import type { RecapView } from "./weeklyRecapModel";
 
 const COPIED_FOR = 2000;
 
-export function RecapCopyButton({ view }: { view: RecapView }) {
+export function RecapCopyButton({ view, theme }: { view: RecapView; theme: RecapTheme }) {
   const [state, setState] = useState<"idle" | "copying" | "copied">("idle");
 
   useEffect(() => {
@@ -17,7 +18,7 @@ export function RecapCopyButton({ view }: { view: RecapView }) {
 
   const copy = () => {
     setState("copying");
-    copyRecapImage(view)
+    copyRecapImage(view, theme)
       .then(() => setState("copied"))
       .catch((error) => {
         setState("idle");

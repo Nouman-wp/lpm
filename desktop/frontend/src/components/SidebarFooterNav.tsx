@@ -180,7 +180,7 @@ export function SidebarFooterNav({
       icon: <RecapIcon />,
       active: recapOpen,
       onSelect: () => showRecap("last"),
-      description: "Your agents' week as a card to share: hours, prompts, pull requests and streak.",
+      description: "Your agents' week as a card to share: hours, prompts, lines and streak.",
     },
     mobile: {
       id: "mobile",

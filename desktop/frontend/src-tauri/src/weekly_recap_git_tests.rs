@@ -22,18 +22,35 @@ fn adds_up_each_commits_written_lines() {
 }
 
 #[test]
-fn reads_github_remotes_in_every_form() {
+fn names_one_repository_the_same_in_every_remote_form() {
     for url in [
-        "git@github.com:Owner/Repo.git",
-        "https://github.com/owner/repo",
-        "https://github.com/owner/repo.git\n",
-        "ssh://git@github.com/owner/repo.git",
-        "https://token@github.com/owner/repo/",
+        "git@gitlab.com:Team/App.git",
+        "https://gitlab.com/team/app",
+        "https://user:secret@gitlab.com/team/app.git\n",
+        "ssh://git@gitlab.com/team/app.git",
     ] {
-        assert_eq!(github_repo(url).as_deref(), Some("owner/repo"), "{url}");
+        assert_eq!(origin_key(url), "gitlab.com/team/app", "{url}");
     }
-    assert_eq!(github_repo("git@gitlab.com:owner/repo.git"), None);
-    assert_eq!(github_repo("https://github.com/owner"), None);
+}
+
+#[test]
+fn counts_copies_and_worktrees_of_a_repository_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = dir.path().join("app");
+    let copy = dir.path().join("app-copy");
+    let local = dir.path().join("local");
+    for root in [&app, &copy, &local] {
+        std::fs::create_dir(root).unwrap();
+        run(root, &["init", "-q"]);
+    }
+    run(&app, &["remote", "add", "origin", "git@github.com:me/app.git"]);
+    run(&copy, &["remote", "add", "origin", "https://github.com/me/app"]);
+    let plain = dir.path().join("plain");
+    std::fs::create_dir(&plain).unwrap();
+    let roots = [&app, &copy, &local, &plain];
+    let keys = repo_keys(roots.iter().map(|root| root.as_path()));
+    assert_eq!(keys.len(), 2, "{keys:?}");
+    assert!(keys.contains(&"github.com/me/app".to_string()));
 }
 
 fn run(root: &Path, args: &[&str]) {
@@ -55,10 +72,6 @@ fn counts_the_users_own_commits_once_across_copies() {
     run(&repo, &["init", "-q"]);
     run(&repo, &["config", "user.email", "me@example.com"]);
     run(&repo, &["config", "user.name", "Me"]);
-    run(
-        &repo,
-        &["remote", "add", "origin", "git@github.com:me/app.git"],
-    );
     std::fs::write(repo.join("a.txt"), "one\ntwo\nthree\n").unwrap();
     run(&repo, &["add", "."]);
     run(&repo, &["commit", "-qm", "mine"]);
@@ -86,12 +99,11 @@ fn counts_the_users_own_commits_once_across_copies() {
     run(&copy, &["config", "user.email", "me@example.com"]);
 
     let now = Local::now();
-    let (commits, repos) = commits_and_repos(
+    let commits = user_commits(
         &[repo, copy],
         now - Duration::days(1),
         now + Duration::days(1),
     );
     assert_eq!(commits.len(), 1);
     assert_eq!((commits[0].added, commits[0].removed), (3, 0));
-    assert_eq!(repos, ["me/app"]);
 }

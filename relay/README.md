@@ -23,15 +23,6 @@ guest joins from, served at `https://lpm-share-relay.lpm-share-relay.workers.dev
 - Rooms hibernate, so an idle share costs nothing. A room whose host never comes
   back is deleted after 24 hours.
 
-## Weekly recap cards
-
-The same Worker keeps the recap cards people post from lpm (`src/recap.ts`).
-Posting or copying a link uploads the card (`POST /recap`, `recap_link.rs`);
-the post links to `lpm.cx/w/<id>`, whose preview image is `GET /recap/<id>.png`
-from here. Only lpm's card gets in: a PNG exactly 1200 px wide, up to 1.5 MB,
-ten uploads a minute per address. Each card is a `RecapImage` Durable Object
-that forgets it after a year. A card carries no project names.
-
 ## Develop
 
 ```sh

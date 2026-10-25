@@ -160,6 +160,12 @@ sealed interface WireSession {
         if (fresh) put("fresh", true)
     }
 
+    /** "last" or "this" week; [fresh] reads again instead of the Mac's last ten minutes. */
+    fun weeklyRecap(week: String, fresh: Boolean = false): String = frame("weeklyRecap") {
+        put("week", week)
+        if (fresh) put("fresh", true)
+    }
+
     fun limits(): String = frame("limits")
 
     fun ttsSpeak(reqId: String, text: String): String = frame("ttsSpeak") {

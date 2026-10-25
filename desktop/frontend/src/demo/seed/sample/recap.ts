@@ -37,9 +37,13 @@ export function sampleRecap(week: string): WeeklyRecap {
       { name: "claude", agentMs: Math.round(total * 0.64) },
       { name: "codex", agentMs: Math.round(total * 0.36) },
     ],
-    repos: ["acme/saas-app"],
+    workedRepos: [
+      "github.com/acme/auth-service",
+      "github.com/acme/ml-pipeline",
+      "github.com/acme/mobile-app",
+      "github.com/acme/saas-app",
+    ],
     linesAdded: 6_120,
     linesRemoved: 2_407,
-    pullRequests: 9,
   };
 }

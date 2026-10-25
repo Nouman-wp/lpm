@@ -152,6 +152,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_files::FEATURE,
     answer::FEATURE,
     live::FEATURE,
+    crate::weekly_recap::PHONE_FEATURE,
 ];
 
 /// The phone may send `restartService` / `stopService`.
@@ -2476,6 +2477,28 @@ fn handle_msg(
                         json!({ "t": "stats", "ok": false, "error": "unreadable stats", "machine": machine })
                     }
                     Err(e) => json!({ "t": "stats", "ok": false, "error": e, "machine": machine }),
+                };
+                let _ = out.try_send(reply.to_string());
+            });
+        }
+        "weeklyRecap" => {
+            // The desktop's weekly recap, last week or this one so far, on this
+            // Mac and every connected computer. Reading the agents' history is
+            // slow, so it runs off the read loop and answers through the out-queue.
+            let last = v.get("week").and_then(Value::as_str) != Some("this");
+            let fresh = v.get("fresh").and_then(Value::as_bool).unwrap_or(false);
+            let peers = app
+                .try_state::<crate::peerclient::PeerClientHub>()
+                .map(|s| s.inner().clone());
+            let out = out.clone();
+            std::thread::spawn(move || {
+                let which = if last { "last" } else { "this" };
+                let week = crate::weekly_recap::week_of(last, chrono::Local::now().date_naive());
+                let reply = match crate::weekly_recap::kept_week(peers.as_ref(), &week, fresh) {
+                    Ok(recap) => json!({
+                        "t": "weeklyRecap", "ok": true, "week": which, "recap": recap,
+                    }),
+                    Err(e) => json!({ "t": "weeklyRecap", "ok": false, "week": which, "error": e }),
                 };
                 let _ = out.try_send(reply.to_string());
             });

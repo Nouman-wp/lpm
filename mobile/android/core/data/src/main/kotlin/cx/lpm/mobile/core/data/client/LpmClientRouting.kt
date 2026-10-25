@@ -22,6 +22,8 @@ internal fun LpmClientCallbacks.route(frame: Inbound) {
 
         is Inbound.Limits -> onLimits?.invoke(frame.snapshot, frame.error)
 
+        is Inbound.WeeklyRecap -> onWeeklyRecap?.invoke(frame.week, frame.recap, frame.error)
+
         is Inbound.LimitsChanged -> onLimitsChanged?.invoke(frame.snapshot)
 
         is Inbound.TtsSpeak -> onSpeech?.invoke(frame.reqId, frame.audio, frame.error)

@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { ArrowRight } from "lucide-react";
 import { useAppStore } from "../../store/app";
 import { useWeeklyRecapStore } from "../../store/weeklyRecap";
@@ -6,10 +5,13 @@ import { XIcon } from "../icons";
 import { Modal } from "../ui/Modal";
 import { SegmentedControl } from "../ui/SegmentedControl";
 import { RecapCardSkeleton } from "./RecapCardSkeleton";
+import { RecapRowPicks } from "./RecapRowPicks";
 import { RecapShareBar } from "./RecapShareBar";
+import { RecapThemePicks } from "./RecapThemePicks";
+import { useRecapLook } from "./useRecapLook";
 import { useWeeklyRecap } from "./useWeeklyRecap";
 import { WeeklyRecapCard } from "./WeeklyRecapCard";
-import { recapView, recapWeekStart, type RecapWeek } from "./weeklyRecapModel";
+import { recapWeekStart, weekRangeLabel, type RecapWeek } from "./weeklyRecapModel";
 
 const WEEKS = [
   { value: "last", label: "Last week" },
@@ -33,7 +35,7 @@ export function WeeklyRecapModal() {
   const week = open ? recapWeekStart(which) : null;
   const { recap, loading, error, reload } = useWeeklyRecap(week);
 
-  const view = useMemo(() => recap && recapView(recap), [recap]);
+  const { full, view, theme, leftOut } = useRecapLook(recap);
 
   const openStats = () => {
     close();
@@ -79,7 +81,19 @@ export function WeeklyRecapModal() {
             </button>
           </div>
         ) : !view ? (
-          <RecapCardSkeleton label={loading ? "Reading your agents' history…" : ""} />
+          <>
+            <div className="mb-3">
+              <RecapRowPicks full={null} leftOut={leftOut} />
+            </div>
+            <RecapCardSkeleton
+              range={week ? weekRangeLabel(week) : ""}
+              theme={theme}
+              leftOut={leftOut}
+            />
+            <div className="mt-4 flex min-h-[30px] items-center justify-end">
+              <RecapThemePicks theme={theme} />
+            </div>
+          </>
         ) : view.empty ? (
           <div className="flex min-h-56 flex-col items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-6 text-center">
             <div className="text-sm font-medium">No agent work {which === "last" ? "last week" : "this week yet"}</div>
@@ -94,18 +108,24 @@ export function WeeklyRecapModal() {
           </div>
         ) : (
           <>
+            {full && (
+              <div className="mb-3">
+                <RecapRowPicks full={full} leftOut={leftOut} />
+              </div>
+            )}
             <div className="transition-opacity" style={{ opacity: loading ? 0.6 : 1 }}>
-              <WeeklyRecapCard view={view} />
+              <WeeklyRecapCard view={view} theme={theme} />
             </div>
-            <div className="mt-4">
-              <RecapShareBar view={view} />
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <RecapShareBar view={view} theme={theme} />
+              <RecapThemePicks theme={theme} />
             </div>
           </>
         )}
 
         <div className="mt-4 flex items-start gap-4 border-t border-[var(--border)] pt-3 text-[11px] leading-4 text-[var(--text-muted)]">
           <div className="min-w-0 flex-1 space-y-1">
-            <p>Names no projects. Posting puts only this image on lpm.cx, for the post's preview.</p>
+            <p>Names no projects, and nothing is uploaded: you add the card to the post yourself.</p>
             {recap?.missing && recap.missing.length > 0 && <p>{missingNote(recap.missing)}</p>}
           </div>
           <button

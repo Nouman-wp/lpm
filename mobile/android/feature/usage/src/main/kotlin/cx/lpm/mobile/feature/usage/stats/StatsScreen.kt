@@ -18,6 +18,7 @@ import cx.lpm.mobile.core.designsystem.component.SegmentedControl
 import cx.lpm.mobile.core.model.AgentStats
 import cx.lpm.mobile.core.navigation.StatsKey
 import cx.lpm.mobile.feature.usage.R
+import cx.lpm.mobile.feature.usage.recap.WeeklyRecapEntryRow
 import cx.lpm.mobile.feature.usage.ui.ErrorCard
 import cx.lpm.mobile.feature.usage.ui.UsageScaffold
 
@@ -27,6 +28,7 @@ fun StatsRoute(
     key: StatsKey,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenRecap: () -> Unit = {},
     viewModel: StatsViewModel = hiltViewModel<StatsViewModel, StatsViewModel.Factory>(
         creationCallback = { it.create(key) }
     )
@@ -43,6 +45,7 @@ fun StatsRoute(
         onSelect = viewModel::select,
         onPickMachine = viewModel::pickMachine,
         onRetry = viewModel::retry,
+        onOpenRecap = onOpenRecap,
         modifier = modifier
     )
 }
@@ -63,7 +66,8 @@ fun StatsScreen(
     onSelect: (Int) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
-    onPickMachine: (String) -> Unit = {}
+    onPickMachine: (String) -> Unit = {},
+    onOpenRecap: () -> Unit = {}
 ) {
     UsageScaffold(
         title = stringResource(R.string.stats_title),
@@ -76,6 +80,7 @@ fun StatsScreen(
             null
         }
     ) {
+        if (state.recapAvailable) WeeklyRecapEntryRow(onOpenRecap)
         SegmentedControl(
             options = listOf(
                 stringResource(R.string.stats_period_today),

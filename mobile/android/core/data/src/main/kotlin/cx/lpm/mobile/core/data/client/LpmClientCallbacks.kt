@@ -45,6 +45,7 @@ import cx.lpm.mobile.core.model.SshHostInfo
 import cx.lpm.mobile.core.model.StatusEntry
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.model.UploadStep
+import cx.lpm.mobile.core.model.WeeklyRecap
 import java.time.Instant
 import kotlinx.serialization.json.JsonObject
 
@@ -73,6 +74,7 @@ abstract class LpmClientCallbacks {
     var onSidebar: ((order: List<String>, groups: List<ProjectFolder>) -> Unit)? = null
     var onStats: ((stats: AgentStats?, error: String?) -> Unit)? = null
     var onLimits: ((snapshot: LimitsSnapshot?, error: String?) -> Unit)? = null
+    var onWeeklyRecap: ((week: String, recap: WeeklyRecap?, error: String?) -> Unit)? = null
     var onLimitsChanged: ((snapshot: LimitsSnapshot) -> Unit)? = null
     var onSpeech: ((reqId: String, audio: String?, error: String?) -> Unit)? = null
     var onTerminals: ((project: String, terminals: List<TerminalInfo>) -> Unit)? = null

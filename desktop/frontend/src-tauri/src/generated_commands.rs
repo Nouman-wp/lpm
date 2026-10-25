@@ -34,7 +34,6 @@ macro_rules! all_command_handlers {
             copy_png_image,
             save_png_image,
             share_png_image,
-            upload_recap_image,
             apply_claude_limits,
             get_claude_statusline_state,
             apply_claude_statusline,

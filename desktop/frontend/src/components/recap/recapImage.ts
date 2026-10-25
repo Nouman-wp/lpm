@@ -1,9 +1,13 @@
 import {
-  RECAP_COLORS as C,
+  RECAP_DEFAULT_THEME,
   RECAP_FONT,
   RECAP_GLOW_DEG,
+  RECAP_HOURS_LABEL,
   RECAP_LAYOUT as L,
-  RECAP_TAGLINE,
+  RECAP_THEMES,
+  RECAP_TITLE,
+  type RecapPalette,
+  type RecapTheme,
 } from "./recapCardTheme";
 import { MARK_DOT, MARK_ORIGIN, MARK_RINGS, MARK_SIZE } from "./recapMarkShape";
 import { mixText, type RecapView } from "./weeklyRecapModel";
@@ -54,15 +58,6 @@ function box(ctx: Ctx, x: number, y: number, w: number, h: number, r: number) {
   ctx.closePath();
 }
 
-/** A row with a label on the left and its value on the right. */
-function pair(ctx: Ctx, y: number, label: string, value: string) {
-  font(ctx, L.rowSize);
-  const at = y + baseline(ctx, L.rowLine);
-  const left = text(ctx, label, L.padX, at, C.soft);
-  const room = L.width - 2 * L.padX - left - 12;
-  text(ctx, fit(ctx, value, room), L.width - L.padX, at, C.soft, "right");
-}
-
 interface Item {
   value: string;
   size: number;
@@ -100,16 +95,27 @@ function hero(ctx: Ctx, y: number, items: Item[], draw: boolean): number {
   return lineTop - y + lineHeight;
 }
 
-function tiles(ctx: Ctx, y: number, view: RecapView): number {
-  const height = 2 + 2 * L.tilePadY + L.tileValueLine + L.tileLabelLine;
-  const width = (L.width - 2 * L.padX - 2 * L.tileGap) / 3;
-  const cells = [
-    ...view.tiles.map((tile) => ({ value: tile.value, size: 24, color: C.strong, label: [[tile.label, C.muted]] })),
-    { value: view.linesAdded, size: 20, color: C.green, label: [[view.linesRemoved, C.red], [" lines", C.muted]] },
-  ];
+const TILES_HEIGHT = 2 + 2 * L.tilePadY + L.tileValueLine + L.tileLabelLine;
+
+function tiles(ctx: Ctx, C: RecapPalette, y: number, view: RecapView): number {
+  const cells = view.tiles.map((tile) => ({
+    value: tile.value,
+    size: 24,
+    color: C.strong,
+    label: [[tile.label, C.muted]],
+  }));
+  if (view.lines) {
+    cells.push({
+      value: view.lines.added,
+      size: 20,
+      color: C.green,
+      label: [[view.lines.removed, C.red], [" lines", C.muted]],
+    });
+  }
+  const width = (L.width - 2 * L.padX - (cells.length - 1) * L.tileGap) / cells.length;
   cells.forEach((cell, i) => {
     const x = L.padX + i * (width + L.tileGap);
-    box(ctx, x + 0.5, y + 0.5, width - 1, height - 1, L.tileRadius);
+    box(ctx, x + 0.5, y + 0.5, width - 1, TILES_HEIGHT - 1, L.tileRadius);
     ctx.fillStyle = C.tile;
     ctx.fill();
     ctx.strokeStyle = C.border;
@@ -125,49 +131,16 @@ function tiles(ctx: Ctx, y: number, view: RecapView): number {
       at += text(ctx, part, at, top + L.tileValueLine + baseline(ctx, L.tileLabelLine), color);
     }
   });
-  return height;
+  return TILES_HEIGHT;
 }
 
-function mix(ctx: Ctx, y: number, view: RecapView): number {
-  pair(ctx, y, "Agents", mixText(view.mix));
-  const top = y + L.rowLine + 8;
-  const room = L.width - 2 * L.padX - L.barGap * (view.mix.length - 1);
-  ctx.save();
-  box(ctx, L.padX, top, L.width - 2 * L.padX, L.barHeight, 5);
-  ctx.clip();
-  let x = L.padX;
-  for (const slice of view.mix) {
-    const width = Math.max(3, (room * slice.percent) / 100);
-    ctx.fillStyle = slice.color;
-    ctx.fillRect(x, top, width, L.barHeight);
-    x += width + L.barGap;
-  }
-  ctx.restore();
-  return L.rowLine + 8 + L.barHeight;
-}
-
-function streak(ctx: Ctx, y: number, view: RecapView): number {
+function agents(ctx: Ctx, C: RecapPalette, y: number, view: RecapView) {
   font(ctx, L.rowSize);
-  text(ctx, view.streak, L.padX, y + baseline(ctx, L.rowLine), C.soft);
-  const top = y + L.rowLine + 8;
-  font(ctx, 12, 700);
-  view.days.forEach((day, i) => {
-    const x = L.padX + i * (L.day + L.dayGap);
-    box(ctx, x + 0.5, top + 0.5, L.day - 1, L.day - 1, L.dayRadius);
-    if (day.on) {
-      ctx.fillStyle = C.green;
-      ctx.fill();
-    }
-    ctx.strokeStyle = day.on ? C.green : C.dayOff;
-    ctx.stroke();
-    ctx.textBaseline = "middle";
-    text(ctx, day.letter, x + L.day / 2, top + L.day / 2 + 0.5, day.on ? C.onGreen : C.muted, "center");
-    ctx.textBaseline = "alphabetic";
-  });
-  return L.rowLine + 8 + L.day;
+  const line = fit(ctx, mixText(view.mix), L.width - 2 * L.padX);
+  text(ctx, line, L.padX, y + baseline(ctx, L.rowLine), C.soft);
 }
 
-function mark(ctx: Ctx, y: number) {
+function mark(ctx: Ctx, C: RecapPalette, y: number) {
   font(ctx, 14);
   const label = "lpm.cx";
   const right = L.width - L.padX;
@@ -180,8 +153,6 @@ function mark(ctx: Ctx, y: number) {
   ctx.fill();
   ctx.strokeStyle = C.markBorder;
   ctx.stroke();
-  font(ctx, 13);
-  text(ctx, fit(ctx, RECAP_TAGLINE, x - L.padX - 16), L.padX, y + baseline(ctx, L.footerLine), C.muted);
   const unit = MARK_GLYPH / MARK_SIZE;
   const ox = x + (MARK_BOX - MARK_GLYPH) / 2;
   const oy = top + (MARK_BOX - MARK_GLYPH) / 2;
@@ -200,39 +171,37 @@ function mark(ctx: Ctx, y: number) {
   ctx.lineWidth = 1;
 }
 
-function heroItems(view: RecapView): Item[] {
+function heroItems(view: RecapView, C: RecapPalette): Item[] {
   return [
     { value: view.hours, size: L.heroSize, weight: 800, color: C.strong },
-    { value: "of agents working for you", size: L.bodySize, weight: 400, color: C.soft },
+    { value: RECAP_HOURS_LABEL, size: L.bodySize, weight: 400, color: C.soft },
     ...(view.gain ? [{ value: view.gain, size: L.bodySize, weight: 600, color: C.green }] : []),
   ];
 }
 
 /** Lays the card out once to learn its height, then draws it. */
-function paint(ctx: Ctx, view: RecapView, draw: boolean): number {
+function paint(ctx: Ctx, C: RecapPalette, view: RecapView, draw: boolean): number {
   let y = L.padTop;
   if (draw) {
     font(ctx, L.titleSize, 700);
-    text(ctx, "Your week in lpm", L.padX, y + baseline(ctx, L.headerLine), C.text);
+    text(ctx, RECAP_TITLE, L.padX, y + baseline(ctx, L.headerLine), C.text);
     font(ctx, L.bodySize);
     text(ctx, view.range, L.width - L.padX, y + baseline(ctx, L.headerLine), C.muted, "right");
   }
   y += L.headerLine + L.gap;
-  y += hero(ctx, y, heroItems(view), draw) + L.gap;
-  y += (draw ? tiles(ctx, y, view) : 2 + 2 * L.tilePadY + L.tileValueLine + L.tileLabelLine) + L.gap;
-  if (view.mix.length > 0) {
-    y += (draw ? mix(ctx, y, view) : L.rowLine + 8 + L.barHeight) + L.gap;
+  y += hero(ctx, y, heroItems(view, C), draw) + L.gap;
+  if (view.tiles.length > 0 || view.lines) {
+    y += (draw ? tiles(ctx, C, y, view) : TILES_HEIGHT) + L.gap;
   }
-  if (view.projects) {
-    if (draw) pair(ctx, y, "Projects", view.projects);
+  if (view.mix.length > 0) {
+    if (draw) agents(ctx, C, y, view);
     y += L.rowLine + L.gap;
   }
-  y += (draw ? streak(ctx, y, view) : L.rowLine + 8 + L.day) + L.gap;
-  if (draw) mark(ctx, y);
+  if (draw) mark(ctx, C, y);
   return y + L.footerLine + L.padBottom;
 }
 
-function glow(ctx: Ctx, width: number, height: number) {
+function glow(ctx: Ctx, C: RecapPalette, width: number, height: number) {
   const angle = (RECAP_GLOW_DEG * Math.PI) / 180;
   const dx = Math.sin(angle);
   const dy = -Math.cos(angle);
@@ -249,22 +218,23 @@ function glow(ctx: Ctx, width: number, height: number) {
   ctx.fillRect(0, 0, width, height);
 }
 
-export function drawRecap(view: RecapView): HTMLCanvasElement {
+export function drawRecap(view: RecapView, theme: RecapTheme = RECAP_DEFAULT_THEME): HTMLCanvasElement {
+  const C = RECAP_THEMES[theme];
   const canvas = document.createElement("canvas");
   const measure = canvas.getContext("2d");
   if (!measure) throw new Error("This computer can't draw images");
-  const height = Math.ceil(paint(measure, view, false));
+  const height = Math.ceil(paint(measure, C, view, false));
   canvas.width = L.width * SCALE;
   canvas.height = height * SCALE;
   const ctx = canvas.getContext("2d")!;
   ctx.scale(SCALE, SCALE);
-  glow(ctx, L.width, height);
-  paint(ctx, view, true);
+  glow(ctx, C, L.width, height);
+  paint(ctx, C, view, true);
   return canvas;
 }
 
-export function recapImage(view: RecapView): Promise<Blob> {
-  const canvas = drawRecap(view);
+export function recapImage(view: RecapView, theme: RecapTheme = RECAP_DEFAULT_THEME): Promise<Blob> {
+  const canvas = drawRecap(view, theme);
   return new Promise((resolve, reject) =>
     canvas.toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error("Could not make the image"))),

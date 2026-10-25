@@ -1,6 +1,12 @@
-// The recap card is always in lpm's dark theme, in the app and in the image
-// it makes: people's screenshots of their tools are mostly dark.
-export const RECAP_COLORS = {
+export type RecapTheme = "dark" | "light" | "green";
+
+export const RECAP_DEFAULT_THEME: RecapTheme = "light";
+
+export function normalizeRecapTheme(value: unknown): RecapTheme | undefined {
+  return value === "dark" || value === "green" ? value : undefined;
+}
+
+const DARK = {
   glow: "#1c2a21",
   ground: "#1f1f1f",
   border: "#3a3a3a",
@@ -11,16 +17,56 @@ export const RECAP_COLORS = {
   tile: "#262626",
   green: "#4ade80",
   red: "#f87171",
-  onGreen: "#0b2614",
-  dayOff: "#4a4a4a",
   markGround: "#2a2a2a",
   markBorder: "#444444",
   markDot: "#22c55e",
   markRing: "#8a8a8a",
-} as const;
+};
 
-// Beside the image's mark, for whoever sees the post without knowing lpm.
-export const RECAP_TAGLINE = "The free desktop app for coding agents and dev projects";
+export type RecapPalette = typeof DARK;
+
+// Light by default, for a white feed; dark like most screenshots of developer
+// tools. Every text color keeps 4.5:1 on its ground.
+export const RECAP_THEMES: Record<RecapTheme, RecapPalette> = {
+  dark: DARK,
+  light: {
+    glow: "#e6f2e8",
+    ground: "#fafaf7",
+    border: "#e2e2dc",
+    text: "#1f1f1f",
+    strong: "#111111",
+    soft: "#4a4a4a",
+    muted: "#5f5f5f",
+    tile: "#ffffff",
+    green: "#15803d",
+    red: "#b91c1c",
+    markGround: "#f0f0ec",
+    markBorder: "#deded8",
+    markDot: "#16a34a",
+    markRing: "#7a7a7a",
+  },
+  green: {
+    glow: "#14532d",
+    ground: "#0f1f16",
+    border: "#22573a",
+    text: "#e7f5ec",
+    strong: "#ffffff",
+    soft: "#b7d3c1",
+    muted: "#9fbfab",
+    tile: "#143322",
+    green: "#4ade80",
+    red: "#fca5a5",
+    markGround: "#143322",
+    markBorder: "#2f6146",
+    markDot: "#4ade80",
+    markRing: "#9fbfab",
+  },
+};
+
+// In the voice of whoever posts the card: to the people reading the post,
+// "your week" would be theirs.
+export const RECAP_TITLE = "My week in lpm";
+export const RECAP_HOURS_LABEL = "of agents working for me";
 
 export const RECAP_FONT =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", sans-serif';
@@ -34,7 +80,7 @@ export const RECAP_LAYOUT = {
   radius: 14,
   titleSize: 17,
   headerLine: 22,
-  heroSize: 52,
+  heroSize: 64,
   heroTracking: -0.02,
   bodySize: 15,
   tileGap: 10,
@@ -45,11 +91,6 @@ export const RECAP_LAYOUT = {
   tileLabelLine: 16,
   rowSize: 14,
   rowLine: 18,
-  barHeight: 9,
-  barGap: 3,
-  day: 28,
-  dayGap: 6,
-  dayRadius: 7,
   footerLine: 36,
 } as const;
 

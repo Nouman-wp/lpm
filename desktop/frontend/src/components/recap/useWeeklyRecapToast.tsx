@@ -4,6 +4,7 @@ import { toast } from "../../notifications/toast";
 import { useSettingsStore } from "../../store/settings";
 import { useWeeklyRecapStore } from "../../store/weeklyRecap";
 import { daysBetween, localDate, weekStart } from "../stats/statsDates";
+import { RecapToastPreview } from "./RecapToastPreview";
 import { loadWeeklyRecap } from "./useWeeklyRecap";
 import { RECAP_NEWS_DAYS, recapView, recapWeekStart } from "./weeklyRecapModel";
 
@@ -12,7 +13,8 @@ const FIRST_CHECK_MS = 20_000;
 // An app left open over the weekend still tells on Monday.
 const CHECK_EVERY_MS = 60 * 60_000;
 
-/** One quiet toast early in the week when last week's recap is ready. */
+/** One toast early in the week when last week's recap is ready, up until it's
+ *  answered. */
 export function useWeeklyRecapToast(): void {
   useEffect(() => {
     if (IS_MIRROR_WINDOW) return;
@@ -33,9 +35,12 @@ export function useWeeklyRecapToast(): void {
         if (view.empty) return;
         toast("Your week in lpm is ready", {
           id: `weekly-recap:${week}`,
-          description: `${view.hours} of agents working for you · ${view.range}`,
-          duration: 15_000,
-          action: { label: "View", onClick: () => useWeeklyRecapStore.getState().show("last") },
+          description: view.range,
+          content: <RecapToastPreview view={view} />,
+          // It comes once a week, so it waits to be answered.
+          duration: Infinity,
+          action: { label: "View & share", onClick: () => useWeeklyRecapStore.getState().show("last") },
+          cancel: { label: "Not now", onClick: () => {} },
         });
       } catch {
         // Read again at the next check.

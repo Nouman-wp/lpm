@@ -1,16 +1,13 @@
 import { Room } from "./room";
-import { RecapImage } from "./recapStore";
-import { handleRecap, RECAP_PATH, type RecapEnv } from "./recap";
 import { withSecurityHeaders } from "./headers";
 
-export { Room, RecapImage };
+export { Room };
 
 // The share relay: a browser joins a tab someone shared in lpm, through a room
 // only that share's invite names. The page it joins from is served here too, on
-// an origin of its own, away from lpm.cx and its analytics. It also keeps the
-// weekly recap cards people post (recap.ts).
+// an origin of its own, away from lpm.cx and its analytics.
 
-interface Env extends RecapEnv {
+interface Env {
   ASSETS: Fetcher;
   ROOMS: DurableObjectNamespace<Room>;
   CONNECTS?: RateLimit;
@@ -19,10 +16,8 @@ interface Env extends RecapEnv {
 const ROOM_PATH = /^\/room\/([A-Za-z0-9_-]{22})\/(host|guest)$/;
 
 export default {
-  async fetch(request, env, ctx): Promise<Response> {
+  async fetch(request, env): Promise<Response> {
     const url = new URL(request.url);
-    const recap = RECAP_PATH.exec(url.pathname);
-    if (recap) return handleRecap(request, env, recap[1], ctx);
     const room = ROOM_PATH.exec(url.pathname);
     if (!room) return withSecurityHeaders(await env.ASSETS.fetch(request), url);
     if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {

@@ -11,3 +11,7 @@ data class StatsKey(val session: SessionKey = SessionKey.Live) : NavKey
 /** Each AI account's limits and how fast they're being used. */
 @Serializable
 data class UsageKey(val session: SessionKey = SessionKey.Live) : NavKey
+
+/** The week's agent work as the desktop's shareable card. */
+@Serializable
+data class WeeklyRecapKey(val session: SessionKey = SessionKey.Live) : NavKey

@@ -37,6 +37,7 @@ final class LpmClient: NSObject {
     var onSidebar: ((_ order: [String], _ groups: [ProjectFolder]) -> Void)?
     var onStats: ((_ stats: AgentStats?, _ error: String?) -> Void)?
     var onLimits: ((_ snapshot: LimitsSnapshot?, _ error: String?) -> Void)?
+    var onWeeklyRecap: ((_ week: RecapWeek, _ recap: WeeklyRecap?, _ error: String?) -> Void)?
     var onLimitsChanged: ((_ snapshot: LimitsSnapshot) -> Void)?
     var onSpeech: ((_ reqId: String, _ audio: String?, _ error: String?) -> Void)?
     var onTerminals: ((_ project: String, _ terminals: [TerminalInfo]) -> Void)?
@@ -252,6 +253,7 @@ final class LpmClient: NSObject {
     static let tabMenuFeature = "tabMenu"
     static let answerAgentFeature = "answerAgent"
     static let liveActivityFeature = "liveActivity"
+    static let weeklyRecapFeature = "weeklyRecap"
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -490,7 +492,8 @@ final class LpmClient: NSObject {
                 "t": "ready", "serverId": DemoServer.serverId, "serverName": DemoServer.serverName,
                 "features": [ChunkedUpload.feature, Self.serviceLogsWatchFeature, Self.agentAnswersFeature,
                              Self.restartTerminalFeature, Self.agentLaunchFeature, Self.agentSessionsFeature,
-                             Self.actionPromptFeature, Self.listDirFeature, Self.tabMenuFeature],
+                             Self.actionPromptFeature, Self.listDirFeature, Self.tabMenuFeature,
+                             Self.weeklyRecapFeature],
             ]))
         }
     }
@@ -857,6 +860,7 @@ final class LpmClient: NSObject {
         send(Wire.stats(days: days, machine: machine, fresh: fresh))
     }
     func requestLimits() { send(Wire.limits()) }
+    func requestWeeklyRecap(week: RecapWeek, fresh: Bool) { send(Wire.weeklyRecap(week: week, fresh: fresh)) }
     func requestSpeech(reqId: String, text: String) { send(Wire.ttsSpeak(reqId: reqId, text: text)) }
     func requestTerminals(project: String) { send(Wire.terminals(project: project)) }
     func requestSlash(id: String, project: String) { send(Wire.slash(id: id, project: project)) }
@@ -1384,6 +1388,7 @@ final class LpmClient: NSObject {
             case .sidebar(let order, let groups): self.onSidebar?(order, groups)
             case .stats(let stats, let error): self.onStats?(stats, error)
             case .limits(let snapshot, let error): self.onLimits?(snapshot, error)
+            case .weeklyRecap(let week, let recap, let error): self.onWeeklyRecap?(week, recap, error)
             case .limitsChanged(let snapshot): self.onLimitsChanged?(snapshot)
             case .ttsSpeak(let reqId, let audio, let error): self.onSpeech?(reqId, audio, error)
             case .terminals(let proj, let t): self.onTerminals?(proj, t)

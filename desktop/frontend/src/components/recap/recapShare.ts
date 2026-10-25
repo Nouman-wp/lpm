@@ -1,26 +1,15 @@
-import {
-  CopyPngImage,
-  SavePngImage,
-  SharePngImage,
-  UploadRecapImage,
-} from "../../../bridge/commands";
+import { CopyPngImage, SavePngImage, SharePngImage } from "../../../bridge/commands";
 import { BrowserOpenURL } from "../../../bridge/runtime";
+import type { RecapTheme } from "./recapCardTheme";
 import { recapImage } from "./recapImage";
 import { recapCaption, type RecapView } from "./weeklyRecapModel";
 
 export type RecapNetwork = "x" | "linkedin";
 
-interface RecapLink {
-  url: string;
-  image: string;
-}
-
-const COMPOSE: Record<RecapNetwork, (caption: string, url: string) => string> = {
-  x: (caption, url) =>
-    `https://x.com/intent/post?text=${encodeURIComponent(caption)}&url=${encodeURIComponent(url)}`,
-  // LinkedIn turns the link in the text into the card's preview.
-  linkedin: (caption, url) =>
-    `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(`${caption} ${url}`)}`,
+const COMPOSE: Record<RecapNetwork, (caption: string) => string> = {
+  x: (caption) => `https://x.com/intent/post?text=${encodeURIComponent(caption)}`,
+  linkedin: (caption) =>
+    `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(caption)}`,
 };
 
 function base64(blob: Blob): Promise<string> {
@@ -37,8 +26,8 @@ const fileName = (view: RecapView) => `My week in lpm ${view.range}`;
 /** Copies the card as a PNG. The clipboard write starts before the image is
  *  drawn so it stays tied to the click; a webview that refuses it hands the
  *  image to the backend instead. */
-export async function copyRecapImage(view: RecapView): Promise<void> {
-  const image = recapImage(view);
+export async function copyRecapImage(view: RecapView, theme: RecapTheme): Promise<void> {
+  const image = recapImage(view, theme);
   if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
     try {
       await navigator.clipboard.write([new ClipboardItem({ "image/png": image })]);
@@ -51,36 +40,23 @@ export async function copyRecapImage(view: RecapView): Promise<void> {
 }
 
 /** Saves the card to Downloads; returns where. */
-export async function saveRecapImage(view: RecapView): Promise<string> {
-  return SavePngImage(await base64(await recapImage(view)), fileName(view));
+export async function saveRecapImage(view: RecapView, theme: RecapTheme): Promise<string> {
+  return SavePngImage(await base64(await recapImage(view, theme)), fileName(view));
 }
 
 /** Hands the card to the system share sheet, pointing from `from`. */
-export async function shareRecapImage(view: RecapView, from: DOMRect): Promise<void> {
+export async function shareRecapImage(
+  view: RecapView,
+  theme: RecapTheme,
+  from: DOMRect,
+): Promise<void> {
   const anchor = { x: from.x, y: from.y, width: from.width, height: from.height };
-  await SharePngImage(await base64(await recapImage(view)), fileName(view), anchor);
+  await SharePngImage(await base64(await recapImage(view, theme)), fileName(view), anchor);
 }
 
-// One upload per card: posting it twice, or to both networks, reuses the
-// first link.
-const links = new Map<string, Promise<RecapLink>>();
-
-function recapLink(view: RecapView): Promise<RecapLink> {
-  const key = JSON.stringify(view);
-  let link = links.get(key);
-  if (!link) {
-    link = recapImage(view)
-      .then(base64)
-      .then((png) => UploadRecapImage(png) as Promise<RecapLink>);
-    link.catch(() => links.delete(key));
-    links.set(key, link);
-  }
-  return link;
-}
-
-/** Opens a new post with the caption and the card's link, which the network
- *  shows as the card itself. */
-export async function postRecap(view: RecapView, network: RecapNetwork): Promise<void> {
-  const { url } = await recapLink(view);
-  BrowserOpenURL(COMPOSE[network](recapCaption(view), url));
+/** Opens a new post with the caption. The networks' share links take text,
+ *  never an image, so the card goes in by hand: pasted on X, attached as a
+ *  file on LinkedIn, whose post box ignores a pasted image. */
+export function openRecapPost(view: RecapView, network: RecapNetwork): void {
+  BrowserOpenURL(COMPOSE[network](recapCaption(view)));
 }

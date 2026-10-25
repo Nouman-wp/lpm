@@ -4,6 +4,7 @@ import cx.lpm.mobile.core.data.claude.ClaudeAccountsStore
 import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.data.usage.StatsStore
 import cx.lpm.mobile.core.data.usage.UsageStore
+import cx.lpm.mobile.core.data.usage.WeeklyRecapStore
 import cx.lpm.mobile.core.testing.FakeSocket
 import cx.lpm.mobile.core.testing.TestSession
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -13,6 +14,7 @@ import kotlinx.coroutines.test.TestScope
 val UsageStores: Set<SessionStore.Factory> = setOf(
     SessionStore.Factory(::UsageStore),
     SessionStore.Factory(::StatsStore),
+    SessionStore.Factory(::WeeklyRecapStore),
     SessionStore.Factory(::ClaudeAccountsStore)
 )
 

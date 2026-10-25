@@ -50,6 +50,7 @@ import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.data.usage.StatsStore
 import cx.lpm.mobile.core.data.usage.UsageStore
+import cx.lpm.mobile.core.data.usage.WeeklyRecapStore
 import dagger.Binds
 import dagger.BindsOptionalOf
 import dagger.Module
@@ -256,6 +257,10 @@ object DataModule {
     @Provides
     @IntoSet
     fun statsStoreFactory(): SessionStore.Factory = SessionStore.Factory(::StatsStore)
+
+    @Provides
+    @IntoSet
+    fun weeklyRecapStoreFactory(): SessionStore.Factory = SessionStore.Factory(::WeeklyRecapStore)
 
     @Provides
     @IntoSet

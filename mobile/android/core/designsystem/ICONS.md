@@ -190,3 +190,4 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `folder` (Files) | `folder` | 22 dp menu, 56 dp empty state | "Files", "Empty Folder" | |
 | `folder.fill` / `doc` (Files rows) | `folder` (fill) / `description` | 24 dp | Files folder and file rows, Go to File results | |
 | `eye` / `doc.on.doc` (Files menu) | `visibility` / `content_copy` | 22 dp | a Files row's long-press Preview, Copy Path, Copy Relative Path | |
+| `calendar` | `calendar_month` | 24 dp row, 38 dp empty state | Stats "Weekly recap" row, "No agent work last week" | |

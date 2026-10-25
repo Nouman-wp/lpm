@@ -1,12 +1,12 @@
 //! "Your week in lpm": one week of agent work, sized to share. Agent hours,
 //! prompts, the agent mix and the day streak come from the agents' history
-//! files, lines from the user's commits and pull requests from GitHub. Every
-//! connected computer adds its own week, so only these numbers travel.
+//! files, lines from the user's commits. Every connected computer adds its own
+//! week, so only these numbers travel.
 use crate::agent_activity::{collect_activity, Activity};
 use crate::agent_usage::ProjectMatcher;
 use crate::peerclient::PeerClientHub;
-use crate::weekly_recap_git::{commits_and_repos, pull_request_repos, RecapCommit};
-use chrono::{DateTime, Duration, Local, NaiveDate, TimeZone};
+use crate::weekly_recap_git::{repo_keys, user_commits, RecapCommit};
+use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, TimeZone};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
@@ -16,6 +16,8 @@ use tauri::{AppHandle, Manager};
 
 /// What a computer answers when another one asks for its week.
 pub(crate) const RECAP_CMD: &str = "weekly_recap_local";
+/// The phone may send `weeklyRecap`.
+pub(crate) const PHONE_FEATURE: &str = "weeklyRecap";
 const KEEP_FOR: std::time::Duration = std::time::Duration::from_secs(10 * 60);
 const DAYS: i64 = 7;
 
@@ -47,12 +49,10 @@ pub struct WeeklyRecap {
     pub(crate) agents: Vec<RecapTime>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) commits: Vec<RecapCommit>,
-    pub(crate) repos: Vec<String>,
+    /// The repositories of the projects agents worked in this week.
+    pub(crate) worked_repos: Vec<String>,
     pub(crate) lines_added: u64,
     pub(crate) lines_removed: u64,
-    /// None when GitHub couldn't be asked.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) pull_requests: Option<usize>,
     /// Paired computers that couldn't add their week.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) missing: Vec<String>,
@@ -99,7 +99,6 @@ pub(crate) fn summarize(
     first: NaiveDate,
     activity: &Activity,
     commits: Vec<RecapCommit>,
-    repos: Vec<String>,
 ) -> WeeklyRecap {
     let dates: Vec<String> = (0..DAYS)
         .map(|offset| {
@@ -148,7 +147,6 @@ pub(crate) fn summarize(
         projects: by_time(projects),
         agents: by_time(agents),
         commits,
-        repos,
         ..Default::default()
     };
     count_lines(&mut recap);
@@ -160,21 +158,25 @@ fn count_lines(recap: &mut WeeklyRecap) {
     recap.lines_removed = recap.commits.iter().map(|c| c.removed).sum();
 }
 
-/// This computer's own week, without pull requests: those are asked of GitHub
-/// once, by the computer showing the recap.
+/// This computer's own week.
 pub(crate) fn local_recap(week: &str) -> Result<WeeklyRecap, String> {
     let bounds = bounds(week)?;
-    let roots: Vec<_> = ProjectMatcher::load()
-        .roots
-        .into_iter()
-        .map(|project| project.root)
-        .collect();
-    let (activity, (commits, repos)) = std::thread::scope(|scope| {
-        let git = scope.spawn(|| commits_and_repos(&roots, bounds.from, bounds.to));
+    let projects = ProjectMatcher::load().roots;
+    let roots: Vec<_> = projects.iter().map(|project| project.root.clone()).collect();
+    let (activity, commits) = std::thread::scope(|scope| {
+        let git = scope.spawn(|| user_commits(&roots, bounds.from, bounds.to));
         let activity = collect_activity(bounds.previous.timestamp_millis());
         (activity, git.join().unwrap_or_default())
     });
-    Ok(summarize(bounds.first, &activity, commits, repos))
+    let mut recap = summarize(bounds.first, &activity, commits);
+    let worked: HashSet<&str> = recap.projects.iter().map(|p| p.name.as_str()).collect();
+    recap.worked_repos = repo_keys(
+        projects
+            .iter()
+            .filter(|project| worked.contains(project.name.as_str()))
+            .map(|project| project.root.as_path()),
+    );
+    Ok(recap)
 }
 
 /// Several computers' weeks as one: a project or agent they share becomes one
@@ -190,7 +192,7 @@ pub(crate) fn merge(parts: Vec<WeeklyRecap>) -> WeeklyRecap {
     let mut projects = times(&mut merged.projects);
     let mut agents = times(&mut merged.agents);
     let mut shas: HashSet<String> = merged.commits.iter().map(|c| c.sha.clone()).collect();
-    let mut repos: HashSet<String> = merged.repos.drain(..).collect();
+    let mut worked_repos: HashSet<String> = merged.worked_repos.drain(..).collect();
     for part in parts {
         for (into, day) in merged.days.iter_mut().zip(part.days) {
             into.agent_ms += day.agent_ms;
@@ -209,13 +211,16 @@ pub(crate) fn merge(parts: Vec<WeeklyRecap>) -> WeeklyRecap {
                 .into_iter()
                 .filter(|c| shas.insert(c.sha.clone())),
         );
-        repos.extend(part.repos);
+        worked_repos.extend(part.worked_repos);
     }
     merged.projects = by_time(projects);
     merged.agents = by_time(agents);
-    let mut repos: Vec<String> = repos.into_iter().collect();
-    repos.sort();
-    merged.repos = repos;
+    let sorted = |set: HashSet<String>| {
+        let mut rows: Vec<String> = set.into_iter().collect();
+        rows.sort();
+        rows
+    };
+    merged.worked_repos = sorted(worked_repos);
     count_lines(&mut merged);
     merged
 }
@@ -236,11 +241,10 @@ fn peer_name(peer: &crate::peerclient::PhoneMachine) -> String {
 }
 
 fn read_week(hub: Option<&PeerClientHub>, week: &str) -> Result<WeeklyRecap, String> {
-    let bounds = bounds(week)?;
+    bounds(week)?;
     let peers = hub.map(PeerClientHub::phone_machines).unwrap_or_default();
     let connected: Vec<_> = peers.iter().filter(|peer| peer.connected).collect();
-    let (local, remote, pulls) = std::thread::scope(|scope| {
-        let pulls = scope.spawn(|| pull_request_repos(bounds.from, bounds.to));
+    let (local, remote) = std::thread::scope(|scope| {
         let remote: Vec<_> = connected
             .iter()
             .map(|peer| {
@@ -260,7 +264,7 @@ fn read_week(hub: Option<&PeerClientHub>, week: &str) -> Result<WeeklyRecap, Str
             .collect();
         let local = local_recap(week);
         let remote: Vec<_> = remote.into_iter().filter_map(|h| h.join().ok()).collect();
-        (local, remote, pulls.join().ok().flatten())
+        (local, remote)
     });
     let mut parts = vec![local?];
     let mut missing = Vec::new();
@@ -272,35 +276,43 @@ fn read_week(hub: Option<&PeerClientHub>, week: &str) -> Result<WeeklyRecap, Str
     }
     let mut recap = merge(parts);
     recap.missing = missing;
-    recap.pull_requests = pulls.map(|found| {
-        let repos: HashSet<&str> = recap.repos.iter().map(String::as_str).collect();
-        found
-            .iter()
-            .filter(|repo| repos.contains(repo.as_str()))
-            .count()
-    });
     recap.commits.clear();
     Ok(recap)
 }
 
 /// The week starting `week` (YYYY-MM-DD) on this computer and every connected
 /// one. A read is kept for ten minutes unless `fresh`.
-#[tauri::command(async)]
-pub fn weekly_recap(app: AppHandle, week: String, fresh: bool) -> Result<WeeklyRecap, String> {
+pub(crate) fn kept_week(
+    hub: Option<&PeerClientHub>,
+    week: &str,
+    fresh: bool,
+) -> Result<WeeklyRecap, String> {
     if !fresh {
         let mut kept = kept().lock().unwrap();
         kept.retain(|_, (at, _)| at.elapsed() < KEEP_FOR);
-        if let Some((_, recap)) = kept.get(&week) {
+        if let Some((_, recap)) = kept.get(week) {
             return Ok(recap.clone());
         }
     }
-    let hub = app.try_state::<PeerClientHub>().map(|s| s.inner().clone());
-    let recap = read_week(hub.as_ref(), &week)?;
+    let recap = read_week(hub, week)?;
     kept()
         .lock()
         .unwrap()
-        .insert(week, (Instant::now(), recap.clone()));
+        .insert(week.to_string(), (Instant::now(), recap.clone()));
     Ok(recap)
+}
+
+/// The Monday that starts this week, or the one before it for `last`.
+pub(crate) fn week_of(last: bool, today: NaiveDate) -> String {
+    let monday = today - Duration::days(i64::from(today.weekday().num_days_from_monday()));
+    let first = if last { monday - Duration::days(DAYS) } else { monday };
+    first.format("%Y-%m-%d").to_string()
+}
+
+#[tauri::command(async)]
+pub fn weekly_recap(app: AppHandle, week: String, fresh: bool) -> Result<WeeklyRecap, String> {
+    let hub = app.try_state::<PeerClientHub>().map(|s| s.inner().clone());
+    kept_week(hub.as_ref(), &week, fresh)
 }
 
 #[cfg(test)]

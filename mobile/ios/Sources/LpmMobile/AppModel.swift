@@ -356,6 +356,8 @@ final class AppModel {
 
     // lpm on the live Mac and updating it (`model.macUpdate`), same split.
     var macUpdate = MacUpdateStore()
+    // The weekly recap card (`model.weeklyRecap`), same split.
+    var weeklyRecap = WeeklyRecapStore()
 
     // The agents a new tab can start and the conversations to resume
     // (`model.agentLaunch`), and the Files browser (`model.projectFiles`), same split.
@@ -428,6 +430,7 @@ final class AppModel {
         usage.model = self
         tokenActivity.model = self
         macUpdate.model = self
+        weeklyRecap.model = self
         agentLaunch.model = self
         projectFiles.model = self
         pushRegistrar.onIdentity = { [weak self] localId, serverId, serverName, platform in
@@ -1362,6 +1365,8 @@ final class AppModel {
         usage.model = self
         macUpdate = MacUpdateStore()
         macUpdate.model = self
+        weeklyRecap = WeeklyRecapStore()
+        weeklyRecap.model = self
         agentLaunch = AgentLaunchStore()
         agentLaunch.model = self
         projectFiles = ProjectFilesStore()
@@ -2395,6 +2400,7 @@ final class AppModel {
         // screen is still open, otherwise just drop the spinner.
         if statsActive { loadStats(days: statsDays) }
         else { statsLoading = false }
+        weeklyRecap.handleConnectionReset()
         // Session memory and notes replay whatever screen is open (or just drop
         // their spinners); their requests queue on the client until it reconnects.
         gitAuto.handleConnectionReset()
@@ -2589,6 +2595,7 @@ final class AppModel {
         wireConnection(c)
         wireProjects(c)
         wireStats(c)
+        wireWeeklyRecap(c)
         wireUsage(c)
         wireTerminals(c)
         wireAutomations(c)

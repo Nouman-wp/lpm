@@ -34,6 +34,7 @@ internal fun LpmClient.connectDemo() {
                 add(LpmClient.SERVICE_LOGS_WATCH_FEATURE)
                 add(LpmClient.RESTART_TERMINAL_FEATURE)
                 add(LpmClient.TAB_MENU_FEATURE)
+                add(LpmClient.WEEKLY_RECAP_FEATURE)
             }
         }
         injectInbound(Wire.json(ready))

@@ -45,9 +45,9 @@ actions:
     display: footer
 
   github-issues:
-    label: 'Issues · $(gh api -X GET search/issues -f q="repo:gug007/lpm is:issue is:open comments:0" --jq .total_count)'
+    label: 'Issues · $(gh api -X GET search/issues -f q="repo:gug007/lpm is:issue is:open -commenter:gug007 -author:gug007" --jq .total_count)'
     emoji: 💬
-    cmd: open "https://github.com/gug007/lpm/issues?q=is%3Aissue+is%3Aopen+comments%3A0"
+    cmd: open "https://github.com/gug007/lpm/issues?q=is%3Aissue+is%3Aopen+-commenter%3Agug007+-author%3Agug007"
     type: background
     labelRefresh: 10m
     display: footer

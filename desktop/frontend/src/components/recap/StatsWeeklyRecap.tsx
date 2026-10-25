@@ -1,13 +1,13 @@
-import { useMemo } from "react";
 import { Share2 } from "lucide-react";
 import { useSettingsStore } from "../../store/settings";
 import { useWeeklyRecapStore } from "../../store/weeklyRecap";
 import { daysBetween, localDate, weekStart } from "../stats/statsDates";
 import { BTN_SECONDARY } from "../ui/buttons";
 import { RecapCopyButton } from "./RecapCopyButton";
+import { useRecapLook } from "./useRecapLook";
 import { useWeeklyRecap } from "./useWeeklyRecap";
 import { WeeklyRecapCard } from "./WeeklyRecapCard";
-import { RECAP_NEWS_DAYS, recapView, recapWeekStart } from "./weeklyRecapModel";
+import { RECAP_NEWS_DAYS, recapWeekStart } from "./weeklyRecapModel";
 
 /** Last week's recap at the top of Stats, while it's news. */
 export function StatsWeeklyRecap() {
@@ -20,14 +20,14 @@ export function StatsWeeklyRecap() {
   const news = daysBetween(weekStart(today), today) < RECAP_NEWS_DAYS;
   const showing = enabled && news && hidden !== week;
   const { recap } = useWeeklyRecap(showing ? week : null);
-  const view = useMemo(() => recap && recapView(recap), [recap]);
+  const { view, theme } = useRecapLook(recap);
 
   if (!showing || !view || view.empty) return null;
   return (
     <div className="mb-4 flex w-[600px] max-w-full flex-col gap-3">
-      <WeeklyRecapCard view={view} />
+      <WeeklyRecapCard view={view} theme={theme} />
       <div className="flex flex-wrap items-center gap-2">
-        <RecapCopyButton view={view} />
+        <RecapCopyButton view={view} theme={theme} />
         <button
           type="button"
           onClick={() => show("last")}

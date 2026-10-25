@@ -8,7 +8,6 @@ export function WeeklyRecap(...args: any[]): Promise<any>;
 export function CopyPngImage(...args: any[]): Promise<any>;
 export function SavePngImage(...args: any[]): Promise<any>;
 export function SharePngImage(...args: any[]): Promise<any>;
-export function UploadRecapImage(...args: any[]): Promise<any>;
 export function AgentLimits(...args: any[]): Promise<any>;
 export function ClaudeLimitsAccount(...args: any[]): Promise<any>;
 export function AgentSessionTitle(projectName: string, provider: "claude" | "codex", sessionId: string): Promise<string | null>;

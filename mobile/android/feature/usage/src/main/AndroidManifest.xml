@@ -2,6 +2,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application>
+        <!-- Lends the weekly recap image to the app it's shared with. -->
+        <provider
+            android:name="cx.lpm.mobile.feature.usage.recap.RecapImageProvider"
+            android:authorities="${applicationId}.recap"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/recap_image_paths" />
+        </provider>
         <receiver
             android:name="cx.lpm.mobile.feature.usage.widget.TokenActivityWidgetReceiver"
             android:exported="true"

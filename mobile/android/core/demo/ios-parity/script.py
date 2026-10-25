@@ -389,6 +389,8 @@ at(48600, 'git', project='storefront')
 at(79500, 'closeOtherTerminals', project='storefront', id='nope')
 at(79500, 'closeOtherTerminals', project='storefront', id='demo-storefront-1')
 at(79600, 'terminals', project='storefront')
+at(2150, 'weeklyRecap', week='last'); at(2150, 'weeklyRecap', week='this', fresh=True)
+at(2150, 'weeklyRecap')
 steps.append({'at': 80000})
 steps.sort(key=lambda s: s['at'])
 for s in steps:

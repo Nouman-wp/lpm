@@ -17,6 +17,8 @@ import { normalizeSidebarNav, type NavItemId } from "../sidebarNav";
 import { normalizePaneToolbar, type PaneActionId } from "../paneActions";
 import { normalizeComposerToolbar, type ComposerToolId } from "../composerTools";
 import type { PeerRowOrder } from "../components/peerRowOrder";
+import { normalizeRecapTheme, type RecapTheme } from "../components/recap/recapCardTheme";
+import { normalizeRecapRows, type RecapRow } from "../components/recap/weeklyRecapModel";
 import type { SideBySideLayout } from "../sideBySide";
 import { normalizeAutoPullMode, type AutoPullMode } from "../autoPull";
 import type { NotificationChannelPrefs } from "../notifications/channels";
@@ -131,6 +133,9 @@ export interface Settings {
   // The week whose card was hidden from Stats, and the week already toasted.
   weeklyRecapHidden?: string;
   weeklyRecapToasted?: string;
+  // How the card is shared: its theme (dark when unset) and the rows left off.
+  weeklyRecapTheme?: RecapTheme;
+  weeklyRecapLeftOut?: RecapRow[];
   // The last Codex status line arranged by hand (no layout matches), kept so
   // switching to a layout and back doesn't lose it.
   codexStatusLineCustomItems?: string[];
@@ -248,6 +253,8 @@ function normalize(s: main.Settings): Settings {
     weeklyRecap: s.weeklyRecap,
     weeklyRecapHidden: s.weeklyRecapHidden || undefined,
     weeklyRecapToasted: s.weeklyRecapToasted || undefined,
+    weeklyRecapTheme: normalizeRecapTheme(s.weeklyRecapTheme),
+    weeklyRecapLeftOut: normalizeRecapRows(s.weeklyRecapLeftOut),
     codexStatusLineCustomItems: Array.isArray(s.codexStatusLineCustomItems)
       ? s.codexStatusLineCustomItems.filter(
           (item: unknown): item is string => typeof item === "string",

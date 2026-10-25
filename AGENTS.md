@@ -23,7 +23,8 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
   workspace), built into `website/public/demo-app`
 - `relay/` — Cloudflare Worker that lets a browser join a shared tab: a Durable
   Object room per share, forwarding Noise-encrypted messages, and the guest page
-  (lpm-share-relay.lpm-share-relay.workers.dev). `npm run dev` / `npm test` / `npm run deploy`; see its README
+  (lpm-share-relay.lpm-share-relay.workers.dev). `npm run dev` / `npm test` / `npm run deploy`; see its README.
+  It's for tab sharing only: never give it other features' routes or storage
 - `tailnet/` — built-in Tailscale (Go, tsnet): `cmd/lpm-tailnet` is the desktop
   sidecar (`scripts/build-tailnet.mjs`), `ios/` the static library lpm Link links
   (`mobile/ios/build-tailnet.sh`). Needs Go (`brew install go`)

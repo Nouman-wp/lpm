@@ -1,0 +1,29 @@
+# The weekly recap from the top of Stats: the desktop's "My week in lpm" card
+# for Demo Mode's sample week, then this week so far.
+appId: cx.lpm.mobile
+name: 150-weekly-recap
+tags: [demo, stats, recap]
+---
+- runFlow: subflows/enter-demo.yaml
+- runFlow: subflows/open-more-menu.yaml
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn: "Stats.*"
+      - extendedWaitUntil:
+          visible: "Weekly recap"
+          timeout: 5000
+- tapOn: "Weekly recap"
+- extendedWaitUntil:
+    visible: "My week in lpm"
+    timeout: 10000
+- assertVisible: "31h 20m"
+- assertVisible: "of agents working for me"
+- assertVisible: "Claude 64%, Codex 36%"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-weekly-recap
+- tapOn: "This week"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-this-week

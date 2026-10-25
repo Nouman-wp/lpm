@@ -33,7 +33,7 @@ fn sums_the_week_and_the_one_before_it() {
         ("2026-10-25".to_string(), day(1_000, 1, "app", "b")),
         ("2026-10-26".to_string(), day(9_000, 9, "next", "c")),
     ]);
-    let recap = summarize(monday(), &activity, vec![commit("a", 5, 2)], Vec::new());
+    let recap = summarize(monday(), &activity, vec![commit("a", 5, 2)]);
     assert_eq!(recap.week, "2026-10-19");
     let days: Vec<(&str, i64, u64)> = recap
         .days
@@ -69,9 +69,9 @@ fn part(agent_ms: i64, project: &str, commits: Vec<RecapCommit>, repo: &str) -> 
         monday(),
         &Activity::from([("2026-10-20".to_string(), day(agent_ms, 1, project, project))]),
         commits,
-        vec![repo.to_string()],
     );
     recap.previous_agent_ms = agent_ms / 2;
+    recap.worked_repos = vec![format!("github.com/{repo}")];
     recap
 }
 
@@ -100,7 +100,10 @@ fn merges_computers_counting_a_shared_commit_once() {
     assert_eq!(merged.agents.len(), 1);
     assert_eq!(merged.agents[0].agent_ms, 7_000);
     assert_eq!((merged.lines_added, merged.lines_removed), (15, 2));
-    assert_eq!(merged.repos, ["me/api", "me/app"]);
+    assert_eq!(
+        merged.worked_repos,
+        ["github.com/me/api", "github.com/me/app"]
+    );
 }
 
 #[test]
@@ -111,4 +114,12 @@ fn rejects_a_week_that_is_not_a_date() {
         week.to.date_naive() - week.from.date_naive(),
         Duration::days(7)
     );
+}
+
+#[test]
+fn starts_weeks_on_monday() {
+    let sunday = NaiveDate::from_ymd_opt(2026, 10, 25).unwrap();
+    assert_eq!(week_of(false, sunday), "2026-10-19");
+    assert_eq!(week_of(true, sunday), "2026-10-12");
+    assert_eq!(week_of(false, monday()), "2026-10-19");
 }

@@ -6,6 +6,7 @@ import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.usage.ALL_MACHINES
 import cx.lpm.mobile.core.data.usage.StatsState
 import cx.lpm.mobile.core.data.usage.StatsStore
+import cx.lpm.mobile.core.data.usage.WeeklyRecapStore
 import cx.lpm.mobile.core.model.AgentStats
 import cx.lpm.mobile.core.model.UsageMachine
 import cx.lpm.mobile.core.navigation.StatsKey
@@ -17,9 +18,9 @@ import java.time.Clock
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /** What the Stats screen shows under its period picker. */
@@ -40,7 +41,9 @@ data class StatsUiState(
     val machines: List<UsageMachine> = emptyList(),
     val body: StatsBody = StatsBody.Loading,
     /** When the body was built, for "2 hours ago" in Recent sessions. */
-    val now: Long = 0
+    val now: Long = 0,
+    /** The Mac draws the weekly recap card (always in Demo Mode). */
+    val recapAvailable: Boolean = false
 )
 
 /** The Stats screen (iOS `StatsScreen`): agent token usage by period and computer. */
@@ -55,8 +58,13 @@ class StatsViewModel @AssistedInject constructor(
 
     val uiState: StateFlow<StatsUiState> = sessions.session(key.session)
         .flatMapLatest { s ->
-            s?.store<StatsStore>()?.state?.map(::uiState)
-                ?: flowOf(StatsUiState())
+            s?.let {
+                combine(it.store<StatsStore>().state, it.state) { stats, session ->
+                    uiState(stats).copy(
+                        recapAvailable = session.demoMode || it.store<WeeklyRecapStore>().available
+                    )
+                }
+            } ?: flowOf(StatsUiState())
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatsUiState())
 

@@ -1,14 +1,10 @@
 //! The weekly recap's Git numbers: lines the user committed across the
-//! projects' repositories, and pull requests they opened on GitHub. A commit
-//! reached from several copies or computers counts once, by its hash.
+//! projects' repositories. A commit reached from several copies or computers
+//! counts once, by its hash.
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
-
-const GH_TIMEOUT: Duration = Duration::from_secs(20);
-const GH_LIMIT: &str = "1000";
 
 /// One file changing by more lines than this in a commit was generated, vendored
 /// or moved rather than written, like a test fixture or a build bundle.
@@ -124,37 +120,65 @@ fn repo_commits(root: &Path, from: DateTime<Local>, to: DateTime<Local>) -> Vec<
     .unwrap_or_default()
 }
 
-/// `owner/name` of a GitHub remote, lowercased; None for any other host.
-pub(crate) fn github_repo(url: &str) -> Option<String> {
+/// An origin URL as `host/path`, lowercased, without scheme, credentials or
+/// `.git`, so the SSH and HTTPS forms of one repository match.
+pub(crate) fn origin_key(url: &str) -> String {
     let url = url.trim();
-    let path = url
-        .strip_prefix("git@github.com:")
-        .or_else(|| url.split_once("github.com/").map(|(_, path)| path))?;
-    let path = path.trim_end_matches('/').trim_end_matches(".git");
-    let mut parts = path.split('/');
-    let (Some(owner), Some(name), None) = (parts.next(), parts.next(), parts.next()) else {
-        return None;
+    let rest = match url.split_once("://") {
+        Some((_, rest)) => rest.to_string(),
+        None => url.replacen(':', "/", 1),
     };
-    (!owner.is_empty() && !name.is_empty()).then(|| format!("{owner}/{name}").to_lowercase())
+    let (authority, path) = rest.split_once('/').unwrap_or((&rest, ""));
+    let host = authority.rsplit('@').next().unwrap_or(authority);
+    format!("{host}/{path}")
+        .trim_end_matches('/')
+        .trim_end_matches(".git")
+        .to_lowercase()
 }
 
-/// Every commit the user made in [from, to) across `roots`, and the GitHub
-/// repositories they belong to.
-pub(crate) fn commits_and_repos(
+/// One name for a repository however many copies and worktrees of it there
+/// are, on any computer: its origin, else its shared Git directory; None
+/// outside Git.
+fn repo_key(root: &Path) -> Option<String> {
+    if let Some(url) = git(root, &["remote", "get-url", "origin"]) {
+        return Some(origin_key(&url));
+    }
+    let dir = git(root, &["rev-parse", "--git-common-dir"])?;
+    let dir = root.join(dir.trim());
+    Some(
+        std::fs::canonicalize(&dir)
+            .unwrap_or(dir)
+            .to_string_lossy()
+            .into_owned(),
+    )
+}
+
+/// The repositories `roots` belong to, each once.
+pub(crate) fn repo_keys<'a>(roots: impl Iterator<Item = &'a Path>) -> Vec<String> {
+    let roots: Vec<&Path> = roots.collect();
+    let keys: BTreeSet<String> = std::thread::scope(|scope| {
+        let handles: Vec<_> = roots
+            .iter()
+            .map(|root| scope.spawn(move || repo_key(root)))
+            .collect();
+        handles
+            .into_iter()
+            .filter_map(|handle| handle.join().ok().flatten())
+            .collect()
+    });
+    keys.into_iter().collect()
+}
+
+/// Every commit the user made in [from, to) across `roots`, each once.
+pub(crate) fn user_commits(
     roots: &[PathBuf],
     from: DateTime<Local>,
     to: DateTime<Local>,
-) -> (Vec<RecapCommit>, Vec<String>) {
-    let found: Vec<(Vec<RecapCommit>, Option<String>)> = std::thread::scope(|scope| {
+) -> Vec<RecapCommit> {
+    let found: Vec<Vec<RecapCommit>> = std::thread::scope(|scope| {
         let handles: Vec<_> = roots
             .iter()
-            .map(|root| {
-                scope.spawn(move || {
-                    let repo = git(root, &["remote", "get-url", "origin"])
-                        .and_then(|url| github_repo(&url));
-                    (repo_commits(root, from, to), repo)
-                })
-            })
+            .map(|root| scope.spawn(move || repo_commits(root, from, to)))
             .collect();
         handles
             .into_iter()
@@ -162,58 +186,11 @@ pub(crate) fn commits_and_repos(
             .collect()
     });
     let mut seen = HashSet::new();
-    let mut commits = Vec::new();
-    let mut repos = BTreeSet::new();
-    for (found, repo) in found {
-        commits.extend(found.into_iter().filter(|c| seen.insert(c.sha.clone())));
-        repos.extend(repo);
-    }
-    (commits, repos.into_iter().collect())
-}
-
-#[derive(Deserialize)]
-struct Found {
-    repository: FoundRepo,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct FoundRepo {
-    name_with_owner: String,
-}
-
-/// The repository of each pull request the signed-in GitHub user opened in
-/// [from, to); None when `gh` is missing, signed out or offline.
-pub(crate) fn pull_request_repos(
-    from: DateTime<Local>,
-    to: DateTime<Local>,
-) -> Option<Vec<String>> {
-    if !crate::git::check_ghcli() {
-        return None;
-    }
-    let last = to - chrono::Duration::seconds(1);
-    let created = format!("--created={}..{}", rfc3339(from), rfc3339(last));
-    let mut cmd = crate::osproc::command("gh");
-    cmd.args([
-        "search",
-        "prs",
-        "--author=@me",
-        &created,
-        "--json",
-        "repository",
-        "--limit",
-        GH_LIMIT,
-    ])
-    .env("GH_PROMPT_DISABLED", "1")
-    .env("GH_NO_UPDATE_NOTIFIER", "1");
-    let out = crate::statusfwd::run_with_timeout(cmd, GH_TIMEOUT)?;
-    let found: Vec<Found> = serde_json::from_slice(&out).ok()?;
-    Some(
-        found
-            .into_iter()
-            .map(|pr| pr.repository.name_with_owner.to_lowercase())
-            .collect(),
-    )
+    found
+        .into_iter()
+        .flatten()
+        .filter(|commit| seen.insert(commit.sha.clone()))
+        .collect()
 }
 
 #[cfg(test)]

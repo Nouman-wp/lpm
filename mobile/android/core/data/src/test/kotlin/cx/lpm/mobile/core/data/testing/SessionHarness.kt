@@ -32,6 +32,7 @@ import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.data.usage.StatsStore
 import cx.lpm.mobile.core.data.usage.UsageStore
+import cx.lpm.mobile.core.data.usage.WeeklyRecapStore
 import java.io.File
 import java.nio.file.Files
 import kotlin.random.Random
@@ -96,6 +97,7 @@ class SessionHarness(test: TestScope) {
             SessionStore.Factory(::ProjectConfigStore),
             SessionStore.Factory(::UsageStore),
             SessionStore.Factory(::StatsStore),
+            SessionStore.Factory(::WeeklyRecapStore),
             SessionStore.Factory(::ClaudeAccountsStore),
             SessionStore.Factory(::ActionsStore),
             SessionStore.Factory(::MachineImporter),

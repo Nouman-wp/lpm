@@ -8,6 +8,7 @@ import cx.lpm.mobile.core.model.MacUpdateStep
 import cx.lpm.mobile.core.model.MachinePairOffer
 import cx.lpm.mobile.core.model.RemoteMachine
 import cx.lpm.mobile.core.model.USAGE_GENERIC_ERROR
+import cx.lpm.mobile.core.model.WeeklyRecap
 import cx.lpm.mobile.core.model.bool
 import cx.lpm.mobile.core.model.list
 import cx.lpm.mobile.core.model.long
@@ -59,6 +60,13 @@ internal val sessionParsers = parsers {
         Inbound.Stats(
             stats = if (o.ok) AgentStats.parse(o.obj("stats") ?: emptyObject, reply = o) else null,
             error = o.failure("Couldn't load stats.")
+        )
+    }
+    put("weeklyRecap") { o ->
+        Inbound.WeeklyRecap(
+            week = o.str("week"),
+            recap = if (o.ok) WeeklyRecap.parse(o.obj("recap") ?: emptyObject) else null,
+            error = o.failure("Couldn't read the week.")
         )
     }
     put("limits") { o ->

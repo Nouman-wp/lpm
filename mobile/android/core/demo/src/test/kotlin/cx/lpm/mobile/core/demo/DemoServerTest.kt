@@ -107,6 +107,7 @@ class DemoServerTest {
         "apnsToken", "liveActivity", "answerAgent", "memory", "memorySession", "memorySave",
         "memoryDelete", "notesChats", "notesCreateChat", "notesRenameChat", "notesDeleteChat",
         "notesMessages", "notesAddMessage", "notesEditMessage", "notesDeleteMessage", "notesSearch",
-        "notesAttachment", "limits", "uploadBegin", "uploadChunk", "uploadDone", "uploadAbort"
+        "notesAttachment", "limits", "uploadBegin", "uploadChunk", "uploadDone", "uploadAbort",
+        "weeklyRecap"
     )
 }

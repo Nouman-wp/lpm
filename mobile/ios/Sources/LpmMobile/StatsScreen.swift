@@ -19,6 +19,7 @@ struct StatsScreen: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
+                if model.canShowWeeklyRecap { WeeklyRecapEntryRow() }
                 periodPicker
                 stateContent
             }

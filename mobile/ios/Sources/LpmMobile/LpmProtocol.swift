@@ -53,6 +53,11 @@ enum Wire {
         return json(o)
     }
     static func limits() -> String { json(["t": "limits"]) }
+    static func weeklyRecap(week: RecapWeek, fresh: Bool) -> String {
+        var o: [String: Any] = ["t": "weeklyRecap", "week": week.rawValue]
+        if fresh { o["fresh"] = true }
+        return json(o)
+    }
     static func ttsSpeak(reqId: String, text: String) -> String {
         json(["t": "ttsSpeak", "reqId": reqId, "text": text])
     }
@@ -601,6 +606,7 @@ enum Wire {
         // Agent plan-usage meters (the desktop Usage page). `limitsChanged` is a
         // server push carrying the whole snapshot, not a hint to re-request.
         case limits(LimitsSnapshot?, error: String?)
+        case weeklyRecap(week: RecapWeek, recap: WeeklyRecap?, error: String?)
         case limitsChanged(LimitsSnapshot)
         /// Synthesized speech for a read-aloud request. `audio` is base64 AAC.
         case ttsSpeak(reqId: String, audio: String?, error: String?)
@@ -841,6 +847,11 @@ enum Wire {
                 let ok = obj["ok"] as? Bool ?? false
                 return .stats(ok ? AgentStats(obj["stats"] as? [String: Any] ?? [:], reply: obj) : nil,
                               error: ok ? nil : (obj["error"] as? String ?? "Couldn't load stats."))
+            case "weeklyRecap":
+                let ok = obj["ok"] as? Bool ?? false
+                return .weeklyRecap(week: RecapWeek(rawValue: obj["week"] as? String ?? "") ?? .last,
+                                    recap: ok ? WeeklyRecap(obj["recap"] as? [String: Any] ?? [:]) : nil,
+                                    error: ok ? nil : (obj["error"] as? String ?? "Couldn't read the week."))
             case "limits":
                 let ok = obj["ok"] as? Bool ?? false
                 return .limits(ok ? LimitsSnapshot(obj) : nil,

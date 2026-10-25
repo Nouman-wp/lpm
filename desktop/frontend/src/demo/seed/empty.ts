@@ -41,7 +41,7 @@ export function emptyRecap(week: string) {
     sessions: 0,
     projects: [],
     agents: [],
-    repos: [],
+    workedRepos: [],
     linesAdded: 0,
     linesRemoved: 0,
   };
