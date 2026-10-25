@@ -16,7 +16,7 @@ export interface PeerInvite {
 
 const PREFIX = "lpm-pair:";
 
-function toBase64Url(text: string): string {
+export function toBase64Url(text: string): string {
   const bytes = new TextEncoder().encode(text);
   let binary = "";
   for (const b of bytes) binary += String.fromCharCode(b);

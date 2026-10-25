@@ -31,16 +31,23 @@ function decode(payload: string): Invite | null {
   try {
     const b64 = payload.replace(/-/g, "+").replace(/_/g, "/");
     const json = JSON.parse(atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4)));
-    const ok = json?.v === 1 && Array.isArray(json.h) && json.h.length > 0 && !!json.p && !!json.s && !!json.f;
-    return ok ? json : null;
+    return json?.v === 1 && !!json.s ? json : null;
   } catch {
     return null;
   }
 }
 
+// lpm joins from the host's own addresses. The QR code in lpm's Share dialog
+// leaves them out, so its link only opens in the browser.
+function lpmLink(payload: string): string {
+  const invite = decode(payload);
+  const direct = !!invite && Array.isArray(invite.h) && invite.h.length > 0 && !!invite.p && !!invite.f;
+  return direct ? `lpm://join?i=${payload}` : "";
+}
+
 function readInvite(): string {
   const payload = window.location.hash.slice(1);
-  return PAYLOAD.test(payload) && decode(payload) ? payload : "";
+  return PAYLOAD.test(payload) && (lpmLink(payload) || browserLink(payload)) ? payload : "";
 }
 
 function browserLink(payload: string): string {
@@ -72,12 +79,15 @@ export function JoinSharedTab() {
   const invite = useSyncExternalStore(subscribe, readInvite, () => null);
   const platform = usePlatform();
   const onPhone = platform === "ipad" || platform === "unsupported";
-  const appLink = invite ? `lpm://join?i=${invite}` : "";
+  const appLink = invite ? lpmLink(invite) : "";
   const webLink = invite ? browserLink(invite) : "";
 
   useEffect(() => {
-    if (appLink && !onPhone && platform !== null && opensQuietly()) window.location.href = appLink;
-  }, [appLink, onPhone, platform]);
+    if (platform === null) return;
+    // Nothing to choose when the browser is the only way in.
+    if (webLink && (onPhone || !appLink)) window.location.replace(webLink);
+    else if (appLink && !onPhone && opensQuietly()) window.location.href = appLink;
+  }, [appLink, webLink, onPhone, platform]);
 
   return (
     <section className="pt-[clamp(6rem,14vh,9rem)] pb-20 text-center sm:pb-24">

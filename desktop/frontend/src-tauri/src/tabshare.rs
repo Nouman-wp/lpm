@@ -617,7 +617,8 @@ struct Shown<'a> {
 /// plus `n:host name, l:label, j:project` for the page to greet with, and
 /// `u:relay, r:room, k:key` while browsers can join through the relay.
 /// Must stay byte-identical to `decodeShareInvite` in src/share/invite.ts and the
-/// browser page in relay/public/invite.js.
+/// browser page in relay/public/invite.js. The QR code carries only the fields
+/// that page reads (`phoneShareLink`).
 fn encode_invite(
     hosts: &[String],
     port: u16,

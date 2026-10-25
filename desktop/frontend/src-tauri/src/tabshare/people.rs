@@ -154,10 +154,11 @@ pub async fn peer_share_take_keyboards(app: AppHandle, id: String) -> Value {
     edit(&app, |reg| reg.take_keyboards(&id))
 }
 
-/// A share's link as a QR code, for a phone's camera.
+/// A share's link as a QR code, for a phone's camera. It's only ever read off a
+/// screen, so it needs the least error correction and stays the least dense.
 #[tauri::command]
 pub fn peer_share_qr(link: String) -> Option<String> {
-    crate::remote::qr_svg(&link, 180)
+    crate::remote::qr_svg(&link, 180, qrcode::EcLevel::L)
 }
 
 #[cfg(test)]

@@ -1,13 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { decodeShareInvite, looksLikeShareInvite, shareLink, shortShareLink } from "./invite";
-import { decodeInvite } from "../peer/invite";
+import { decodeShareInvite, looksLikeShareInvite, phoneShareLink, shareLink, shortShareLink } from "./invite";
+import { decodeInvite, fromBase64Url, toBase64Url } from "../peer/invite";
 
 function encode(payload: unknown): string {
-  const b64 = btoa(JSON.stringify(payload)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return `lpm-share:${b64}`;
+  return `lpm-share:${toBase64Url(JSON.stringify(payload))}`;
+}
+
+function phonePayload(link: string): Record<string, unknown> {
+  expect(link.startsWith("https://lpm.cx/join#")).toBe(true);
+  return JSON.parse(fromBase64Url(link.slice("https://lpm.cx/join#".length)) ?? "null");
 }
 
 const FULL = { v: 1, h: ["192.168.1.20", "100.64.0.5"], p: 8766, s: "c2VjcmV0", f: "ab".repeat(32) };
+const RELAYED = {
+  ...FULL,
+  s: "s".repeat(32),
+  n: "Ana's MacBook Pro",
+  l: "claude",
+  j: "web",
+  u: "https://lpm-share-relay.lpm-share-relay.workers.dev",
+  r: "r".repeat(22),
+  k: "k".repeat(43),
+};
+// The most a QR code holds in bytes at the lowest error correction.
+const VERSION_12_BYTES = 367;
+const VERSION_13_BYTES = 425;
 
 describe("share invite", () => {
   it("decodes what the host hands out", () => {
@@ -81,5 +98,33 @@ describe("share invite", () => {
     expect(decodeShareInvite(`https://lpm.cx/mobile#${payload}`)).toBeNull();
     expect(decodeShareInvite(`lpm://pair?i=${payload}`)).toBeNull();
     expect(looksLikeShareInvite("https://lpm.cx/join#")).toBe(false);
+  });
+
+  it("gives a phone's camera only what the browser page reads", () => {
+    const { v, s, u, r, k, n, l, j } = RELAYED;
+    expect(phonePayload(phoneShareLink(encode(RELAYED)))).toEqual({ v, s, u, r, k, n, l, j });
+  });
+
+  it("cuts long names short in the phone's link", () => {
+    const link = phoneShareLink(encode({ ...RELAYED, n: "a".repeat(64), l: "語".repeat(64), j: "" }));
+    expect(phonePayload(link)).toMatchObject({ n: `${"a".repeat(21)}…`, l: `${"語".repeat(7)}…` });
+    expect(phonePayload(link)).not.toHaveProperty("j");
+  });
+
+  it("keeps the whole link for a share without a relay", () => {
+    const invite = encode(FULL);
+    expect(phoneShareLink(invite)).toBe(shareLink(invite));
+  });
+
+  it("keeps the QR code small whatever the names", () => {
+    expect(phoneShareLink(encode(RELAYED)).length).toBeLessThanOrEqual(VERSION_12_BYTES);
+    const longest = encode({
+      ...RELAYED,
+      h: ["192.168.100.200", "100.100.100.100", "100.64.100.100"],
+      n: "語".repeat(64),
+      l: '"'.repeat(64),
+      j: "語".repeat(64),
+    });
+    expect(phoneShareLink(longest).length).toBeLessThanOrEqual(VERSION_13_BYTES);
   });
 });

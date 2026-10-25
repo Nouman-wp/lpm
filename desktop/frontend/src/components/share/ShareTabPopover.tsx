@@ -13,7 +13,7 @@ import { peerSlugOf } from "../../peer/markers";
 import { useAppStore } from "../../store/app";
 import { displayNameForProjectName } from "../ProjectNameDisplay";
 import { GLOBAL_TERMINALS_KEY } from "../../terminals";
-import { shareLink } from "../../share/invite";
+import { phoneShareLink, shareLink } from "../../share/invite";
 import { placeSharePopover } from "../../share/popoverPlace";
 import { MACHINE as M } from "../../machineWords";
 
@@ -185,7 +185,7 @@ export function ShareTabPopover() {
             </p>
             {qrOpen && (
               <div className="mt-3">
-                <ShareQrCode link={link} />
+                <ShareQrCode link={phoneShareLink(share.invite)} />
               </div>
             )}
             <div className="mt-4">

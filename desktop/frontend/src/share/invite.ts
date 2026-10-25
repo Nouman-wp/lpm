@@ -4,7 +4,7 @@
 // carries u:relay, r:room and k:key, which only the relay's page reads.
 // Unlike a pairing invite it always carries the host's fingerprint, so the
 // secret is only ever sent to the machine that minted it.
-import { fromBase64Url } from "../peer/invite";
+import { fromBase64Url, toBase64Url } from "../peer/invite";
 
 export interface ShareInvite {
   hosts: string[];
@@ -43,25 +43,59 @@ export function shareLink(invite: string): string {
   return payload ? SHARE_LINK_PREFIX + payload : invite;
 }
 
+// The link in the QR code, kept small so a phone's camera reads it easily: only
+// what the relay's page reads, with the names cut short. The page gets them in
+// full once the guest is let in. An invite without a relay keeps its whole link.
+const PHONE_FIELDS = ["v", "s", "u", "r", "k"];
+const PHONE_NAMES = ["n", "l", "j"];
+const PHONE_NAME_BYTES = 24;
+
+export function phoneShareLink(invite: string): string {
+  const o = payloadObject(invite);
+  if (!o || typeof o.u !== "string" || typeof o.r !== "string" || typeof o.k !== "string") {
+    return shareLink(invite);
+  }
+  const phone: Record<string, unknown> = {};
+  for (const key of PHONE_FIELDS) phone[key] = o[key];
+  for (const key of PHONE_NAMES) {
+    const name = clipped(shown(o[key]), PHONE_NAME_BYTES);
+    if (name) phone[key] = name;
+  }
+  return SHARE_LINK_PREFIX + toBase64Url(JSON.stringify(phone));
+}
+
+const utf8 = new TextEncoder();
+
+function clipped(text: string, maxBytes: number): string {
+  if (utf8.encode(text).length <= maxBytes) return text;
+  let kept = "";
+  for (const ch of text) {
+    if (utf8.encode(`${kept}${ch}…`).length > maxBytes) break;
+    kept += ch;
+  }
+  return `${kept.trimEnd()}…`;
+}
+
 export function looksLikeShareInvite(input: string): boolean {
   return sharePayload(input) !== null;
 }
 
-export function decodeShareInvite(input: unknown): ShareInvite | null {
-  if (typeof input !== "string") return null;
+function payloadObject(input: string): Record<string, unknown> | null {
   const payload = sharePayload(input);
-  if (payload === null) return null;
-  const json = fromBase64Url(payload);
+  const json = payload === null ? null : fromBase64Url(payload);
   if (json === null) return null;
-  let o: Record<string, unknown>;
   try {
     const parsed: unknown = JSON.parse(json);
-    if (!parsed || typeof parsed !== "object") return null;
-    o = parsed as Record<string, unknown>;
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
   } catch {
     return null;
   }
-  if (o.v !== 1) return null;
+}
+
+export function decodeShareInvite(input: unknown): ShareInvite | null {
+  if (typeof input !== "string") return null;
+  const o = payloadObject(input);
+  if (!o || o.v !== 1) return null;
   const hosts = Array.isArray(o.h) ? o.h.filter((x): x is string => typeof x === "string" && !!x) : [];
   const port = typeof o.p === "number" && Number.isInteger(o.p) && o.p > 0 ? o.p : null;
   const secret = typeof o.s === "string" ? o.s : "";

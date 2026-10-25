@@ -6198,8 +6198,8 @@ fn with_hosts(hub: &RemoteHub, mut frame: Value) -> Value {
     frame
 }
 
-pub(crate) fn qr_svg(payload: &str, size: u32) -> Option<String> {
-    let code = qrcode::QrCode::new(payload.as_bytes()).ok()?;
+pub(crate) fn qr_svg(payload: &str, size: u32, ec: qrcode::EcLevel) -> Option<String> {
+    let code = qrcode::QrCode::with_error_correction_level(payload.as_bytes(), ec).ok()?;
     Some(
         code.render::<qrcode::render::svg::Color>()
             .min_dimensions(size, size)
@@ -6512,7 +6512,7 @@ pub(crate) fn arm_pairing_payload(hub: &RemoteHub, by_peer: bool) -> Result<Valu
     Ok(json!({
         "code": code,
         "url": url,
-        "svg": qr_svg(&url, 220),
+        "svg": qr_svg(&url, 220, qrcode::EcLevel::M),
         "host": hosts[0],
         "hosts": hosts,
         "port": port,
