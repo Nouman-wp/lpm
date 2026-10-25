@@ -84,19 +84,53 @@ describe("FeedbackModal", () => {
     expect(pressed()).toEqual(["Idea"]);
   });
 
-  it("opens the issue with the title, full text and label on ⌘Enter", () => {
+  it("starts an idea discussion with the title and full text on ⌘Enter", () => {
     type("Pin a project to the top. I switch between twelve projects.");
     act(() => {
       box().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", metaKey: true, bubbles: true }));
     });
     expect(bridge.open).toHaveBeenCalledTimes(1);
     const url = new URL(bridge.open.mock.calls[0][0] as string);
+    expect(url.pathname).toBe("/gug007/lpm/discussions/new");
+    expect(url.searchParams.get("category")).toBe("ideas");
     expect(url.searchParams.get("title")).toBe("Pin a project to the top");
     expect(url.searchParams.get("body")).toBe(
       "Pin a project to the top. I switch between twelve projects.\n\n---\nlpm 0.7.32 · darwin/arm64",
     );
-    expect(url.searchParams.get("labels")).toBe("enhancement");
     expect(useAppStore.getState().feedbackOpen).toBe(false);
+  });
+
+  it("says where each type goes before it is sent", () => {
+    const footer = () => submit().parentElement!.textContent;
+    expect(footer()).toContain("Bugs open a GitHub issue; ideas and questions start a GitHub discussion");
+    expect(submit().textContent).toBe("Open on GitHub");
+
+    type("The terminal crashes when I paste a long line");
+    expect(footer()).toContain("Bugs open a GitHub issue");
+    expect(submit().textContent).toBe("Open GitHub issue");
+
+    act(() => chip("Idea").click());
+    expect(footer()).toContain("Ideas start a GitHub discussion");
+    expect(submit().textContent).toBe("Start GitHub discussion");
+
+    act(() => chip("Question").click());
+    expect(footer()).toContain("Questions start a Q&A discussion");
+    expect(submit().textContent).toBe("Start GitHub discussion");
+  });
+
+  it("files a bug as a labelled issue and a question in Q&A", () => {
+    type("The terminal crashes when I paste a long line");
+    act(() => submit().click());
+    const issue = new URL(bridge.open.mock.calls[0][0] as string);
+    expect(issue.pathname).toBe("/gug007/lpm/issues/new");
+    expect(issue.searchParams.get("labels")).toBe("bug");
+
+    act(() => useAppStore.setState({ feedbackOpen: true }));
+    type("How do I run two agents on one project?");
+    act(() => submit().click());
+    const question = new URL(bridge.open.mock.calls[1][0] as string);
+    expect(question.pathname).toBe("/gug007/lpm/discussions/new");
+    expect(question.searchParams.get("category")).toBe("q-a");
   });
 
   it("lists the four newest lessons and opens one on YouTube", () => {

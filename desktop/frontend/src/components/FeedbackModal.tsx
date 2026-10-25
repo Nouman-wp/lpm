@@ -1,19 +1,49 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
-import { Check, ExternalLink } from "lucide-react";
+import { Check, CircleDot, ExternalLink, MessagesSquare } from "lucide-react";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { GetPlatform, GetVersion } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import { FeedbackLessonsRail } from "./FeedbackLessonsRail";
 import { XIcon } from "./icons";
 import { Modal } from "./ui/Modal";
-import { newIssueUrl } from "../githubIssue";
+import { newDiscussionUrl, newIssueUrl } from "../githubIssue";
 import { feedbackTitle, guessFeedbackKind, type FeedbackKind } from "./feedbackDraft";
 
-const KINDS: { value: FeedbackKind; title: string; label: string }[] = [
-  { value: "bug", title: "Bug", label: "bug" },
-  { value: "suggestion", title: "Idea", label: "enhancement" },
-  { value: "question", title: "Question", label: "question" },
+interface KindOption {
+  value: FeedbackKind;
+  title: string;
+  target: "issue" | "discussion";
+  hint: string;
+  url: (title: string, body: string) => string;
+}
+
+// Bugs are work to track, so they become issues; ideas and questions are a
+// conversation others can join, upvote or answer, so they become discussions.
+const KINDS: KindOption[] = [
+  {
+    value: "bug",
+    title: "Bug",
+    target: "issue",
+    hint: "Bugs open a GitHub issue, where the fix is tracked",
+    url: (title, body) => newIssueUrl({ title, body, labels: ["bug"] }),
+  },
+  {
+    value: "suggestion",
+    title: "Idea",
+    target: "discussion",
+    hint: "Ideas start a GitHub discussion others can upvote",
+    url: (title, body) => newDiscussionUrl({ title, body, category: "ideas" }),
+  },
+  {
+    value: "question",
+    title: "Question",
+    target: "discussion",
+    hint: "Questions start a Q&A discussion anyone can answer",
+    url: (title, body) => newDiscussionUrl({ title, body, category: "q-a" }),
+  },
 ];
+
+const SUBMIT_LABEL = { issue: "Open GitHub issue", discussion: "Start GitHub discussion" };
 
 export function FeedbackModal() {
   const open = useAppStore((state) => state.feedbackOpen);
@@ -37,14 +67,14 @@ export function FeedbackModal() {
   }, [open]);
 
   const kind = picked ?? guessFeedbackKind(text);
+  const option = KINDS.find((candidate) => candidate.value === kind);
   const title = feedbackTitle(text);
-  const isValid = !!kind && title.length > 0;
+  const isValid = !!option && title.length > 0;
 
   const handleSubmit = () => {
     if (!isValid) return;
-    const label = KINDS.find((option) => option.value === kind)!.label;
     const footer = `\n\n---\nlpm ${version || "dev"} · ${platform || navigator.platform}`;
-    BrowserOpenURL(newIssueUrl({ title, body: text.trim() + footer, labels: [label] }));
+    BrowserOpenURL(option.url(title, text.trim() + footer));
     onClose();
   };
 
@@ -99,14 +129,15 @@ export function FeedbackModal() {
 
             <div role="group" aria-label="Feedback type" className="mt-3 flex flex-wrap items-center gap-1.5">
               <span className="mr-1 text-[11px] text-[var(--text-muted)]">Sounds like</span>
-              {KINDS.map((option) => {
-                const selected = kind === option.value;
+              {KINDS.map((choice) => {
+                const selected = kind === choice.value;
                 return (
                   <button
-                    key={option.value}
+                    key={choice.value}
                     type="button"
-                    onClick={() => setPicked(option.value)}
+                    onClick={() => setPicked(choice.value)}
                     aria-pressed={selected}
+                    title={choice.hint}
                     className={`flex items-center gap-1 rounded-full border px-2.5 py-[3px] text-[11px] font-medium transition-colors ${
                       selected
                         ? "border-[var(--text-secondary)] bg-[var(--bg-active)] text-[var(--text-primary)]"
@@ -114,7 +145,7 @@ export function FeedbackModal() {
                     }`}
                   >
                     {selected && <Check size={10} strokeWidth={2.6} />}
-                    {option.title}
+                    {choice.title}
                   </button>
                 );
               })}
@@ -128,15 +159,19 @@ export function FeedbackModal() {
           </div>
 
           <div className="flex items-center justify-between gap-4 border-t border-[var(--border)] bg-[var(--bg-secondary)]/40 px-6 py-4">
-            <p className="text-[10px] text-[var(--text-muted)]">
-              Opens a prefilled GitHub issue
+            <p className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)]">
+              {option?.target === "issue" && <CircleDot size={12} strokeWidth={2} className="shrink-0" />}
+              {option?.target === "discussion" && (
+                <MessagesSquare size={12} strokeWidth={2} className="shrink-0" />
+              )}
+              {option?.hint ?? "Bugs open a GitHub issue; ideas and questions start a GitHub discussion"}
             </p>
             <button
               type="submit"
               disabled={!isValid}
-              className="flex items-center gap-1.5 rounded-lg bg-[var(--text-primary)] px-3.5 py-2 text-[11px] font-semibold text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
+              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--text-primary)] px-3.5 py-2 text-[11px] font-semibold text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
             >
-              Open GitHub issue
+              {option ? SUBMIT_LABEL[option.target] : "Open on GitHub"}
               <ExternalLink size={12} strokeWidth={2} />
             </button>
           </div>

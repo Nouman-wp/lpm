@@ -1,9 +1,9 @@
-// Links that open a new, filled-in issue on lpm's GitHub repo, for feedback
-// and for asking for something lpm doesn't do yet.
+// Links that open a new, filled-in issue or discussion on lpm's GitHub repo,
+// for feedback and for asking for something lpm doesn't do yet.
 
 import { SEND_TO_OPTIONS } from "./sendTo";
 
-export const ISSUES_REPO = "gug007/lpm";
+export const GITHUB_REPO = "gug007/lpm";
 
 // encodeURIComponent leaves !'()*~ alone; GitHub's prefill is happier with
 // every one of them escaped.
@@ -25,7 +25,27 @@ export function newIssueUrl({
 }): string {
   const query = [`title=${strictEncode(title)}`, `body=${strictEncode(body)}`];
   if (labels.length > 0) query.push(`labels=${strictEncode(labels.join(","))}`);
-  return `https://github.com/${ISSUES_REPO}/issues/new?${query.join("&")}`;
+  return `https://github.com/${GITHUB_REPO}/issues/new?${query.join("&")}`;
+}
+
+// Slugs of the repo's discussion categories.
+export type DiscussionCategory = "ideas" | "q-a";
+
+export function newDiscussionUrl({
+  title,
+  body,
+  category,
+}: {
+  title: string;
+  body: string;
+  category: DiscussionCategory;
+}): string {
+  const query = [
+    `category=${category}`,
+    `title=${strictEncode(title)}`,
+    `body=${strictEncode(body)}`,
+  ];
+  return `https://github.com/${GITHUB_REPO}/discussions/new?${query.join("&")}`;
 }
 
 // An issue asking for one more place automations can send their results.
