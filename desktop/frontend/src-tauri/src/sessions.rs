@@ -106,8 +106,9 @@ pub fn all_panes() -> Vec<PaneInfo> {
 pub fn shutdown_daemon() -> Result<(), String> {
     match client::query(&Request::Shutdown) {
         Ok(_) => Ok(()),
-        // No daemon is the desired end state, not a failure.
-        Err(error) if error == client::NO_DAEMON => Ok(()),
+        // No daemon is the desired end state, not a failure — nor is one already
+        // retiring, which hangs up instead of answering.
+        Err(error) if error == client::NO_DAEMON || error == client::NO_REPLY => Ok(()),
         Err(error) => Err(error),
     }
 }

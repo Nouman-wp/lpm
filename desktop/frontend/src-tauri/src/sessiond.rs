@@ -18,9 +18,9 @@ use crate::sessionproto::{read_text, write_line, PaneInfo, PaneSpec, Request, Re
 use std::collections::HashMap;
 use std::io::{BufReader, BufWriter};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// The daemon's socket. A sibling of the status socket rather than the same
 /// file: the app deletes `lpm.sock` when it exits, and this one has to outlive
@@ -49,8 +49,8 @@ fn lock_path() -> PathBuf {
 }
 
 /// Wait for a daemon told to shut down to be gone. It holds its lock for its
-/// whole life, and a client that starts the next one before it has let go
-/// would see that one lose the lock and quit.
+/// whole life, and one from a build before `retire` keeps its socket until it
+/// exits, so a client that asks again before it has let go can still reach it.
 pub fn wait_retired(timeout: Duration) {
     let deadline = std::time::Instant::now() + timeout;
     while daemonize::acquire(&lock_path()).is_none() && std::time::Instant::now() < deadline {
@@ -335,6 +335,7 @@ fn handle(request: Request) -> Response {
             Response::ok()
         }
         Request::Shutdown => {
+            retire();
             // One teardown for everything: it batches the process-table scan and
             // the grace period, which per-session would be paid N times over.
             let all: Vec<std::sync::Arc<Pane>> = registry()
@@ -349,7 +350,6 @@ fn handle(request: Request) -> Response {
             // reading the exit as a broken connection.
             std::thread::spawn(|| {
                 std::thread::sleep(Duration::from_millis(100));
-                let _ = std::fs::remove_file(socket_path());
                 std::process::exit(0);
             });
             Response::ok()
@@ -391,6 +391,44 @@ impl Drop for Busy {
     }
 }
 
+/// Set once a shutdown begins. Panes a retiring daemon opened would die with it
+/// unreaped moments later, after it had already answered that they started.
+static RETIRING: AtomicBool = AtomicBool::new(false);
+
+/// Stop taking work, then let the requests already being served finish so none
+/// of them opens panes after the shutdown's sweep. With the socket gone, a
+/// client that wants a daemon starts the next one, which waits for this one's
+/// lock; one already connected is hung up on, which reads as the daemon going
+/// away. `IN_FLIGHT` counts the shutdown request itself.
+fn retire() {
+    const DRAIN: Duration = Duration::from_secs(10);
+    RETIRING.store(true, Ordering::SeqCst);
+    let _ = std::fs::remove_file(socket_path());
+    let deadline = Instant::now() + DRAIN;
+    while IN_FLIGHT.load(Ordering::SeqCst) > 1 && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// How long a starting daemon waits for a retiring one to let go of the lock.
+const LOCK_WAIT: Duration = Duration::from_secs(10);
+
+/// The lock, once no other daemon holds it. Two clients that race to start a
+/// daemon each start one, and the one that loses waits out the other's life up
+/// to this limit before giving up — nothing it does before the lock is visible.
+fn take_lock() -> Option<daemonize::Lock> {
+    let deadline = Instant::now() + LOCK_WAIT;
+    loop {
+        if let Some(lock) = daemonize::acquire(&lock_path()) {
+            return Some(lock);
+        }
+        if Instant::now() >= deadline {
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+}
+
 fn serve(stream: UnixStream) {
     let Ok(write_half) = stream.try_clone() else {
         return;
@@ -400,6 +438,9 @@ fn serve(stream: UnixStream) {
     while let Some(line) = read_text(&mut reader) {
         // Held across the reply too: the write is part of serving the request.
         let _busy = Busy::new();
+        if RETIRING.load(Ordering::SeqCst) {
+            return;
+        }
         // An op from a newer app gets an answer: a hang-up reads as the daemon
         // going away.
         let reply = match serde_json::from_str::<Request>(line.trim()) {
@@ -446,9 +487,9 @@ pub fn run() -> ! {
         let _ = std::fs::create_dir_all(parent);
     }
     // Whoever holds the lock owns the socket. Two clients racing to start a
-    // daemon both get here; the loser exits rather than unlinking a socket the
-    // winner has already bound.
-    let Some(_lock) = daemonize::acquire(&lock_path()) else {
+    // daemon both get here; the loser never unlinks a socket the winner has
+    // already bound.
+    let Some(_lock) = take_lock() else {
         std::process::exit(0);
     };
     let _ = std::fs::remove_file(&path); // a stale socket from an unclean exit

@@ -79,9 +79,12 @@ pub struct PortFwdState {
     epochs: Mutex<HashMap<String, u64>>,
 }
 
-/// `ssh -N -L 127.0.0.1:L:127.0.0.1:R <conn args, minus -t>`. Reuses the shared
-/// ControlMaster mux (ssh_args), so killing this `-N` child never tears down the
-/// master that terminals/scp use. On Windows (no mux) it is its own connection.
+/// `ssh -N -L 127.0.0.1:L:127.0.0.1:R <conn args, minus -t>` on a DEDICATED
+/// connection, never the shared mux: a mux client only registers the forward in
+/// the master and exits 0 at once, so the forward reads as failed, outlives its
+/// removal, and the pid tracked here means nothing. ControlMaster=no +
+/// ControlPath=none come first so they win over ssh_args' mux options (ssh
+/// honors the first -o per keyword), exactly as the status forward does.
 fn forward_argv(ssh: &config::SshSettings, local: u16, remote: u16) -> Vec<String> {
     let mut argv = vec![
         "-N".into(),
@@ -89,6 +92,10 @@ fn forward_argv(ssh: &config::SshSettings, local: u16, remote: u16) -> Vec<Strin
         "ExitOnForwardFailure=yes".into(),
         "-o".into(),
         "ServerAliveInterval=30".into(),
+        "-o".into(),
+        "ControlMaster=no".into(),
+        "-o".into(),
+        "ControlPath=none".into(),
         "-L".into(),
         format!("127.0.0.1:{local}:127.0.0.1:{remote}"),
     ];
@@ -262,6 +269,7 @@ fn forward_impl(
             });
         mark_port_suggested(&state.suggestions, project, remote_port);
     }
+    remember(&state.forwards);
 
     // Lifecycle: when the ssh child dies, drop the entry and refetch the UI.
     {
@@ -294,6 +302,7 @@ fn forward_impl(
             // so the next poll can re-suggest / re-forward the port.
             if removed {
                 unmark_port_suggested(&suggestions, &project2, remote_port);
+                remember(&forwards);
             }
             let _ = app2.emit("ports-changed", &project2);
         });
@@ -355,8 +364,39 @@ pub fn remove_port_forward(
     if let Some(pid) = killed {
         osproc::kill(pid);
     }
+    remember(&state.forwards);
     let _ = app.emit("ports-changed", &project);
     Ok(())
+}
+
+/// Record the live tunnels for the next launch (portforwardstore). Every change
+/// writes it except the app's own exit, whose teardown must leave the record as
+/// it was. Written under the lock so concurrent changes land in order.
+fn remember(forwards: &Mutex<HashMap<String, Vec<Forward>>>) {
+    let forwards = forwards.lock().unwrap();
+    let saved = forwards
+        .iter()
+        .map(|(project, v)| {
+            let list = v
+                .iter()
+                .map(|e| PortForward {
+                    local_port: e.local_port,
+                    remote_port: e.remote_port,
+                })
+                .collect();
+            (project.clone(), list)
+        })
+        .collect();
+    crate::portforwardstore::save(&saved);
+}
+
+fn is_forwarded(state: &PortFwdState, project: &str, port: u16) -> bool {
+    state
+        .forwards
+        .lock()
+        .unwrap()
+        .get(project)
+        .is_some_and(|v| v.iter().any(|e| e.remote_port == port))
 }
 
 #[tauri::command(async)]
@@ -495,6 +535,7 @@ pub fn stop_project_forwards(app: &AppHandle, project: &str) {
     for pid in pids {
         osproc::kill(pid);
     }
+    remember(&state.forwards);
     {
         let mut s = state.suggestions.lock().unwrap();
         s.suggested.remove(project);
@@ -557,13 +598,40 @@ pub fn start_port_poller(app: &AppHandle, project: &str) {
 }
 
 /// On startup, resume pollers for remote projects whose session is still
-/// alive (so suggestions repopulate without a Stop/Start cycle).
+/// alive (so suggestions repopulate without a Stop/Start cycle), each after the
+/// tunnels it had when the app quit are back. The record of a project that
+/// stopped while the app was away (a reboot, a lost daemon) is dropped.
 pub fn resume_port_pollers(app: &AppHandle) {
-    for name in config::project_names() {
-        if let Ok(info) = config::spawn_info(&name) {
-            if info.is_remote && crate::sessions::session_exists(&info.session) {
-                start_port_poller(app, &name);
-            }
+    let running: Vec<String> = config::project_names()
+        .into_iter()
+        .filter(|name| {
+            config::spawn_info(name).is_ok_and(|info| {
+                info.is_remote && crate::sessions::session_exists(&info.session)
+            })
+        })
+        .collect();
+    let mut saved = crate::portforwardstore::load();
+    saved.retain(|project, _| running.contains(project));
+    crate::portforwardstore::save(&saved);
+    for name in running {
+        let forwards = saved.remove(&name).unwrap_or_default();
+        let app = app.clone();
+        std::thread::spawn(move || {
+            restore_forwards(&app, &name, &forwards);
+            start_port_poller(&app, &name);
+        });
+    }
+}
+
+/// Reopen a project's tunnels on the local ports they had, so a page the user
+/// had open keeps working, or on a fresh one where that port was taken.
+fn restore_forwards(app: &AppHandle, project: &str, saved: &[PortForward]) {
+    let state = app.state::<PortFwdState>();
+    for pf in saved {
+        let epoch = armed_epoch(&state, project);
+        let remote = i64::from(pf.remote_port);
+        if forward_impl(app, &state, project, remote, i64::from(pf.local_port), epoch).is_err() {
+            let _ = forward_impl(app, &state, project, remote, 0, epoch);
         }
     }
 }
@@ -591,9 +659,10 @@ fn run_poller(
         let state = app.state::<PortFwdState>();
         // First pass: pre-existing listeners aren't suggested (they were up
         // before we started watching) — except declared ports, which still
-        // auto-forward. Steady state: observe everything.
+        // auto-forward, and tunneled ones (restored at launch), which must be
+        // suggested again if their tunnel dies. Steady state: observe everything.
         for &p in &ports {
-            if first && !declared.contains(&p) {
+            if first && !declared.contains(&p) && !is_forwarded(&state, &project, p) {
                 pre_dismiss(&state.suggestions, &project, p);
             } else {
                 observe_port(&app, &state, &project, &declared, p);
@@ -730,13 +799,8 @@ fn observe_port(
     port: u16,
 ) {
     // Already tunneled? nothing to do. (forward_impl re-loads ssh from config.)
-    {
-        let f = state.forwards.lock().unwrap();
-        if let Some(v) = f.get(project) {
-            if v.iter().any(|e| e.remote_port == port) {
-                return;
-            }
-        }
+    if is_forwarded(state, project, port) {
+        return;
     }
     let epoch = armed_epoch(state, project);
     if !mark_if_new(&state.suggestions, project, port) {
@@ -866,20 +930,33 @@ fn prune_suggestions(app: &AppHandle, state: &PortFwdState, project: &str, liste
     }
 }
 
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn windows_forward_never_prompts() {
-        let ssh = config::SshSettings {
+    fn ssh() -> config::SshSettings {
+        config::SshSettings {
             host: "host".into(),
             user: "dev".into(),
             port: 0,
             key: String::new(),
             dir: String::new(),
-        };
-        let argv = forward_argv(&ssh, 4000, 3000);
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_forward_never_prompts() {
+        let argv = forward_argv(&ssh(), 4000, 3000);
         assert!(argv.iter().any(|a| a == "BatchMode=yes"), "{argv:?}");
+    }
+
+    #[test]
+    fn a_forward_never_rides_the_shared_mux() {
+        // ssh honors the first -o per keyword, so the first of each must be ours.
+        let argv = forward_argv(&ssh(), 4000, 3000);
+        let first = |key: &str| argv.iter().find(|a| a.starts_with(key)).cloned();
+        assert_eq!(first("ControlMaster=").as_deref(), Some("ControlMaster=no"), "{argv:?}");
+        assert_eq!(first("ControlPath=").as_deref(), Some("ControlPath=none"), "{argv:?}");
     }
 }
