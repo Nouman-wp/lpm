@@ -17,7 +17,7 @@ const failed = (what: string) => (error: unknown) =>
   toast.error(`Couldn't ${what}: ${String(error)}`);
 
 interface RecapShareMenuProps {
-  anchor: DOMRect;
+  anchor: HTMLElement;
   view: RecapView;
   theme: RecapTheme;
   onClose: () => void;
@@ -32,7 +32,7 @@ export function RecapShareMenu({ anchor, view, theme, onClose, run }: RecapShare
   };
 
   return (
-    <ContextMenuShell x={anchor.left} y={anchor.bottom + 4} minWidth={240} onClose={onClose}>
+    <ContextMenuShell anchor={anchor} minWidth={240} onClose={onClose}>
       <ContextMenuItem
         icon={<NetworkLogo network="x" size={12} />}
         label="Copy and post on X"
@@ -67,7 +67,7 @@ export function RecapShareMenu({ anchor, view, theme, onClose, run }: RecapShare
           icon={<Share size={12} />}
           label="Share with friends…"
           description="Messages, Mail, AirDrop"
-          onClick={pick(() => shareRecapImage(view, theme, anchor).catch(failed("open sharing")))}
+          onClick={pick(() => shareRecapImage(view, theme, anchor.getBoundingClientRect()).catch(failed("open sharing")))}
         />
       )}
       <ContextMenuSeparator />

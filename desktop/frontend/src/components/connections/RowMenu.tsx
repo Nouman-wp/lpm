@@ -21,37 +21,28 @@ export interface RowMenuItem {
 // inside it — the menu would be positioned against the pane and then clipped
 // away by the scroll container, i.e. the button would look dead.
 export function RowMenu({ items, ariaLabel }: { items: RowMenuItem[]; ariaLabel: string }) {
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
 
   return (
     <>
       <button
         type="button"
         aria-label={ariaLabel}
-        aria-expanded={pos !== null}
+        aria-expanded={anchor !== null}
         title={ariaLabel}
         // Without this the shell's outside-click (a mousedown) closes the menu
         // before the click lands, and the click would reopen what it meant to shut.
         onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          if (pos) return setPos(null);
-          const r = e.currentTarget.getBoundingClientRect();
-          setPos({ x: r.right - MENU_WIDTH, y: r.bottom + 4 });
-        }}
+        onClick={(e) => setAnchor(anchor ? null : e.currentTarget)}
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
-          pos ? "bg-[var(--bg-active)] text-[var(--text-primary)]" : "text-[var(--text-muted)]"
+          anchor ? "bg-[var(--bg-active)] text-[var(--text-primary)]" : "text-[var(--text-muted)]"
         }`}
       >
         <MoreVerticalIcon />
       </button>
-      {pos &&
+      {anchor &&
         createPortal(
-          <ContextMenuShell
-            x={pos.x}
-            y={pos.y}
-            minWidth={MENU_WIDTH}
-            onClose={() => setPos(null)}
-          >
+          <ContextMenuShell anchor={anchor} align="end" minWidth={MENU_WIDTH} onClose={() => setAnchor(null)}>
             {items.map((item) => (
               <ContextMenuItem
                 key={item.label}
@@ -59,7 +50,7 @@ export function RowMenu({ items, ariaLabel }: { items: RowMenuItem[]; ariaLabel:
                 disabled={item.disabled}
                 destructive={item.destructive}
                 onClick={() => {
-                  setPos(null);
+                  setAnchor(null);
                   item.onClick();
                 }}
               />

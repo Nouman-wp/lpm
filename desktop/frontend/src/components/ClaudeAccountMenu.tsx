@@ -13,8 +13,8 @@ interface ClaudeAccountMenuProps {
 
 /** The ⋯ menu on an added Claude account. */
 export function ClaudeAccountMenu({ label, onRename, onCopyId, onRemove }: ClaudeAccountMenuProps) {
-  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
-  const close = () => setAt(null);
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const close = () => setAnchor(null);
   const pick = (fn: () => void) => () => {
     close();
     fn();
@@ -26,21 +26,18 @@ export function ClaudeAccountMenu({ label, onRename, onCopyId, onRemove }: Claud
         type="button"
         aria-label={`More for ${label}`}
         aria-haspopup="menu"
-        aria-expanded={at !== null}
+        aria-expanded={anchor !== null}
         // The menu closes itself on an outside mousedown; let this click do it instead.
         onMouseDown={(e) => {
-          if (at) e.stopPropagation();
+          if (anchor) e.stopPropagation();
         }}
-        onClick={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          setAt(at ? null : { x: rect.right, y: rect.bottom + 4 });
-        }}
+        onClick={(e) => setAnchor(anchor ? null : e.currentTarget)}
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)]"
       >
         <Ellipsis size={14} />
       </button>
-      {at && (
-        <ContextMenuShell x={at.x} y={at.y} align="end" onClose={close}>
+      {anchor && (
+        <ContextMenuShell anchor={anchor} align="end" onClose={close}>
           <ContextMenuItem label="Rename" onClick={pick(onRename)} />
           <ContextMenuItem label="Copy account id" onClick={pick(onCopyId)} />
           <ContextMenuSeparator />

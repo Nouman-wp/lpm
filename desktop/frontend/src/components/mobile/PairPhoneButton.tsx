@@ -22,7 +22,7 @@ export function PairPhoneButton({
   onPairPeer: (slug: string, name: string) => void;
 }) {
   const words = useMachineWords();
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const label = busy ? "Preparing…" : "Pair a device";
 
   if (peers.length === 0) {
@@ -35,30 +35,26 @@ export function PairPhoneButton({
   }
 
   const pick = (fn: () => void) => () => {
-    setPos(null);
+    setAnchor(null);
     fn();
   };
 
   return (
     <>
       <button
-        aria-expanded={pos !== null}
+        aria-expanded={anchor !== null}
         disabled={busy}
         onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          if (pos) return setPos(null);
-          const r = e.currentTarget.getBoundingClientRect();
-          setPos({ x: r.right, y: r.bottom + 4 });
-        }}
+        onClick={(e) => setAnchor(anchor ? null : e.currentTarget)}
         className={SECONDARY_BUTTON}
       >
         <Plus size={12} />
         {label}
         <ChevronDown size={12} />
       </button>
-      {pos &&
+      {anchor &&
         createPortal(
-          <ContextMenuShell x={pos.x} y={pos.y} align="end" minWidth={290} onClose={() => setPos(null)}>
+          <ContextMenuShell anchor={anchor} align="end" minWidth={290} onClose={() => setAnchor(null)}>
             <p className="px-3 pb-1 pt-1.5 text-[11px] text-[var(--text-muted)]">Pair a device with</p>
             <ContextMenuItem
               icon={<Laptop size={14} />}
