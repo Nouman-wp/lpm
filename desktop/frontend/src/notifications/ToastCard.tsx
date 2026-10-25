@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react";
 import { ChevronDown, RotateCw, X } from "lucide-react";
 import { useLiveToasts } from "./liveToasts";
 import { ToastCopyButton } from "./ToastCopyButton";
@@ -6,11 +5,10 @@ import { ToastIcon } from "./ToastIcon";
 import { ToastProgressBar } from "./ToastProgressBar";
 import { errorCopyText, plainText } from "./toastText";
 import type { ToastAction, ToastId, ToastModel } from "./types";
-import "./toastCard.css";
 
 interface ToastCardProps {
   id: ToastId;
-  onResize: () => void;
+  onToggleDetails: () => void;
   onClose: () => void;
 }
 
@@ -23,25 +21,15 @@ function inlineAction(model: ToastModel): ToastAction | undefined {
 const errorText = (model: ToastModel) =>
   errorCopyText(plainText(model.title), plainText(model.description), model.details);
 
-export function ToastCard({ id, onResize, onClose }: ToastCardProps) {
+export function ToastCard({ id, onToggleDetails, onClose }: ToastCardProps) {
   const model = useLiveToasts((s) => s.toasts.find((t) => t.id === id));
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const resized = useRef(onResize);
-  resized.current = onResize;
-  const toggled = useRef(false);
-
-  useEffect(() => {
-    if (toggled.current) resized.current();
-    toggled.current = true;
-  }, [detailsOpen]);
-
   if (!model) return null;
 
   const run = (action: ToastAction) => {
     onClose();
     action.onClick();
   };
-  const { retry, cancel } = model;
+  const { retry, cancel, detailsOpen } = model;
   const inline = inlineAction(model);
   const buttons = inline ? [] : model.actions;
   const hasFooter = buttons.length > 0 || cancel || retry || model.kind === "error";
@@ -103,7 +91,7 @@ export function ToastCard({ id, onResize, onClose }: ToastCardProps) {
               type="button"
               className="toast-button toast-button-quiet toast-details-toggle"
               aria-expanded={detailsOpen}
-              onClick={() => setDetailsOpen((open) => !open)}
+              onClick={onToggleDetails}
             >
               {detailsOpen ? "Hide details" : "Details"}
               <ChevronDown size={13} aria-hidden data-open={detailsOpen || undefined} />

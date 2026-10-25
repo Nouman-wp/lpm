@@ -177,8 +177,15 @@ impl StatusStore {
         Self::default()
     }
 
-    /// Returns `changed` (true when the caller should emit status-changed).
-    pub fn set(&self, project: &str, mut entry: StatusEntry) -> bool {
+    /// Whether storing `entry` changed anything.
+    #[cfg(test)]
+    pub fn set(&self, project: &str, entry: StatusEntry) -> bool {
+        self.store(project, entry).is_some()
+    }
+
+    /// Store a report, handing back the entry as now held — dated into its
+    /// turn — when it changed anything (the caller should emit status-changed).
+    pub fn store(&self, project: &str, mut entry: StatusEntry) -> Option<StatusEntry> {
         let mut m = self.entries.write().unwrap();
         let bucket = m.entry(project.to_string()).or_default();
         entry.reported_at = entry.timestamp;
@@ -189,14 +196,14 @@ impl StatusStore {
             e.reported_at = entry.reported_at;
             e.tool = entry.tool;
             e.compact &= entry.compact;
-            return false;
+            return None;
         }
         let existing = bucket.get(&entry.key);
         // A /compact of a session already working takes back only what it added.
         entry.compact &= !existing.is_some_and(|e| is_live(&e.value));
         carry_turn(existing, &mut entry);
-        bucket.insert(entry.key.clone(), entry);
-        true
+        bucket.insert(entry.key.clone(), entry.clone());
+        Some(entry)
     }
 
     /// Count a report the agent made under `key`, returning the new count.
@@ -219,13 +226,6 @@ impl StatusStore {
     pub fn get(&self, project: &str, key: &str) -> Option<StatusEntry> {
         let m = self.entries.read().unwrap();
         m.get(project)?.get(key).cloned()
-    }
-
-    /// The report `seen` was taken of as the store holds it — dated into its
-    /// turn by [`Self::set`] — while it is still that report.
-    pub fn get_if_unchanged(&self, project: &str, seen: &StatusEntry) -> Option<StatusEntry> {
-        let m = self.entries.read().unwrap();
-        m.get(project)?.get(&seen.key).filter(|e| same_report(e, seen)).cloned()
     }
 
     /// Change the entry `key` holds in place, leaving everything that dates or
@@ -840,15 +840,12 @@ mod tests {
     }
 
     #[test]
-    fn a_report_reads_back_dated_into_its_turn_until_replaced() {
+    fn a_stored_report_comes_back_dated_into_its_turn() {
         let s = StatusStore::new();
         s.set("p", entry("k", STATUS_RUNNING, 0, 100, "p-1"));
-        let done = entry("k", STATUS_DONE, 0, 400, "p-1");
-        s.set("p", done.clone());
-        let held = s.get_if_unchanged("p", &done).unwrap();
+        let held = s.store("p", entry("k", STATUS_DONE, 0, 400, "p-1")).unwrap();
         assert_eq!((held.turn_start, held.ended_at), (100, 400));
-        s.set("p", entry("k", STATUS_RUNNING, 0, 500, "p-1"));
-        assert!(s.get_if_unchanged("p", &done).is_none());
+        assert!(s.store("p", entry("k", STATUS_DONE, 0, 450, "p-1")).is_none());
     }
 
     #[test]

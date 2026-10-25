@@ -1,14 +1,13 @@
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { useEventListener } from "../hooks/useEventListener";
+import { besideRow } from "../besideRow";
+import { useDismissOnEscape } from "../hooks/useDismissOnEscape";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { isFailure, isWaiting, useNotificationHistory, type NotificationEntry } from "./history";
 import { NotificationGroup } from "./NotificationGroup";
 import type { ToastAction } from "./types";
-import "./toastCard.css";
 
 const WIDTH = 380;
-const EDGE = 8;
 
 type Filter = "all" | "needsYou" | "failed";
 
@@ -35,8 +34,14 @@ export function NotificationCenter({ anchor, onClose }: NotificationCenterProps)
     if (!onAnchor) onClose();
   });
 
-  useEventListener("keydown", (e: KeyboardEvent) => {
-    if (e.key === "Escape") onClose();
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useDismissOnEscape(true, onClose);
+  // Measured on every render: the list grows as news lands while it's open.
+  useLayoutEffect(() => {
+    const height = panelRef.current?.offsetHeight ?? 0;
+    const next = besideRow(anchor, WIDTH, height);
+    setPos((prev) => (prev?.top === next.top && prev.left === next.left ? prev : next));
   });
 
   const act = (entry: NotificationEntry, action: ToastAction) => {
@@ -65,15 +70,15 @@ export function NotificationCenter({ anchor, onClose }: NotificationCenterProps)
       role="dialog"
       aria-label="Notifications"
       className="fixed z-[90] flex max-h-[min(520px,80vh)] flex-col rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] shadow-2xl"
-      style={{ width: WIDTH, left: anchor.right + EDGE, bottom: Math.max(EDGE, window.innerHeight - anchor.bottom) }}
+      style={{ width: WIDTH, top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? "visible" : "hidden" }}
     >
       <div className="flex items-center justify-between px-3.5 pb-2 pt-3">
         <span className="text-[13.5px] font-semibold text-[var(--text-primary)]">Notifications</span>
         <div className="flex items-center">
-          <button type="button" className="toast-button toast-button-quiet toast-button-compact" onClick={markAllRead}>
+          <button type="button" className="toast-button toast-button-quiet h-6 text-[12.5px]" onClick={markAllRead}>
             Mark all read
           </button>
-          <button type="button" className="toast-button toast-button-quiet toast-button-compact" onClick={clear}>
+          <button type="button" className="toast-button toast-button-quiet h-6 text-[12.5px]" onClick={clear}>
             Clear
           </button>
         </div>

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { AGENT_STATE_LABEL, AGENT_STATE_TONE, computeProjectStatus } from "../agentStatus";
+import { count } from "../count";
 import { useJobsAmbient } from "../hooks/useJobsAmbient";
 import { selectUnreadAttention, useNotificationHistory } from "../notifications/history";
 import { NotificationCenter } from "../notifications/NotificationCenter";
@@ -235,7 +236,7 @@ export function SidebarFooterNav({
         ]
       : []),
     notificationsInMenu && unreadAttention > 0
-      ? `${unreadAttention} notification${unreadAttention === 1 ? "" : "s"} need${unreadAttention === 1 ? "s" : ""} you`
+      ? `${count(unreadAttention, "notification needs", "notifications need")} you`
       : "",
   ].filter(Boolean);
 

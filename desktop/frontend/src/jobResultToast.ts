@@ -1,4 +1,4 @@
-import { RunJobNow } from "../bridge/commands";
+import { runJobNow } from "./hooks/useJobCommands";
 import { toast } from "./notifications/toast";
 import type { ToastAction, ToastOptions } from "./notifications/types";
 
@@ -19,13 +19,7 @@ export interface JobResult {
 // Opens the job in Automations; only the main window can.
 export type OpenAutomation = (id: string, project: string | null) => void;
 
-const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
-
-function runAgain(job: JobResult): void {
-  RunJobNow(job.projectKey, job.jobId).catch((err) =>
-    toast.error(`Couldn't run "${job.name}" again`, { description: errorText(err) }),
-  );
-}
+const runAgain = (job: JobResult) => runJobNow(job.projectKey, job.jobId);
 
 /** A finished run as a card: the automation's name, its project, what the run
  *  itself reported, and the ways on from there. */

@@ -9,8 +9,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
+import cx.lpm.mobile.core.data.actions.ActionMemoryState
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
-import cx.lpm.mobile.feature.actions.ActionMemoryState
 import cx.lpm.mobile.feature.actions.action
 import cx.lpm.mobile.feature.actions.button.ActionCallbacks
 import cx.lpm.mobile.feature.actions.layout.ActionRows

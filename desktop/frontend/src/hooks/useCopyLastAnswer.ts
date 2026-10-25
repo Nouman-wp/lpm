@@ -1,9 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "../notifications/toast";
 import { AgentLastAnswer, SetClipboardText } from "../../bridge/commands";
 import type { AgentSessionRef } from "../agentSession";
-
-const COPIED_FLASH_MS = 1500;
+import { useConfirmFlash } from "./useConfirmFlash";
 
 /** Copies the agent's last answer — read from its own session transcript, so
  *  the clipboard gets the original markdown (tables intact) rather than what a
@@ -11,15 +9,7 @@ const COPIED_FLASH_MS = 1500;
  *  true briefly after a successful copy; `flashCopied` triggers the same flash
  *  for a copy made elsewhere (the recent-answers pick-list). */
 export function useCopyLastAnswer(projectName: string, session: AgentSessionRef) {
-  const [copied, setCopied] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
-
-  const flashCopied = useCallback(() => {
-    setCopied(true);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => setCopied(false), COPIED_FLASH_MS);
-  }, []);
+  const [copied, flashCopied] = useConfirmFlash();
 
   const copy = async () => {
     if (await copyLastAnswer(projectName, session)) flashCopied();

@@ -107,10 +107,9 @@ struct DesktopActionButton: View {
             .font(.system(size: 11, weight: .bold))
     }
 
-    /// A `last-used` group remembers the direct child it ran, as the desktop does.
     private func run(_ child: Action) {
-        if action.primary == Action.lastUsed, action.children.contains(where: { $0.id == child.id }) {
-            memory.remember(child.childKey, project: project, group: action.name)
+        if let key = action.lastUsedKey(running: child) {
+            memory.remember(key, project: project, group: action.name)
         }
         onRun(child)
     }
@@ -171,6 +170,12 @@ extension Action {
             return match
         }
         return children.first(where: \.isRunnable)
+    }
+
+    /// What this `last-used` group remembers when `child`, one of its own, runs
+    /// from it, as the desktop does; nil for any other group.
+    func lastUsedKey(running child: Action) -> String? {
+        primary == Action.lastUsed && children.contains { $0.id == child.id } ? child.childKey : nil
     }
 }
 

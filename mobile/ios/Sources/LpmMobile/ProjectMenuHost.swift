@@ -25,9 +25,7 @@ struct ProjectMenuHost: ViewModifier {
     @State private var showingConfig = false
     @State private var showActions = false
     // Action run flow: collect inputs (if any) → confirm (if flagged) → dispatch.
-    @State private var runInputsFor: Action?
-    @State private var runConfirmFor: Action?
-    @State private var pendingInputValues: [String: String] = [:]
+    @State private var gauntlet = ActionRunGauntlet()
     @State private var activeBgRun: BackgroundRunInfo?
     @State private var isVisible = false
     // Rename flow: the text field's draft, seeded from the current label.
@@ -90,19 +88,8 @@ struct ProjectMenuHost: ViewModifier {
                 Text(model.git.opError[project.name]?.message ?? "")
             }
             .gitNotice(project: project.name, isActive: isVisible && !showChanges)
-            .sheet(item: $runInputsFor) { action in
-                ActionInputsSheet(action: action) { values in afterInputs(action, values) }
-            }
-            .alert(
-                runConfirmFor.map { "Run \($0.label)?" } ?? "Run action?",
-                isPresented: Binding(
-                    get: { runConfirmFor != nil },
-                    set: { if !$0 { runConfirmFor = nil; pendingInputValues = [:] } }
-                ),
-                presenting: runConfirmFor
-            ) { action in
-                Button("Run") { runConfirmed(action) }
-                Button("Cancel", role: .cancel) {}
+            .actionRunGauntlet($gauntlet) { action, values in
+                dispatch(action, inputValues: values, deferred: true)
             }
             .sheet(item: $activeBgRun) { run in
                 BackgroundRunSheet(run: run).environment(model)
@@ -180,25 +167,7 @@ struct ProjectMenuHost: ViewModifier {
     // terminal/command actions relay to the Mac's terminal flow (confirmed:true so
     // the Mac doesn't re-prompt).
     private func beginRun(_ action: Action) {
-        if !action.inputs.isEmpty { runInputsFor = action; return }
-        if action.confirm { runConfirmFor = action; return }
-        dispatch(action, inputValues: [:], deferred: false)
-    }
-    private func afterInputs(_ action: Action, _ values: [String: String]) {
-        if action.confirm {
-            pendingInputValues = values
-            // The inputs sheet is dismissing in this same update; presenting the
-            // alert now can be swallowed (one presentation at a time), so let the
-            // sheet settle first — same guard as dispatch(deferred:).
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { runConfirmFor = action }
-            return
-        }
-        dispatch(action, inputValues: values, deferred: true)
-    }
-    private func runConfirmed(_ action: Action) {
-        let values = pendingInputValues
-        pendingInputValues = [:]
-        dispatch(action, inputValues: values, deferred: true)
+        if !gauntlet.begin(action) { dispatch(action, inputValues: [:], deferred: false) }
     }
     private func dispatch(_ action: Action, inputValues: [String: String], deferred: Bool) {
         if action.runsInBackground {

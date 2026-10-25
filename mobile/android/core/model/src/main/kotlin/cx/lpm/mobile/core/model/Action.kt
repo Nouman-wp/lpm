@@ -48,7 +48,31 @@ data class Action(
      */
     val runsInBackground: Boolean get() = type != "terminal" && type != "command"
 
+    /** The child's own name, without its `parent:` path. */
+    val childKey: String get() = name.split(':').lastOrNull { it.isNotEmpty() } ?: name
+
+    /**
+     * The child a split button runs: the one `primary` names (or the [remembered] one for
+     * `last-used`), else the first runnable child. Null without `primary`.
+     */
+    fun primaryChild(remembered: String?): Action? {
+        if (primary.isEmpty()) return null
+        val target = if (primary == LAST_USED) remembered else primary
+        return children.firstOrNull { target != null && it.childKey == target }
+            ?: children.firstOrNull { it.isRunnable }
+    }
+
+    /**
+     * What this `last-used` group remembers when [child], one of its own, runs from it,
+     * as the desktop does; null for any other group.
+     */
+    fun lastUsedKey(child: Action): String? =
+        child.childKey.takeIf { primary == LAST_USED && children.any { it.id == child.id } }
+
     companion object {
+        /** A group's `primary` that runs whichever child ran last. */
+        const val LAST_USED = "last-used"
+
         fun parse(o: JsonObject): Action {
             val name = o.string("name").orEmpty()
             return Action(

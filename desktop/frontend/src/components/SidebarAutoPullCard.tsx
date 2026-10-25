@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject, type Synt
 import { createPortal } from "react-dom";
 import { toast } from "../notifications/toast";
 import { autoPullState, normalizeAutoPullMode } from "../autoPull";
-import { autoPullSoon, autoPullWait, setProjectAutoPull, type AutoPullWait } from "../autoPullRun";
+import { autoPullSoon, autoPullWait, openAutoPullSettings, setProjectAutoPull, type AutoPullWait } from "../autoPullRun";
+import { besideRow } from "../besideRow";
 import { originMarkTitle, type OriginMark } from "../originStatus";
 import { useAppStore } from "../store/app";
 import { useOriginStatus } from "../store/originStatus";
@@ -11,8 +12,6 @@ import type { ProjectInfo } from "../types";
 import { displayNameForProjectName } from "./ProjectNameDisplay";
 
 const WIDTH = 272;
-const GAP = 8;
-const MARGIN = 8;
 
 const PRIMARY =
   "rounded-md bg-[var(--text-primary)] px-2.5 py-1 text-[11px] font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-85";
@@ -53,8 +52,6 @@ export function SidebarAutoPullCard({
   onClose: () => void;
 }) {
   const projects = useAppStore((s) => s.projects);
-  const setView = useAppStore((s) => s.setView);
-  const setSettingsTab = useAppStore((s) => s.setSettingsTab);
   const mode = useSettingsStore((s) => normalizeAutoPullMode(s.autoPull));
   const update = useSettingsStore((s) => s.update);
   const status = useOriginStatus((s) => s.entries[project.root]?.status);
@@ -65,10 +62,7 @@ export function SidebarAutoPullCard({
     const anchor = anchorRef.current?.getBoundingClientRect();
     const panel = ref.current;
     if (!anchor || !panel) return;
-    const right = anchor.right + GAP;
-    const left = right + WIDTH > window.innerWidth - MARGIN ? Math.max(MARGIN, anchor.left - WIDTH - GAP) : right;
-    const top = Math.max(MARGIN, Math.min(anchor.top - 10, window.innerHeight - panel.offsetHeight - MARGIN));
-    setPos({ top, left });
+    setPos(besideRow(anchor, WIDTH, panel.offsetHeight, anchor.top - 10));
   }, [anchorRef]);
 
   useEffect(() => {
@@ -98,8 +92,7 @@ export function SidebarAutoPullCard({
   };
   const openSettings = () => {
     onClose();
-    setSettingsTab("general");
-    setView("settings");
+    openAutoPullSettings();
   };
 
   const why =

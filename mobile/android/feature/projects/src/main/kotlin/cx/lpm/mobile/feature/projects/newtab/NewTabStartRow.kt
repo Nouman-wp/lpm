@@ -21,8 +21,9 @@ import cx.lpm.mobile.core.ui.providerMeta
 import cx.lpm.mobile.core.ui.tint
 
 /**
- * One way a new tab can start (iOS `NewTabStartRow`): a shell, or an agent ([agent] its
- * id) shown by its own mark as the desktop shows it, checked when picked.
+ * One way a new tab can start (iOS `NewTabStartRow`): a terminal, or an agent ([agent]
+ * its id) shown by its own mark as the desktop shows it, checked when picked.
+ * [accessory] follows the check.
  */
 @Composable
 internal fun NewTabStartRow(
@@ -30,10 +31,11 @@ internal fun NewTabStartRow(
     agent: String?,
     picked: Boolean,
     onPick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    accessory: (@Composable () -> Unit)? = null
 ) {
     val colors = LpmTheme.colors
-    // A shell, or an agent without a mark of its own, gets a symbol in the agent's colour.
+    // A terminal, or an agent without a mark of its own, gets a symbol in the agent's colour.
     val tint = agent?.let { providerMeta(it).tint } ?: colors.secondaryLabel
     ListRow(
         modifier = modifier.semantics { selected = picked },
@@ -63,6 +65,7 @@ internal fun NewTabStartRow(
                     modifier = Modifier.size(22.dp)
                 )
             }
+            accessory?.invoke()
         }
     ) {
         Text(text = label, style = LpmTheme.typography.body, color = colors.label)

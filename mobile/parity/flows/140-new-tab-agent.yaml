@@ -1,11 +1,12 @@
-# New tab asks what the tab starts with: an agent, its model and a first
-# prompt. The phone opens the tab once the Mac has it.
+# New tab asks what the tab starts with. A project without agent actions offers
+# the agents the Mac can start: an agent, its model and a task for it. The phone
+# opens the tab once the Mac has it.
 appId: cx.lpm.mobile
 name: 140-new-tab-agent
 tags: [demo, terminal, agents]
 ---
 - runFlow: subflows/enter-demo.yaml
-- tapOn: "storefront"
+- tapOn: "api-gateway"
 - extendedWaitUntil:
     visible: "New tab"
     timeout: 5000
@@ -13,14 +14,14 @@ tags: [demo, terminal, agents]
 - extendedWaitUntil:
     visible: "Claude Code"
     timeout: 5000
-- assertVisible: "Shell"
+- assertVisible: "Terminal"
 - assertVisible: "Codex"
 - assertVisible: "Gemini"
 - assertVisible: "OpenCode"
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 1-new-tab
-# Picking an agent brings its model, effort and first prompt.
+# Picking an agent brings its model, effort and a task for it.
 - tapOn: "Claude Code"
 - extendedWaitUntil:
     visible: "Applies to this tab only."
@@ -37,7 +38,7 @@ tags: [demo, terminal, agents]
 - extendedWaitUntil:
     visible: "Effort.*"
     timeout: 5000
-- tapOn: "Sent once the agent is ready"
+- tapOn: "Task for Claude Code \\(optional\\)"
 - inputText: "Fix the failing checkout test"
 - waitForAnimationToEnd:
     timeout: 3000

@@ -15,6 +15,7 @@ pub enum NotificationEvent {
     Automation,
     AutoPull,
     Peers,
+    SendLater,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,6 +48,7 @@ const NOTIFICATION_EVENTS: &[(NotificationEvent, &[(NotificationChannel, bool)])
     ),
     (NotificationEvent::AutoPull, &[(InApp, true)]),
     (NotificationEvent::Peers, &[(InApp, true)]),
+    (NotificationEvent::SendLater, &[(InApp, true), (Banner, true)]),
 ];
 
 impl NotificationEvent {
@@ -58,6 +60,7 @@ impl NotificationEvent {
             Self::Automation => "automation",
             Self::AutoPull => "autoPull",
             Self::Peers => "peers",
+            Self::SendLater => "sendLater",
         }
     }
 
@@ -105,9 +108,8 @@ impl NotificationChannel {
 }
 
 /// Whether the switch that once covered `channel` for every event is on. It
-/// still decides for an event the user hasn't chosen for, and for news that
-/// isn't one of the events.
-pub fn legacy_switch_on(settings: &Value, channel: NotificationChannel) -> bool {
+/// still decides for an event the user hasn't chosen for.
+fn legacy_switch_on(settings: &Value, channel: NotificationChannel) -> bool {
     channel
         .legacy_switch()
         .is_none_or(|key| settings.get(key).and_then(Value::as_bool) != Some(false))
@@ -163,13 +165,14 @@ mod tests {
     use serde_json::json;
     use NotificationEvent::*;
 
-    const EVENTS: [NotificationEvent; 6] = [
+    const EVENTS: [NotificationEvent; 7] = [
         AgentWaiting,
         AgentDone,
         AgentError,
         Automation,
         AutoPull,
         Peers,
+        SendLater,
     ];
 
     #[test]

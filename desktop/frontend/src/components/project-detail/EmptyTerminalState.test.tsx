@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentSessionPage } from "../../agentSessions";
+import { useSettingsStore } from "../../store/settings";
 import type { RemoteAgentLaunch } from "../../remoteAgentTabs";
 import type { ActionInfo } from "../../types";
 import type { PersistedHistoryEntry } from "../../terminals";
@@ -71,6 +72,12 @@ function button(container: HTMLElement, name: string): HTMLButtonElement {
   return found;
 }
 
+function plus(container: HTMLElement): HTMLButtonElement {
+  const found = container.querySelector<HTMLButtonElement>('button[aria-label="New terminal"]');
+  if (!found) throw new Error("no + button");
+  return found;
+}
+
 function tab(container: HTMLElement, name: string): HTMLButtonElement {
   const found = [...container.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((t) =>
     t.textContent?.endsWith(name),
@@ -80,7 +87,10 @@ function tab(container: HTMLElement, name: string): HTMLButtonElement {
 }
 
 describe("EmptyTerminalState", () => {
-  beforeEach(() => window.localStorage.clear());
+  beforeEach(() => {
+    window.localStorage.clear();
+    useSettingsStore.setState({ pickAgentOnNewTab: false });
+  });
 
   it("says what the box does instead of asking a question", () => {
     const { container, root } = render();
@@ -133,6 +143,28 @@ describe("EmptyTerminalState", () => {
     act(() => button(container, "Open Terminal").click());
     expect(onNewTerminal).toHaveBeenCalledOnce();
     act(() => root.unmount());
+  });
+
+  it("opens a terminal from the empty tab strip's +", () => {
+    const onNewTerminal = vi.fn();
+    const { container, root } = render([], { onNewTerminal });
+    act(() => plus(container).click());
+    expect(onNewTerminal).toHaveBeenCalledOnce();
+    act(() => root.unmount());
+  });
+
+  it("answers a pick on + with the launcher on the page, not a popup", () => {
+    useSettingsStore.setState({ pickAgentOnNewTab: true });
+    const onNewTerminal = vi.fn();
+    const { container, root } = render([], { onNewTerminal });
+    document.body.appendChild(container);
+    (document.activeElement as HTMLElement | null)?.blur();
+    act(() => plus(container).click());
+    expect(onNewTerminal).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="dialog"][aria-label="New tab"]')).toBeNull();
+    expect(document.activeElement).toBe(container.querySelector('[role="textbox"]'));
+    act(() => root.unmount());
+    container.remove();
   });
 
   it("keeps the composer's tools in the box", () => {

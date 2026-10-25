@@ -1,10 +1,10 @@
 package cx.lpm.mobile.feature.actions.sheet
 
+import cx.lpm.mobile.core.data.actions.ActionMemory
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.navigation.ProjectActionsKey
 import cx.lpm.mobile.core.testing.MainDispatcherRule
-import cx.lpm.mobile.feature.actions.ActionMemory
 import cx.lpm.mobile.feature.actions.demoSession
 import cx.lpm.mobile.feature.actions.layout.ActionRowItem
 import cx.lpm.mobile.feature.actions.run.ActionPicks

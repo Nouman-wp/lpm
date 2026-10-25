@@ -353,9 +353,10 @@ class LpmClient internal constructor(
         const val RESTART_TERMINAL_FEATURE = "restartTerminal"
 
         // `agentOptions` and `newTerminal` starting an agent; `agentSessions` and
-        // `resumeSession`; `listDir` for Files.
+        // `resumeSession`; `runAction` with a `prompt`; `listDir` for Files.
         const val AGENT_LAUNCH_FEATURE = "agentLaunch"
         const val AGENT_SESSIONS_FEATURE = "agentSessions"
+        const val ACTION_PROMPT_FEATURE = "actionPrompt"
         const val LIST_DIR_FEATURE = "listDir"
 
         // The tab menu's `forkTerminal`, `forkTerminalCopy`, `titleTerminal` and

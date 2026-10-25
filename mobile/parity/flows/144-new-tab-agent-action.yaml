@@ -1,0 +1,44 @@
+# New tab offers what the desktop's empty project offers: a terminal, then the
+# project's own actions that open an agent. Picking one with a task runs that
+# action with the task as the agent's first prompt.
+appId: cx.lpm.mobile
+name: 144-new-tab-agent-action
+tags: [demo, terminal, agents, actions]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "New tab"
+    timeout: 5000
+- tapOn: "New tab"
+- extendedWaitUntil:
+    visible: "Fix tests"
+    timeout: 5000
+- assertVisible: "Terminal"
+- assertNotVisible: "Gemini"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-agent-actions
+# An action has no model rows: it starts the agent the way its button does.
+- tapOn: "Fix tests"
+- extendedWaitUntil:
+    visible: "Task for Fix tests \\(optional\\)"
+    timeout: 5000
+- assertNotVisible: "Applies to this tab only."
+- tapOn: "Task for Fix tests \\(optional\\)"
+- inputText: "Start with the checkout suite"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-action-picked
+- tapOn: "Open"
+- extendedWaitUntil:
+    notVisible: "Task for Fix tests.*"
+    timeout: 5000
+# The action's tab opens on its own, the task already sent.
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 15000
+- assertVisible: "Fix tests"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 3-action-tab

@@ -1198,28 +1198,26 @@ fn speaks_for_the_turn(entry: &StatusEntry, answered: Option<&str>, options: &Ha
 /// chime, the banner. Returns whether anything changed.
 pub(crate) fn publish(app: &AppHandle, store: &StatusStore, project: &str, entry: StatusEntry) -> bool {
     let watched = crate::status::is_live(&entry.value) || entry.agent_pid > 0;
-    let stored = entry.clone();
-    let retired = store.retire_other_sessions(project, &stored.key, &stored.pane_id);
-    if !store.set(project, entry) {
+    let retired = store.retire_other_sessions(project, &entry.key, &entry.pane_id);
+    let Some(held) = store.store(project, entry) else {
         if retired {
             let _ = app.emit("status-changed", project);
         }
         return false;
-    }
+    };
     // The tab can close between the caller's check and the store: its close
     // cleanup has then already run, and this entry would be left for good.
-    let pane_id = &stored.pane_id;
+    let pane_id = &held.pane_id;
     if !pane_id.is_empty()
         && !crate::pty::session_exists(&app.state::<crate::pty::PtyState>(), pane_id)
     {
-        store.clear_if_unchanged(project, &stored.key, &stored);
+        store.clear_if_unchanged(project, &held.key, &held);
         return false;
     }
     if !store.is_closing(pane_id) {
         let _ = app.emit("status-changed", project);
-        if crate::notifychannels::NotificationEvent::of_status(&stored.value).is_some() {
-            let timed = store.get_if_unchanged(project, &stored);
-            crate::statusroute::announce(app, project, timed.as_ref().unwrap_or(&stored));
+        if crate::notifychannels::NotificationEvent::of_status(&held.value).is_some() {
+            crate::statusroute::announce(app, project, &held);
         }
     }
     if watched {

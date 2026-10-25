@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { toast } from "../notifications/toast";
 import { FOOTER_TOASTER_ID } from "../toasterOffset";
@@ -12,14 +11,6 @@ interface UndoCloseToastProps {
 }
 
 export function UndoCloseToast({ toastId, title, detail, durationMs, onUndo }: UndoCloseToastProps) {
-  // Countdown line drains from full to empty over the undo window: paint it full
-  // on mount, then flip to 0 on the next frame so the width transition runs.
-  const [drained, setDrained] = useState(false);
-  useEffect(() => {
-    const raf = requestAnimationFrame(() => setDrained(true));
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
   return (
     <div className="toast-surface group relative flex w-max min-w-[300px] max-w-[356px] items-center gap-2 overflow-hidden py-1.5 pl-3.5 pr-2">
       <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-primary)]">
@@ -41,15 +32,7 @@ export function UndoCloseToast({ toastId, title, detail, durationMs, onUndo }: U
       >
         <X size={13} />
       </button>
-      <span
-        className="pointer-events-none absolute bottom-0 left-0 h-px ease-linear"
-        style={{
-          width: drained ? "0%" : "100%",
-          transitionProperty: "width",
-          transitionDuration: `${durationMs}ms`,
-          backgroundColor: "color-mix(in srgb, var(--text-muted) 40%, transparent)",
-        }}
-      />
+      <span className="toast-countdown" style={{ animationDuration: `${durationMs}ms` }} aria-hidden />
     </div>
   );
 }

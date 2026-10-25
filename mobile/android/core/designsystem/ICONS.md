@@ -184,7 +184,7 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `arrow.clockwise` (service) | `refresh` | 17 dp | an ended service's Restart button and long-press Restart, "Reopened after lpm restarted" banner | "Restart <service>" |
 | `stop.fill` (service menu) | `stop` (fill) | 24 dp | a service's long-press Stop | |
 | `exclamationmark.triangle.fill` (footnote) | `warning` (fill) | 15 dp | "An action couldn't be loaded" notice | |
-| `terminal` / `sparkle` (New Tab) | `terminal` / `auto_awesome` (fill) | 16 dp on a 28 dp tile | New Tab "Shell" and agent rows (no single four-point sparkle in Material Symbols) | |
+| `terminal` / `sparkle` (New Tab) | `terminal` / `auto_awesome` (fill) | 16 dp on a 28 dp tile | New Tab "Terminal" and agent rows (no single four-point sparkle in Material Symbols) | |
 | `clock.arrow.circlepath` (agents) | `history` | 22 dp menu and row, 56 dp empty state | "Resume Session…", "Resume a Past Session…", "No Past Sessions" | |
 | `arrow.triangle.branch` (session row) | `call_split` | 1 em, inline | a past session's branch in Resume Session | |
 | `folder` (Files) | `folder` | 22 dp menu, 56 dp empty state | "Files", "Empty Folder" | |

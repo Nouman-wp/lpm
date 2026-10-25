@@ -4,10 +4,8 @@ import { useNotificationHistory } from "./notifications/history";
 import { toast } from "./notifications/toast";
 import type { NotificationEvent } from "./notifications/types";
 import { projectAgentRows, type SidebarAgentRow } from "./sidebarAgents";
-import { sideBySideColumns } from "./sideBySide";
 import { useAppStore } from "./store/app";
 import { useGlobalAgentStatus } from "./store/globalAgentStatus";
-import { useSideBySide } from "./store/sideBySide";
 import { useTerminalTitles } from "./store/terminalTitles";
 import { GLOBAL_TERMINALS_KEY, GLOBAL_TERMINALS_LABEL } from "./terminals";
 
@@ -65,17 +63,8 @@ export function agentChanges(
   return { arrivals, settled };
 }
 
-/** Whether the agent's tab is the one in front in a project that's on screen. */
-function tabOnScreen(project: string, terminalId: string | null): boolean {
-  const { view, selected, projects } = useAppStore.getState();
-  const focused = useTerminalTitles.getState().focusedByProject[project] ?? null;
-  if (terminalId === null || focused !== terminalId) return false;
-  if (project === GLOBAL_TERMINALS_KEY) return view === "terminals";
-  if (view !== "projects") return false;
-  if (selected === project) return true;
-  const names = new Set(projects.map((p) => p.name));
-  return sideBySideColumns(useSideBySide.getState().names, selected, names).includes(project);
-}
+const tabOnScreen = (project: string, terminalId: string | null) =>
+  terminalId !== null && useTerminalTitles.getState().onScreenByProject[project] === terminalId;
 
 function projectLabel(project: string): string {
   if (project === GLOBAL_TERMINALS_KEY) return GLOBAL_TERMINALS_LABEL;

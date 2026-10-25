@@ -126,7 +126,7 @@ function announce(item: Announced): void {
   showAnnounced();
 }
 
-function openAutoPullSettings(): void {
+export function openAutoPullSettings(): void {
   const { setSettingsTab, setView } = useAppStore.getState();
   setSettingsTab("general");
   setView("settings");

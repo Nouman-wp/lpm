@@ -1011,10 +1011,10 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
 
   // Which tab the user is looking at, for the sidebar: it marks the agent row
   // whose terminal this is, so a project's list says which of its sessions is
-  // the one on screen.
+  // the one on screen. Agent toasts skip that tab while it's in view.
   useEffect(() => {
-    useTerminalTitles.getState().setProjectFocus(projectName, activeTerminalId);
-  }, [projectName, activeTerminalId]);
+    useTerminalTitles.getState().setProjectFocus(projectName, activeTerminalId, onScreen);
+  }, [projectName, activeTerminalId, onScreen]);
 
   const submitInputToTerminal = useCallback(
     (terminalId: string, input: string | string[]): boolean => {

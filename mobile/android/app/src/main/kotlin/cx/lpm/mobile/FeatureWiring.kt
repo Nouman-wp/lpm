@@ -4,6 +4,7 @@ import androidx.compose.ui.res.stringResource
 import cx.lpm.mobile.core.navigation.FilePreviewKey
 import cx.lpm.mobile.core.navigation.Navigator
 import cx.lpm.mobile.feature.actions.editor.ActionEditorSheet
+import cx.lpm.mobile.feature.actions.run.ActionInputsSheet
 import cx.lpm.mobile.feature.actions.run.ActionRunHost
 import cx.lpm.mobile.feature.actions.run.BackgroundRunsSection
 import cx.lpm.mobile.feature.automations.AutomationsSlots
@@ -55,6 +56,9 @@ internal fun projectsSlots(navigator: Navigator) = ProjectsSlots(
     },
     backgroundRuns = { session, project -> BackgroundRunsSection(session, project) },
     actionRunner = { session, project, onSpawned -> ActionRunHost(project, session, onSpawned) },
+    actionInputs = { action, onSubmit, onDismiss ->
+        ActionInputsSheet(action, onSubmit, onDismiss)
+    },
     claudeAccountMenu = { session, project -> ClaudeAccountMenuRoute(session, project.name) },
     claudeConsentPrompt = { session, project -> ClaudeConsentPromptRoute(session, project) },
     macUpdateMenuItem = { MacUpdateMenuItemRoute() },

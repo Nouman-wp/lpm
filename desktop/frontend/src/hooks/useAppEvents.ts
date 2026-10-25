@@ -185,6 +185,7 @@ export function useAppEvents(): void {
           triggerRemoteAction(req.project, req.action ?? null, req.inputValues, req.confirmed, {
             agent: req.agent,
             resume: req.resume,
+            prompt: req.prompt,
           });
       }
     };

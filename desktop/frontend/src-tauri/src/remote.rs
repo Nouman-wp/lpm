@@ -148,6 +148,7 @@ const PHONE_FEATURES: &[&str] = &[
     tab_menu::FEATURE,
     crate::remote_agents::LAUNCH_FEATURE,
     crate::remote_agents::SESSIONS_FEATURE,
+    crate::remote_agents::ACTION_PROMPT_FEATURE,
     crate::remote_files::FEATURE,
     answer::FEATURE,
     live::FEATURE,
@@ -3257,12 +3258,12 @@ fn handle_msg(
                 )?;
             } else {
                 if !project.is_empty() && !action.is_empty() {
-                    queue_run_action(
-                        hub,
-                        app,
-                        json!({ "project": project, "action": action,
-                            "inputValues": input_values, "confirmed": confirmed }),
-                    );
+                    let mut req = json!({ "project": project, "action": action,
+                        "inputValues": input_values, "confirmed": confirmed });
+                    if let Some(prompt) = str_field("prompt").filter(|p| !p.trim().is_empty()) {
+                        req["prompt"] = json!(prompt);
+                    }
+                    queue_run_action(hub, app, req);
                 }
                 send(ws, json!({ "t": "runAction", "ok": true }))?;
             }

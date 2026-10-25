@@ -297,13 +297,16 @@
     <string name="new_tab_title">New Tab</string>
     <string name="new_tab_open">Open</string>
     <string name="new_tab_start">Start</string>
-    <string name="new_tab_shell">Shell</string>
+    <string name="new_tab_terminal">Terminal</string>
+    <string name="new_tab_pick_from">Pick from %1$s</string>
     <string name="new_tab_model_section">Model</string>
     <string name="new_tab_model">Model</string>
     <string name="new_tab_effort">Effort</string>
     <string name="new_tab_model_footer">Applies to this tab only.</string>
     <string name="new_tab_first_prompt">First prompt</string>
-    <string name="new_tab_prompt_placeholder">Sent once the agent is ready</string>
+    <string name="new_tab_prompt_placeholder">Task for %1$s (optional)</string>
+    <string name="new_tab_run_confirm">Run %1$s?</string>
+    <string name="new_tab_run">Run</string>
     <string name="new_tab_resume">Resume a Past Session…</string>
 
     <!-- Resume Session -->

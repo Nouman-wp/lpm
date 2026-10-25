@@ -305,13 +305,3 @@
   font-size: 12.5px;
 }
 
-.toast-stack-chip .toast-button {
-  height: 22px;
-  border-radius: 999px;
-  font-size: 12.5px;
-}
-
-.toast-button-compact {
-  height: 24px;
-  font-size: 12.5px;
-}

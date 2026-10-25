@@ -100,12 +100,7 @@ pub fn last_answer(project: &str, entry: &StatusEntry) -> Option<String> {
 }
 
 fn first_line(text: &str) -> Option<String> {
-    let line = text.lines().map(str::trim).find(|line| !line.is_empty())?;
-    if line.chars().count() <= ANSWER_CHARS {
-        return Some(line.to_string());
-    }
-    let clipped: String = line.chars().take(ANSWER_CHARS - 1).collect();
-    Some(format!("{}…", clipped.trim_end()))
+    crate::label_probes::first_line_within(text, ANSWER_CHARS)
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-package cx.lpm.mobile.feature.actions
+package cx.lpm.mobile.core.data.actions
 
 import cx.lpm.mobile.core.data.prefs.AppPreferences
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys

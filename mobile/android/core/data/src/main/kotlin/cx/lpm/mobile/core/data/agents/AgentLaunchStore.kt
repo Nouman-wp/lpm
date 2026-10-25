@@ -81,6 +81,13 @@ class AgentLaunchStore(private val session: MacSession) : SessionStore {
         client?.hostFeatures?.contains(LpmClient.AGENT_SESSIONS_FEATURE) == true &&
             !project.isRemote
 
+    /**
+     * The Mac takes a first prompt for the agent an action opens, so a new tab can start
+     * the project's own agent actions.
+     */
+    val canPromptActions: Boolean
+        get() = client?.hostFeatures?.contains(LpmClient.ACTION_PROMPT_FEATURE) == true
+
     fun loadOptions() {
         client?.requestAgentOptions()
     }

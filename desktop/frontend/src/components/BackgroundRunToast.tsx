@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Ban, Check, ChevronDown, CircleAlert, Copy, Loader2, X } from "lucide-react";
+import { useConfirmFlash } from "../hooks/useConfirmFlash";
 import { toast } from "../notifications/toast";
 import {
   clearBackgroundRun,
@@ -56,19 +57,13 @@ export function BackgroundRunToast({
     () => getBackgroundRunLines(runId),
   );
   const [expanded, setExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, flashCopied] = useConfirmFlash();
   const [now, setNow] = useState(() => Date.now());
   const running = status === "running";
 
-  useEffect(() => {
-    if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 1500);
-    return () => clearTimeout(t);
-  }, [copied]);
-
   const copyOutput = () => {
     void navigator.clipboard.writeText(lines.join("\n"));
-    setCopied(true);
+    flashCopied();
   };
 
   useEffect(() => {

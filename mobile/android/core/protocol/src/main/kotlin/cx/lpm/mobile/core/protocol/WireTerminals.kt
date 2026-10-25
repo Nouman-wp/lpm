@@ -119,16 +119,19 @@ sealed interface WireTerminals {
         putStrings("order", order)
     }
 
+    /** [prompt] only for a Mac with "actionPrompt": the first prompt for the agent the action opens. */
     fun runAction(
         project: String,
         action: String,
         inputValues: Map<String, String> = emptyMap(),
-        confirmed: Boolean = false
+        confirmed: Boolean = false,
+        prompt: String = ""
     ): String = frame("runAction") {
         put("project", project)
         put("action", action)
         putStringMap("inputValues", inputValues)
         put("confirmed", confirmed)
+        putNonEmpty("prompt", prompt)
     }
 
     fun runActionBackground(

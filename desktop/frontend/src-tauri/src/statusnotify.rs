@@ -102,13 +102,11 @@ fn register_toast_app_id(app: &AppHandle) {
     });
 }
 
-/// A banner the frontend asks for. It is about none of the events, so the one
-/// switch that once covered every banner still decides.
+/// A scheduled prompt's banner (sent, or missed while away), which the frontend
+/// asks for.
 #[tauri::command(async)]
 pub fn notify_unattended(app: AppHandle, title: String, body: String) {
-    let on =
-        notifychannels::legacy_switch_on(&config::load_settings(), NotificationChannel::Banner);
-    if on && !window_attended(&app) {
+    if should_notify(&app, NotificationEvent::SendLater) {
         notify(&app, &title, &body);
     }
 }

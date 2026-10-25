@@ -2139,12 +2139,13 @@ final class AppModel {
     }
 
     func runAction(_ project: String, action: String,
-                   inputValues: [String: String] = [:], confirmed: Bool = false,
+                   inputValues: [String: String] = [:], confirmed: Bool = false, prompt: String = "",
                    onSpawn: ((TerminalInfo) -> Void)? = nil) {
         let label = projects.first { $0.name == project }?.actions.flatMap(\.runnableLeaves)
             .first { $0.name == action }?.label ?? action
         spawnTerminal(project, verb: "Run “\(label)”", onSpawn: onSpawn) { c in
-            c.runAction(project: project, action: action, inputValues: inputValues, confirmed: confirmed)
+            c.runAction(project: project, action: action, inputValues: inputValues,
+                        confirmed: confirmed, prompt: prompt)
         }
     }
 

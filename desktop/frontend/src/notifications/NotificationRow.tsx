@@ -48,7 +48,7 @@ export function NotificationRow({ entry, onAct }: NotificationRowProps) {
               <button
                 key={action.label}
                 type="button"
-                className="toast-button toast-button-compact"
+                className="toast-button h-6 text-[12.5px]"
                 onClick={() => onAct(entry, action)}
               >
                 {action.label}

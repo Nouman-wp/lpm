@@ -1,5 +1,6 @@
 import type { ActionInfo } from "./types";
 import { splitChild, leafKey } from "./actionIds";
+import { inGroupColor } from "./components/splitPrimary";
 
 // An action that can run unattended on a fresh copy: it has its own command and
 // never pauses for per-run input or a confirmation. Split-button parents qualify
@@ -66,11 +67,20 @@ export function findActionByPath(
 // id or leaf key; and finally a unique case-insensitive match on the label (an
 // agent passing the display label "Claude" for id `claude-max:claude`). We'd
 // rather run it than silently drop the task. Returns null when nothing matches
-// or a fallback is ambiguous across more than one action.
+// or a fallback is ambiguous across more than one action. An item of a header
+// split button or menu comes in its group's colour when it has none of its own,
+// as a click on it starts it.
 export function resolveRunnableAction(
   actions: ActionInfo[],
   id: string,
 ): ActionInfo | null {
+  const found = findRunnableAction(actions, id);
+  if (!found?.name.includes(":")) return found;
+  const group = findActionByPath(actions, found.name.split(":")[0]);
+  return group ? inGroupColor(group, found) : found;
+}
+
+function findRunnableAction(actions: ActionInfo[], id: string): ActionInfo | null {
   const direct = findActionByPath(actions, id);
   if (direct) return direct;
   if (!id.includes(":")) {

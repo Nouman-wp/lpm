@@ -22,7 +22,8 @@ export type NotificationEvent =
   | "agentError"
   | "automation"
   | "autoPull"
-  | "peers";
+  | "peers"
+  | "sendLater";
 
 export interface ToastOptions {
   id?: ToastId;
@@ -50,6 +51,7 @@ export interface ToastModel {
   description?: ReactNode;
   /** Raw output (git's stderr, a stack) folded under Details. */
   details?: string;
+  detailsOpen?: boolean;
   quote?: string;
   tag?: string;
   progress?: ToastProgress;

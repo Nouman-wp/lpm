@@ -306,20 +306,24 @@ fn run_with_timeout(mut cmd: Command) -> Option<Vec<u8>> {
     }
 }
 
+/// The first line with text, cut to fit a button.
+pub(crate) fn first_line(out: &str) -> String {
+    first_line_within(out, MAX_CHARS).unwrap_or_default()
+}
+
 /// The first line with text, without terminal escapes (colors, links, the
 /// marks iTerm2's shell integration prints at startup) or control characters,
-/// cut to fit a button.
-pub(crate) fn first_line(out: &str) -> String {
+/// cut to `max` characters with "…" when longer.
+pub(crate) fn first_line_within(out: &str, max: usize) -> Option<String> {
     let line = out
         .lines()
         .map(|l| strip_ansi(l).trim().to_string())
-        .find(|l| !l.is_empty())
-        .unwrap_or_default();
-    if line.chars().count() <= MAX_CHARS {
-        return line;
+        .find(|l| !l.is_empty())?;
+    if line.chars().count() <= max {
+        return Some(line);
     }
-    let cut: String = line.chars().take(MAX_CHARS - 1).collect();
-    format!("{}…", cut.trim_end())
+    let cut: String = line.chars().take(max - 1).collect();
+    Some(format!("{}…", cut.trim_end()))
 }
 
 fn strip_ansi(s: &str) -> String {

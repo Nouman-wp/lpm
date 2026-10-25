@@ -135,7 +135,8 @@ ignores, so the phone sends them only where they will get a reply. Today:
 agent's answers for the copy key (`answers`); `"restartTerminal"` — running an ended
 terminal again in its tab (`restartTerminal`); `"agentLaunch"` — `agentOptions`, and
 `newTerminal` starting an agent; `"agentSessions"` — `agentSessions` and `resumeSession`;
-`"listDir"` — browsing a project's folders (`listDir`); the last three under
+`"actionPrompt"` — `runAction` with a `prompt`;
+`"listDir"` — browsing a project's folders (`listDir`); the last four under
 [Agent tabs and files](#agent-tabs-and-files); `"tabMenu"` — `forkTerminal`,
 `forkTerminalCopy`, `titleTerminal` and `closeOtherTerminals`. Rides `paired` **and** `ready`;
 **absent** from a desktop that predates it, which means none.
@@ -360,7 +361,7 @@ holds no credential of its own, so removing it sends nothing.
 | `{ "t": "claim", "id": "<termId>" }` | — (the "Take control" action) takes ownership of the terminal; the previous owner is pushed a `control` frame and flips to its own placeholder |
 | `{ "t": "in", "id": "<termId>", "d": "ls\r" }` | — (keystrokes; see hex framing) |
 | `{ "t": "resize", "id": "<termId>", "cols": N, "rows": N }` | — (see note) |
-| `{ "t": "runAction", "project": "<name>", "action": "<actionName>", "inputValues": { "<key>": "<val>"… }, "confirmed": bool }` | `{ "t": "runAction", "ok": true }` — relay for **terminal/command** actions: forwarded to the desktop's owner window, which runs the action in its normal terminal flow (needs the main window open). The phone now owns the inputs + confirm gauntlet, so it sends the collected `inputValues` and `confirmed: true` and the Mac runs the action **directly without re-prompting** (an omitted/`false` `confirmed` falls back to the Mac's own inputs/confirm dialogs). The new terminal appears on a subsequent `terminals` re-request |
+| `{ "t": "runAction", "project": "<name>", "action": "<actionName>", "inputValues": { "<key>": "<val>"… }, "confirmed": bool, "prompt"?: "<text>" }` | `{ "t": "runAction", "ok": true }` — relay for **terminal/command** actions: forwarded to the desktop's owner window, which runs the action in its normal terminal flow (needs the main window open). The phone now owns the inputs + confirm gauntlet, so it sends the collected `inputValues` and `confirmed: true` and the Mac runs the action **directly without re-prompting** (an omitted/`false` `confirmed` falls back to the Mac's own inputs/confirm dialogs). A non-empty `prompt` (only when `features` has `"actionPrompt"`) is submitted to the agent the action opens once it is ready, in place of the action's own `prompt` — see [Agent tabs and files](#agent-tabs-and-files). An item of a header split button or menu opens in its group's colour when it has none of its own. The new terminal appears on a subsequent `terminals` re-request |
 | `{ "t": "runActionBackground", "project": "<name>", "action": "<actionName>", "inputValues": { "<key>": "<val>"… }, "runId": "<uuid>" }` | `{ "t": "runActionBackground", "ok": true }` / `{ "ok": false, "runId": "<uuid>", "error": "…" }` — runs a **non-terminal** action (type `background` or the default headless type) entirely in Rust on a worker thread, so it works **even with the Mac's main window closed**. The caller-minted `runId` keys the run for polling/cancel; output + status stream into the background registry (poll with `actionBgOutput`). Also emits the desktop's `action-bg-output` event so a live Mac window shows its toast |
 | `{ "t": "actionBgOutput", "project": "<name>", "runId": "<uuid>" }` | `{ "t": "actionBgOutput", "ok": true, "found": bool, "runId": "<uuid>", "project": "<name>", "label": "<action>", "startedAt": <unix>, "text": "<accumulated output>", "running": bool, "success": bool, "error": "…" }` — one poll of a background run's live output + terminal status (the phone polls every ~2s while `running`, mirroring `jobLiveOutput`). `found:false` once the run has been reaped (finished runs are retained ~5 min) or never existed |
 | `{ "t": "cancelActionBackground", "runId": "<uuid>" }` | `{ "t": "cancelActionBackground", "ok": true, "runId": "<uuid>" }` — reaps the run's process tree; a no-op if it already finished or is unknown |
@@ -634,8 +635,8 @@ dropping after it is that restart.
 
 What the phone's New Tab sheet, Resume Session list and Files screen read. Each
 needs its feature flag: `"agentLaunch"` (`agentOptions`, `newTerminal` with an
-`agent`), `"agentSessions"` (`agentSessions`, `resumeSession`), `"listDir"`
-(`listDir`). Opening a tab, new or resumed, is the main window's job (the
+`agent`), `"agentSessions"` (`agentSessions`, `resumeSession`), `"actionPrompt"`
+(`runAction` with a `prompt`), `"listDir"` (`listDir`). Opening a tab, new or resumed, is the main window's job (the
 `runAction` relay), so those answer `ok: false` while it is closed. SSH projects
 get no session list and no folder listing: their agents and files are on another
 machine.
@@ -649,6 +650,19 @@ are pinned as session-only flags, as the desktop's launch picker pins them
 (Claude Code and Codex; `""` leaves the agent's own default). A non-empty
 `prompt` is submitted once the agent is ready. An `agent` the Mac doesn't know
 opens a plain terminal.
+
+**The New Tab sheet** offers what the desktop's empty project offers: a
+terminal, then the project's actions that open an agent — a `terminal` action
+whose `cmd` runs one of the `agentOptions` ids as a command word (`claude`,
+`/usr/local/bin/codex …`, `codex.exe` on Windows), in `actions` order. A
+header split button or menu holding any of them stays one entry, with only
+those items: a split leads with the item its button runs (`primary`, or the
+item last run from it for `last-used`), a menu with no `primary` and no `cmd`
+of its own only opens. Picking one runs the action with `runAction` and the
+typed task as its `prompt`, after its inputs and confirmation. A project with
+no such action, or a Mac without `"actionPrompt"`, offers the bare agents of
+`agentOptions` instead, each with its model and effort, opened with
+`newTerminal`.
 
 **Sessions** are the desktop's Resume session list: every conversation Claude
 Code and Codex stored for the project's folder, newest first, minus the rows

@@ -26,6 +26,8 @@ export interface RemoteResume {
 export interface RemoteTabRequest {
   agent?: RemoteAgentLaunch;
   resume?: RemoteResume;
+  // The first prompt for the agent a phone's action run opens.
+  prompt?: string;
 }
 
 // What the phone's New Tab sheet offers: the agents and models the desktop's

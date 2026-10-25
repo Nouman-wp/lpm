@@ -27,6 +27,7 @@ import cx.lpm.mobile.core.designsystem.component.PickerRow
 import cx.lpm.mobile.core.designsystem.component.TextFieldRow
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.AgentOption
+import cx.lpm.mobile.core.model.LaunchpadOption
 import cx.lpm.mobile.feature.projects.R
 import cx.lpm.mobile.feature.projects.detail.TerminalRowSkeleton
 
@@ -35,8 +36,8 @@ import cx.lpm.mobile.feature.projects.detail.TerminalRowSkeleton
 class NewTabActions(
     val cancel: () -> Unit = {},
     val open: () -> Unit = {},
-    val pickShell: () -> Unit = {},
-    val pickAgent: (AgentOption) -> Unit = {},
+    val pickTerminal: () -> Unit = {},
+    val pickOption: (LaunchpadOption) -> Unit = {},
     val chooseModel: (String) -> Unit = {},
     val chooseEffort: (String) -> Unit = {},
     val setPrompt: (String) -> Unit = {},
@@ -44,8 +45,8 @@ class NewTabActions(
 )
 
 /**
- * The New Tab sheet's form: what the tab starts with, the agent's model and effort and
- * first prompt, and the way to a past conversation instead.
+ * The New Tab sheet's form: what the tab starts with, a bare agent's model and effort,
+ * the task for the agent, and the way to a past conversation instead.
  */
 @Composable
 fun NewTabForm(
@@ -78,13 +79,18 @@ fun NewTabForm(
                 .padding(top = ListDefaults.ContentTopPadding, bottom = 24.dp)
         ) {
             StartSection(state, actions)
-            state.agent?.takeIf { it.models.isNotEmpty() }?.let { ModelSection(state, it, actions) }
-            if (state.agent != null) {
+            state.bareAgent?.takeIf {
+                it.models.isNotEmpty()
+            }?.let { ModelSection(state, it, actions) }
+            state.option?.let { option ->
                 ListSection(header = stringResource(R.string.new_tab_first_prompt)) {
                     TextFieldRow(
                         value = state.prompt,
                         onValueChange = actions.setPrompt,
-                        placeholder = stringResource(R.string.new_tab_prompt_placeholder),
+                        placeholder = stringResource(
+                            R.string.new_tab_prompt_placeholder,
+                            option.label
+                        ),
                         minLines = 2,
                         maxLines = 6
                     )
@@ -119,24 +125,29 @@ fun NewTabForm(
 private fun StartSection(state: NewTabUiState, actions: NewTabActions) {
     ListSection(header = stringResource(R.string.new_tab_start)) {
         NewTabStartRow(
-            label = stringResource(R.string.new_tab_shell),
+            label = stringResource(R.string.new_tab_terminal),
             agent = null,
-            picked = state.pick.agent.isEmpty(),
-            onPick = actions.pickShell
+            picked = state.terminalPicked,
+            onPick = actions.pickTerminal
         )
-        val options = state.options
-        if (options == null) {
+        val tabs = state.tabs
+        if (tabs == null) {
             TerminalRowSkeleton()
             return@ListSection
         }
-        options.forEach { option ->
-            key(option.id) {
-                NewTabStartRow(
-                    label = option.label,
-                    agent = option.id,
-                    picked = state.pick.agent == option.id,
-                    onPick = { actions.pickAgent(option) }
-                )
+        tabs.forEach { tab ->
+            key(tab.id) {
+                val only = tab.options.singleOrNull()
+                if (only == null) {
+                    NewTabGroupRow(tab = tab, picked = state.picked, onPick = actions.pickOption)
+                } else {
+                    NewTabStartRow(
+                        label = only.label,
+                        agent = only.agent,
+                        picked = state.picked == only.id,
+                        onPick = { actions.pickOption(only) }
+                    )
+                }
             }
         }
     }

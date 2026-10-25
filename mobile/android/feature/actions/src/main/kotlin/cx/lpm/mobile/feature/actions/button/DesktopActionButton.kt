@@ -63,10 +63,7 @@ internal fun DesktopActionButton(
     var editMenu by remember { mutableStateOf(false) }
     val longPress: (() -> Unit)? = callbacks.edit?.let { { editMenu = true } }
     val run = { child: Action ->
-        // A `last-used` group remembers the direct child it ran, as the desktop does.
-        if (action.primary == LAST_USED && action.children.any { it.id == child.id }) {
-            callbacks.remember(action.name, child.childKey)
-        }
+        action.lastUsedKey(child)?.let { callbacks.remember(action.name, it) }
         callbacks.run(child)
     }
     Box(modifier) {

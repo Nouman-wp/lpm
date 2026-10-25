@@ -54,17 +54,31 @@ extension DemoServer {
     func demoAgentTerminal(_ o: [String: Any], id: String, project: String) -> DemoWorld.Terminal? {
         guard let agent = (o["agent"] as? String).flatMap({ $0.isEmpty ? nil : $0 }),
               let option = Self.demoAgentOptions.first(where: { $0["id"] as? String == agent }) else { return nil }
-        let model = o["model"] as? String ?? ""
-        let effort = o["effort"] as? String ?? ""
-        let prompt = (o["prompt"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return demoAgentTab(agent, label: option["label"] as? String ?? agent, id: id, project: project,
+                            model: o["model"] as? String ?? "", effort: o["effort"] as? String ?? "",
+                            prompt: o["prompt"] as? String ?? "")
+    }
+
+    /// The tab a `runAction` with a `prompt` opens for an action that starts an
+    /// agent, nil for any other action.
+    func demoActionAgentTerminal(_ action: [String: Any], prompt: String, label: String,
+                                 id: String, project: String) -> DemoWorld.Terminal? {
+        let ids = Self.demoAgentOptions.compactMap { $0["id"] as? String }
+        guard !prompt.isEmpty, action["type"] as? String == "terminal",
+              let agent = agentCLI(in: action["cmd"] as? String ?? "", among: ids) else { return nil }
+        return demoAgentTab(agent, label: label, id: id, project: project, model: "", effort: "", prompt: prompt)
+    }
+
+    private func demoAgentTab(_ agent: String, label: String, id: String, project: String,
+                              model: String, effort: String, prompt: String) -> DemoWorld.Terminal {
+        let prompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         var buffer = agentBanner(agent, project: project, model: model, effort: effort)
         if !prompt.isEmpty {
             buffer += "\(bold)>\(reset) \(prompt.replacingOccurrences(of: "\n", with: "\r\n  "))\r\n\r\n"
                 + "\(textDot) On it — I'll read the relevant files first, then make the change.\r\n\r\n"
         }
         buffer += "\(bold)>\(reset) "
-        return agentTab(id: id, label: option["label"] as? String ?? agent, project: project,
-                        cli: agent, buffer: buffer)
+        return agentTab(id: id, label: label, project: project, cli: agent, buffer: buffer)
     }
 
     private func agentTab(id: String, label: String, project: String, cli: String,

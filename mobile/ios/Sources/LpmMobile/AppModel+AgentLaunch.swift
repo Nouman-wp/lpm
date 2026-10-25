@@ -9,6 +9,12 @@ extension AppModel {
         client?.hostFeatures.contains(LpmClient.agentLaunchFeature) == true
     }
 
+    /// The Mac takes a first prompt for the agent an action opens, so a new tab can
+    /// start the project's own agent actions.
+    var canPromptActions: Bool {
+        client?.hostFeatures.contains(LpmClient.actionPromptFeature) == true
+    }
+
     /// The Mac lists past conversations to resume. An SSH project's agents ran
     /// on the other host, so it has none here.
     func canResumeSessions(_ project: Project) -> Bool {

@@ -2,13 +2,13 @@ package cx.lpm.mobile.feature.actions.sheet
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cx.lpm.mobile.core.data.actions.ActionMemory
+import cx.lpm.mobile.core.data.actions.ActionMemoryState
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.model.Action
 import cx.lpm.mobile.core.model.Zone
 import cx.lpm.mobile.core.navigation.ProjectActionsKey
-import cx.lpm.mobile.feature.actions.ActionMemory
-import cx.lpm.mobile.feature.actions.ActionMemoryState
 import cx.lpm.mobile.feature.actions.layout.ActionRows
 import cx.lpm.mobile.feature.actions.layout.ZoneList
 import cx.lpm.mobile.feature.actions.run.ActionPicks

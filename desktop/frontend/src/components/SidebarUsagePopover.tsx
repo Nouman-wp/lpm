@@ -1,8 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { besideRow } from "../besideRow";
 
-const GAP = 8;
-const MARGIN = 8;
 export const USAGE_POPOVER_WIDTH = 360;
 
 /** Floats the full usage card beside a sidebar row. Portaled so the sidebar's
@@ -21,19 +20,7 @@ export function SidebarUsagePopover({
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const height = el.offsetHeight;
-    // Sits beside the row, bottom-aligned with it, and falls back to the other
-    // side when the sidebar has been dragged wide enough to crowd the right.
-    const top = Math.max(
-      MARGIN,
-      Math.min(anchor.bottom - height, window.innerHeight - height - MARGIN),
-    );
-    const right = anchor.right + GAP;
-    const left =
-      right + USAGE_POPOVER_WIDTH > window.innerWidth - MARGIN
-        ? Math.max(MARGIN, anchor.left - USAGE_POPOVER_WIDTH - GAP)
-        : right;
-    setPos({ top, left });
+    setPos(besideRow(anchor, USAGE_POPOVER_WIDTH, el.offsetHeight));
   }, [anchor]);
 
   return createPortal(

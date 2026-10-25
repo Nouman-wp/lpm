@@ -161,10 +161,15 @@ enum Wire {
     static func resize(id: String, cols: Int, rows: Int) -> String {
         json(["t": "resize", "id": id, "cols": cols, "rows": rows])
     }
+    /// `prompt` only for a Mac with `actionPrompt`: the first prompt for the agent
+    /// the action opens.
     static func runAction(project: String, action: String,
-                          inputValues: [String: String] = [:], confirmed: Bool = false) -> String {
-        json(["t": "runAction", "project": project, "action": action,
-              "inputValues": inputValues, "confirmed": confirmed])
+                          inputValues: [String: String] = [:], confirmed: Bool = false,
+                          prompt: String = "") -> String {
+        var o: [String: Any] = ["t": "runAction", "project": project, "action": action,
+                                "inputValues": inputValues, "confirmed": confirmed]
+        if !prompt.isEmpty { o["prompt"] = prompt }
+        return json(o)
     }
     static func runActionBackground(project: String, action: String,
                                     inputValues: [String: String], runId: String) -> String {

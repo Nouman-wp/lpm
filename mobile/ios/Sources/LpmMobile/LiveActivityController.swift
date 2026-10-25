@@ -42,6 +42,7 @@ final class LiveActivityController {
                 await current.end(content, dismissalPolicy: .after(Date().addingTimeInterval(Self.linger)))
             }
         } else if snapshot.live, ActivityAuthorizationInfo().areActivitiesEnabled {
+            await dismissEnded(serverId)
             let attributes = AgentActivityAttributes(serverId: serverId, macName: macName)
             guard let started = try? AgentActivity.request(attributes: attributes, content: content,
                                                            pushType: .token) else { return }
@@ -57,6 +58,15 @@ final class LiveActivityController {
         }
         shown = [:]
         tokens = [:]
+    }
+
+    /// The Mac's last reading, still up after it ended: the new activity replaces it,
+    /// so the Lock Screen never shows the same Mac twice.
+    private func dismissEnded(_ serverId: String) async {
+        for activity in AgentActivity.activities
+        where activity.attributes.serverId == serverId && activity.activityState != .active {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
     }
 
     private func activity(for serverId: String) -> AgentActivity? {

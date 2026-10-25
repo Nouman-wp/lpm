@@ -7,6 +7,7 @@ import cx.lpm.mobile.core.data.link.ConnectionIssue
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.TerminalInfo
+import cx.lpm.mobile.feature.projects.newtab.ActionInputsSlot
 
 /**
  * The parts of the projects screens other features own. The app fills each in as
@@ -37,6 +38,8 @@ class ProjectsSlots(
         project: String,
         onSpawnedTerminal: (TerminalInfo) -> Unit
     ) -> Unit = { _, _, _ -> },
+    /** The inputs a New Tab sheet's agent action asks for before it runs (`:feature:actions`). */
+    val actionInputs: ActionInputsSlot = { _, _, _ -> },
     /** "Claude Account ▸" in a project's menu, when the Mac has accounts (`:feature:claudeaccount`). */
     val claudeAccountMenu: @Composable ColumnScope.(session: SessionKey, project: Project) -> Unit =
         { _, _ -> },

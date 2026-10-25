@@ -57,6 +57,10 @@ class WireTerminalsTest {
             """{ "t": "runAction", "project": "api", "action": "deploy:prod", "inputValues": { "tag": "v1" }, "confirmed": true }""",
             Wire.runAction("api", "deploy:prod", mapOf("tag" to "v1"), confirmed = true)
         )
+        assertFrame(
+            """{ "t": "runAction", "project": "api", "action": "claude", "inputValues": {}, "confirmed": true, "prompt": "Fix it" }""",
+            Wire.runAction("api", "claude", confirmed = true, prompt = "Fix it")
+        )
     }
 
     @Test

@@ -9,8 +9,7 @@ const mocks = vi.hoisted(() => ({
   projects: [] as ProjectInfo[],
   settings: { autoPull: "off" } as Record<string, unknown>,
   update: vi.fn(async () => {}),
-  setView: vi.fn(),
-  setSettingsTab: vi.fn(),
+  openAutoPullSettings: vi.fn(),
   setProjectAutoPull: vi.fn(async () => true),
   autoPullSoon: vi.fn(),
   wait: vi.fn(() => "next"),
@@ -22,7 +21,7 @@ vi.mock("../../bridge/runtime", () => ({ EventsOn: vi.fn(() => () => {}) }));
 vi.mock("../notifications/toast", () => ({ toast: { success: mocks.toast, error: vi.fn() } }));
 vi.mock("../store/app", () => ({
   useAppStore: (select: (state: unknown) => unknown) =>
-    select({ projects: mocks.projects, setView: mocks.setView, setSettingsTab: mocks.setSettingsTab }),
+    select({ projects: mocks.projects }),
 }));
 vi.mock("../store/settings", () => ({
   useSettingsStore: (select: (state: unknown) => unknown) => select({ ...mocks.settings, update: mocks.update }),
@@ -30,6 +29,7 @@ vi.mock("../store/settings", () => ({
 vi.mock("../autoPullRun", () => ({
   autoPullSoon: mocks.autoPullSoon,
   autoPullWait: mocks.wait,
+  openAutoPullSettings: mocks.openAutoPullSettings,
   setProjectAutoPull: mocks.setProjectAutoPull,
 }));
 vi.mock("../originActions", () => ({ runOriginAction: mocks.runOriginAction }));
@@ -143,8 +143,7 @@ describe("the auto pull card on Pull", () => {
   it("opens Settings › General from the card", () => {
     hoverPull();
     act(() => button("Settings › General › Auto pull").click());
-    expect(mocks.setSettingsTab).toHaveBeenCalledWith("general");
-    expect(mocks.setView).toHaveBeenCalledWith("settings");
+    expect(mocks.openAutoPullSettings).toHaveBeenCalledOnce();
   });
 
   it("stays away from Sync and from projects on another machine", () => {

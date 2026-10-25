@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState } from "react";
-import { useLiveToasts } from "./liveToasts";
+import { useSonner } from "sonner";
 import { dismissCards } from "./toast";
 
 // sonner's spacing: up to three toasts show, each tucked one gap above the last.
@@ -14,31 +14,37 @@ interface ToastStackChipProps {
 /** "2 more · Clear all" over a pile of toasts, so older ones can go in one
  *  click instead of fanning the pile out over the chat. */
 export function ToastStackChip({ offset }: ToastStackChipProps) {
-  const count = useLiveToasts((s) => s.toasts.length);
+  const pile = useSonner().toasts.filter((t) => t.toasterId === undefined);
+  const count = pile.length;
+  const frontId = pile[0]?.id;
   const [frontHeight, setFrontHeight] = useState(0);
-  const [hovered, setHovered] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
+  // sonner lays a new toast out in the same tick it reports it here, so the
+  // front card is already in place. Its height and whether the pile is fanned
+  // out (hover or its hotkey) are read off that card.
   useLayoutEffect(() => {
     if (count < 2) return;
-    const toaster = document.querySelector<HTMLElement>('[data-sonner-toaster][data-x-position="right"]');
-    const front = toaster?.querySelector<HTMLElement>('[data-sonner-toast][data-front="true"]');
-    if (!toaster || !front) return;
-    const measure = () => setFrontHeight(front.getBoundingClientRect().height);
-    const observer = new ResizeObserver(measure);
-    observer.observe(front);
-    measure();
-    const enter = () => setHovered(true);
-    const leave = () => setHovered(false);
-    toaster.addEventListener("mouseenter", enter);
-    toaster.addEventListener("mouseleave", leave);
-    return () => {
-      observer.disconnect();
-      toaster.removeEventListener("mouseenter", enter);
-      toaster.removeEventListener("mouseleave", leave);
+    const front = document.querySelector<HTMLElement>(
+      '[data-sonner-toaster][data-x-position="right"] [data-sonner-toast][data-front="true"]',
+    );
+    if (!front) return;
+    const read = () => {
+      setFrontHeight(front.getBoundingClientRect().height);
+      setExpanded(front.dataset.expanded === "true");
     };
-  }, [count]);
+    const resized = new ResizeObserver(read);
+    const fanned = new MutationObserver(read);
+    resized.observe(front);
+    fanned.observe(front, { attributes: true, attributeFilter: ["data-expanded"] });
+    read();
+    return () => {
+      resized.disconnect();
+      fanned.disconnect();
+    };
+  }, [count, frontId]);
 
-  if (count < 2 || frontHeight === 0 || hovered) return null;
+  if (count < 2 || frontHeight === 0 || expanded) return null;
 
   const tucked = Math.min(count, VISIBLE_TOASTS) - 1;
   return (
@@ -47,7 +53,7 @@ export function ToastStackChip({ offset }: ToastStackChipProps) {
       style={{ right: offset.right, bottom: offset.bottom + frontHeight + tucked * STACK_GAP + CHIP_GAP }}
     >
       <span>{count - 1} more</span>
-      <button type="button" className="toast-button" onClick={dismissCards}>
+      <button type="button" className="toast-button h-[22px] rounded-full text-[12.5px]" onClick={dismissCards}>
         Clear all
       </button>
     </div>

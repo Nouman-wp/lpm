@@ -60,8 +60,9 @@ fun LpmClient.runAction(
     project: String,
     action: String,
     inputValues: Map<String, String> = emptyMap(),
-    confirmed: Boolean = false
-) = send(Wire.runAction(project, action, inputValues, confirmed))
+    confirmed: Boolean = false,
+    prompt: String = ""
+) = send(Wire.runAction(project, action, inputValues, confirmed, prompt))
 
 fun LpmClient.runActionBackground(
     project: String,

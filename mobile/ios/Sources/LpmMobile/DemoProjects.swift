@@ -440,6 +440,12 @@ extension DemoServer {
             let cmd = self.substitute(action["cmd"] as? String ?? actionName, values)
             let label = (action["label"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? actionName
             let id = "demo-\(project)-run-\(Int(Date().timeIntervalSince1970 * 1000))"
+            if let agent = self.demoActionAgentTerminal(action, prompt: o["prompt"] as? String ?? "",
+                                                        label: label, id: id, project: project) {
+                self.world.terminals[project, default: []].append(agent)
+                self.push(["t": "runAction", "ok": true])
+                return
+            }
             self.world.terminals[project, default: []].append(
                 DemoWorld.Terminal(id: id, label: label, project: project,
                                    buffer: self.shellPrompt(project) + cmd + "\r\n"))

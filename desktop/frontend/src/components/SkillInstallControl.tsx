@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "../notifications/toast";
 import { AgentSkillStatus, CliInstallStatus, InstallAgentSkill, InstallCli } from "../../bridge/commands";
 import { useConfirmFlash } from "../hooks/useConfirmFlash";
+import { ConfirmNote } from "./ui/ConfirmNote";
 import { BTN_SECONDARY } from "./ui/buttons";
 import { RefreshIcon } from "./icons";
 
@@ -74,14 +75,6 @@ function Spinner() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="animate-spin text-current">
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" strokeOpacity="0.25" />
       <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-[var(--accent-green)]">
-      <path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -248,10 +241,7 @@ export function SkillInstallControl() {
     <div className="flex items-center gap-1.5">
       {refreshButton}
       <div className="flex flex-col items-end gap-0.5">
-        <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
-          <CheckIcon />
-          {updated ? "Updated" : "Installed"}
-        </span>
+        <ConfirmNote>{updated ? "Updated" : "Installed"}</ConfirmNote>
         {versionLine}
       </div>
     </div>

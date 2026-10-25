@@ -1,3 +1,4 @@
+import { firstLine } from "./autoPR";
 import { toast } from "./notifications/toast";
 import { GitCommit, GitPushRebasing } from "../bridge/commands";
 import { getSettings } from "./store/settings";
@@ -20,7 +21,7 @@ export async function runAutoCommit(opts: {
     toast.loading(title, { id, description: "Committing", progress: { step: 1, steps } });
     await GitCommit(projectPath, msg, paths);
     if (!andPush) {
-      toast.success(`${projectName}: committed`, { id, description: msg.split("\n")[0] });
+      toast.success(`${projectName}: committed`, { id, description: firstLine(msg) });
       return;
     }
     toast.loading(title, { id, description: "Pushing", progress: { step: 2, steps } });
@@ -30,7 +31,7 @@ export async function runAutoCommit(opts: {
       rebased
         ? `${projectName}: committed, rebased onto new remote commits, and pushed`
         : `${projectName}: committed and pushed`,
-      { id, description: msg.split("\n")[0] },
+      { id, description: firstLine(msg) },
     );
   } catch (err) {
     toast.error(`Couldn't ${andPush ? "commit and push" : "commit"} ${projectName}: ${err}`, { id });

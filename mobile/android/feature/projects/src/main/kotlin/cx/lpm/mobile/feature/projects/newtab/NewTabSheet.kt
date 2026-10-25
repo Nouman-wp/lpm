@@ -12,9 +12,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cx.lpm.mobile.core.designsystem.R as DesignR
+import cx.lpm.mobile.core.designsystem.component.AlertButton
+import cx.lpm.mobile.core.designsystem.component.AlertRole
 import cx.lpm.mobile.core.designsystem.component.GlassIconButton
+import cx.lpm.mobile.core.designsystem.component.LpmAlert
 import cx.lpm.mobile.core.designsystem.component.ModalSheet
 import cx.lpm.mobile.core.designsystem.component.rememberModalSheetState
+import cx.lpm.mobile.core.model.Action
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.navigation.PresentationScope
@@ -28,7 +32,8 @@ private enum class NewTabPage { Form, Resume }
 
 /**
  * What a new tab starts with (iOS `NewTabSheet`), at the medium detent until an agent
- * brings its model and prompt rows. [onOpen] opens the tab once the Mac has it.
+ * brings its prompt and model rows. [onOpen] opens the tab once the Mac has it.
+ * [actionInputs] asks for a picked action's inputs before it runs.
  */
 @Composable
 fun NewTabSheet(
@@ -36,9 +41,10 @@ fun NewTabSheet(
     session: SessionKey,
     onOpen: (TerminalInfo) -> Unit,
     onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    actionInputs: ActionInputsSlot = { _, _, _ -> }
 ) {
-    PresentationScope { NewTabContent(project, session, onOpen, onDismiss, modifier) }
+    PresentationScope { NewTabContent(project, session, onOpen, onDismiss, actionInputs, modifier) }
 }
 
 @Composable
@@ -47,6 +53,7 @@ private fun NewTabContent(
     session: SessionKey,
     onOpen: (TerminalInfo) -> Unit,
     onDismiss: () -> Unit,
+    actionInputs: ActionInputsSlot,
     modifier: Modifier = Modifier,
     viewModel: NewTabViewModel = hiltViewModel<NewTabViewModel, NewTabViewModel.Factory>(
         creationCallback = { it.create(project, session) }
@@ -54,13 +61,22 @@ private fun NewTabContent(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     // A remembered agent opens the sheet at the large detent, as its rows need the room.
-    val sheet = rememberModalSheetState(medium = remember { state.pick.agent.isEmpty() })
+    val sheet = rememberModalSheetState(
+        medium = remember {
+            state.picked ==
+                NewTabPickMemory.TERMINAL
+        }
+    )
     val pages = rememberSheetNavigator(NewTabPage.Form)
     val haptics = LocalHapticFeedback.current
+    val opening = {
+        haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+        sheet.dismiss(onDismiss)
+    }
     LaunchedEffect(viewModel) { viewModel.onAppear() }
-    // An agent brings its model and prompt rows, and the list its sessions, so the
+    // An agent brings its prompt and model rows, and the list its sessions, so the
     // sheet makes room for them.
-    val tall = state.pick.agent.isNotEmpty() || pages.current == NewTabPage.Resume
+    val tall = state.option != null || pages.current == NewTabPage.Resume
     LaunchedEffect(tall) { if (tall) sheet.expand() }
     ModalSheet(onDismissRequest = onDismiss, modifier = modifier, state = sheet) {
         SheetStack(pages) { page ->
@@ -69,13 +85,9 @@ private fun NewTabContent(
                     state = state,
                     actions = NewTabActions(
                         cancel = { sheet.dismiss(onDismiss) },
-                        open = {
-                            haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
-                            viewModel.open(onOpen)
-                            sheet.dismiss(onDismiss)
-                        },
-                        pickShell = viewModel::pickShell,
-                        pickAgent = viewModel::pickAgent,
+                        open = { if (viewModel.open(onOpen)) opening() },
+                        pickTerminal = viewModel::pickTerminal,
+                        pickOption = viewModel::pickOption,
                         chooseModel = viewModel::chooseModel,
                         chooseEffort = viewModel::chooseEffort,
                         setPrompt = viewModel::setPrompt,
@@ -104,4 +116,32 @@ private fun NewTabContent(
             }
         }
     }
+    when (val step = state.step) {
+        is NewTabStep.Inputs -> actionInputs(
+            step.action,
+            { values -> if (viewModel.submitInputs(values, onOpen)) opening() },
+            { viewModel.dismiss(step) }
+        )
+
+        is NewTabStep.Confirm -> LpmAlert(
+            title = stringResource(R.string.new_tab_run_confirm, step.action.label),
+            buttons = listOf(
+                AlertButton(stringResource(R.string.new_tab_run)) {
+                    viewModel.confirm(onOpen)
+                    opening()
+                },
+                AlertButton(stringResource(R.string.cancel), AlertRole.Cancel)
+            ),
+            onDismissRequest = { viewModel.dismiss(step) }
+        )
+
+        null -> Unit
+    }
 }
+
+/** An action's inputs sheet: the action, its values once given, and its dismissal. */
+typealias ActionInputsSlot = @Composable (
+    action: Action,
+    onSubmit: (Map<String, String>) -> Unit,
+    onDismiss: () -> Unit
+) -> Unit

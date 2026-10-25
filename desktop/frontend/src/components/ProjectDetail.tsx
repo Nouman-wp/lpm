@@ -317,6 +317,7 @@ export function ProjectDetail({
           inputValues: inputValues ?? {},
           skipPrompts: confirmed ?? false,
           background,
+          prompt: tab?.prompt,
         });
       else
         toast.error(

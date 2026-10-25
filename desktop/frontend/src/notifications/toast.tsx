@@ -65,7 +65,9 @@ function asRepeat(model: ToastModel): ToastModel {
   if (model.kind === "loading") return model;
   const key = repeatKey(model);
   const earlier = useLiveToasts.getState().toasts.find((t) => repeatKey(t) === key);
-  return earlier ? { ...model, id: earlier.id, count: earlier.count + 1 } : model;
+  return earlier
+    ? { ...model, id: earlier.id, count: earlier.count + 1, detailsOpen: earlier.detailsOpen }
+    : model;
 }
 
 function record(model: ToastModel) {
@@ -103,7 +105,7 @@ function present(model: ToastModel) {
   const closed = () => {
     if (keys.get(id) === key) forget(id);
   };
-  sonner.custom(() => <ToastCard id={id} onResize={() => remeasure(id)} onClose={() => dismiss(id)} />, {
+  sonner.custom(() => <ToastCard id={id} onToggleDetails={() => toggleDetails(id)} onClose={() => dismiss(id)} />, {
     id: key,
     duration: model.duration,
     onDismiss: closed,
@@ -111,11 +113,11 @@ function present(model: ToastModel) {
   });
 }
 
-/** sonner measures a toast when its content is replaced, so a card that grew
- *  (Details opened) is handed back to it to be measured again. */
-function remeasure(id: ToastId) {
+// Shown again like any other update, which is also when sonner measures a
+// toast's new height.
+function toggleDetails(id: ToastId) {
   const model = findLiveToast(id);
-  if (model) present(model);
+  if (model) present({ ...model, detailsOpen: !model.detailsOpen });
 }
 
 function show(kind: ToastKind, message: ReactNode, options: ToastOptions = {}): ToastId {
@@ -146,9 +148,10 @@ function dismiss(id?: ToastId): void {
     sonner.dismiss();
     return;
   }
-  const key = keys.get(id);
+  // A hand-built toast (`toast.custom`) is known to sonner by its own id.
+  const key = keys.get(id) ?? id;
   forget(id);
-  if (key !== undefined) sonner.dismiss(key);
+  sonner.dismiss(key);
 }
 
 function promise<T>(work: Promise<T>, messages: PromiseMessages<T>): ToastId {

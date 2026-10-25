@@ -295,7 +295,8 @@ interface AppState {
     // at this Mac anything, so they keep their place.
     background: boolean;
     // A new tab the phone asked for: an agent to start, or a past
-    // conversation to continue, instead of a plain shell.
+    // conversation to continue, instead of a plain shell; or the first
+    // prompt for the agent `action` opens.
     tab?: RemoteTabRequest;
   } | null;
   triggerRemoteAction: (

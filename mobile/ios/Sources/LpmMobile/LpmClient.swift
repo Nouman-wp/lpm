@@ -247,6 +247,7 @@ final class LpmClient: NSObject {
     static let restartTerminalFeature = "restartTerminal"
     static let agentLaunchFeature = "agentLaunch"
     static let agentSessionsFeature = "agentSessions"
+    static let actionPromptFeature = "actionPrompt"
     static let listDirFeature = "listDir"
     static let tabMenuFeature = "tabMenu"
     static let answerAgentFeature = "answerAgent"
@@ -489,7 +490,7 @@ final class LpmClient: NSObject {
                 "t": "ready", "serverId": DemoServer.serverId, "serverName": DemoServer.serverName,
                 "features": [ChunkedUpload.feature, Self.serviceLogsWatchFeature, Self.agentAnswersFeature,
                              Self.restartTerminalFeature, Self.agentLaunchFeature, Self.agentSessionsFeature,
-                             Self.listDirFeature, Self.tabMenuFeature],
+                             Self.actionPromptFeature, Self.listDirFeature, Self.tabMenuFeature],
             ]))
         }
     }
@@ -926,8 +927,9 @@ final class LpmClient: NSObject {
         send(Wire.dismissJobQuestion(project: project, jobId: jobId, askId: askId))
     }
     func runAction(project: String, action: String,
-                   inputValues: [String: String] = [:], confirmed: Bool = false) {
-        send(Wire.runAction(project: project, action: action, inputValues: inputValues, confirmed: confirmed))
+                   inputValues: [String: String] = [:], confirmed: Bool = false, prompt: String = "") {
+        send(Wire.runAction(project: project, action: action, inputValues: inputValues,
+                            confirmed: confirmed, prompt: prompt))
     }
     func runActionBackground(project: String, action: String,
                              inputValues: [String: String], runId: String) {

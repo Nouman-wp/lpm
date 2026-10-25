@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* In the components layer, so utilities on a toast's buttons can size them. */
+@import "../notifications/toastCard.css" layer(components);
 
 /* Linux and Windows keep the OS title bar, so nothing in the React chrome makes
    room for macOS traffic lights there. */

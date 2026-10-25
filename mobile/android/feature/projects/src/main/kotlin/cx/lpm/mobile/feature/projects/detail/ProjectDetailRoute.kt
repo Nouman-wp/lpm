@@ -170,7 +170,8 @@ fun ProjectDetailRoute(
             project = key.project,
             session = key.session,
             onOpen = openSpawned,
-            onDismiss = { newTabOpen = false }
+            onDismiss = { newTabOpen = false },
+            actionInputs = slots.actionInputs
         )
     }
     logsFor?.let { service ->

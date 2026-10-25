@@ -17,6 +17,8 @@ use std::sync::{Mutex, OnceLock};
 pub const LAUNCH_FEATURE: &str = "agentLaunch";
 /// The phone may send `agentSessions` and `resumeSession`.
 pub const SESSIONS_FEATURE: &str = "agentSessions";
+/// The phone may send `runAction` with a `prompt` for the agent the action opens.
+pub const ACTION_PROMPT_FEATURE: &str = "actionPrompt";
 
 /// The desktop picker's page size.
 const DEFAULT_LIMIT: u64 = 40;

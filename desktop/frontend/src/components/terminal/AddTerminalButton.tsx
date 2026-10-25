@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PlusIcon } from "./icons";
 import { useHoverPopup } from "../../hooks/useHoverPopup";
 import type { LaunchpadProject } from "../../hooks/useLaunchpad";
 import type { RunActionOpts } from "../../hooks/useProjectActions";
-import { useSettingsStore } from "../../store/settings";
 import type { RemoteAgentLaunch } from "../../remoteAgentTabs";
 import type { ActionInfo } from "../../types";
 import { NewTabPopup } from "./NewTabPopup";
+import { TabStripPlus } from "./TabStripPlus";
 
 // Long enough that reaching for + to click it doesn't flash the popup first.
 const OPEN_DELAY_MS = 300;
@@ -41,7 +40,6 @@ export function AddTerminalButton({
   const popup = useHoverPopup(buttonRef, OPEN_DELAY_MS);
   const { show, hide, hold } = popup;
   const [focusRequest, setFocusRequest] = useState(0);
-  const askOnPlus = useSettingsStore((s) => s.pickAgentOnNewTab ?? false);
 
   const openOnPurpose = useCallback(() => {
     show();
@@ -63,38 +61,18 @@ export function AddTerminalButton({
 
   return (
     <>
-      <button
+      <TabStripPlus
         ref={buttonRef}
-        type="button"
-        aria-label="New terminal"
+        open={popup.open}
         aria-haspopup="dialog"
         aria-expanded={popup.open}
-        onClick={() => {
-          if (askOnPlus) {
-            openOnPurpose();
-            return;
-          }
+        onAdd={() => {
           close();
           onAddTerminal();
         }}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          openOnPurpose();
-        }}
-        onKeyDown={(e) => {
-          if (e.key !== "ArrowDown") return;
-          e.preventDefault();
-          openOnPurpose();
-        }}
+        onPick={openOnPurpose}
         {...popup.trigger}
-        className={`ml-1.5 flex h-6 shrink-0 items-center justify-center rounded-md px-1.5 transition-colors duration-150 hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)] [&>svg]:h-3.5 [&>svg]:w-3.5 ${
-          popup.open
-            ? "bg-[var(--terminal-header-hover)] text-[var(--terminal-tab-active)]"
-            : "text-[var(--terminal-header-text)]"
-        }`}
-      >
-        <PlusIcon />
-      </button>
+      />
       {popup.open && (
         <NewTabPopup
           project={project}

@@ -19,6 +19,7 @@ export function announceSent(item: ScheduledPrompt, target: TerminalTargetInfo):
   const preview = promptPreview(item.text);
   toast.success(`Sent to ${label}`, {
     description: preview,
+    event: "sendLater",
     action: {
       label: "Open",
       onClick: () => useAppStore.getState().focusProjectTerminal(item.projectName, target.id),
@@ -71,6 +72,6 @@ export function announceMissed(items: ScheduledPrompt[], atLaunch: boolean): voi
     title = `${fresh.length} scheduled prompts weren't sent`;
     description = `They came due while ${away}. Each is on hold in its terminal's prompt box and in History › Scheduled.`;
   }
-  toast.warning(title, { description, duration: 10_000 });
+  toast.warning(title, { description, duration: 10_000, event: "sendLater" });
   void NotifyUnattended(title, description).catch(() => {});
 }

@@ -14,8 +14,11 @@ interface TerminalTitlesState {
   // not, so a reader that means "the tab on screen" has to check the project is
   // the selected one first.
   focusedByProject: Record<string, string | null>;
+  // That same terminal while the project's terminals are actually in view, else
+  // null: the one tab a person can be looking at right now.
+  onScreenByProject: Record<string, string | null>;
   setProjectTitles: (project: string, titles: Record<string, string>) => void;
-  setProjectFocus: (project: string, terminalId: string | null) => void;
+  setProjectFocus: (project: string, terminalId: string | null, onScreen: boolean) => void;
   clearProject: (project: string) => void;
 }
 
@@ -31,6 +34,7 @@ function same(a: Record<string, string>, b: Record<string, string>): boolean {
 export const useTerminalTitles = create<TerminalTitlesState>((set) => ({
   byProject: {},
   focusedByProject: {},
+  onScreenByProject: {},
 
   setProjectTitles: (project, titles) =>
     set((s) => {
@@ -39,10 +43,16 @@ export const useTerminalTitles = create<TerminalTitlesState>((set) => ({
       return { byProject: { ...s.byProject, [project]: titles } };
     }),
 
-  setProjectFocus: (project, terminalId) =>
+  setProjectFocus: (project, terminalId, onScreen) =>
     set((s) => {
-      if (s.focusedByProject[project] === terminalId) return s;
-      return { focusedByProject: { ...s.focusedByProject, [project]: terminalId } };
+      const shown = onScreen ? terminalId : null;
+      const focusSame = s.focusedByProject[project] === terminalId;
+      const shownSame = s.onScreenByProject[project] === shown;
+      if (focusSame && shownSame) return s;
+      return {
+        focusedByProject: focusSame ? s.focusedByProject : { ...s.focusedByProject, [project]: terminalId },
+        onScreenByProject: shownSame ? s.onScreenByProject : { ...s.onScreenByProject, [project]: shown },
+      };
     }),
 
   clearProject: (project) =>
@@ -50,6 +60,7 @@ export const useTerminalTitles = create<TerminalTitlesState>((set) => ({
       if (!(project in s.byProject) && !(project in s.focusedByProject)) return s;
       const { [project]: _names, ...byProject } = s.byProject;
       const { [project]: _focus, ...focusedByProject } = s.focusedByProject;
-      return { byProject, focusedByProject };
+      const { [project]: _shown, ...onScreenByProject } = s.onScreenByProject;
+      return { byProject, focusedByProject, onScreenByProject };
     }),
 }));

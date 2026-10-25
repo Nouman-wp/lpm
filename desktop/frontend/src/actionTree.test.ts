@@ -113,4 +113,15 @@ describe("resolveRunnableAction", () => {
     ];
     expect(resolveRunnableAction(ambiguous, "Claude")).toBeNull();
   });
+
+  it("runs an item in its group's colour unless it has its own", () => {
+    const group: ActionInfo = {
+      ...node("claude", [node("claude:opus"), { ...node("claude:review"), color: "cyan" }]),
+      color: "claude",
+    };
+    expect(resolveRunnableAction([group], "claude:opus")).toMatchObject({ name: "claude:opus", color: "claude" });
+    expect(resolveRunnableAction([group], "review")?.color).toBe("cyan");
+    const codex = node("codex");
+    expect(resolveRunnableAction([group, codex], "codex")).toBe(codex);
+  });
 });

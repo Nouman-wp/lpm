@@ -78,13 +78,15 @@ class ActionsStore(private val session: MacSession) : SessionStore {
     /**
      * Run a terminal or command action on the Mac, waiting for the link if it's down.
      * [onSpawn] is told about the terminal it opens. [confirmed] says the phone already
-     * asked for its inputs and confirmation, so the Mac doesn't ask again.
+     * asked for its inputs and confirmation, so the Mac doesn't ask again. [prompt] is
+     * the first prompt for the agent the action opens.
      */
     fun runAction(
         project: String,
         action: String,
         inputValues: Map<String, String> = emptyMap(),
         confirmed: Boolean = false,
+        prompt: String = "",
         onSpawn: ((TerminalInfo) -> Unit)? = null
     ) {
         val label = session.store<ProjectsStore>().state.value.project(project)?.actions
@@ -92,7 +94,7 @@ class ActionsStore(private val session: MacSession) : SessionStore {
             ?.firstOrNull { it.name == action }
             ?.label ?: action
         session.store<TerminalsStore>().spawnTerminal(project, "Run “$label”", onSpawn) { c ->
-            c.runAction(project, action, inputValues, confirmed)
+            c.runAction(project, action, inputValues, confirmed, prompt)
         }
     }
 
