@@ -16,14 +16,15 @@ import cx.lpm.mobile.core.navigation.AutomationsKey
 import cx.lpm.mobile.core.navigation.Navigator
 import cx.lpm.mobile.core.navigation.ProjectKey
 import cx.lpm.mobile.core.navigation.TerminalKey
+import cx.lpm.mobile.core.navigation.WeeklyRecapKey
 import kotlinx.coroutines.delay
 
 /**
  * Opens a tapped notification's destination (iOS `ContentView.consumePendingOpen`):
  * first the Mac it came from, then — once that Mac's projects are in — the project,
- * its terminal, or the automation. A project the list doesn't have yet (a copy made
- * while the phone was away) gets a moment to arrive; after that the tap is dropped
- * rather than acted on at some unrelated later moment.
+ * its terminal, the automation, or the weekly recap. A project the list doesn't
+ * have yet (a copy made while the phone was away) gets a moment to arrive; after that
+ * the tap is dropped rather than acted on at some unrelated later moment.
  */
 @Composable
 internal fun NotificationOpenHost(
@@ -65,6 +66,8 @@ internal fun NotificationOpenHost(
                 if (item == null) return@LaunchedEffect opens.clear(open)
                 navigator.reset(AutomationsKey(), AutomationKey(open.project, item))
             }
+
+            NotificationOpenTarget.Kind.Recap -> navigator.reset(WeeklyRecapKey())
         }
         opens.clear(open)
     }

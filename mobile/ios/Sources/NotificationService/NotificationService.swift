@@ -23,9 +23,10 @@ final class NotificationService: UNNotificationServiceExtension {
     private func rewritten(_ original: UNNotificationContent) -> UNNotificationContent? {
         guard let blob = original.userInfo["blob"] as? String,
               let payload = PushPayload.open(blob: blob),
-              let project = payload["project"] as? String, !project.isEmpty,
               let mutable = original.mutableCopy() as? UNMutableNotificationContent
         else { return nil }
+        if payload["target"] as? String == "recap" { return recap(payload, into: mutable) }
+        guard let project = payload["project"] as? String, !project.isEmpty else { return nil }
         AgentWidgetStore.apply(push: payload)
 
         let terminal = payload["terminal"] as? String ?? ""
@@ -65,6 +66,22 @@ final class NotificationService: UNNotificationServiceExtension {
             if let ts = payload["ts"] as? Int { info["ts"] = ts }
             info["projectLabel"] = label
             info["terminal"] = terminal
+        }
+        mutable.userInfo = info
+        return mutable
+    }
+
+    /// Monday's weekly recap: the Mac writes the words, and a tap opens the recap
+    /// of the week it names on that Mac.
+    private func recap(_ payload: [String: Any], into mutable: UNMutableNotificationContent) -> UNNotificationContent? {
+        guard let title = payload["title"] as? String, !title.isEmpty else { return nil }
+        mutable.title = title
+        mutable.body = payload["body"] as? String ?? ""
+        mutable.threadIdentifier = "recap"
+        var info = mutable.userInfo
+        info["target"] = "recap"
+        for key in ["week", "serverId"] {
+            if let value = payload[key] as? String, !value.isEmpty { info[key] = value }
         }
         mutable.userInfo = info
         return mutable

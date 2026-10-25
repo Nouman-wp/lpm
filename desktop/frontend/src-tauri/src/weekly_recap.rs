@@ -315,6 +315,14 @@ pub fn weekly_recap(app: AppHandle, week: String, fresh: bool) -> Result<WeeklyR
     kept_week(hub.as_ref(), &week, fresh)
 }
 
+/// Monday's toast, sent on to the phones that want it.
+#[tauri::command]
+pub fn push_weekly_recap(app: AppHandle, week: String, title: String, body: String) {
+    if let Some(hub) = app.try_state::<crate::remote::RemoteHub>() {
+        crate::remote::send_weekly_recap(&hub, &week, &title, &body);
+    }
+}
+
 #[cfg(test)]
 #[path = "weekly_recap_tests.rs"]
 mod tests;

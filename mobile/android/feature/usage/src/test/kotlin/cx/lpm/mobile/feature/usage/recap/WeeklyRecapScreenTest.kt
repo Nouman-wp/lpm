@@ -73,7 +73,9 @@ class WeeklyRecapScreenTest {
             .forEach { compose.onAllNodesWithText(it).assertCountEquals(1) }
         compose.onNodeWithText("lpm.cx").assertExists()
         compose.onNodeWithText("Share").performScrollTo().assertExists()
-        compose.onNodeWithText("Names no projects.").performScrollTo().assertExists()
+        compose.onNodeWithText(
+            "Names no projects, and nothing is uploaded: you add the card to the post yourself."
+        ).performScrollTo().assertExists()
         compose.onNodeWithText("Not counted: build-box, which couldn't send its week.")
             .assertExists()
     }

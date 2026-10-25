@@ -18,6 +18,8 @@ vi.mock("../../bridge/runtime", () => ({
 
 import { FeedbackModal } from "./FeedbackModal";
 import { useAppStore } from "../store/app";
+import { LESSONS, MAKER_LINKEDIN_URL, MAKER_X_URL, lessonDate, lessonUrl } from "../lessons";
+import { TUTORIAL_PLAYLIST_URL } from "../sidebarNav";
 
 let host: HTMLDivElement;
 let root: Root;
@@ -95,5 +97,39 @@ describe("FeedbackModal", () => {
     );
     expect(url.searchParams.get("labels")).toBe("enhancement");
     expect(useAppStore.getState().feedbackOpen).toBe(false);
+  });
+
+  it("lists the four newest lessons and opens one on YouTube", () => {
+    const rail = document.querySelector("aside[aria-label='Lessons and news']")!;
+    const lessons = [...rail.querySelectorAll("li button")];
+    expect(lessons.map((b) => b.textContent)).toEqual(
+      LESSONS.slice(0, 4).map((l) => `${l.title}${lessonDate(l.published)}`),
+    );
+
+    act(() => (lessons[0] as HTMLButtonElement).click());
+    expect(bridge.open).toHaveBeenCalledWith(lessonUrl(LESSONS[0].id));
+    expect(useAppStore.getState().feedbackOpen).toBe(true);
+  });
+
+  it("opens the playlist and the maker's X and LinkedIn", () => {
+    const button = (name: string) =>
+      [...document.querySelectorAll<HTMLButtonElement>("aside button")].find(
+        (b) => b.textContent === name || b.getAttribute("aria-label") === name,
+      )!;
+    act(() => button("All lessons on YouTube").click());
+    act(() => button("lpm's maker on X").click());
+    act(() => button("lpm's maker on LinkedIn").click());
+    expect(bridge.open.mock.calls.map((call) => call[0])).toEqual([
+      TUTORIAL_PLAYLIST_URL,
+      MAKER_X_URL,
+      MAKER_LINKEDIN_URL,
+    ]);
+  });
+});
+
+describe("lessonDate", () => {
+  it("shows the calendar day it was published", () => {
+    expect(lessonDate("2026-10-21")).toBe("Oct 21");
+    expect(lessonDate("2026-01-01")).toBe("Jan 1");
   });
 });

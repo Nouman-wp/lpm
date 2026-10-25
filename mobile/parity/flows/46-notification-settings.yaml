@@ -17,3 +17,10 @@ tags: [demo, settings]
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 1-notification-settings
+- scrollUntilVisible:
+    element: "Mondays, when your week in lpm is ready"
+    direction: DOWN
+- assertVisible: "Weekly recap"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-weekly-recap

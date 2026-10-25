@@ -112,6 +112,17 @@ describe("SidebarFooterNav", () => {
     expect(moreButton()!.getAttribute("aria-expanded")).toBe("false");
   });
 
+  it("opens Support & Feedback from the icon beside More, not from the menu", () => {
+    const onFeedback = vi.fn();
+    renderNav({ onFeedback });
+
+    act(() => byLabel("Support & Feedback")!.click());
+    expect(onFeedback).toHaveBeenCalledTimes(1);
+
+    openMore();
+    expect(buttonWithText("Support & Feedback")).toBeUndefined();
+  });
+
   it("starts with Terminals as the only row outside the menu", () => {
     renderNav();
 
@@ -203,7 +214,6 @@ describe("SidebarFooterNav", () => {
         "recap",
         "mobile",
         "settings",
-        "feedback",
         "tutorial",
       ],
     });

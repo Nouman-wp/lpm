@@ -46,6 +46,7 @@ class PushRegistrarTest {
         val notify = frame.obj("notify")!!
         assertEquals(true, notify.bool("waiting"))
         assertEquals(false, notify.bool("automationStarted"))
+        assertEquals(true, notify.bool("weeklyRecap"))
         assertTrue(live.sentOf("apnsToken").isEmpty())
 
         val id = h.session.state.value.activeMacId!!
@@ -96,6 +97,22 @@ class PushRegistrarTest {
         settle()
         val off = live.sentOf("pushToken").last().obj("notify")!!
         assertTrue(off.values.none { it.toString() == "true" })
+    }
+
+    @Test
+    fun turningTheWeeklyRecapOffTellsTheMacAgain() = runTest {
+        val h = SessionHarness(this)
+        h.pushTokens.token.value = "fcm:tok-1"
+        h.registrar.start()
+        val live = h.connectReady()
+        settle()
+        h.prefs.setNotificationPrefs(NotificationPrefs(weeklyRecap = false))
+        settle()
+
+        val frames = live.sentOf("pushToken")
+        assertEquals(2, frames.size)
+        assertEquals(false, frames[1].obj("notify")?.bool("weeklyRecap"))
+        assertEquals(true, frames[1].obj("notify")?.bool("waiting"))
     }
 
     @Test

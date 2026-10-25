@@ -88,7 +88,7 @@
     <string name="recap_empty_text">The recap counts Claude Code and Codex sessions run in your projects.</string>
     <string name="recap_see_this_week">See this week so far</string>
     <string name="recap_share">Share</string>
-    <string name="recap_names_no_projects">Names no projects.</string>
+    <string name="recap_names_no_projects">Names no projects, and nothing is uploaded: you add the card to the post yourself.</string>
     <plurals name="recap_not_counted">
         <item quantity="one">Not counted: %1$s, which couldn\'t send its week.</item>
         <item quantity="other">Not counted: %1$s, which couldn\'t send their week.</item>

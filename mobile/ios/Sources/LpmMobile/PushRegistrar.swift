@@ -29,6 +29,7 @@ final class PushRegistrar {
         let automationStarted: Bool
         let automationDone: Bool
         let automationError: Bool
+        let weeklyRecap: Bool
     }
 
     /// The state a sweep runs against, read fresh when it starts rather than when
@@ -145,7 +146,8 @@ final class PushRegistrar {
                                  notifyError: p.error,
                                  notifyAutomationStarted: p.automationStarted,
                                  notifyAutomationDone: p.automationDone,
-                                 notifyAutomationError: p.automationError)
+                                 notifyAutomationError: p.automationError,
+                                 notifyWeeklyRecap: p.weeklyRecap)
         }
     }
 
@@ -160,7 +162,7 @@ final class PushRegistrar {
     /// key is a secret and UserDefaults is not a secret store.
     private static func signature(_ p: Payload) -> String {
         let bits = [p.waiting, p.done, p.error,
-                    p.automationStarted, p.automationDone, p.automationError]
+                    p.automationStarted, p.automationDone, p.automationError, p.weeklyRecap]
             .map { $0 ? "1" : "0" }
             .joined()
         let material = "\(p.token)|\(p.env)|\(p.key)|\(bits)"

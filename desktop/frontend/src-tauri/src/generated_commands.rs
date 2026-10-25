@@ -31,6 +31,7 @@ macro_rules! all_command_handlers {
             agent_usage_stats,
             agent_usage_machines,
             weekly_recap,
+            push_weekly_recap,
             copy_png_image,
             save_png_image,
             share_png_image,

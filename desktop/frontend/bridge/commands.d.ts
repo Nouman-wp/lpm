@@ -5,6 +5,7 @@ export function AckTerminalData(...args: any[]): Promise<any>;
 export function AgentUsageStats(...args: any[]): Promise<any>;
 export function AgentUsageMachines(...args: any[]): Promise<any>;
 export function WeeklyRecap(...args: any[]): Promise<any>;
+export function PushWeeklyRecap(...args: any[]): Promise<any>;
 export function CopyPngImage(...args: any[]): Promise<any>;
 export function SavePngImage(...args: any[]): Promise<any>;
 export function SharePngImage(...args: any[]): Promise<any>;

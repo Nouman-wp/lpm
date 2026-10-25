@@ -124,6 +124,18 @@ class SettingsUiTest {
     }
 
     @Test
+    fun theWeeklyRecapIsOnUntilTurnedOffAndDimsWithTheMaster() {
+        showNotifications()
+        compose.onNodeWithText("Mondays, when your week in lpm is ready")
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithContentDescription("Weekly recap").assertIsOn().performClick()
+        compose.onNodeWithContentDescription("Weekly recap").assertIsOff()
+        compose.onNodeWithContentDescription("Push notifications").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Weekly recap").assertIsNotEnabled()
+    }
+
+    @Test
     fun aPhoneThatWasNeverAskedOffersThePrompt() {
         showNotifications(connected = false, access = NotificationAccess.NotDetermined)
         compose.onNodeWithText(

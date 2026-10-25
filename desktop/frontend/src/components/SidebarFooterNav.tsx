@@ -33,6 +33,7 @@ import { SidebarFooterMore } from "./SidebarFooterMore";
 import { SidebarNavRowMenu } from "./SidebarNavRowMenu";
 import { SidebarNavRow, type SidebarNavEntry } from "./SidebarNavRow";
 import { CountBadge } from "./ui/CountBadge";
+import { Tooltip } from "./ui/Tooltip";
 
 interface SidebarFooterNavProps {
   showTerminals: boolean;
@@ -196,13 +197,6 @@ export function SidebarFooterNav({
       active: showSettings,
       onSelect: onSettings,
     },
-    feedback: {
-      id: "feedback",
-      label: "Support & Feedback",
-      icon: <MessageIcon />,
-      active: false,
-      onSelect: onFeedback,
-    },
     tutorial: {
       id: "tutorial",
       label: "Tutorial (YouTube)",
@@ -237,26 +231,38 @@ export function SidebarFooterNav({
           onOpenMenu={(anchor) => setRowMenu({ entry: entries[id], ...anchor })}
         />
       ))}
-      {menuIds.length > 0 && (
-        <SidebarFooterMore
-          entries={menuIds.map((id) => entries[id])}
-          badge={
-            automationsInMenu ? (
-              waiting > 0 ? (
-                <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-amber)]" />
-              ) : running > 0 ? (
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
-              ) : (
-                <CountBadge count={unread} label="unread automations" />
-              )
-            ) : null
-          }
-          hints={hints}
-          isDefault={isDefault}
-          onMove={(id) => move(id, true)}
-          onReset={reset}
-        />
-      )}
+      <div className="flex items-center gap-1">
+        {menuIds.length > 0 && (
+          <SidebarFooterMore
+            entries={menuIds.map((id) => entries[id])}
+            badge={
+              automationsInMenu ? (
+                waiting > 0 ? (
+                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-amber)]" />
+                ) : running > 0 ? (
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
+                ) : (
+                  <CountBadge count={unread} label="unread automations" />
+                )
+              ) : null
+            }
+            hints={hints}
+            isDefault={isDefault}
+            onMove={(id) => move(id, true)}
+            onReset={reset}
+          />
+        )}
+        <Tooltip content="Support & Feedback" triggerClassName="ml-auto inline-flex shrink-0">
+          <button
+            type="button"
+            onClick={onFeedback}
+            className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            aria-label="Support & Feedback"
+          >
+            <MessageIcon />
+          </button>
+        </Tooltip>
+      </div>
       {rowMenu && (
         <SidebarNavRowMenu
           x={rowMenu.x}

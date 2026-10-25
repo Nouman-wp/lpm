@@ -14,6 +14,7 @@ import cx.lpm.mobile.core.data.push.PushAlert
 import cx.lpm.mobile.core.data.push.PushClear
 import cx.lpm.mobile.core.data.push.PushCrypto
 import cx.lpm.mobile.core.data.push.PushKind
+import cx.lpm.mobile.core.data.push.PushRecap
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.widget.AgentWidgetStore
 import cx.lpm.mobile.core.model.Project
@@ -55,7 +56,7 @@ class PushNotifier @Inject constructor(
             PushKind.entries.map { kind ->
                 NotificationChannelCompat.Builder(kind.channelId, kind.importance)
                     .setName(context.getString(kind.channelName))
-                    .setGroup(if (kind.isAutomation) GROUP_AUTOMATIONS else GROUP_AGENTS)
+                    .setGroup(kind.group)
                     .build()
             } + NotificationChannelCompat.Builder(
                 LiveNotification.CHANNEL,
@@ -84,6 +85,7 @@ class PushNotifier @Inject constructor(
             return
         }
         widget.apply(payload)
+        PushRecap.parse(payload)?.let { return post(it, data[COLLAPSE_ID]) }
         val alert = PushAlert.parse(payload) ?: return
         // The open app shows its live Mac's statuses itself; a push from another
         // Mac, or from this one while the link is down, is news only it carries.
@@ -118,6 +120,14 @@ class PushNotifier @Inject constructor(
         }
     }
 
+    private fun post(recap: PushRecap, collapseId: String?) {
+        // One a week from each Mac; a second send of the same week replaces the first.
+        val tag = collapseId ?: "${recap.serverId.orEmpty()}|${recap.key}"
+        context.notifyIfAllowed(tag, AlertExtras.NOTIFICATION_ID) {
+            context.recapNotification(recap, tag).build()
+        }
+    }
+
     private fun delivered(): List<DeliveredNote> = manager.activeNotifications.map { sbn ->
         val extras = sbn.notification.extras
         DeliveredNote(
@@ -140,14 +150,21 @@ class PushNotifier @Inject constructor(
         private const val TYPE = "type"
         private const val EVENT = "event"
         private const val COLLAPSE_ID = "collapseId"
-        private const val GROUP_AGENTS = "agents"
-        private const val GROUP_AUTOMATIONS = "automations"
     }
 }
 
-private val PushKind.isAutomation: Boolean
-    get() = this == PushKind.AutomationStarted || this == PushKind.AutomationDone ||
-        this == PushKind.AutomationError
+private const val GROUP_AGENTS = "agents"
+private const val GROUP_AUTOMATIONS = "automations"
+
+private val PushKind.group: String?
+    get() = when (this) {
+        PushKind.Waiting, PushKind.Done, PushKind.Error -> GROUP_AGENTS
+
+        PushKind.AutomationStarted, PushKind.AutomationDone, PushKind.AutomationError ->
+            GROUP_AUTOMATIONS
+
+        PushKind.WeeklyRecap -> null
+    }
 
 internal val PushKind.channelId: String
     get() = when (this) {
@@ -157,6 +174,7 @@ internal val PushKind.channelId: String
         PushKind.AutomationStarted -> "automation-started"
         PushKind.AutomationDone -> "automation-done"
         PushKind.AutomationError -> "automation-error"
+        PushKind.WeeklyRecap -> "weekly-recap"
     }
 
 private val PushKind.channelName: Int
@@ -167,6 +185,7 @@ private val PushKind.channelName: Int
         PushKind.AutomationStarted -> R.string.push_channel_automation_started
         PushKind.AutomationDone -> R.string.push_channel_automation_done
         PushKind.AutomationError -> R.string.push_channel_automation_error
+        PushKind.WeeklyRecap -> R.string.push_channel_weekly_recap
     }
 
 // What needs the user right now pops up; the rest arrives quietly in the shade.
@@ -175,6 +194,6 @@ internal val PushKind.importance: Int
         PushKind.Waiting, PushKind.Done, PushKind.Error, PushKind.AutomationError ->
             NotificationManager.IMPORTANCE_HIGH
 
-        PushKind.AutomationStarted, PushKind.AutomationDone ->
+        PushKind.AutomationStarted, PushKind.AutomationDone, PushKind.WeeklyRecap ->
             NotificationManager.IMPORTANCE_DEFAULT
     }

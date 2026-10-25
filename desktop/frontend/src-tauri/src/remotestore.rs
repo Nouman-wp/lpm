@@ -43,7 +43,8 @@ pub(crate) struct Device {
     #[serde(skip_serializing_if = "String::is_empty")]
     pub(crate) push_platform: String,
     // Per-device notification prefs (from the phone's `notify` object). Agent
-    // prefs default on for older records; automation prefs default off.
+    // prefs default on for older records; automation and weekly recap prefs
+    // default off.
     #[serde(default = "default_true")]
     pub(crate) push_waiting: bool,
     #[serde(default = "default_true")]
@@ -53,6 +54,7 @@ pub(crate) struct Device {
     pub(crate) push_automation_started: bool,
     pub(crate) push_automation_done: bool,
     pub(crate) push_automation_error: bool,
+    pub(crate) push_weekly_recap: bool,
     // The phone shows this machine's agents live (`liveActivity`): an iPhone's
     // Live Activity, updated through its own APNs token (live_token, hex, in
     // live_env), or an Android phone's ongoing notification, sent to its push
@@ -105,6 +107,7 @@ impl Default for Device {
             push_automation_started: false,
             push_automation_done: false,
             push_automation_error: false,
+            push_weekly_recap: false,
             live_updates: false,
             live_token: String::new(),
             live_env: String::new(),

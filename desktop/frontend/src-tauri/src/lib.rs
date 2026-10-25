@@ -317,7 +317,7 @@ use agent_session_titles::*;
 use agent_sessions::*;
 use agent_usage::*;
 use agent_usage_machines::agent_usage_machines;
-use weekly_recap::weekly_recap;
+use weekly_recap::{push_weekly_recap, weekly_recap};
 use image_share::{copy_png_image, save_png_image, share_png_image};
 use agent_caps::{
     create_agent_skill, delete_agent_skill, generate_agent_skill, list_agent_capabilities,

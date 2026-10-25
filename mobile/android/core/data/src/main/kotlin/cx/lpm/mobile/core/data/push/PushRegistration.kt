@@ -20,6 +20,7 @@ data class PushRegistration(
     val automationStarted: Boolean,
     val automationDone: Boolean,
     val automationError: Boolean,
+    val weeklyRecap: Boolean,
     val live: Boolean
 ) {
     /**
@@ -36,6 +37,7 @@ data class PushRegistration(
                 automationStarted,
                 automationDone,
                 automationError,
+                weeklyRecap,
                 live
             )
                 .joinToString("") { if (it) "1" else "0" }
@@ -57,6 +59,7 @@ data class PushRegistration(
                 automationStarted = prefs.enabled && prefs.automationStarted,
                 automationDone = prefs.enabled && prefs.automationDone,
                 automationError = prefs.enabled && prefs.automationError,
+                weeklyRecap = prefs.enabled && prefs.weeklyRecap,
                 live = prefs.liveActivity
             )
     }

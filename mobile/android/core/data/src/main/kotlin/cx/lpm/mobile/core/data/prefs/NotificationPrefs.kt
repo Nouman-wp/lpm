@@ -20,6 +20,8 @@ data class NotificationPrefs(
     val automationStarted: Boolean = false,
     val automationDone: Boolean = true,
     val automationError: Boolean = true,
+    /** Monday's "Your week in lpm is ready", from each Mac. */
+    val weeklyRecap: Boolean = true,
     val liveActivity: Boolean = true
 )
 
@@ -36,6 +38,7 @@ val AppPreferences.notificationPrefs: NotificationPrefs
             automationDone = bool(PreferenceKeys.NOTIFY_AUTOMATION_DONE) ?: defaults.automationDone,
             automationError = bool(PreferenceKeys.NOTIFY_AUTOMATION_ERROR)
                 ?: defaults.automationError,
+            weeklyRecap = bool(PreferenceKeys.NOTIFY_WEEKLY_RECAP) ?: defaults.weeklyRecap,
             liveActivity = bool(PreferenceKeys.NOTIFY_LIVE_ACTIVITY) ?: defaults.liveActivity
         )
     }
@@ -43,7 +46,7 @@ val AppPreferences.notificationPrefs: NotificationPrefs
 fun AppPreferences.notificationPrefsFlow(): Flow<NotificationPrefs> =
     data.map { notificationPrefs }.distinctUntilChanged()
 
-/** Stores every kind, as iOS does on any change, so all eight keys hold a value after. */
+/** Stores every kind, as iOS does on any change, so all nine keys hold a value after. */
 fun AppPreferences.setNotificationPrefs(prefs: NotificationPrefs) {
     setBool(PreferenceKeys.NOTIFY_ENABLED, prefs.enabled)
     setBool(PreferenceKeys.NOTIFY_WAITING, prefs.waiting)
@@ -52,5 +55,6 @@ fun AppPreferences.setNotificationPrefs(prefs: NotificationPrefs) {
     setBool(PreferenceKeys.NOTIFY_AUTOMATION_STARTED, prefs.automationStarted)
     setBool(PreferenceKeys.NOTIFY_AUTOMATION_DONE, prefs.automationDone)
     setBool(PreferenceKeys.NOTIFY_AUTOMATION_ERROR, prefs.automationError)
+    setBool(PreferenceKeys.NOTIFY_WEEKLY_RECAP, prefs.weeklyRecap)
     setBool(PreferenceKeys.NOTIFY_LIVE_ACTIVITY, prefs.liveActivity)
 }

@@ -55,10 +55,13 @@ use tungstenite::{accept, Error as WsError, Message, WebSocket};
 
 mod answer;
 mod live;
+mod recap_push;
 mod relay;
 pub(crate) mod relayed;
 mod tab_menu;
 pub(crate) mod tabs;
+
+pub(crate) use recap_push::send_weekly_recap;
 
 // One phone connection's transport. The acceptor handles both this build's
 // TLS-wrapped clients (remotetls.rs) and, transitionally, the plaintext clients
@@ -182,11 +185,12 @@ struct PushPreferences {
     automation_started: bool,
     automation_done: bool,
     automation_error: bool,
+    weekly_recap: bool,
 }
 
 impl PushPreferences {
     /// A registration's `notify` object: a missing object or any missing field
-    /// keeps agent alerts on and automation alerts off.
+    /// keeps agent alerts on and automation and weekly recap alerts off.
     fn from_notify(notify: Option<&Value>) -> Self {
         let pref = |name: &str, fallback: bool| {
             notify
@@ -201,6 +205,7 @@ impl PushPreferences {
             automation_started: pref("automationStarted", false),
             automation_done: pref("automationDone", false),
             automation_error: pref("automationError", false),
+            weekly_recap: pref("weeklyRecap", false),
         }
     }
 }
@@ -5225,6 +5230,7 @@ fn apply_push_token(devices: &mut [Device], device_id: &str, reg: &PushRegistrat
             d.push_automation_started = reg.prefs.automation_started;
             d.push_automation_done = reg.prefs.automation_done;
             d.push_automation_error = reg.prefs.automation_error;
+            d.push_weekly_recap = reg.prefs.weekly_recap;
         } else if d.apns_token == reg.token && d.push_platform == reg.platform {
             d.apns_token.clear();
             d.apns_env.clear();
@@ -5324,6 +5330,7 @@ struct PushDevice {
     push_automation_started: bool,
     push_automation_done: bool,
     push_automation_error: bool,
+    push_weekly_recap: bool,
 }
 
 impl PushDevice {
@@ -5356,6 +5363,7 @@ impl PushDevice {
             || self.push_automation_started
             || self.push_automation_done
             || self.push_automation_error
+            || self.push_weekly_recap
     }
 }
 
@@ -5454,6 +5462,7 @@ fn make_push_device(d: &Device) -> Option<PushDevice> {
         push_automation_started: d.push_automation_started,
         push_automation_done: d.push_automation_done,
         push_automation_error: d.push_automation_error,
+        push_weekly_recap: d.push_weekly_recap,
     })
 }
 
@@ -5928,6 +5937,17 @@ fn push_automation_notification(
         crate::status::now_millis(),
     );
 
+    send_alerts(hub, relay, recipients, plaintext, collapse_id);
+}
+
+/// Seals `plaintext` to each recipient and posts it to the relay, off this thread.
+fn send_alerts(
+    hub: &RemoteHub,
+    relay: String,
+    recipients: Vec<PushDevice>,
+    plaintext: String,
+    collapse_id: String,
+) {
     let hub = (*hub).clone();
     std::thread::spawn(move || {
         let Some(client) = relay_client() else {
@@ -7787,6 +7807,7 @@ mod tests {
             automation_started: true,
             automation_done: false,
             automation_error: true,
+            weekly_recap: true,
         };
         let reg = |token: &str| PushRegistration {
             platform: "",
@@ -7813,6 +7834,7 @@ mod tests {
             ),
             (true, false, true)
         );
+        assert!(new.push_weekly_recap);
 
         // The stale record survives but loses its push identity, so it stops pushing.
         let old = devices.iter().find(|d| d.id == "old").unwrap();
@@ -7929,6 +7951,7 @@ mod tests {
                 push_automation_started: false,
                 push_automation_done: true,
                 push_automation_error: false,
+                push_weekly_recap: true,
                 live_updates: true,
                 live_token: String::new(),
                 live_env: String::new(),
@@ -7972,6 +7995,7 @@ mod tests {
         assert!(back.devices[0].push_error);
         assert!(!back.devices[0].push_automation_started);
         assert!(back.devices[0].push_automation_done);
+        assert!(back.devices[0].push_weekly_recap);
         assert!(!back.devices[0].push_automation_error);
     }
 
@@ -8061,6 +8085,7 @@ mod tests {
         assert_eq!((apns.platform, apns.env.as_str()), ("", "sandbox"));
         assert!(apns.prefs.waiting && apns.prefs.done && apns.prefs.error);
         assert!(!apns.prefs.automation_started);
+        assert!(!apns.prefs.weekly_recap, "older phones can't show the recap");
 
         // `apnsToken` stays APNs even if it names another platform.
         assert!(push_registration(
@@ -8074,10 +8099,11 @@ mod tests {
             &json!({
                 "t": "pushToken", "platform": "fcm", "token": "cZ1:APA91b-x_y",
                 "env": "production", "key": key,
-                "notify": { "waiting": false, "automationDone": true },
+                "notify": { "waiting": false, "automationDone": true, "weeklyRecap": true },
             }),
         )
         .unwrap();
+        assert!(fcm.prefs.weekly_recap);
         assert_eq!(fcm.platform, PUSH_PLATFORM_FCM);
         assert_eq!(fcm.token, "cZ1:APA91b-x_y");
         assert_eq!(fcm.env, "", "FCM has no environment");
@@ -8463,6 +8489,7 @@ mod tests {
             push_automation_started: false,
             push_automation_done: false,
             push_automation_error: false,
+            push_weekly_recap: false,
         };
         let jobs = [STATUS_WAITING, STATUS_DONE, STATUS_ERROR];
 
@@ -8495,6 +8522,7 @@ mod tests {
             push_automation_started: true,
             push_automation_done: false,
             push_automation_error: true,
+            push_weekly_recap: false,
         };
 
         assert!(dev.wants_automation("found-work"));

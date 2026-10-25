@@ -42,4 +42,6 @@
     <string name="notify_live">Show agents on the Lock Screen</string>
     <string name="notify_live_footer">While agents work, an ongoing notification shows them.</string>
     <string name="notify_automations_footer">Choose which automation outcomes send a notification when this app is closed.</string>
+    <string name="notify_weekly_recap">Weekly recap</string>
+    <string name="notify_weekly_recap_footer">Mondays, when your week in lpm is ready</string>
 </resources>

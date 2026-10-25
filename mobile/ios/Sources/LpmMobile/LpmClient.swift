@@ -1007,13 +1007,14 @@ final class LpmClient: NSObject {
     func sendApnsToken(token: String, env: String, key: String,
                        notifyWaiting: Bool, notifyDone: Bool, notifyError: Bool,
                        notifyAutomationStarted: Bool, notifyAutomationDone: Bool,
-                       notifyAutomationError: Bool) {
+                       notifyAutomationError: Bool, notifyWeeklyRecap: Bool) {
         send(Wire.apnsToken(token: token, env: env, key: key,
                             notifyWaiting: notifyWaiting, notifyDone: notifyDone,
                             notifyError: notifyError,
                             notifyAutomationStarted: notifyAutomationStarted,
                             notifyAutomationDone: notifyAutomationDone,
-                            notifyAutomationError: notifyAutomationError))
+                            notifyAutomationError: notifyAutomationError,
+                            notifyWeeklyRecap: notifyWeeklyRecap))
     }
     func answerAgent(_ answer: AgentAnswer, reqId: String) { send(Wire.answerAgent(answer, reqId: reqId)) }
     func sendLiveActivity(on: Bool, token: String?, env: String) {

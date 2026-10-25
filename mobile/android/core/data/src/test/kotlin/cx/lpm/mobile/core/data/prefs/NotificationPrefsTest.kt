@@ -7,7 +7,7 @@ import org.junit.Test
 
 class NotificationPrefsTest {
     @Test
-    fun `a fresh install wants every push except an automation starting, and live updates`() =
+    fun `a fresh install wants every push but an automation starting, and live updates`() =
         runTest {
             val prefs = AppPreferences(InMemoryDataStore(), backgroundScope)
             assertEquals(
@@ -19,6 +19,7 @@ class NotificationPrefsTest {
                     automationStarted = false,
                     automationDone = true,
                     automationError = true,
+                    weeklyRecap = true,
                     liveActivity = true
                 ),
                 prefs.notificationPrefs
@@ -30,7 +31,12 @@ class NotificationPrefsTest {
         val store = InMemoryDataStore()
         val prefs = AppPreferences(store, backgroundScope)
         prefs.setNotificationPrefs(
-            NotificationPrefs(enabled = false, done = false, liveActivity = false)
+            NotificationPrefs(
+                enabled = false,
+                done = false,
+                weeklyRecap = false,
+                liveActivity = false
+            )
         )
         testScheduler.runCurrent()
 
@@ -42,9 +48,15 @@ class NotificationPrefsTest {
         assertEquals(false, reloaded.bool("lpm.notify.automation.started"))
         assertEquals(true, reloaded.bool("lpm.notify.automation.done"))
         assertEquals(true, reloaded.bool("lpm.notify.automation.error"))
+        assertEquals(false, reloaded.bool("lpm.notify.weeklyRecap"))
         assertEquals(false, reloaded.bool("lpm.notify.liveActivity"))
         assertEquals(
-            NotificationPrefs(enabled = false, done = false, liveActivity = false),
+            NotificationPrefs(
+                enabled = false,
+                done = false,
+                weeklyRecap = false,
+                liveActivity = false
+            ),
             reloaded.notificationPrefs
         )
     }

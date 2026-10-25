@@ -25,6 +25,9 @@ export function AgentUsageMachines(days, machine, fresh) {
 export function WeeklyRecap(week, fresh) {
   return invoke("weekly_recap", { week, fresh });
 }
+export function PushWeeklyRecap(week, title, body) {
+  return invoke("push_weekly_recap", { week, title, body });
+}
 export function CopyPngImage(b64Data) {
   return invoke("copy_png_image", { b64Data });
 }

@@ -243,6 +243,9 @@ final class AppModel {
     var notifyAutomationError: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationErrorKey) {
         didSet { persistNotifyPrefs(); syncPushRegistration() }
     }
+    var notifyWeeklyRecap: Bool = AppModel.loadBoolPref(AppModel.notifyWeeklyRecapKey) {
+        didSet { persistNotifyPrefs(); syncPushRegistration() }
+    }
     // The live Mac's agents on the Lock Screen while any is at work.
     var liveActivitiesEnabled: Bool = AppModel.loadBoolPref(AppModel.liveActivitiesKey) {
         didSet {
@@ -1432,7 +1435,8 @@ final class AppModel {
                              notifyError: payload.error,
                              notifyAutomationStarted: payload.automationStarted,
                              notifyAutomationDone: payload.automationDone,
-                             notifyAutomationError: payload.automationError)
+                             notifyAutomationError: payload.automationError,
+                             notifyWeeklyRecap: payload.weeklyRecap)
     }
 
     /// What every Mac is told: the APNs token, this build's APNs environment, the
@@ -1449,7 +1453,8 @@ final class AppModel {
             error: notifyEnabled && notifyError,
             automationStarted: notifyEnabled && notifyAutomationStarted,
             automationDone: notifyEnabled && notifyAutomationDone,
-            automationError: notifyEnabled && notifyAutomationError)
+            automationError: notifyEnabled && notifyAutomationError,
+            weeklyRecap: notifyEnabled && notifyWeeklyRecap)
     }
 
     /// Register with every saved Mac the live session doesn't cover. Skipped in Demo
@@ -1502,6 +1507,7 @@ final class AppModel {
     static let notifyAutomationStartedKey = "lpm.notify.automation.started"
     static let notifyAutomationDoneKey = "lpm.notify.automation.done"
     static let notifyAutomationErrorKey = "lpm.notify.automation.error"
+    static let notifyWeeklyRecapKey = "lpm.notify.weeklyRecap"
     static let liveActivitiesKey = "lpm.notify.liveActivity"
 
     // Absent keys default to enabled, so a fresh install opts in to every push type
@@ -1521,6 +1527,7 @@ final class AppModel {
         d.set(notifyAutomationStarted, forKey: Self.notifyAutomationStartedKey)
         d.set(notifyAutomationDone, forKey: Self.notifyAutomationDoneKey)
         d.set(notifyAutomationError, forKey: Self.notifyAutomationErrorKey)
+        d.set(notifyWeeklyRecap, forKey: Self.notifyWeeklyRecapKey)
     }
 
     // Terminal wiring used by TerminalScreen. Every screen subscribes on open, so

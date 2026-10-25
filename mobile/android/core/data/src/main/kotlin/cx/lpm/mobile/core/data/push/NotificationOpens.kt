@@ -13,7 +13,7 @@ data class NotificationOpenTarget(
     val kind: Kind,
     val itemId: String?
 ) {
-    enum class Kind { Project, Terminal, Automation }
+    enum class Kind { Project, Terminal, Automation, Recap }
 
     companion object {
         const val PROJECT = "project"
@@ -22,8 +22,20 @@ data class NotificationOpenTarget(
         const val AUTOMATION_ID = "automationId"
         const val SERVER_ID = "serverId"
 
-        /** Reads the extras a posted notification carries; null without a project. */
+        /**
+         * Reads the extras a posted notification carries; null without a project,
+         * except for the weekly recap, which belongs to the Mac as a whole.
+         */
         fun from(extra: (String) -> String?): NotificationOpenTarget? {
+            val serverId = extra(SERVER_ID)?.takeIf { it.isNotEmpty() }
+            if (extra(TARGET) == PushRecap.TARGET) {
+                return NotificationOpenTarget(
+                    serverId = serverId,
+                    project = "",
+                    kind = Kind.Recap,
+                    itemId = null
+                )
+            }
             val project = extra(PROJECT)?.takeIf { it.isNotEmpty() } ?: return null
             val itemId = when (extra(TARGET)) {
                 "terminal" -> extra(TERMINAL_ID)
@@ -36,7 +48,7 @@ data class NotificationOpenTarget(
                 else -> Kind.Automation
             }
             return NotificationOpenTarget(
-                serverId = extra(SERVER_ID)?.takeIf { it.isNotEmpty() },
+                serverId = serverId,
                 project = project,
                 kind = kind,
                 itemId = itemId

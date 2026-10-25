@@ -18,6 +18,7 @@ import cx.lpm.mobile.core.data.push.AgentAnswerAction
 import cx.lpm.mobile.core.data.push.NotificationOpenTarget
 import cx.lpm.mobile.core.data.push.PushAlert
 import cx.lpm.mobile.core.data.push.PushKind
+import cx.lpm.mobile.core.data.push.PushRecap
 
 /** What an alert's notification carries to be opened, answered and withdrawn later. */
 internal object AlertExtras {
@@ -110,6 +111,22 @@ internal fun Context.alertNotification(
         .addExtras(extras)
     if (answers) answerActions(alert, tag).forEach(builder::addAction)
     return builder
+}
+
+/** The weekly recap as the Mac words it; a tap opens that Mac's recap on last week. */
+internal fun Context.recapNotification(recap: PushRecap, tag: String): NotificationCompat.Builder {
+    val extras = Bundle().apply {
+        putString(NotificationOpenTarget.SERVER_ID, recap.serverId)
+        putString(NotificationOpenTarget.TARGET, PushRecap.TARGET)
+    }
+    return NotificationCompat.Builder(this, PushKind.WeeklyRecap.channelId)
+        .setSmallIcon(R.drawable.ic_stat_lpm)
+        .setContentTitle(recap.title)
+        .setContentText(recap.body)
+        .setStyle(NotificationCompat.BigTextStyle().bigText(recap.body))
+        .setAutoCancel(true)
+        .setContentIntent(openIntent(tag.hashCode(), extras))
+        .addExtras(extras)
 }
 
 internal fun Context.mayPostNotifications(): Boolean {

@@ -74,7 +74,8 @@ sealed interface WireSession {
         notifyError: Boolean,
         notifyAutomationStarted: Boolean,
         notifyAutomationDone: Boolean,
-        notifyAutomationError: Boolean
+        notifyAutomationError: Boolean,
+        notifyWeeklyRecap: Boolean
     ): String = frame("apnsToken") {
         put("token", token)
         put("env", env)
@@ -86,6 +87,7 @@ sealed interface WireSession {
             put("automationStarted", notifyAutomationStarted)
             put("automationDone", notifyAutomationDone)
             put("automationError", notifyAutomationError)
+            put("weeklyRecap", notifyWeeklyRecap)
         }
     }
 
@@ -103,7 +105,8 @@ sealed interface WireSession {
         notifyError: Boolean,
         notifyAutomationStarted: Boolean,
         notifyAutomationDone: Boolean,
-        notifyAutomationError: Boolean
+        notifyAutomationError: Boolean,
+        notifyWeeklyRecap: Boolean
     ): String = frame("pushToken") {
         put("platform", platform)
         put("token", token)
@@ -116,6 +119,7 @@ sealed interface WireSession {
             put("automationStarted", notifyAutomationStarted)
             put("automationDone", notifyAutomationDone)
             put("automationError", notifyAutomationError)
+            put("weeklyRecap", notifyWeeklyRecap)
         }
     }
 

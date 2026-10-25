@@ -46,7 +46,7 @@ export function SidebarFooterMore({ entries, badge, hints, isDefault, onMove, on
   const dividerAt = entries.findIndex((entry) => NAV_UTILITY_IDS.includes(entry.id));
 
   return (
-    <div ref={ref} className="relative shrink-0">
+    <div ref={ref} className="relative min-w-0 flex-1">
       <button
         onClick={() => (open ? close() : setOpen(true))}
         className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
@@ -60,7 +60,7 @@ export function SidebarFooterMore({ entries, badge, hints, isDefault, onMove, on
       >
         <MoreHorizontalIcon />
         More
-        <span className="ml-auto flex items-center">{badge}</span>
+        <span className="flex items-center">{badge}</span>
       </button>
       {open && (
         <div className={`absolute bottom-full left-0 z-[80] mb-1.5 w-full min-w-[12rem] px-1 ${MENU_PANEL_CLASS}`}>

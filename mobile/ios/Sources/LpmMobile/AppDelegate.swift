@@ -5,6 +5,7 @@ enum NotificationTargetKind: String {
     case project
     case terminal
     case automation
+    case recap
 }
 
 struct NotificationOpenTarget: Equatable {
@@ -14,16 +15,24 @@ struct NotificationOpenTarget: Equatable {
     let itemId: String?
 
     init?(userInfo: [AnyHashable: Any]) {
-        guard let project = userInfo["project"] as? String, !project.isEmpty else { return nil }
         let serverId = (userInfo["serverId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         let target = NotificationTargetKind(rawValue: userInfo["target"] as? String ?? "") ?? .project
+        // The weekly recap belongs to the Mac, not to one of its projects.
+        if target == .recap {
+            self.serverId = serverId
+            self.project = ""
+            self.kind = .recap
+            self.itemId = (userInfo["week"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            return
+        }
+        guard let project = userInfo["project"] as? String, !project.isEmpty else { return nil }
         let itemId: String?
         switch target {
         case .terminal:
             itemId = (userInfo["terminalId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         case .automation:
             itemId = (userInfo["automationId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-        case .project:
+        case .project, .recap:
             itemId = nil
         }
         self.serverId = serverId

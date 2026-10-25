@@ -14,6 +14,7 @@ private enum NotificationRoute: Hashable {
     case automations
     case terminal(project: String, id: String)
     case automation(project: String, id: String)
+    case weeklyRecap
 }
 
 // Root view: show pairing until at least one Mac is saved, then the projects list.
@@ -106,6 +107,8 @@ struct ContentView: View {
             guard let id = target.itemId else { return }
             next.append(NotificationRoute.automations)
             next.append(NotificationRoute.automation(project: target.project, id: id))
+        case .recap:
+            next.append(NotificationRoute.weeklyRecap)
         }
         path = next
         model.notificationOpens += 1
@@ -409,6 +412,8 @@ struct ProjectsView: View {
                 NotificationTerminalDestination(projectName: project, terminalId: id)
             case .automation(let project, let id):
                 AutomationDetailView(project: project, jobId: id)
+            case .weeklyRecap:
+                WeeklyRecapScreen()
             }
         }
         // A bar above the list only for a problem with a fix on this iPhone. A

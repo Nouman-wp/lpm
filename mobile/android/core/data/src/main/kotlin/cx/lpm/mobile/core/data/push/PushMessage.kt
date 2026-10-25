@@ -55,7 +55,8 @@ enum class PushKind {
     Error,
     AutomationStarted,
     AutomationDone,
-    AutomationError
+    AutomationError,
+    WeeklyRecap
 }
 
 /**

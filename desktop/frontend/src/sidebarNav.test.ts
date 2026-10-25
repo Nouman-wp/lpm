@@ -65,7 +65,6 @@ describe("menuNavItems", () => {
       "recap",
       "mobile",
       "settings",
-      "feedback",
       "tutorial",
     ]);
     expect(menuNavItems(NAV_ITEM_IDS)).toEqual([]);

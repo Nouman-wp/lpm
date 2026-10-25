@@ -2,8 +2,9 @@
 // node register.js <lesson folder or slug> <video id or youtu.be link>
 // After Publish: records the upload in the lesson folder (published.json),
 // puts the link on the lesson's line in YOUTUBE_PLAYLIST.md (appending the
-// line when it is not there yet), and prints the entry for the website's
-// lesson registry (website/lib/youtube-lessons.ts) to paste in.
+// line when it is not there yet), and prints the entries for the website's
+// lesson registry (website/lib/youtube-lessons.ts) and the desktop app's
+// lesson list (desktop/frontend/src/lessons.ts) to paste in.
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -58,4 +59,10 @@ console.log(`\nwebsite/lib/youtube-lessons.ts entry (add it to LESSONS, then lin
     description:
       ${JSON.stringify(summary)},
     uploadDate: "${today}T09:00:00+00:00",
+  },`);
+console.log(`\ndesktop/frontend/src/lessons.ts entry (add it at the top of LESSONS; Send feedback shows the first four):
+  {
+    id: "${id}",
+    title: ${JSON.stringify(lesson.title)},
+    published: "${today}",
   },`);

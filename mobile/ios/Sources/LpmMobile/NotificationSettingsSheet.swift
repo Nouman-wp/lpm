@@ -73,6 +73,14 @@ struct NotificationSettingsView: View {
             .opacity(model.notifyEnabled ? 1 : 0.4)
 
             Section {
+                Toggle("Weekly recap", isOn: $model.notifyWeeklyRecap)
+            } footer: {
+                Text("Mondays, when your week in lpm is ready")
+            }
+            .disabled(!model.notifyEnabled)
+            .opacity(model.notifyEnabled ? 1 : 0.4)
+
+            Section {
                 Toggle("Show agents on the Lock Screen", isOn: $model.liveActivitiesEnabled)
             } header: {
                 Text("Live Activity")

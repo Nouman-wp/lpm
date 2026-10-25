@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { PushWeeklyRecap } from "../../../bridge/commands";
 import { IS_MIRROR_WINDOW } from "../../mirror";
 import { toast } from "../../notifications/toast";
 import { useSettingsStore } from "../../store/settings";
@@ -42,6 +43,11 @@ export function useWeeklyRecapToast(): void {
           action: { label: "View & share", onClick: () => useWeeklyRecapStore.getState().show("last") },
           cancel: { label: "Not now", onClick: () => {} },
         });
+        void PushWeeklyRecap(
+          week,
+          "Your week in lpm is ready",
+          `${view.hours} of agents working for you · ${view.range}`,
+        ).catch(() => {});
       } catch {
         // Read again at the next check.
       } finally {

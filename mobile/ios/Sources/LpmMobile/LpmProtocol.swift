@@ -335,12 +335,13 @@ enum Wire {
     static func apnsToken(token: String, env: String, key: String,
                           notifyWaiting: Bool, notifyDone: Bool, notifyError: Bool,
                           notifyAutomationStarted: Bool, notifyAutomationDone: Bool,
-                          notifyAutomationError: Bool) -> String {
+                          notifyAutomationError: Bool, notifyWeeklyRecap: Bool) -> String {
         json(["t": "apnsToken", "token": token, "env": env, "key": key,
               "notify": ["waiting": notifyWaiting, "done": notifyDone, "error": notifyError,
                          "automationStarted": notifyAutomationStarted,
                          "automationDone": notifyAutomationDone,
-                         "automationError": notifyAutomationError]])
+                         "automationError": notifyAutomationError,
+                         "weeklyRecap": notifyWeeklyRecap]])
     }
 
     /// Answer the agent a notification is about, naming the report it answers.

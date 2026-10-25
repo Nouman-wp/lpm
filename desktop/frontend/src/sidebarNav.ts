@@ -12,7 +12,6 @@ export const NAV_ITEM_IDS = [
   "recap",
   "mobile",
   "settings",
-  "feedback",
   "tutorial",
 ] as const;
 
@@ -20,7 +19,7 @@ export type NavItemId = (typeof NAV_ITEM_IDS)[number];
 
 // The items the menu keeps below its divider — the app itself rather than a
 // view of your work. They only get a divider while both sides still have rows.
-export const NAV_UTILITY_IDS: readonly NavItemId[] = ["settings", "feedback", "tutorial"];
+export const NAV_UTILITY_IDS: readonly NavItemId[] = ["settings", "tutorial"];
 
 // The lesson playlist the Tutorial row opens in the browser.
 export const TUTORIAL_PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLGgzBw1aFVk8";

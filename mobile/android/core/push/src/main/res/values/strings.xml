@@ -9,6 +9,7 @@
     <string name="push_channel_automation_started">Started</string>
     <string name="push_channel_automation_done">Finished</string>
     <string name="push_channel_automation_error">Error or timeout</string>
+    <string name="push_channel_weekly_recap">Weekly recap</string>
     <string name="push_channel_live">Agents at work</string>
 
     <!-- Answering from a notification. -->
