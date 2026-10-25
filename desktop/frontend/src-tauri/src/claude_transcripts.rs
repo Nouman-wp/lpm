@@ -73,8 +73,10 @@ pub fn copy_claude_session_for_fork(
     let file = format!("{session_id}.jsonl");
     // A fork is a new session, so it runs on the account the destination's
     // new sessions use; the transcript has to be there for it to resume.
-    let (_, src) = crate::claude_dirs::find_transcript(&src_root, &session_id)
-        .ok_or("session transcript not found")?;
+    let (_, src) = crate::claude_dirs::find_transcript(&src_root, &session_id).ok_or(
+        "no saved conversation yet — Claude Code saves one only after its first message. \
+         Send this tab a message, then fork it.",
+    )?;
     let dest_env = crate::claude_pool::spawn_env(&dest_project, None, true).env;
     let dst_dir = claude_sessions_dir(dest_env, &dst_root);
     if dst_dir.join(&file) == src {

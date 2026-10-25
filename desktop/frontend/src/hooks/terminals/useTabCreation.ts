@@ -1,4 +1,5 @@
 import { useCallback, type RefObject } from "react";
+import { toast } from "sonner";
 import {
   CopyClaudeSessionForFork,
   StartTerminal,
@@ -317,7 +318,8 @@ export function useTabCreation({
         id = tab.actionName
           ? await StartTerminalForRestore(projectName, tab.actionName)
           : await StartTerminal(projectName);
-      } catch {
+      } catch (err) {
+        toast.error(`Couldn't fork the session: ${String(err)}`);
         return;
       }
       addTerminal(
@@ -352,6 +354,16 @@ export function useTabCreation({
       const launch = buildForkLaunch(tab.resumeCmd);
       if (!launch) return;
       const sessionId = claudeSessionIdOf(tab.resumeCmd);
+      // The same copy a fork into a tab makes: it fails while Claude hasn't
+      // saved the conversation, before a duplicate is made for nothing.
+      if (sessionId) {
+        try {
+          await CopyClaudeSessionForFork(projectName, projectName, sessionId);
+        } catch (err) {
+          toast.error(`Couldn't fork the session: ${String(err)}`);
+          return;
+        }
+      }
       await useAppStore.getState().bulkDuplicate(projectName, 1, {
         excludeUncommitted: false,
         reinstallDeps: false,
