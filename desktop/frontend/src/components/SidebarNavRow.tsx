@@ -28,8 +28,7 @@ export interface SidebarNavEntry {
   label: string;
   icon: ReactNode;
   active: boolean;
-  // The row's box, for anything the row opens beside itself.
-  onSelect: (anchor: DOMRect) => void;
+  onSelect: () => void;
   // Badges and counts that ride on the right of the row.
   trailing?: ReactNode;
   description?: string;
@@ -69,7 +68,7 @@ export function SidebarNavRow({ entry, menuOpen, onOpenMenu }: SidebarNavRowProp
     <div className="group relative flex w-full items-center">
       <button
         type="button"
-        onClick={(e) => entry.onSelect(e.currentTarget.getBoundingClientRect())}
+        onClick={entry.onSelect}
         onContextMenu={(e) => {
           e.preventDefault();
           onOpenMenu({ x: e.clientX, y: e.clientY });

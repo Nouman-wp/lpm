@@ -6,7 +6,6 @@
 // the footer exactly as it was.
 export const NAV_ITEM_IDS = [
   "terminals",
-  "notifications",
   "automations",
   "usage",
   "stats",
@@ -25,10 +24,9 @@ export const NAV_UTILITY_IDS: readonly NavItemId[] = ["settings", "feedback", "t
 // The lesson playlist the Tutorial row opens in the browser.
 export const TUTORIAL_PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLGgzBw1aFVk8";
 
-// Terminals and Notifications start out in the open: a shell for anything not
-// tied to a project is reached often enough that a menu hop is a tax, and the
-// notification count has to be seen to be any use.
-export const DEFAULT_SIDEBAR_NAV: readonly NavItemId[] = ["terminals", "notifications"];
+// Terminals start out in the open: a shell for anything not tied to a project
+// is reached often enough that a menu hop is a tax.
+export const DEFAULT_SIDEBAR_NAV: readonly NavItemId[] = ["terminals"];
 
 export function isNavItemId(value: unknown): value is NavItemId {
   return (

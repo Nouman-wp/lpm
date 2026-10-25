@@ -1,6 +1,5 @@
 import type { AgentState } from "./agentStatus";
 import { displayNameForProjectName } from "./components/ProjectNameDisplay";
-import { useNotificationHistory } from "./notifications/history";
 import { toast } from "./notifications/toast";
 import type { NotificationEvent } from "./notifications/types";
 import { projectAgentRows, type SidebarAgentRow } from "./sidebarAgents";
@@ -72,8 +71,7 @@ function projectLabel(project: string): string {
 }
 
 /** A toast for an agent that needs you, finished or stopped in a tab you're not
- *  looking at — the in-app counterpart of the system banner. The toast module
- *  keeps it to the history when its event is off in the app. Says whether one
+ *  looking at — the in-app counterpart of the system banner. Says whether one
  *  was told. */
 function announceAgent({ project, row }: AgentArrival): boolean {
   const { event, kind, verb } = NOTABLE[row.state];
@@ -97,9 +95,7 @@ export function watchAgents(): () => void {
   const shown = new Set<string>();
   let inputs: unknown[] = [];
 
-  // A wait that ended needs nobody any more, so the bell stops counting it too.
   const retire = (id: string) => {
-    useNotificationHistory.getState().markRead(id);
     if (shown.delete(id)) toast.dismiss(id);
   };
 

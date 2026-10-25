@@ -73,8 +73,7 @@ describe("menuNavItems", () => {
 
 describe("isDefaultSidebarNav", () => {
   it("recognizes the default and rejects any change to it", () => {
-    expect(isDefaultSidebarNav(["terminals", "notifications"])).toBe(true);
-    expect(isDefaultSidebarNav(["terminals"])).toBe(false);
+    expect(isDefaultSidebarNav(["terminals"])).toBe(true);
     expect(isDefaultSidebarNav([])).toBe(false);
     expect(isDefaultSidebarNav(["terminals", "stats"])).toBe(false);
     expect(isDefaultSidebarNav(["stats"])).toBe(false);

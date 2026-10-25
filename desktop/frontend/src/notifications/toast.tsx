@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { toast as sonner } from "sonner";
 import { allowsChannel } from "./channels";
-import { useNotificationHistory } from "./history";
 import { findLiveToast, useLiveToasts } from "./liveToasts";
 import { ToastCard } from "./ToastCard";
 import { plainText, splitErrorMessage } from "./toastText";
@@ -9,8 +8,6 @@ import { holdsToasts, whenToastsReleased } from "./typingHold";
 import type { ToastId, ToastKind, ToastModel, ToastOptions } from "./types";
 
 const DEFAULT_DURATION = 5000;
-// Raw output kept for the bell; a long stderr is cut, the card keeps it whole.
-const HISTORY_DETAILS_MAX = 16_000;
 
 /** The work's toast: `loading` with `description` while it runs, then `success`
  *  or `error`, the failure alone offering `retry`. */
@@ -70,31 +67,10 @@ function asRepeat(model: ToastModel): ToastModel {
     : model;
 }
 
-function record(model: ToastModel) {
-  if (model.kind === "loading") return;
-  const { id, kind, quote, tag, event, actions, retry, count } = model;
-  useNotificationHistory.getState().record({
-    id,
-    kind,
-    quote,
-    tag,
-    event,
-    actions,
-    retry,
-    count,
-    title: plainText(model.title),
-    description: plainText(model.description) || undefined,
-    details: model.details?.slice(0, HISTORY_DETAILS_MAX),
-    at: model.shownAt,
-  });
-}
-
 function forget(id: ToastId) {
-  const model = findLiveToast(id);
   keys.delete(id);
   useLiveToasts.getState().drop(id);
   held = held.filter((m) => m.id !== id);
-  if (model?.kind === "loading") useNotificationHistory.getState().remove(id);
 }
 
 function present(model: ToastModel) {
@@ -123,7 +99,6 @@ function toggleDetails(id: ToastId) {
 function show(kind: ToastKind, message: ReactNode, options: ToastOptions = {}): ToastId {
   const built = buildModel(kind, message, options);
   const model = options.id === undefined ? asRepeat(built) : built;
-  record(model);
 
   if (!allowsChannel(model.event, "inApp")) return model.id;
   const updating = findLiveToast(model.id) !== undefined;
@@ -165,8 +140,8 @@ function promise<T>(work: Promise<T>, messages: PromiseMessages<T>): ToastId {
   return id;
 }
 
-/** lpm's toasts: sonner draws and stacks them; this decides what they say,
- *  how long they stay, and keeps a copy in the history. */
+/** lpm's toasts: sonner draws and stacks them; this decides what they say
+ *  and how long they stay. */
 export const toast = Object.assign((message: ReactNode, options?: ToastOptions) => show("default", message, options), {
   success: (message: ReactNode, options?: ToastOptions) => show("success", message, options),
   info: (message: ReactNode, options?: ToastOptions) => show("info", message, options),

@@ -8,7 +8,6 @@ vi.mock("sonner", () => ({ toast: sonner }));
 const settings = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
 vi.mock("../store/settings", () => ({ getSettings: () => settings.current }));
 
-import { useNotificationHistory } from "./history";
 import { findLiveToast, useLiveToasts } from "./liveToasts";
 import { toast } from "./toast";
 
@@ -18,7 +17,6 @@ describe("toast", () => {
   beforeEach(() => {
     settings.current = {};
     useLiveToasts.setState({ toasts: [] });
-    useNotificationHistory.getState().clear();
   });
 
   afterEach(() => {
@@ -42,7 +40,6 @@ describe("toast", () => {
     expect(second).toBe(first);
     expect(useLiveToasts.getState().toasts).toHaveLength(1);
     expect(findLiveToast(first)?.count).toBe(2);
-    expect(useNotificationHistory.getState().entries[0]).toMatchObject({ id: first, count: 2 });
   });
 
   it("updates a toast in place when it's shown again under its id", () => {
@@ -50,15 +47,13 @@ describe("toast", () => {
     toast.success("Pulled 3 commits", { id });
 
     expect(useLiveToasts.getState().toasts).toEqual([expect.objectContaining({ id, kind: "success", count: 1 })]);
-    expect(useNotificationHistory.getState().entries.map((e) => e.title)).toEqual(["Pulled 3 commits"]);
   });
 
-  it("keeps news turned off in the app out of the corner but in the history", () => {
+  it("keeps news turned off in the app out of the corner", () => {
     settings.current = { notificationChannels: { autoPull: { inApp: false } } };
     toast.success("Pulled 2 projects", { event: "autoPull" });
 
     expect(sonner.custom).not.toHaveBeenCalled();
-    expect(useNotificationHistory.getState().entries[0]).toMatchObject({ title: "Pulled 2 projects", event: "autoPull" });
   });
 
   it("holds toasts while the composer is being typed in", () => {

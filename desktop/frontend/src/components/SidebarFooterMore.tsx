@@ -71,9 +71,9 @@ export function SidebarFooterMore({ entries, badge, hints, isDefault, onMove, on
                 entry={{
                   ...entry,
                   agents: undefined,
-                  onSelect: (anchor) => {
+                  onSelect: () => {
                     close();
-                    entry.onSelect(anchor);
+                    entry.onSelect();
                   },
                 }}
                 menuOpen={rowMenu?.entry.id === entry.id}
