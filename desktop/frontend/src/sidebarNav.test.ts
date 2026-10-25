@@ -62,6 +62,7 @@ describe("menuNavItems", () => {
       "automations",
       "usage",
       "stats",
+      "recap",
       "mobile",
       "settings",
       "feedback",

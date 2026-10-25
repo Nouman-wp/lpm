@@ -10,6 +10,9 @@ export const CONFIG_PATH = "/config";
 export const PRIVACY_PATH = "/privacy";
 export const TERMS_PATH = "/terms";
 export const STATS_PATH = "/stats";
+// A weekly recap card someone posted from lpm; the image lives on the share relay.
+export const RECAP_PATH = "/w";
+export const RECAP_IMAGE_BASE = "https://lpm-share-relay.lpm-share-relay.workers.dev/recap";
 export const DEMO_ANCHOR = "#demo";
 export const LESSONS_ANCHOR = "#lessons";
 export const BEST_TERMINAL_MAC_PATH = "/best-terminal-for-mac";

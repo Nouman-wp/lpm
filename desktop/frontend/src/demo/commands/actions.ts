@@ -36,4 +36,12 @@ export const actionCommands: CommandMap = {
     play(start(projectName, actionName), (line) => emitEvent("action-bg-output", { runId, line })).then(
       () => null,
     ),
+  run_command: ({ cmd, runId }) => {
+    emitEvent("action-output", { runId, line: `$ ${cmd}` });
+    void play(undefined, (line) => emitEvent("action-output", { runId, line })).then(() =>
+      emitEvent("action-done", { runId, success: true }),
+    );
+    return null;
+  },
+  stop_command: () => null,
 };

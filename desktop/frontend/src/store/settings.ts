@@ -125,6 +125,12 @@ export interface Settings {
   // + and ⌘T open the agent, model and level popup instead of a terminal.
   pickAgentOnNewTab?: boolean;
   appTipsDismissed?: boolean;
+  // Last week's recap on Mondays: a card at the top of Stats and one toast.
+  // Unset means on.
+  weeklyRecap?: boolean;
+  // The week whose card was hidden from Stats, and the week already toasted.
+  weeklyRecapHidden?: string;
+  weeklyRecapToasted?: string;
   // The last Codex status line arranged by hand (no layout matches), kept so
   // switching to a layout and back doesn't lose it.
   codexStatusLineCustomItems?: string[];
@@ -239,6 +245,9 @@ function normalize(s: main.Settings): Settings {
       s.autoCloseComposerOnSend ?? defaults.autoCloseComposerOnSend,
     pickAgentOnNewTab: s.pickAgentOnNewTab,
     appTipsDismissed: s.appTipsDismissed,
+    weeklyRecap: s.weeklyRecap,
+    weeklyRecapHidden: s.weeklyRecapHidden || undefined,
+    weeklyRecapToasted: s.weeklyRecapToasted || undefined,
     codexStatusLineCustomItems: Array.isArray(s.codexStatusLineCustomItems)
       ? s.codexStatusLineCustomItems.filter(
           (item: unknown): item is string => typeof item === "string",

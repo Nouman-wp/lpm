@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Check, ChevronDown, CircleAlert, Copy, Loader2, RotateCcw, X } from "lucide-react";
+import { Check, ChevronDown, CircleAlert, CircleStop, Copy, Loader2, RotateCcw, Square, X } from "lucide-react";
 import { AnsiLine } from "../AnsiLine";
 import { failureText } from "../backgroundRunToastText";
 import { useSecondsClock } from "../../hooks/useSecondsClock";
@@ -7,6 +7,7 @@ import type { ActionRunCapture } from "../../hooks/actionRunCapture";
 import {
   RUN_CARD_AUTO_CLOSE_MS,
   RUN_CARD_WIDTH,
+  RUN_STOPPED_ERROR,
   findRunAnchor,
   placeRunCard,
   runDuration,
@@ -17,11 +18,17 @@ interface ActionRunCardProps {
   label: string;
   // The data-action-run of the button that started the run, which the card
   // opens next to.
-  runKey: string;
+  runKey?: string;
+  // Where the card opens instead, for a run no button started.
+  place?: (view: { width: number; height: number }) => RunCardPlacement;
   run: ActionRunCapture;
   startedAt: number;
   onClose: () => void;
   onRunAgain: () => void;
+  // Offered while the run is going, for one that may not end by itself.
+  onStop?: () => void;
+  // More output on screen at a size easier to read, for a wide card.
+  large?: boolean;
 }
 
 const SMALL_BUTTON =
@@ -30,7 +37,7 @@ const SMALL_BUTTON =
 // A quick action's output, next to its button and out of the way of the rest
 // of the app. A pass closes itself unless the pointer is on it; a failure
 // stays until it's closed.
-export function ActionRunCard({ label, runKey, run, startedAt, onClose, onRunAgain }: ActionRunCardProps) {
+export function ActionRunCard({ label, runKey = "", place: placeAt, run, startedAt, onClose, onRunAgain, onStop, large = false }: ActionRunCardProps) {
   const { lines, done, dropped, endedAt } = useSyncExternalStore(run.subscribe, run.snapshot);
   const now = useSecondsClock(done !== null);
   const [place, setPlace] = useState<RunCardPlacement | null>(null);
@@ -44,9 +51,12 @@ export function ActionRunCard({ label, runKey, run, startedAt, onClose, onRunAga
     closeRef.current = onClose;
   });
 
+  const placeAtRef = useRef(placeAt);
   useLayoutEffect(() => {
-    const update = () =>
-      setPlace(placeRunCard(findRunAnchor(runKey), { width: window.innerWidth, height: window.innerHeight }));
+    const update = () => {
+      const view = { width: window.innerWidth, height: window.innerHeight };
+      setPlace(placeAtRef.current ? placeAtRef.current(view) : placeRunCard(findRunAnchor(runKey), view));
+    };
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
@@ -94,10 +104,15 @@ export function ActionRunCard({ label, runKey, run, startedAt, onClose, onRunAga
     void navigator.clipboard.writeText(lines.join("\n")).then(() => setCopied(true));
   };
 
-  const state = done === null ? "running" : done.success ? "passed" : "failed";
+  const state =
+    done === null ? "running" : done.success ? "passed" : done.error === RUN_STOPPED_ERROR ? "stopped" : "failed";
   const took = runDuration((done ? (endedAt ?? now) : now) - startedAt);
-  const status =
-    state === "running" ? `Running · ${took}` : state === "passed" ? `Finished in ${took}` : `Failed after ${took}`;
+  const status = {
+    running: `Running · ${took}`,
+    passed: `Finished in ${took}`,
+    stopped: `Stopped after ${took}`,
+    failed: `Failed after ${took}`,
+  }[state];
 
   return (
     <div
@@ -115,6 +130,8 @@ export function ActionRunCard({ label, runKey, run, startedAt, onClose, onRunAga
             <Loader2 size={14} className="animate-spin text-[var(--text-muted)]" />
           ) : state === "passed" ? (
             <Check size={14} strokeWidth={2.5} className="text-[var(--accent-green)]" />
+          ) : state === "stopped" ? (
+            <CircleStop size={14} className="text-[var(--text-muted)]" />
           ) : (
             <CircleAlert size={14} className="text-[var(--accent-red)]" />
           )}
@@ -137,9 +154,9 @@ export function ActionRunCard({ label, runKey, run, startedAt, onClose, onRunAga
       )}
       <div
         ref={outputRef}
-        className={`mx-3 select-text overflow-y-auto rounded-lg bg-[var(--terminal-bg)] px-2.5 py-2 font-mono text-[10.5px] leading-relaxed text-[var(--terminal-fg)] ${
-          expanded ? "max-h-[50vh]" : "max-h-36"
-        }`}
+        className={`mx-3 select-text overflow-y-auto rounded-lg bg-[var(--terminal-bg)] px-2.5 py-2 font-mono leading-relaxed text-[var(--terminal-fg)] ${
+          large ? "text-[12px]" : "text-[10.5px]"
+        } ${expanded ? (large ? "max-h-[70vh]" : "max-h-[50vh]") : large ? "max-h-80" : "max-h-36"}`}
       >
         {dropped ? (
           <div className="text-[var(--text-muted)]">{dropped.toLocaleString()} earlier lines not shown</div>
@@ -151,10 +168,17 @@ export function ActionRunCard({ label, runKey, run, startedAt, onClose, onRunAga
         )}
       </div>
       <div className="flex items-center gap-1.5 px-3 pb-2.5 pt-2">
-        <button type="button" onClick={onRunAgain} disabled={state === "running"} className={SMALL_BUTTON}>
-          <RotateCcw size={12} />
-          Run again
-        </button>
+        {onStop && state === "running" ? (
+          <button type="button" onClick={onStop} className={SMALL_BUTTON}>
+            <Square size={11} />
+            Stop
+          </button>
+        ) : (
+          <button type="button" onClick={onRunAgain} disabled={state === "running"} className={SMALL_BUTTON}>
+            <RotateCcw size={12} />
+            Run again
+          </button>
+        )}
         <button type="button" onClick={copyOutput} disabled={lines.length === 0} className={SMALL_BUTTON}>
           {copied ? <Check size={12} className="text-[var(--accent-green)]" /> : <Copy size={12} />}
           {copied ? "Copied" : "Copy output"}

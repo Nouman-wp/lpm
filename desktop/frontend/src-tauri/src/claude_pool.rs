@@ -215,6 +215,34 @@ fn pick_for(
     )
 }
 
+fn resumed(resume: Option<(&str, &str)>) -> Option<Spawn> {
+    let (root, sid) = resume?;
+    let (dir, _) = crate::claude_dirs::find_transcript(root, sid)?;
+    Some(Spawn {
+        env: dir.kind.env(),
+        account: Some(dir.id),
+    })
+}
+
+/// Always this account; `""` is the main login.
+fn pinned(id: &str) -> Spawn {
+    let known_id = known(&[id.to_string()]).into_iter().next();
+    Spawn {
+        env: config::claude_env_for_account(Some(id)),
+        account: Some(known_id.unwrap_or_else(|| MAIN_LOGIN.into())),
+    }
+}
+
+/// Spawn-time decision for an automation's run: the account the automation
+/// names (`""` is the main login), unless this machine doesn't have it, which
+/// leaves it to the project like any scheduled run.
+pub fn job_spawn_env(project: &str, resume: Option<(&str, &str)>, account: Option<&str>) -> Spawn {
+    match account.filter(|id| id.is_empty() || !known(&[id.to_string()]).is_empty()) {
+        Some(id) => resumed(resume).unwrap_or_else(|| pinned(id)),
+        None => spawn_env(project, resume, false),
+    }
+}
+
 /// Spawn-time decision for one project. `resume` is (project root, session id)
 /// when the session continues an existing conversation. `switching` is false
 /// for scheduled jobs, which never switch accounts.
@@ -227,23 +255,12 @@ pub fn spawn_env(project: &str, resume: Option<(&str, &str)>, switching: bool) -
             account: None,
         };
     }
-    if let Some((root, sid)) = resume {
-        if let Some((dir, _)) = crate::claude_dirs::find_transcript(root, sid) {
-            return Spawn {
-                env: dir.kind.env(),
-                account: Some(dir.id),
-            };
-        }
+    if let Some(spawn) = resumed(resume) {
+        return spawn;
     }
     let (key, ids) = match src {
         Source::Remote => unreachable!(),
-        Source::Pinned(id) => {
-            let known_id = known(std::slice::from_ref(&id)).into_iter().next();
-            return Spawn {
-                env: config::claude_env_for_account(Some(&id)),
-                account: Some(known_id.unwrap_or_else(|| MAIN_LOGIN.into())),
-            };
-        }
+        Source::Pinned(id) => return pinned(&id),
         Source::Pool { key, ids } => (key, ids),
     };
     if !switching || !active(&file) {

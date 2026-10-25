@@ -38,6 +38,8 @@ jobs:
   ordered: { schedule: { manual: true }, run: { cmd: x }, machines: [this, Studio, any] }
   one: { schedule: { manual: true }, run: { cmd: x }, machines: aabbccdd }
   every: { schedule: { manual: true }, run: { cmd: x }, machines: [] }
+  pinned: { schedule: { manual: true }, run: { prompt: x, claudeAccount: work_2 } }
+  mainLogin: { schedule: { manual: true }, run: { prompt: x, claudeAccount: "" } }
 "#;
     assert_eq!(errors(ConfigKind::Project, source), Vec::<String>::new());
 }
@@ -61,6 +63,8 @@ fn rejects_what_the_app_would_refuse() {
         ("jobs:\n  a: { schedule: { manual: true }, run: { cmd: x, prompt: y } }", "config.jobs.a.run", "set only one of action, cmd or prompt"),
         ("jobs:\n  a: { schedule: { manual: true }, run: { cmd: x, quiet: true } }", "config.jobs.a.run.quiet", "quiet only goes with an AI prompt"),
         ("jobs:\n  a: { schedule: { manual: true }, run: { cmd: x, memory: true } }", "config.jobs.a.run.memory", "memory only goes with an AI prompt"),
+        ("jobs:\n  a: { schedule: { manual: true }, run: { cmd: x, claudeAccount: work } }", "config.jobs.a.run.claudeAccount", "claudeAccount only goes with an AI prompt"),
+        ("jobs:\n  a: { schedule: { manual: true }, run: { prompt: x, claudeAccount: a/b } }", "config.jobs.a.run.claudeAccount", "expected an account id of letters, digits, '-' or '_'"),
         ("jobs:\n  a: { schedule: { manual: true }, run: { prompt: x, agent: gpt } }", "config.jobs.a.run.agent", "expected one of: claude, codex, gemini, opencode"),
         ("jobs:\n  a: { schedule: { manual: true }, run: { prompt: x, access: none } }", "config.jobs.a.run.access", "expected one of: full, read"),
         ("jobs:\n  a: { schedule: { manual: true }, run: { prompt: x, agent: opencode, access: read } }", "config.jobs.a.run.access", "opencode always runs with full access; pick another agent for read-only"),

@@ -42,6 +42,17 @@ export function projectPool(
   return source.kind === "pin" ? undefined : viewOf(source, pool);
 }
 
+/** The account a project's automations run on, which never switches: its pin,
+ *  else the first known account of its list, else the main login. Mirrors
+ *  spawn_env without switching in claude_pool.rs. */
+export function projectJobAccount(project: ProjectInfo, projects: ProjectInfo[], registered: string[]): string {
+  const source = sourceOf(project, projects);
+  if (source.kind === "pin") return registered.includes(source.id) ? source.id : MAIN_LOGIN;
+  if (source.kind === "main") return MAIN_LOGIN;
+  const owner = source.owner === project.name ? project : projects.find((p) => p.name === source.owner);
+  return owner?.claudeAccounts?.find((id) => id === MAIN_LOGIN || registered.includes(id)) ?? MAIN_LOGIN;
+}
+
 /** The account a project's new Claude sessions use, as its limits key, or null
  *  when that is the login lpm itself was started with, which only the backend
  *  knows. Mirrors account_for_project in claude_pool.rs. */

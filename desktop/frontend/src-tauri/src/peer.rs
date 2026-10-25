@@ -2013,15 +2013,22 @@ fn dispatch_invoke(
         });
         return;
     }
-    // A Mac's Stats page counting this machine in. The scan of its history files
+    // A Mac's Stats page or weekly recap counting this machine in. The scan of its history files
     // takes seconds, so it runs off the socket thread, and here rather than on a
     // page a headless host has none of.
-    if cmd == "agent_usage_stats" {
+    if cmd == "agent_usage_stats" || cmd == crate::weekly_recap::RECAP_CMD {
         let days = args.get("days").and_then(Value::as_i64).unwrap_or(30);
+        let week = args.get("week").and_then(Value::as_str).unwrap_or_default().to_string();
+        let recap = cmd == crate::weekly_recap::RECAP_CMD;
         let out = out.clone();
         std::thread::spawn(move || {
-            let stats = crate::agent_usage::agent_usage_stats(days)
-                .and_then(|stats| serde_json::to_value(stats).map_err(|e| e.to_string()));
+            let stats = if recap {
+                crate::weekly_recap::local_recap(&week)
+                    .and_then(|recap| serde_json::to_value(recap).map_err(|e| e.to_string()))
+            } else {
+                crate::agent_usage::agent_usage_stats(days)
+                    .and_then(|stats| serde_json::to_value(stats).map_err(|e| e.to_string()))
+            };
             let frame = match stats {
                 Ok(value) => result_frame(&req_id, true, value),
                 Err(e) => result_frame(&req_id, false, Value::String(e)),

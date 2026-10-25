@@ -14,11 +14,13 @@ import {
 } from "../sidebarNav";
 import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import { useSettingsStore } from "../store/settings";
+import { useWeeklyRecapStore } from "../store/weeklyRecap";
 import { useTerminalTitles } from "../store/terminalTitles";
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import {
   HistoryIcon,
   MessageIcon,
+  RecapIcon,
   SettingsIcon,
   SmartphoneIcon,
   StatsIcon,
@@ -76,6 +78,8 @@ export function SidebarFooterNav({
 }: SidebarFooterNavProps) {
   const inSidebar = useSettingsStore((s) => s.sidebarNavInSidebar ?? DEFAULT_SIDEBAR_NAV);
   const update = useSettingsStore((s) => s.update);
+  const recapOpen = useWeeklyRecapStore((s) => s.open);
+  const showRecap = useWeeklyRecapStore((s) => s.show);
   const { running, unread, waiting } = useJobsAmbient();
   const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
 
@@ -169,6 +173,14 @@ export function SidebarFooterNav({
       icon: <StatsIcon />,
       active: showStats,
       onSelect: onStats,
+    },
+    recap: {
+      id: "recap",
+      label: "Weekly recap",
+      icon: <RecapIcon />,
+      active: recapOpen,
+      onSelect: () => showRecap("last"),
+      description: "Your agents' week as a card to share: hours, prompts, pull requests and streak.",
     },
     mobile: {
       id: "mobile",

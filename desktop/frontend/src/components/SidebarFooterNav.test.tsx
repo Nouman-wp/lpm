@@ -200,6 +200,7 @@ describe("SidebarFooterNav", () => {
         "automations",
         "usage",
         "stats",
+        "recap",
         "mobile",
         "settings",
         "feedback",

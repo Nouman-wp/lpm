@@ -51,6 +51,20 @@ class JobEditorDraftTest {
     }
 
     @Test
+    fun `a Claude account set on the Mac survives a save, the main login too`() {
+        roundTrip(
+            """{"label":"Work","schedule":{"manual":true},""" +
+                """"run":{"prompt":"Look","claudeAccount":"work"}}""",
+            writesProjects = false
+        )
+        roundTrip(
+            """{"label":"Main","schedule":{"manual":true},""" +
+                """"run":{"prompt":"Look","agent":"claude","claudeAccount":""}}""",
+            writesProjects = false
+        )
+    }
+
+    @Test
     fun `a schedule the editor can't rebuild is written back as read`() {
         val kept = listOf(
             """{"cron":"0 9 * * 1"}""",

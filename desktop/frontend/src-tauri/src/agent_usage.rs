@@ -149,7 +149,7 @@ pub(crate) struct ProjectMatcher {
 }
 
 impl ProjectMatcher {
-    fn load() -> Self {
+    pub(crate) fn load() -> Self {
         let mut roots: Vec<ProjectRoot> = config::project_names()
             .into_iter()
             .filter_map(|name| {

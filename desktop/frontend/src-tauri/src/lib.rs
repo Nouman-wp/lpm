@@ -1,10 +1,14 @@
 mod action_labels;
 mod actions;
+mod command_run;
 mod adopt;
 mod agent_last_answer;
 mod agent_last_answer_codex;
 mod agent_limits;
 mod agent_limits_share;
+mod agent_activity;
+mod agent_activity_claude;
+mod agent_activity_codex;
 mod agent_session_titles;
 mod agent_sessions;
 mod agent_sessions_claude;
@@ -106,6 +110,7 @@ mod hostclaude;
 mod hostfilesave;
 mod hostfolders;
 mod hostjobs;
+mod image_share;
 mod ipc;
 mod jobcal;
 mod jobcron;
@@ -182,6 +187,7 @@ mod projects_crud;
 mod pty;
 mod pull_request;
 mod ptymodes;
+mod recap_link;
 mod ptyring;
 mod remote;
 mod remotepresence;
@@ -288,6 +294,8 @@ mod voicetotext;
 mod voicetotext_api;
 mod watchfilter;
 mod webengine;
+mod weekly_recap;
+mod weekly_recap_git;
 #[cfg(windows)]
 mod wincred;
 #[cfg(windows)]
@@ -303,12 +311,16 @@ mod zones;
 // macro (which lists them unqualified) resolves the hand-written real
 // commands and the generated stubs.
 use actions::*;
+use command_run::*;
 use agent_last_answer::*;
 use agent_limits::*;
 use agent_session_titles::*;
 use agent_sessions::*;
 use agent_usage::*;
 use agent_usage_machines::agent_usage_machines;
+use weekly_recap::weekly_recap;
+use image_share::{copy_png_image, save_png_image, share_png_image};
+use recap_link::upload_recap_image;
 use agent_caps::{
     create_agent_skill, delete_agent_skill, generate_agent_skill, list_agent_capabilities,
     preview_agent_skill_delete, read_agent_capability, update_agent_skill, write_agent_capability,

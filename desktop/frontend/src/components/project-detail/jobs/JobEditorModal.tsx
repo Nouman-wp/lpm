@@ -19,6 +19,7 @@ import { RowModelSelect } from "./RowModelSelect";
 import { RunKindPicker } from "./RunKindPicker";
 import { JobScopeRow } from "./JobScopeRow";
 import { SendToConnectModal } from "./SendToConnectModal";
+import { JobAccountDialogs, type JobAccountDialog } from "./JobAccountDialogs";
 import type { ConnectIntent } from "../../../sendToConnectors";
 import { JobFrequencyCard } from "./JobFrequencyCard";
 import { JobCheckField } from "./JobCheckField";
@@ -104,6 +105,7 @@ export function JobEditorModal({
   const [connecting, setConnecting] = useState<{ service: string; intent: ConnectIntent } | null>(
     null,
   );
+  const [accountDialog, setAccountDialog] = useState<JobAccountDialog>(null);
   // Whether the user has edited anything yet — the "what's missing" hint
   // stays quiet on a freshly opened editor.
   const [touched, setTouched] = useState(false);
@@ -159,6 +161,7 @@ export function JobEditorModal({
     setConfirmDelete(false);
     setCheckAIOpen(false);
     setConnecting(null);
+    setAccountDialog(null);
     setSaving(false);
     setTouched(false);
     setComposerSession((n) => n + 1);
@@ -372,8 +375,8 @@ export function JobEditorModal({
       <Modal
         open={open}
         onClose={requestClose}
-        closeOnEscape={!confirmDelete && !guardOpen && !checkAIOpen && !connecting}
-        closeOnBackdrop={!confirmDelete && !guardOpen && !checkAIOpen && !connecting}
+        closeOnEscape={!confirmDelete && !guardOpen && !checkAIOpen && !connecting && !accountDialog}
+        closeOnBackdrop={!confirmDelete && !guardOpen && !checkAIOpen && !connecting && !accountDialog}
         backdropClassName="bg-black/50 backdrop-blur-sm"
         contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
       >
@@ -520,6 +523,8 @@ export function JobEditorModal({
                   skippedCopies={skippedCopies}
                   problem={isStandalone && draft.runMode === "action"}
                   onConnect={(service, intent) => setConnecting({ service, intent })}
+                  onAccountDialog={setAccountDialog}
+                  claude={(draft.agent || defaultAgent) === "claude"}
                 />
                 <JobCheckField
                   key={`check-${composerSession}`}
@@ -607,6 +612,16 @@ export function JobEditorModal({
           if (connecting?.intent !== "add") return;
           setTouched(true);
           setDraft((d) => ({ ...d, sendTo: [...d.sendTo, ...ids.filter((id) => !d.sendTo.includes(id))] }));
+        }}
+      />
+      <JobAccountDialogs
+        dialog={accountDialog}
+        host={machine.host ?? null}
+        onClose={() => setAccountDialog(null)}
+        onAdded={(account) => {
+          // An account added from this automation is one it means to run on.
+          patch({ claudeAccount: account.id });
+          setAccountDialog({ kind: "signIn", account });
         }}
       />
       {dialog}

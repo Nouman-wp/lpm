@@ -1,4 +1,4 @@
-import { EMPTY_USAGE, emptyStats } from "./empty";
+import { EMPTY_USAGE, emptyRecap, emptyStats } from "./empty";
 import { SAMPLE } from "./sample";
 import type { Seed } from "./types";
 
@@ -17,7 +17,7 @@ export function seedFor(params: URLSearchParams): SeedChoice {
     return { seed: SAMPLE, omit, selected: SAMPLE.projects.find((p) => !omit.includes(p.name))?.name };
   }
   return {
-    seed: { ...SAMPLE, usage: EMPTY_USAGE, stats: emptyStats },
+    seed: { ...SAMPLE, usage: EMPTY_USAGE, stats: emptyStats, recap: emptyRecap },
     omit: SAMPLE.projects.map((p) => p.name),
   };
 }

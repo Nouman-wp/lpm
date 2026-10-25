@@ -1,0 +1,55 @@
+import { useEffect } from "react";
+import { IS_MIRROR_WINDOW } from "../../mirror";
+import { toast } from "../../notifications/toast";
+import { useSettingsStore } from "../../store/settings";
+import { useWeeklyRecapStore } from "../../store/weeklyRecap";
+import { daysBetween, localDate, weekStart } from "../stats/statsDates";
+import { loadWeeklyRecap } from "./useWeeklyRecap";
+import { RECAP_NEWS_DAYS, recapView, recapWeekStart } from "./weeklyRecapModel";
+
+// Late enough that settings are read and the app has settled after launch.
+const FIRST_CHECK_MS = 20_000;
+// An app left open over the weekend still tells on Monday.
+const CHECK_EVERY_MS = 60 * 60_000;
+
+/** One quiet toast early in the week when last week's recap is ready. */
+export function useWeeklyRecapToast(): void {
+  useEffect(() => {
+    if (IS_MIRROR_WINDOW) return;
+    let stopped = false;
+    let checking = false;
+
+    const check = async () => {
+      const today = localDate();
+      const week = recapWeekStart("last", today);
+      const settings = useSettingsStore.getState();
+      if (checking || settings.weeklyRecap === false || settings.weeklyRecapToasted === week) return;
+      if (daysBetween(weekStart(today), today) >= RECAP_NEWS_DAYS) return;
+      checking = true;
+      try {
+        const view = recapView(await loadWeeklyRecap(week));
+        if (stopped) return;
+        await useSettingsStore.getState().update({ weeklyRecapToasted: week });
+        if (view.empty) return;
+        toast("Your week in lpm is ready", {
+          id: `weekly-recap:${week}`,
+          description: `${view.hours} of agents working for you · ${view.range}`,
+          duration: 15_000,
+          action: { label: "View", onClick: () => useWeeklyRecapStore.getState().show("last") },
+        });
+      } catch {
+        // Read again at the next check.
+      } finally {
+        checking = false;
+      }
+    };
+
+    const first = window.setTimeout(() => void check(), FIRST_CHECK_MS);
+    const every = window.setInterval(() => void check(), CHECK_EVERY_MS);
+    return () => {
+      stopped = true;
+      window.clearTimeout(first);
+      window.clearInterval(every);
+    };
+  }, []);
+}

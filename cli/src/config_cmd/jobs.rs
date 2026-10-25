@@ -20,8 +20,17 @@ const JOB_FIELDS: [&str; 11] = [
     "sendTo",
     "machines",
 ];
-const RUN_FIELDS: [&str; 9] = [
-    "action", "cmd", "prompt", "agent", "model", "effort", "access", "quiet", "memory",
+const RUN_FIELDS: [&str; 10] = [
+    "action",
+    "cmd",
+    "prompt",
+    "agent",
+    "model",
+    "effort",
+    "access",
+    "quiet",
+    "memory",
+    "claudeAccount",
 ];
 const DUPLICATE_FIELDS: [&str; 4] = ["mode", "pullLatest", "reinstallDeps", "excludeUncommitted"];
 const AGENTS: [&str; 4] = ["claude", "codex", "gemini", "opencode"];
@@ -165,7 +174,14 @@ fn validate_job(map: &Mapping, kind: ConfigKind, path: &str, report: &mut Report
 fn validate_run(map: &Mapping, path: &str, report: &mut Report) {
     validate_keys(map, &RUN_FIELDS, path, report);
     for key in [
-        "action", "cmd", "prompt", "agent", "model", "effort", "access",
+        "action",
+        "cmd",
+        "prompt",
+        "agent",
+        "model",
+        "effort",
+        "access",
+        "claudeAccount",
     ] {
         validate_string_field(map, key, &format!("{path}.{key}"), report);
     }
@@ -202,6 +218,7 @@ fn validate_run(map: &Mapping, path: &str, report: &mut Report) {
             );
         }
     }
+    validate_claude_account(map, path, action.is_empty() && cmd.is_empty(), report);
     let agent = text_at(map, "agent").to_lowercase();
     if !agent.is_empty() && !AGENTS.contains(&agent.as_str()) {
         report.error(
@@ -221,6 +238,29 @@ fn validate_run(map: &Mapping, path: &str, report: &mut Report) {
         report.warning(
             &format!("{path}.memory"),
             "a read-only run can't save its memory, so each run starts fresh",
+        );
+    }
+}
+
+// The account its runs use, as a project's `claudeAccount`: `''` (or
+// `default`) is the main login.
+fn validate_claude_account(map: &Mapping, path: &str, prompt: bool, report: &mut Report) {
+    if !map.contains_key(Value::String("claudeAccount".into())) {
+        return;
+    }
+    let field = format!("{path}.claudeAccount");
+    if !prompt {
+        report.error(&field, "claudeAccount only goes with an AI prompt");
+        return;
+    }
+    let id = text_at(map, "claudeAccount");
+    if !id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        report.error(
+            &field,
+            "expected an account id of letters, digits, '-' or '_'",
         );
     }
 }

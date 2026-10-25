@@ -71,6 +71,7 @@ private struct JobEditorDraft {
     var access = "full"             // full | read
     var quiet = false               // report only runs that found something (set on the Mac)
     var memory = true               // each run recalls and saves the job's memory (set on the Mac)
+    var claudeAccount: String?      // the Claude account its runs use (set on the Mac); nil = the project's
     var sendTo: Any?                // where results go (set on the Mac); nil = lpm alone
     var targets: [String] = []      // "runs in"; empty = standalone
     var machines: [String] = []     // "runs on": hostIds, best first, "any" last; empty = every Mac that has it
@@ -806,6 +807,7 @@ struct AutomationEditorSheet: View {
                 if (run["access"] as? String)?.lowercased() == "read" { d.access = "read" }
                 d.quiet = run["quiet"] as? Bool ?? false
                 d.memory = run["memory"] as? Bool ?? false
+                d.claudeAccount = run["claudeAccount"] as? String
             }
         }
 
@@ -912,6 +914,9 @@ struct AutomationEditorSheet: View {
             if draft.access == "read" { block["access"] = "read" }
             if draft.quiet { block["quiet"] = true }
             if draft.memory { block["memory"] = true }
+            if let account = draft.claudeAccount, agent.isEmpty || agent == "claude" {
+                block["claudeAccount"] = account
+            }
             return block
         }
     }

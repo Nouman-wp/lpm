@@ -5,6 +5,8 @@ import { JobRunsInMenu } from "./JobRunsInMenu";
 import { JobMachinesMenu } from "./JobMachinesMenu";
 import { JobSendToMenu } from "./JobSendToMenu";
 import { JobMemoryToggle } from "./JobMemoryToggle";
+import { JobAccountMenu } from "./JobAccountMenu";
+import type { JobAccountDialog } from "./JobAccountDialogs";
 import type { JobDraft } from "../../../jobsFormat";
 import {
   LPM_DESTINATION,
@@ -15,6 +17,7 @@ import {
 } from "../../../sendTo";
 import type { ConnectIntent } from "../../../sendToConnectors";
 import { useSendToLinks } from "../../../hooks/useSendToLinks";
+import { useJobAccount } from "../../../hooks/useJobAccount";
 
 const ACCESS: { value: JobDraft["access"]; label: string }[] = [
   { value: "full", label: "Full access" },
@@ -39,6 +42,8 @@ export function JobScopeRow({
   skippedCopies,
   problem,
   onConnect,
+  onAccountDialog,
+  claude,
   machines,
   host,
 }: {
@@ -53,6 +58,10 @@ export function JobScopeRow({
   // Opens the dialog that links an outside service, or adds one of its chats,
   // without leaving the job.
   onConnect: (service: string, intent: ConnectIntent) => void;
+  // Opens adding a Claude account, or signing in to one, over the editor.
+  onAccountDialog: (dialog: JobAccountDialog) => void;
+  // Whether a prompt run's agent is Claude Code, the one with accounts to pick.
+  claude: boolean;
   // The machine the job runs on: a connected one's slug, or null for this one.
   host: string | null;
   // The computers the job runs on, where there is more than one to pick from.
@@ -60,6 +69,14 @@ export function JobScopeRow({
 }) {
   const links = useSendToLinks(host);
   const unready = draft.sendTo.filter((id) => sendToReady(id, links) === false);
+  const standalone = !draft.everyProject && draft.targets.length === 0;
+  const jobAccount = useJobAccount(
+    draft.claudeAccount,
+    { targets: draft.targets, everyProject: draft.everyProject },
+    host,
+  );
+  const account = draft.runMode === "prompt" && claude ? jobAccount : null;
+  const signedOut = account?.signedOut ?? null;
   const notes = [
     skippedCopies.length > 0 &&
       `An automation that runs in more than one project skips copies — it won't run in ${listNames(skippedCopies)}.`,
@@ -72,6 +89,7 @@ export function JobScopeRow({
     draft.sendTo.length > 0 &&
       !draft.sendTo.includes(LPM_DESTINATION) &&
       "lpm won't notify you about this automation's runs, but they still land in its history.",
+    account?.note,
   ].filter((n): n is string => Boolean(n));
 
   return (
@@ -95,6 +113,16 @@ export function JobScopeRow({
           canDuplicate={canDuplicate}
           problem={problem}
         />
+        {account && (
+          <JobAccountMenu
+            account={account}
+            value={draft.claudeAccount}
+            standalone={standalone}
+            host={host}
+            onChange={(claudeAccount) => patch({ claudeAccount })}
+            onAdd={() => onAccountDialog({ kind: "add" })}
+          />
+        )}
         {draft.runMode === "prompt" && (
           <RowSelect
             variant="pill"
@@ -127,6 +155,18 @@ export function JobScopeRow({
           {note}
         </p>
       ))}
+      {signedOut && (
+        <p className="px-1 text-[12px] leading-snug text-[var(--accent-amber-text)]">
+          {signedOut.label} isn't signed in, so its runs can't start.{" "}
+          <button
+            type="button"
+            onClick={() => onAccountDialog({ kind: "signIn", account: signedOut })}
+            className="font-medium text-[var(--accent-cyan-text)] hover:underline"
+          >
+            Sign in
+          </button>
+        </p>
+      )}
       {unready.map((id) => {
         const { service, key } = splitSendTo(id);
         const label = serviceLabel(service);

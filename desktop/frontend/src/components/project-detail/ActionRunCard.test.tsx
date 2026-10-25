@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActionRunCapture, ActionRunSnapshot } from "../../hooks/actionRunCapture";
 import { ActionRunCard } from "./ActionRunCard";
-import { RUN_CARD_AUTO_CLOSE_MS } from "./runCardPlacement";
+import { RUN_CARD_AUTO_CLOSE_MS, RUN_STOPPED_ERROR } from "./runCardPlacement";
 
 function fakeRun() {
   let snap: ActionRunSnapshot = { lines: [], done: null };
@@ -97,6 +97,35 @@ describe("ActionRunCard", () => {
     update({ lines: ["1 failed"], done: { success: false, error: "exit status 1: 1 failed" }, endedAt: Date.now() });
     expect(card().dataset.runState).toBe("failed");
     expect(card().textContent).toContain("exit status 1");
+    act(() => vi.advanceTimersByTime(RUN_CARD_AUTO_CLOSE_MS * 2));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("offers Stop while a stoppable run is going, and says it was stopped", () => {
+    const { run, update } = fakeRun();
+    const onStop = vi.fn<() => void>();
+    act(() =>
+      root.render(
+        <ActionRunCard
+          label="npm run dev"
+          place={() => ({ top: 104, left: 600 })}
+          run={run}
+          startedAt={Date.now()}
+          onClose={onClose}
+          onRunAgain={() => {}}
+          onStop={onStop}
+        />,
+      ),
+    );
+    expect(card().style.top).toBe("104px");
+    const stop = [...card().querySelectorAll("button")].find((b) => b.textContent === "Stop")!;
+    act(() => stop.click());
+    expect(onStop).toHaveBeenCalledTimes(1);
+
+    update({ done: { success: false, error: RUN_STOPPED_ERROR }, endedAt: Date.now() + 3000 });
+    expect(card().dataset.runState).toBe("stopped");
+    expect(card().textContent).toContain("Stopped after 3.0 s");
+    expect(card().textContent).toContain("Run again");
     act(() => vi.advanceTimersByTime(RUN_CARD_AUTO_CLOSE_MS * 2));
     expect(onClose).not.toHaveBeenCalled();
   });

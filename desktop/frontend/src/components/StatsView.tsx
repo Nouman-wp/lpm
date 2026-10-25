@@ -11,6 +11,7 @@ import { StatsSkeleton } from "./stats/StatsSkeleton";
 import { ComputerMenu } from "./stats/ComputerMenu";
 import { StatsScopeChip } from "./stats/StatsScopeChip";
 import { useStatsScope } from "./stats/useStatsScope";
+import { StatsWeeklyRecap } from "./recap/StatsWeeklyRecap";
 import { distinctModelCount, providerMeta } from "./stats/statsDerive";
 import {
   ALL_MACHINES,
@@ -152,6 +153,7 @@ export function StatsView() {
       </div>
 
       <div className="no-scrollbar mt-4 min-h-0 flex-1 overflow-y-auto">
+        <StatsWeeklyRecap />
         {error && (
           <div className="flex items-center justify-between gap-4 rounded-xl border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/8 px-4 py-3 text-sm text-[var(--accent-red-text)]">
             <span>Could not load agent stats: {error}</span>

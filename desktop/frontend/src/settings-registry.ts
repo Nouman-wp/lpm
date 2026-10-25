@@ -257,6 +257,14 @@ export const ROWS = {
     description: "They wait until the composer goes quiet, then show",
     keywords: ["toast", "composer", "typing", "quiet", "focus", "interrupt"],
   },
+  "notifications.weeklyRecap": {
+    kind: "row",
+    tab: "notifications",
+    id: "notifications.weeklyRecap",
+    label: "Weekly recap",
+    description: "On Mondays, last week's agent hours, prompts and streak at the top of Stats, with one toast",
+    keywords: ["recap", "week", "weekly", "summary", "share", "stats", "monday", "streak"],
+  },
   "notifications.telegram": {
     kind: "row",
     tab: "notifications",

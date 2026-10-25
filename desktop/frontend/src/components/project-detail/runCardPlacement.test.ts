@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RUN_CARD_WIDTH, placeRunCard, runDuration } from "./runCardPlacement";
+import { RUN_CARD_WIDTH, placeInCorner, placeRunCard, runDuration } from "./runCardPlacement";
 
 const view = { width: 1440, height: 900 };
 
@@ -25,6 +25,21 @@ describe("placeRunCard", () => {
 
   it("opens under the header when no button on screen started the run", () => {
     expect(placeRunCard(null, view)).toEqual({ top: 56, left: 1440 - 12 - RUN_CARD_WIDTH });
+  });
+});
+
+describe("placeInCorner", () => {
+  it("opens inside a terminal's top right corner, as wide as it allows", () => {
+    expect(placeInCorner({ top: 96, right: 1200, width: 1000 }, view)).toEqual({ top: 104, left: 1200 - 8 - 720, width: 720 });
+    expect(placeInCorner({ top: 96, right: 1200, width: 500 }, view)).toEqual({ top: 104, left: 1200 - 8 - 484, width: 484 });
+  });
+
+  it("keeps the action card's width in a narrow terminal, inside the window", () => {
+    expect(placeInCorner({ top: 96, right: 300, width: 300 }, view)).toEqual({ top: 104, left: 12, width: RUN_CARD_WIDTH });
+  });
+
+  it("opens under the header when the terminal isn't on screen", () => {
+    expect(placeInCorner(null, view)).toEqual({ top: 56, left: 1440 - 12 - RUN_CARD_WIDTH, width: RUN_CARD_WIDTH });
   });
 });
 

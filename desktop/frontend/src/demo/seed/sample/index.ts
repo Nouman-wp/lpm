@@ -7,6 +7,7 @@ import { SAMPLE_JOB_HISTORY, SAMPLE_JOBS } from "./jobs";
 import { ML_PIPELINE } from "./ml-pipeline";
 import { MOBILE_APP } from "./mobile-app";
 import { SAAS_APP } from "./saas-app";
+import { sampleRecap } from "./recap";
 import { sampleStats } from "./stats";
 import { SAMPLE_ACCOUNT_USAGE, SAMPLE_ACCOUNTS_STATUS, sampleLimits } from "./usage";
 
@@ -28,4 +29,5 @@ export const SAMPLE: Seed = {
     accountUsage: SAMPLE_ACCOUNT_USAGE,
   },
   stats: sampleStats,
+  recap: sampleRecap,
 };

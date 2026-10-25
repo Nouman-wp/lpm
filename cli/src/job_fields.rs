@@ -77,7 +77,7 @@ pub struct JobFields {
         long,
         value_name = "COMMAND",
         help_heading = RUN,
-        conflicts_with_all = ["action", "prompt", "agent", "model", "effort", "access", "quiet", "memory"],
+        conflicts_with_all = ["action", "prompt", "agent", "model", "effort", "access", "quiet", "memory", "claude_account"],
         help = "Shell command, run in the project"
     )]
     pub cmd: Option<String>,
@@ -116,6 +116,13 @@ pub struct JobFields {
         help = "Each run reads what earlier runs did and found, then adds its own (needs full access)"
     )]
     pub memory: Option<bool>,
+    #[arg(
+        long,
+        value_name = "ID",
+        help_heading = RUN,
+        help = "Claude account its runs use: an account id, or default for the main login. Default: the project's"
+    )]
+    pub claude_account: Option<String>,
 
     #[arg(
         long,
@@ -186,6 +193,7 @@ impl JobFields {
             &self.model,
             &self.effort,
             &self.access,
+            &self.claude_account,
         ]
         .iter()
         .any(|value| value.is_some())
@@ -319,7 +327,15 @@ impl JobFields {
         }
         if let Some(action) = &self.action {
             for key in [
-                "cmd", "prompt", "agent", "model", "effort", "access", "quiet", "memory",
+                "cmd",
+                "prompt",
+                "agent",
+                "model",
+                "effort",
+                "access",
+                "quiet",
+                "memory",
+                "claudeAccount",
             ] {
                 run.shift_remove(key);
             }
@@ -342,6 +358,19 @@ impl JobFields {
                     run.shift_remove(key);
                 }
                 None => {}
+            }
+        }
+        // The app writes the main login as `''`, which an empty flag can't say.
+        match self.claude_account.as_deref().map(str::trim) {
+            None => {}
+            Some("") => {
+                run.shift_remove("claudeAccount");
+            }
+            Some("default") => {
+                run.insert("claudeAccount".into(), Value::String(String::new()));
+            }
+            Some(id) => {
+                run.insert("claudeAccount".into(), Value::String(id.to_string()));
             }
         }
     }

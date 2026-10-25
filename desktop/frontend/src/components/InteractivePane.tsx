@@ -44,6 +44,7 @@ import {
 import { deliverInput, IMAGE_EXT_RE } from "./terminal/deliverInput";
 import { stripAnsi } from "./terminal/filterLines";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
+import { registerCommandLinkProvider } from "./terminal/commandLinkProvider";
 import { installLinkHoverRefresh } from "./terminal/linkHoverRefresh";
 import { registerFileDropHandler } from "../fileDrop";
 import { useTerminalFont } from "../hooks/useTerminalFont";
@@ -262,6 +263,7 @@ interface InteractiveSession {
 
   cwd: string;
   pathLinkDisposable: IDisposable | null;
+  commandLinkDisposable: IDisposable | null;
   osc52Disposable: IDisposable | null;
 
   // Copy routed to the mouse-owning app (Claude Code's Ctrl+C-with-selection);
@@ -307,6 +309,7 @@ export { interactiveSessions };
 function disposeSession(s: InteractiveSession) {
   s.destroy();
   s.pathLinkDisposable?.dispose();
+  s.commandLinkDisposable?.dispose();
   s.osc52Disposable?.dispose();
   s.term.dispose();
   s.host.remove();
@@ -812,6 +815,7 @@ function createInteractiveSession(
     themeOverride: null,
     cwd,
     pathLinkDisposable: null,
+    commandLinkDisposable: null,
     osc52Disposable: null,
     canAppCopy,
     tryAppCopy,
@@ -822,6 +826,10 @@ function createInteractiveSession(
     session.pathLinkDisposable = registerPathLinkProvider(term, {
       getCwd: () => session.cwd,
     });
+  } catch {}
+
+  try {
+    session.commandLinkDisposable = registerCommandLinkProvider(term, terminalId);
   } catch {}
 
   installLinkHoverRefresh(term, host);

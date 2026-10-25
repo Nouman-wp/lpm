@@ -795,6 +795,24 @@ describe("draft <-> payload round-trip", () => {
     expect(payloadToDraft(buildJobPayload(off))).toEqual(off);
     expect(buildJobPayload({ ...job, runMode: "cmd", cmd: "make" }).run).toEqual({ cmd: "make" });
   });
+
+  it("round-trips a Claude account of its own, written only for Claude prompt runs", () => {
+    const job: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Deps",
+      runMode: "prompt",
+      prompt: prompt("Check for dependency updates"),
+      claudeAccount: "work",
+    };
+    expect(buildJobPayload(job).run).toMatchObject({ claudeAccount: "work" });
+    expect(payloadToDraft(buildJobPayload(job))).toEqual(job);
+    const main = { ...job, claudeAccount: "" };
+    expect(buildJobPayload(main).run).toMatchObject({ claudeAccount: "" });
+    expect(payloadToDraft(buildJobPayload(main))).toEqual(main);
+    expect(buildJobPayload({ ...job, claudeAccount: null }).run).not.toHaveProperty("claudeAccount");
+    expect(buildJobPayload({ ...job, agent: "codex" }).run).not.toHaveProperty("claudeAccount");
+    expect(buildJobPayload({ ...job, runMode: "cmd", cmd: "make" }).run).toEqual({ cmd: "make" });
+  });
 });
 
 describe("prompt attachments", () => {

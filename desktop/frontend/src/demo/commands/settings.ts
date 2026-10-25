@@ -1,3 +1,4 @@
+import { recapWeekStart } from "../../components/recap/weeklyRecapModel";
 import type { CommandMap } from "../backend";
 
 let settings: Record<string, unknown> = {};
@@ -8,6 +9,8 @@ export function seedSettings(selected?: string): void {
   settings = {
     theme: "dark",
     defaultProjectDirectory: "~/Projects",
+    // A tour shouldn't be interrupted by Monday's recap toast.
+    weeklyRecapToasted: recapWeekStart("last"),
     ...(selected
       ? {
           lastSelectedProject: selected,

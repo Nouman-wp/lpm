@@ -16,9 +16,9 @@ enum class RunMode { Prompt, Cmd, Action }
 enum class DuplicateMode { None, Copy, Worktree }
 
 /**
- * The editor's form (the desktop's JobDraft). The copy options, `sendTo`, memory and
- * an action's prompt have no control here, so they're carried through a save
- * untouched rather than dropped from the job.
+ * The editor's form (the desktop's JobDraft). The copy options, `sendTo`, memory, the
+ * Claude account and an action's prompt have no control here, so they're carried
+ * through a save untouched rather than dropped from the job.
  */
 data class JobEditorDraft(
     val label: String = "",
@@ -58,6 +58,8 @@ data class JobEditorDraft(
     val quiet: Boolean = false,
     /** Each run recalls and saves the job's memory (set on the Mac). */
     val memory: Boolean = true,
+    /** The Claude account its runs use (set on the Mac); null is the project's. */
+    val claudeAccount: String? = null,
     /** Where results go (set on the Mac); null is lpm alone. */
     val sendTo: JsonElement? = null,
     /** "Runs in"; empty is standalone. */

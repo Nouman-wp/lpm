@@ -22,6 +22,21 @@ export function AgentUsageStats(days) {
 export function AgentUsageMachines(days, machine, fresh) {
   return invoke("agent_usage_machines", { days, machine, fresh });
 }
+export function WeeklyRecap(week, fresh) {
+  return invoke("weekly_recap", { week, fresh });
+}
+export function CopyPngImage(b64Data) {
+  return invoke("copy_png_image", { b64Data });
+}
+export function SavePngImage(b64Data, name) {
+  return invoke("save_png_image", { b64Data, name });
+}
+export function SharePngImage(b64Data, name, anchor) {
+  return invoke("share_png_image", { b64Data, name, anchor });
+}
+export function UploadRecapImage(b64Data) {
+  return invoke("upload_recap_image", { b64Data });
+}
 export function AgentLimits() {
   return invoke("agent_limits");
 }
@@ -871,6 +886,12 @@ export function RunAction(projectName, actionName, inputValues, runId) {
 }
 export function RunActionBackground(projectName, actionName, inputValues, runId) {
   return invoke("run_action_background", { projectName, actionName, inputValues, runId });
+}
+export function RunCommand(projectName, cmd, runId) {
+  return invoke("run_command", { projectName, cmd, runId });
+}
+export function StopCommand(projectName, runId) {
+  return invoke("stop_command", { projectName, runId });
 }
 export function SaveBranchNameInstructions(content) {
   return invoke("save_branch_name_instructions", { content });

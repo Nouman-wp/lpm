@@ -263,6 +263,10 @@ struct RunDef {
     /// Every run recalls and saves the job's lpm-memory session (jobmemory.rs).
     #[serde(default)]
     memory: bool,
+    /// The Claude account its runs use, `""` being the main login; absent
+    /// leaves it to the project.
+    #[serde(default, rename = "claudeAccount")]
+    claude_account: Option<String>,
 }
 
 const KNOWN_AGENTS: [&str; 4] = ["claude", "codex", "gemini", "opencode"];
@@ -323,6 +327,7 @@ enum RunTarget {
         full_access: bool,
         quiet: bool,
         memory: bool,
+        claude_account: Option<String>,
     },
 }
 
@@ -571,6 +576,10 @@ fn resolve_run(project: &str, run: &RunDef) -> Result<RunTarget, String> {
     if run.memory && (!action.is_empty() || !cmd.is_empty()) {
         return Err("Remembering earlier runs is only for AI prompts.".into());
     }
+    if run.claude_account.is_some() && (!action.is_empty() || !cmd.is_empty()) {
+        return Err("Picking a Claude account is only for AI prompts.".into());
+    }
+    let claude_account = resolve_claude_account(run.claude_account.as_deref())?;
     if !action.is_empty() {
         let Some(resolved) = config::resolve_action_full(project, action) else {
             return Err(format!(
@@ -613,12 +622,34 @@ fn resolve_run(project: &str, run: &RunDef) -> Result<RunTarget, String> {
         quiet: run.quiet,
         // A read-only run can't write the session, so it has nothing to remember.
         memory: run.memory && access != "read",
+        claude_account,
     })
+}
+
+/// `default`, the main login's name in account lists, means `""` here too.
+fn resolve_claude_account(id: Option<&str>) -> Result<Option<String>, String> {
+    let Some(id) = id.map(str::trim) else {
+        return Ok(None);
+    };
+    if id.is_empty() || id == crate::claude_dirs::MAIN_LOGIN {
+        return Ok(Some(String::new()));
+    }
+    if !config::valid_claude_account_id(id) {
+        return Err(format!("\"{id}\" isn't a Claude account."));
+    }
+    Ok(Some(id.to_string()))
 }
 
 impl JobResolved {
     fn quiet(&self) -> bool {
         matches!(self.run, RunTarget::Prompt { quiet: true, .. })
+    }
+
+    fn claude_account(&self) -> Option<&str> {
+        match &self.run {
+            RunTarget::Prompt { claude_account, .. } => claude_account.as_deref(),
+            _ => None,
+        }
     }
 
     fn sends_to(&self, destination: &str) -> bool {
@@ -2291,6 +2322,8 @@ struct CaptureSpec {
     /// The question whose answer this run carries on with — the job's own
     /// work resuming, so it reports out like a run, not like a reply.
     answer_to: Option<String>,
+    /// The job's own Claude account; None leaves it to the project.
+    account: Option<String>,
 }
 
 impl CaptureSpec {
@@ -2309,7 +2342,13 @@ impl CaptureSpec {
             quiet: false,
             manual: false,
             answer_to: None,
+            account: None,
         }
+    }
+
+    fn with_account(mut self, account: Option<&str>) -> Self {
+        self.account = account.map(str::to_string);
+        self
     }
 
     fn with_verify(mut self, verify: &str) -> Self {
@@ -2440,17 +2479,23 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
         quiet,
         manual,
         answer_to,
+        account: own_account,
     } = spec;
     let token = uuid::Uuid::new_v4().simple().to_string();
     env.push(("LPM_RUN_ID".to_string(), token.clone()));
     let env2 = env.clone();
-    // The project's fixed Claude account, as a scheduled terminal gets; a
-    // resumed session goes back to the account holding its transcript.
+    // The job's own Claude account, else the project's fixed one, as a
+    // scheduled terminal gets; a resumed session goes back to the account
+    // holding its transcript.
     let target = copy.as_deref().unwrap_or(split_key(key).0);
     let crate::claude_pool::Spawn {
         env: claude,
         account,
-    } = crate::claude_pool::spawn_env(target, resumed.as_deref().map(|sid| (root, sid)), false);
+    } = crate::claude_pool::job_spawn_env(
+        target,
+        resumed.as_deref().map(|sid| (root, sid)),
+        own_account.as_deref(),
+    );
     let log_path = logs.join(format!("{}-{}.log", key.replace('/', "_"), now_secs()));
     let cmdline = capture_cmdline(agent.as_deref(), &cmdline, &log_path);
     let is_agent = agent.is_some();
@@ -2656,6 +2701,7 @@ fn dispatch_run(
             full_access,
             quiet,
             memory,
+            claude_account,
         } => {
             let root = match dispatch_root(target) {
                 Some(r) => r,
@@ -2693,7 +2739,8 @@ fn dispatch_run(
                 )
                 .with_verify(&job.verify)
                 .with_env(env)
-                .with_quiet(*quiet, trigger),
+                .with_quiet(*quiet, trigger)
+                .with_account(claude_account.as_deref()),
             )
         }
     }
@@ -2766,7 +2813,7 @@ fn pipeline_body(
             CHECK_TIMEOUT,
             Some(key),
             &context(&root, false),
-            &crate::claude_pool::spawn_env(project, None, false).env,
+            &crate::claude_pool::job_spawn_env(project, None, job.claude_account()).env,
         ) {
             Ok(check) if check.work => {}
             Ok(check) => {
@@ -4152,12 +4199,14 @@ fn start_followup(
         agent: job_agent,
         model: job_model,
         effort: job_effort,
+        claude_account,
         ..
     } = &job.run
     else {
         return Err("Replies are only available for AI prompt jobs.".into());
     };
     let full_access = *full_access;
+    let claude_account = claude_account.clone();
     let (agent, model, effort) = if answer_to.is_some() {
         (job_agent.clone(), job_model.clone(), job_effort.clone())
     } else {
@@ -4234,6 +4283,7 @@ fn start_followup(
             quiet: false,
             manual: false,
             answer_to: answer_to.clone(),
+            account: claude_account.clone(),
         },
         None => CaptureSpec {
             cmdline: agent_prompt_cmdline(&agent, &model, &effort, full_access, browser, &condensed),
@@ -4249,6 +4299,7 @@ fn start_followup(
             quiet: false,
             manual: false,
             answer_to,
+            account: claude_account,
         },
     };
     match spawn_captured(app, &key, &root, spec) {
@@ -5020,6 +5071,7 @@ mod tests {
                 full_access: true,
                 quiet: false,
                 memory: false,
+                claude_account: None,
             },
         );
         assert_eq!(
@@ -5042,6 +5094,7 @@ mod tests {
                 full_access: false,
                 quiet: false,
                 memory: false,
+                claude_account: None,
             },
         );
         assert!(resolve_run(
@@ -6630,6 +6683,41 @@ mod tests {
             cmd: "make".into(),
             ..Default::default()
         })
+        .unwrap_err()
+        .contains("only for AI prompts"));
+    }
+
+    #[test]
+    fn claude_account_is_only_for_prompts() {
+        let account = |id: &str, run: RunDef| {
+            resolve_run(
+                "p",
+                &RunDef {
+                    claude_account: Some(id.into()),
+                    ..run
+                },
+            )
+        };
+        let prompt = || RunDef {
+            prompt: "any new models?".into(),
+            ..Default::default()
+        };
+        let picked = |r: Result<RunTarget, String>| match r {
+            Ok(RunTarget::Prompt { claude_account, .. }) => claude_account,
+            other => panic!("expected a prompt, got {other:?}"),
+        };
+        assert_eq!(picked(account("work", prompt())), Some("work".into()));
+        assert_eq!(picked(account("", prompt())), Some(String::new()));
+        assert_eq!(picked(account("default", prompt())), Some(String::new()));
+        assert_eq!(picked(resolve_run("p", &prompt())), None);
+        assert!(account("a/b", prompt()).is_err());
+        assert!(account(
+            "work",
+            RunDef {
+                cmd: "make".into(),
+                ..Default::default()
+            }
+        )
         .unwrap_err()
         .contains("only for AI prompts"));
     }

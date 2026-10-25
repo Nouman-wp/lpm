@@ -655,6 +655,9 @@ export interface JobDraft {
   // Every run recalls and saves the job's lpm-memory session, so it knows what
   // earlier runs did and found. On for a new job; needs full access to save.
   memory: boolean;
+  // The Claude account a prompt job's runs use: null leaves it to the project,
+  // "" is the main login.
+  claudeAccount: string | null;
   // Where the job's results go (see sendTo.ts); lpm alone by default.
   sendTo: string[];
   // The projects the job runs in (empty = standalone). `everyProject` marks a
@@ -714,6 +717,7 @@ export function defaultJobDraft(): JobDraft {
     access: "full",
     quiet: false,
     memory: true,
+    claudeAccount: null,
     sendTo: [...DEFAULT_SEND_TO],
     targets: [],
     everyProject: false,
@@ -773,6 +777,9 @@ function buildRunBlock(draft: JobDraft): Record<string, unknown> {
   if (draft.access === "read") block.access = "read";
   if (draft.quiet) block.quiet = true;
   if (draft.memory) block.memory = true;
+  if (draft.claudeAccount !== null && (draft.agent === "" || draft.agent === "claude")) {
+    block.claudeAccount = draft.claudeAccount;
+  }
   return block;
 }
 
@@ -867,6 +874,7 @@ export function payloadToDraft(payload: Record<string, unknown>): JobDraft {
       }
       draft.quiet = r.quiet === true;
       draft.memory = r.memory === true;
+      if (typeof r.claudeAccount === "string") draft.claudeAccount = r.claudeAccount.trim();
     }
   }
 

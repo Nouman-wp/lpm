@@ -17,7 +17,13 @@ vi.mock("../../../../bridge/commands", () => ({
       chats: telegramChats,
     }),
 }));
+let jobAccount: JobAccount | null = null;
+const onAccountDialog = vi.fn();
+vi.mock("../../../hooks/useJobAccount", () => ({ useJobAccount: () => jobAccount }));
+vi.mock("../../../hooks/useAgentLimits", () => ({ useAgentLimits: () => ({ limits: {} }) }));
 import { defaultJobDraft, type JobDraft } from "../../../jobsFormat";
+import type { JobAccount } from "../../../hooks/useJobAccount";
+import type { ClaudeAccountsSource } from "../../settings/useClaudeAccountsSource";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -30,7 +36,32 @@ const OPTIONS = [
   { value: "api", label: "API" },
 ];
 
-function Harness({ initial, lockedScope }: { initial: JobDraft; lockedScope?: string }) {
+const WORK = { id: "work", label: "Work" };
+const SIDE = { id: "side", label: "Side" };
+
+function fakeAccount(fields: Partial<JobAccount> = {}): JobAccount {
+  return {
+    source: { accounts: [WORK, SIDE] } as unknown as ClaudeAccountsSource,
+    defaultName: "Same as Web",
+    fallback: "work",
+    inUse: "work",
+    label: (id) => (id === "default" ? "Main login" : id === "work" ? "Work" : "Side"),
+    signedIn: (id) => id !== "side",
+    note: null,
+    signedOut: null,
+    ...fields,
+  };
+}
+
+function Harness({
+  initial,
+  lockedScope,
+  claude = true,
+}: {
+  initial: JobDraft;
+  lockedScope?: string;
+  claude?: boolean;
+}) {
   const [draft, setDraft] = useState<JobDraft>(initial);
   latest = draft;
   return (
@@ -45,14 +76,18 @@ function Harness({ initial, lockedScope }: { initial: JobDraft; lockedScope?: st
       skippedCopies={[]}
       problem={false}
       onConnect={onConnect}
+      onAccountDialog={onAccountDialog}
+      claude={claude}
     />
   );
 }
 
 let renders = 0;
-const render = (initial: JobDraft = defaultJobDraft(), lockedScope?: string) =>
+const render = (initial: JobDraft = defaultJobDraft(), lockedScope?: string, claude = true) =>
   act(() =>
-    root.render(<Harness key={++renders} initial={initial} lockedScope={lockedScope} />),
+    root.render(
+      <Harness key={++renders} initial={initial} lockedScope={lockedScope} claude={claude} />,
+    ),
   );
 
 const trigger = (name: string) =>
@@ -70,6 +105,8 @@ const open = (name: string) => act(() => trigger(name)!.click());
 const pick = (label: string) => act(() => menuButton(label).click());
 
 beforeEach(() => {
+  jobAccount = null;
+  onAccountDialog.mockClear();
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -187,5 +224,50 @@ describe("JobScopeRow", () => {
     render({ ...defaultJobDraft(), runMode: "cmd", quiet: true });
     expect(trigger("Which runs to report")).toBeNull();
     expect(host.textContent).not.toContain("leaves no trace");
+  });
+
+  it("picks the Claude account a prompt's runs use, or follows the project", () => {
+    jobAccount = fakeAccount();
+    render({ ...defaultJobDraft(), targets: ["web"] });
+    expect(trigger("Claude account")!.textContent).toBe("Work");
+    open("Claude account");
+    pick("SideNot signed in");
+    expect(latest.claudeAccount).toBe("side");
+    open("Claude account");
+    pick("Main login");
+    expect(latest.claudeAccount).toBe("");
+    open("Claude account");
+    act(() => menuButton("Same as WebWork").click());
+    expect(latest.claudeAccount).toBeNull();
+  });
+
+  it("offers the main login, not a project's account, to a standalone automation", () => {
+    jobAccount = fakeAccount({ fallback: "default", inUse: "default" });
+    render({ ...defaultJobDraft(), claudeAccount: "work" });
+    open("Claude account");
+    expect(() => menuButton("Same as WebWork")).toThrow();
+    pick("Main login");
+    expect(latest.claudeAccount).toBeNull();
+  });
+
+  it("adds an account and signs in to one without leaving the editor", () => {
+    const side = { id: "side", label: "Side" };
+    jobAccount = fakeAccount({ inUse: "side", signedOut: side, note: "Runs on Side instead of Web's account." });
+    render({ ...defaultJobDraft(), targets: ["web"], claudeAccount: "side" });
+    expect(host.textContent).toContain("Runs on Side instead of Web's account.");
+    expect(host.textContent).toContain("Side isn't signed in, so its runs can't start.");
+    act(() => [...host.querySelectorAll("button")].find((b) => b.textContent === "Sign in")!.click());
+    expect(onAccountDialog).toHaveBeenCalledWith({ kind: "signIn", account: side });
+    open("Claude account");
+    pick("Add account…");
+    expect(onAccountDialog).toHaveBeenCalledWith({ kind: "add" });
+  });
+
+  it("offers an account only when Claude runs the prompt", () => {
+    jobAccount = fakeAccount();
+    render(defaultJobDraft(), undefined, false);
+    expect(trigger("Claude account")).toBeNull();
+    render({ ...defaultJobDraft(), runMode: "cmd" });
+    expect(trigger("Claude account")).toBeNull();
   });
 });

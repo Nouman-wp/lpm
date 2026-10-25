@@ -185,3 +185,26 @@ fn machines_are_a_list_the_app_resolves() {
     );
     assert!(!fields(&["--machines", "any"]).is_empty());
 }
+
+#[test]
+fn claude_account_names_one_the_main_login_or_the_projects() {
+    let ai = "run: { prompt: task }\n";
+    assert_eq!(
+        applied(ai, &["--claude-account", "work"]).unwrap(),
+        "run:\n  prompt: task\n  claudeAccount: work\n"
+    );
+    assert_eq!(
+        applied(ai, &["--claude-account", "default"]).unwrap(),
+        "run:\n  prompt: task\n  claudeAccount: ''\n"
+    );
+    let pinned = "run: { prompt: task, claudeAccount: work }\n";
+    assert_eq!(
+        applied(pinned, &["--claude-account", ""]).unwrap(),
+        "run:\n  prompt: task\n"
+    );
+    assert_eq!(
+        applied(pinned, &["--action", "deploy"]).unwrap(),
+        "run:\n  action: deploy\n"
+    );
+    assert!(!fields(&["--claude-account", "work"]).is_empty());
+}

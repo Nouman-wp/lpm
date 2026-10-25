@@ -18,7 +18,7 @@ pub(crate) struct Candidate {
     event: UsageEvent,
 }
 
-fn claude_project_dirs() -> Vec<PathBuf> {
+pub(crate) fn claude_project_dirs() -> Vec<PathBuf> {
     let home = dirs::home_dir().unwrap_or_default();
     let mut candidates = vec![home.join(".claude").join("projects")];
     if let Some(dir) = std::env::var_os(config::CLAUDE_CONFIG_DIR_ENV) {
@@ -88,7 +88,7 @@ fn keep_latest(latest: &mut HashMap<String, Candidate>, candidate: Candidate) {
     }
 }
 
-fn written_at(file: &File) -> i64 {
+pub(crate) fn written_at(file: &File) -> i64 {
     file.metadata()
         .and_then(|metadata| metadata.created())
         .ok()

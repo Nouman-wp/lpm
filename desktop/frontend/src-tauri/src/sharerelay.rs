@@ -56,7 +56,7 @@ pub(crate) fn room(share: &str) -> Option<Room> {
     rooms().get(share).cloned()
 }
 
-fn relay_base() -> Option<Url> {
+pub(crate) fn relay_base() -> Option<Url> {
     let configured = std::env::var(RELAY_ENV).unwrap_or_default();
     let raw = match configured.trim() {
         "" => DEFAULT_RELAY,

@@ -106,7 +106,8 @@ private fun JobEditorDraft.withRun(run: JsonObject): JobEditorDraft {
         effort = run.string("effort").orEmpty().lowercase(),
         readOnly = run.string("access")?.lowercase() == "read",
         quiet = run.bool("quiet") ?: false,
-        memory = run.bool("memory") ?: false
+        memory = run.bool("memory") ?: false,
+        claudeAccount = run.string("claudeAccount")
     )
 }
 
@@ -187,6 +188,8 @@ private fun JobEditorDraft.buildRun(): JsonObject = buildJsonObject {
             if (readOnly) put("access", "read")
             if (quiet) put("quiet", true)
             if (memory) put("memory", true)
+            val claude = agent.trimmingWhitespace().let { it.isEmpty() || it == "claude" }
+            if (claude) claudeAccount?.let { put("claudeAccount", it) }
         }
     }
 }

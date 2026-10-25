@@ -25,6 +25,7 @@ interface BackgroundRunToastProps {
   error?: string;
   onCancel: () => void;
   onExpand: () => void;
+  onResize: () => void;
   onDismiss: () => void;
 }
 
@@ -50,6 +51,7 @@ export function BackgroundRunToast({
   error,
   onCancel,
   onExpand,
+  onResize,
   onDismiss,
 }: BackgroundRunToastProps) {
   const lines = useSyncExternalStore(
@@ -78,8 +80,27 @@ export function BackgroundRunToast({
     if (el) el.scrollTop = el.scrollHeight;
   }, [lines, expanded]);
 
+  // sonner keeps the height it measured when the toast was last shown and
+  // stretches the toast to it on hover, so a card that grew or shrank since
+  // (output opened or closed, lines streaming in, the width easing) would jump
+  // out from under the pointer. Showing it again has sonner measure it anew.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    let height = card.offsetHeight;
+    const observer = new ResizeObserver(() => {
+      if (card.offsetHeight === height) return;
+      height = card.offsetHeight;
+      onResize();
+    });
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [onResize]);
+
   return (
     <div
+      ref={cardRef}
       className={`toast-surface overflow-hidden transition-[width,margin-left] duration-200 ${
         expanded ? "-ml-[284px] w-[640px]" : "ml-0 w-[356px]"
       }`}
@@ -197,6 +218,7 @@ export function showBackgroundRunToast(opts: {
             pinnedRuns.add(opts.runId);
             show();
           }}
+          onResize={show}
           onDismiss={() => toast.dismiss(id)}
         />
       ),

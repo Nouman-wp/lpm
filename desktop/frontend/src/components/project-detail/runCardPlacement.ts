@@ -1,8 +1,12 @@
 import { formatElapsed } from "../backgroundRunToastText";
 
 export const RUN_CARD_WIDTH = 380;
+// A terminal command's card: as wide as its terminal allows, up to this.
+const CORNER_CARD_MAX_WIDTH = 720;
 // How long a passed run's card stays up before closing itself.
 export const RUN_CARD_AUTO_CLOSE_MS = 4000;
+// The error a run ends with when it was stopped from its card.
+export const RUN_STOPPED_ERROR = "stopped";
 
 const GAP = 8;
 const EDGE = 12;
@@ -11,6 +15,7 @@ const FALLBACK_TOP = 56;
 
 export interface RunCardPlacement {
   left: number;
+  width?: number;
   top?: number;
   bottom?: number;
 }
@@ -31,6 +36,19 @@ export function placeRunCard(anchor: Box | null, view: { width: number; height: 
   return anchor.top < view.height / 2
     ? { top: anchor.bottom + GAP, left }
     : { bottom: view.height - anchor.top + GAP, left };
+}
+
+/** Inside a terminal's top right corner, over its output, as wide as the
+ *  terminal leaves room for. */
+export function placeInCorner(
+  area: { top: number; right: number; width: number } | null,
+  view: { width: number; height: number },
+): RunCardPlacement {
+  const fits = Math.max(RUN_CARD_WIDTH, view.width - 2 * EDGE);
+  const width = Math.min(CORNER_CARD_MAX_WIDTH, fits, Math.max(RUN_CARD_WIDTH, (area?.width ?? 0) - 2 * GAP));
+  const maxLeft = Math.max(EDGE, view.width - EDGE - width);
+  if (!area) return { top: FALLBACK_TOP, left: maxLeft, width };
+  return { top: area.top + GAP, left: Math.min(Math.max(area.right - GAP - width, EDGE), maxLeft), width };
 }
 
 export function findRunAnchor(runKey: string): DOMRect | null {

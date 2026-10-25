@@ -14,6 +14,8 @@ import { PRInstructionsEditor } from "./components/PRInstructionsEditor";
 import { BranchNameInstructionsEditor } from "./components/BranchNameInstructionsEditor";
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
 import { FeedbackModal } from "./components/FeedbackModal";
+import { WeeklyRecapModal } from "./components/recap/WeeklyRecapModal";
+import { useWeeklyRecapToast } from "./components/recap/useWeeklyRecapToast";
 import { NewProjectPicker } from "./components/NewProjectPicker";
 import { AddSSHProjectModal } from "./components/AddSSHProjectModal";
 import { AddCloneRepoModal } from "./components/AddCloneRepoModal";
@@ -160,6 +162,7 @@ export default function App() {
   useSshStatusWarnings();
   useUpdateNote();
   useActionErrorToasts();
+  useWeeklyRecapToast();
   const isFullscreen = useIsFullscreen();
 
   // Terminal sessions on a dropped peer are kept alive so the reconnect can resume
@@ -390,6 +393,7 @@ export default function App() {
       </div>
       <UsageModal open={usageOpen} onClose={() => setUsageOpen(false)} />
       <FeedbackModal />
+      <WeeklyRecapModal />
       <NewProjectPicker />
       <AddSSHProjectModal />
       <AddCloneRepoModal />

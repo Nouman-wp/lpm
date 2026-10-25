@@ -80,6 +80,16 @@ export function NotificationsPane() {
             ))}
         </SettingsSection>
       )}
+      {shows("notifications.weeklyRecap") && (
+        <SettingsSection title="Weekly recap">
+          <SettingsRow {...rowProps("notifications.weeklyRecap")}>
+            <Toggle
+              enabled={settings.weeklyRecap !== false}
+              onChange={(v) => void update({ weeklyRecap: v })}
+            />
+          </SettingsRow>
+        </SettingsSection>
+      )}
       {sendsResults && (
         <SettingsSection title="Send automation results to">
           {shows("notifications.telegram") && <TelegramRow host={machine.kind === "peer" ? machine.slug : null} />}

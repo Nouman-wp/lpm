@@ -150,20 +150,20 @@ pub fn list_background_runs(project: &str) -> Vec<BgRunSnapshot> {
 // paired Mac, and each output modal shows only its own run.
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-struct ActionOutput {
+pub(crate) struct ActionOutput {
     #[serde(skip_serializing_if = "String::is_empty")]
-    run_id: String,
-    line: String,
+    pub(crate) run_id: String,
+    pub(crate) line: String,
 }
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-struct ActionDone {
+pub(crate) struct ActionDone {
     #[serde(skip_serializing_if = "String::is_empty")]
-    run_id: String,
-    success: bool,
+    pub(crate) run_id: String,
+    pub(crate) success: bool,
     #[serde(skip_serializing_if = "String::is_empty")]
-    error: String,
+    pub(crate) error: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -173,19 +173,19 @@ struct ActionBgOutput {
     line: String,
 }
 
-struct ActionPlan {
-    cmd_str: String,
-    cwd: String,
-    ports: Vec<i64>,
+pub(crate) struct ActionPlan {
+    pub(crate) cmd_str: String,
+    pub(crate) cwd: String,
+    pub(crate) ports: Vec<i64>,
     /// Run the command through the user's interactive login shell (local actions),
     /// vs. plain `/bin/sh -c` (remote actions, where cmd_str is an ssh line).
-    login_shell: bool,
+    pub(crate) login_shell: bool,
     /// Claude account env decision for local actions (Inherit for remote). An
     /// explicit CLAUDE_CONFIG_DIR in the action's own env is inlined into cmd_str
     /// and still wins over this process env.
-    claude_env: config::ClaudeEnv,
+    pub(crate) claude_env: config::ClaudeEnv,
     /// Ran after the action's process exits (e.g. push a sync-mode mirror).
-    on_exit: Option<Box<dyn FnOnce() + Send>>,
+    pub(crate) on_exit: Option<Box<dyn FnOnce() + Send>>,
 }
 
 /// Characters that pass through a POSIX shell unquoted. Values outside this
@@ -305,7 +305,7 @@ fn merge_stderr_into_stdout(cmd: &mut Command) {
 /// Spawn with stderr merged into stdout, returning the child and the combined
 /// stream. Consumes the command: on Windows it holds the pipe's write end,
 /// and the reader only sees EOF once every copy of that is gone.
-fn spawn_merged(mut cmd: Command) -> Result<(Child, Box<dyn Read + Send>), String> {
+pub(crate) fn spawn_merged(mut cmd: Command) -> Result<(Child, Box<dyn Read + Send>), String> {
     #[cfg(unix)]
     {
         cmd.stdout(Stdio::piped());
@@ -331,7 +331,7 @@ fn spawn_merged(mut cmd: Command) -> Result<(Child, Box<dyn Read + Send>), Strin
 /// The lines a run prints. On Windows a local action's Git Bash, interactive
 /// with no terminal to run jobs on, says so before the action's own output
 /// starts; those notices are dropped.
-fn output_lines(
+pub(crate) fn output_lines(
     stdout: Box<dyn Read + Send>,
     login_shell: bool,
 ) -> impl Iterator<Item = std::io::Result<String>> {
@@ -352,7 +352,7 @@ fn is_job_control_notice(line: &str) -> bool {
 /// the cwd is set with an explicit `cd` so the user's rc can't redirect it.
 /// Remote actions keep `/bin/sh -c` — cmd_str is an ssh line that resolves its
 /// environment on the far side.
-fn action_command(plan: &ActionPlan) -> Command {
+pub(crate) fn action_command(plan: &ActionPlan) -> Command {
     let mut cmd = if plan.login_shell {
         let cwd = crate::shellpath::shell_path(Path::new(&plan.cwd));
         let script = format!("cd {} && {}", config::shell_quote(&cwd), plan.cmd_str);
@@ -366,7 +366,7 @@ fn action_command(plan: &ActionPlan) -> Command {
 }
 
 /// Go ProcessState.String(): "exit status N" / "signal: N".
-fn exit_status_string(s: Option<ExitStatus>) -> String {
+pub(crate) fn exit_status_string(s: Option<ExitStatus>) -> String {
     #[cfg(unix)]
     use std::os::unix::process::ExitStatusExt;
     match s {

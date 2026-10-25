@@ -68,6 +68,7 @@ import type { ActionInfo } from "../types";
 import { agentTabCommand, type RemoteAgentLaunch } from "../remoteAgentTabs";
 import { useNewTabRequest } from "../hooks/terminals/useNewTabRequest";
 import { NewTerminalButton } from "./terminal/NewTerminalButton";
+import { TerminalCommandRuns } from "./terminal/TerminalCommandRuns";
 import type { FindDirection, FindOptions, FindOutcome, FindResults } from "./terminal/terminalFind";
 import { isPeerName } from "../peer/markers";
 import { retainPeerSession } from "../peer/retainedSessions";
@@ -1316,6 +1317,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
         </div>
       )}
       <TTSControls />
+      <TerminalCommandRuns projectName={projectName} tree={tree} onRunInNewTab={runCommandInPane} />
       </div>
       <ConfirmDialog
         open={forkCopyRequest !== null}
