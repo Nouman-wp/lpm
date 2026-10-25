@@ -100,10 +100,13 @@ struct HistoryScreen: View {
                         Button(role: .destructive) { model.historyDelete(item.id) } label: {
                             Label("Delete", systemImage: "trash")
                         }
-                        Button { movingItem = item } label: {
-                            Label("Folder", systemImage: "folder")
+                        // Folders are each computer's own.
+                        if !item.isFromOtherComputer {
+                            Button { movingItem = item } label: {
+                                Label("Folder", systemImage: "folder")
+                            }
+                            .tint(.indigo)
                         }
-                        .tint(.indigo)
                     }
                     .contextMenu {
                         Button { onSendNow(displayText(item)); dismiss() } label: {
@@ -116,7 +119,9 @@ struct HistoryScreen: View {
                             Label(item.favorite ? "Unfavorite" : "Favorite",
                                   systemImage: item.favorite ? "star.slash" : "star")
                         }
-                        Button { movingItem = item } label: { Label("Move to folder", systemImage: "folder") }
+                        if !item.isFromOtherComputer {
+                            Button { movingItem = item } label: { Label("Move to folder", systemImage: "folder") }
+                        }
                         Button(role: .destructive) { model.historyDelete(item.id) } label: {
                             Label("Delete", systemImage: "trash")
                         }
@@ -261,8 +266,9 @@ private struct HistoryRowView: View {
                         .foregroundStyle(.orange)
                         .clipShape(Capsule())
                 }
-                if !item.project.isEmpty {
-                    Text(item.project)
+                let source = [item.machineName ?? "", item.project].filter { !$0.isEmpty }
+                if !source.isEmpty {
+                    Text(source.joined(separator: " · "))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

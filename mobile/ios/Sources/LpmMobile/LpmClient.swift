@@ -1167,7 +1167,7 @@ final class LpmClient: NSObject {
         sendLive(Wire.serviceLogsWatch(project: project, paneIndex: paneIndex, watch: watch))
     }
     func requestHistoryQuery(project: String?, search: String?, favoritesOnly: Bool,
-                             folder: String?, before: (at: Int, seq: Int)?) {
+                             folder: String?, before: (at: Int, seq: Int, machine: String?)?) {
         send(Wire.historyQuery(project: project, search: search, favoritesOnly: favoritesOnly,
                                folder: folder, before: before))
     }

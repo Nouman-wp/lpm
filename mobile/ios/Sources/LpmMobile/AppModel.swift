@@ -2424,7 +2424,7 @@ final class AppModel {
         let p = historyQueryParams
         client?.requestHistoryQuery(project: p.project, search: p.search,
                                     favoritesOnly: p.favoritesOnly, folder: p.folder,
-                                    before: (last.at, last.seq))
+                                    before: (last.at, last.seq, last.machine))
     }
     func loadHistoryFolders() { client?.requestHistoryFolders() }
     func historySaveDraft(message: String, project: String?, id: String?, label: String?) {

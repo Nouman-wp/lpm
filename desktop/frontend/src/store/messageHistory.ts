@@ -30,6 +30,10 @@ export interface HistoryMessage {
   folderId: string | null;
   isDraft: boolean; // saved-but-unsent prompt, reopenable from the popover
   images: Record<string, string>; // "[Image #N]" token index -> resolved file path
+  // The paired computer it was typed on (slug) and that computer's name; absent
+  // for this computer's own messages.
+  machine?: string;
+  machineName?: string;
 }
 
 export interface Folder {
@@ -60,14 +64,16 @@ export interface HistoryFilter {
 export interface HistoryCursor {
   at: number;
   seq: number;
+  machine?: string;
 }
 
 export const HISTORY_PAGE_SIZE = 60;
 export const MESSAGE_HISTORY_KEY = "messageHistory";
 export const FOLDERS_KEY = "messageHistoryFolders";
 
-// Fetch one page newest-first; pass the last row's {at, seq} as the cursor to get
-// the next page.
+// Fetch one page newest-first, this computer's history merged with every
+// connected paired computer's; pass the last row's {at, seq, machine} as the
+// cursor to get the next page.
 export async function queryHistory(
   filter: HistoryFilter,
   cursor: HistoryCursor | null,
@@ -76,7 +82,9 @@ export async function queryHistory(
     ...filter,
     cursorAt: cursor?.at ?? null,
     cursorSeq: cursor?.seq ?? null,
+    cursorMachine: cursor?.machine ?? null,
     limit: HISTORY_PAGE_SIZE,
+    machines: true,
   });
   return Array.isArray(rows) ? (rows as HistoryMessage[]) : [];
 }

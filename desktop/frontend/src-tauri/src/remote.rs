@@ -2801,28 +2801,24 @@ fn handle_msg(
             // Recall: recent sent prompts for this project (scoped by project, not
             // terminal, because the desktop records under a stable historyKey the
             // phone doesn't have — the ephemeral pty id wouldn't match).
+            // Paired computers' prompts are merged in, so this replies off the
+            // read loop, in order with the phone's other history requests.
             let project = str_field("project").unwrap_or_default();
             let input = crate::message_history::QueryInput {
                 scope: "project".into(),
-                terminal_id: String::new(),
                 project_name: project.clone(),
-                terminal_label: String::new(),
-                collection: String::new(),
                 search: str_field("q").unwrap_or_default(),
-                cursor_at: None,
-                cursor_seq: None,
                 limit: 100,
+                machines: true,
+                ..Default::default()
             };
-            let rows = crate::message_history::message_history_query(
-                app.state::<crate::message_history::MessageHistoryState>(),
-                input,
-            )
-            .unwrap_or_default();
-            let rows = serde_json::to_value(rows).unwrap_or_else(|_| json!([]));
-            send(
-                ws,
-                json!({ "t": "history", "project": project, "rows": rows }),
-            )?;
+            let (app, out) = (app.clone(), out.clone());
+            crate::message_history_machines::in_order(move || {
+                let rows = crate::message_history_machines::query(&app, &input).unwrap_or_default();
+                let rows = serde_json::to_value(rows).unwrap_or_else(|_| json!([]));
+                let reply = json!({ "t": "history", "project": project, "rows": rows });
+                let _ = out.try_send(reply.to_string());
+            });
         }
         "historyAdd" => {
             // Record a prompt the phone sent so it joins the shared history (and
@@ -4146,11 +4142,13 @@ fn handle_msg(
                 watches.insert(key, RemoteWatch { stop, _watcher: None });
             }
         }
-        // Paginated history query (keyset, page 60), mirroring the desktop popover.
+        // Paginated history query (keyset, page 60), mirroring the desktop popover:
+        // this Mac's history merged with every connected paired computer's.
         // `project` scopes to that project (else all); `favoritesOnly`/`folder`
-        // select a collection; `before` = the previous page's last {at, seq} cursor.
-        // Items carry the cursor fields (at, seq) so the phone can request the next
-        // page. SQLite is local/fast, so this replies inline like `history`.
+        // select a collection; `before` = the previous page's last {at, seq,
+        // machine} cursor. Items carry the cursor fields (at, seq, machine) so the
+        // phone can request the next page. Replies off the read loop, since a
+        // paired computer answers over the network, in the order asked.
         "historyQuery" => {
             let project = str_field("project").unwrap_or_default();
             let (scope, project_name) = if project.is_empty() {
@@ -4173,40 +4171,44 @@ fn handle_msg(
             let before = v.get("before");
             let cursor_at = before.and_then(|b| b.get("at")).and_then(Value::as_i64);
             let cursor_seq = before.and_then(|b| b.get("seq")).and_then(Value::as_i64);
+            let cursor_machine = before
+                .and_then(|b| b.get("machine"))
+                .and_then(Value::as_str)
+                .map(str::to_string);
             const PAGE: i64 = 60;
             let input = crate::message_history::QueryInput {
                 scope,
-                terminal_id: String::new(),
                 project_name,
-                terminal_label: String::new(),
                 collection,
                 search: str_field("search").unwrap_or_default(),
                 cursor_at,
                 cursor_seq,
                 limit: PAGE + 1,
+                machines: true,
+                cursor_machine,
+                ..Default::default()
             };
-            let rows = crate::message_history::message_history_query(
-                app.state::<crate::message_history::MessageHistoryState>(),
-                input,
-            )
-            .unwrap_or_default();
-            let has_more = rows.len() as i64 > PAGE;
-            let items: Vec<Value> = rows
-                .iter()
-                .take(PAGE as usize)
-                .map(|r| {
-                    json!({
-                        "id": r.id, "text": r.text, "images": r.images, "timestamp": r.at,
-                        "favorite": r.favorite, "folder": r.folder_id,
-                        "kind": if r.is_draft { "draft" } else { "sent" },
-                        "project": r.project_name, "at": r.at, "seq": r.seq,
+            let (app, out) = (app.clone(), out.clone());
+            crate::message_history_machines::in_order(move || {
+                let rows = crate::message_history_machines::query(&app, &input).unwrap_or_default();
+                let has_more = rows.len() as i64 > PAGE;
+                let items: Vec<Value> = rows
+                    .iter()
+                    .take(PAGE as usize)
+                    .map(|r| {
+                        json!({
+                            "id": r.id, "text": r.text, "images": r.images, "timestamp": r.at,
+                            "favorite": r.favorite, "folder": r.folder_id,
+                            "kind": if r.is_draft { "draft" } else { "sent" },
+                            "project": crate::message_history_machines::raw_name(&r.project_name),
+                            "at": r.at, "seq": r.seq,
+                            "machine": r.machine, "machineName": r.machine_name,
+                        })
                     })
-                })
-                .collect();
-            send(
-                ws,
-                json!({ "t": "historyQuery", "items": items, "hasMore": has_more }),
-            )?;
+                    .collect();
+                let reply = json!({ "t": "historyQuery", "items": items, "hasMore": has_more });
+                let _ = out.try_send(reply.to_string());
+            });
         }
         // Save the composer's current text as an unsent draft (kept in shared
         // history, badged as a draft). `message` is the draft text; project/id/label/
@@ -4244,40 +4246,60 @@ fn handle_msg(
             }
             send(ws, json!({ "t": "historySaveDraft", "ok": true }))?;
         }
+        // A paired computer's row (`peer-{slug}-{id}`) is changed on that computer,
+        // off the read loop and in order with the history it changes.
         "historyToggleFavorite" => {
             let id = str_field("id").unwrap_or_default();
-            match crate::message_history::toggle_favorite_state(
-                app.state::<crate::message_history::MessageHistoryState>(),
-                &id,
-            ) {
-                Ok(fav) => send(
-                    ws,
-                    json!({ "t": "historyToggleFavorite", "id": id, "ok": true, "favorite": fav }),
-                )?,
-                Err(e) => send(
-                    ws,
-                    json!({ "t": "historyToggleFavorite", "id": id, "ok": false, "error": e }),
-                )?,
-            }
+            let (app, out) = (app.clone(), out.clone());
+            crate::message_history_machines::in_order(move || {
+                let toggled = match crate::message_history_machines::forward(
+                    &app,
+                    "message_history_toggle_favorite",
+                    &id,
+                ) {
+                    Some(sent) => sent.map(|fav| fav.as_bool().unwrap_or(false)),
+                    None => crate::message_history::toggle_favorite_state(
+                        &app.state::<crate::message_history::MessageHistoryState>(),
+                        &id,
+                    ),
+                };
+                let reply = match toggled {
+                    Ok(fav) => {
+                        json!({ "t": "historyToggleFavorite", "id": id, "ok": true, "favorite": fav })
+                    }
+                    Err(e) => {
+                        json!({ "t": "historyToggleFavorite", "id": id, "ok": false, "error": e })
+                    }
+                };
+                let _ = out.try_send(reply.to_string());
+            });
         }
         // Move a message into a folder, or omit `folder` to remove it from its folder.
         "historySetFolder" => {
             let id = str_field("id").unwrap_or_default();
             let folder = str_field("folder");
-            let r = crate::message_history::message_history_set_folder(
-                app.state::<crate::message_history::MessageHistoryState>(),
-                id,
-                folder,
-            );
+            let r = if crate::message_history_machines::split_peer_name(&id).is_some() {
+                Err("Folders are kept on each computer".to_string())
+            } else {
+                crate::message_history::message_history_set_folder(
+                    app.state::<crate::message_history::MessageHistoryState>(),
+                    id,
+                    folder,
+                )
+            };
             send(ws, result_reply("historySetFolder", r))?;
         }
         "historyDelete" => {
             let id = str_field("id").unwrap_or_default();
-            let r = crate::message_history::message_history_delete(
-                app.state::<crate::message_history::MessageHistoryState>(),
-                id,
-            );
-            send(ws, result_reply("historyDelete", r))?;
+            let (app, out) = (app.clone(), out.clone());
+            crate::message_history_machines::in_order(move || {
+                let r = crate::message_history::message_history_delete(
+                    app.clone(),
+                    app.state::<crate::message_history::MessageHistoryState>(),
+                    id,
+                );
+                let _ = out.try_send(result_reply("historyDelete", r).to_string());
+            });
         }
         "historyFolders" => {
             let folders = crate::message_history::message_history_folders(

@@ -424,13 +424,17 @@ enum Wire {
         json(["t": watch ? "serviceLogsWatch" : "serviceLogsUnwatch", "project": project, "paneIndex": paneIndex])
     }
     static func historyQuery(project: String?, search: String?, favoritesOnly: Bool,
-                             folder: String?, before: (at: Int, seq: Int)?) -> String {
+                             folder: String?, before: (at: Int, seq: Int, machine: String?)?) -> String {
         var obj: [String: Any] = ["t": "historyQuery"]
         if let project, !project.isEmpty { obj["project"] = project }
         if let search, !search.isEmpty { obj["search"] = search }
         if favoritesOnly { obj["favoritesOnly"] = true }
         if let folder, !folder.isEmpty { obj["folder"] = folder }
-        if let before { obj["before"] = ["at": before.at, "seq": before.seq] }
+        if let before {
+            var cursor: [String: Any] = ["at": before.at, "seq": before.seq]
+            if let machine = before.machine { cursor["machine"] = machine }
+            obj["before"] = cursor
+        }
         return json(obj)
     }
     static func historySaveDraft(message: String, project: String?, id: String?,
@@ -2170,8 +2174,13 @@ struct HistoryItem: Identifiable {
     let project: String
     let at: Int
     let seq: Int
+    /// The paired computer it was typed on (slug) and that computer's name; nil
+    /// for the Mac's own messages.
+    let machine: String?
+    let machineName: String?
 
     var isDraft: Bool { kind == "draft" }
+    var isFromOtherComputer: Bool { machine != nil }
 
     init(_ o: [String: Any]) {
         id = o["id"] as? String ?? ""
@@ -2184,6 +2193,8 @@ struct HistoryItem: Identifiable {
         project = o["project"] as? String ?? ""
         at = o["at"] as? Int ?? 0
         seq = o["seq"] as? Int ?? 0
+        machine = o["machine"] as? String
+        machineName = o["machineName"] as? String
     }
 }
 

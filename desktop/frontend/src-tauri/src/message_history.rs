@@ -9,7 +9,7 @@ use rusqlite::types::Value as SqlValue;
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::config;
 
@@ -88,23 +88,22 @@ fn now_millis() -> i64 {
 
 // The "this project" predicate. Matching project_name scopes history to every
 // terminal that belongs to the current project, while leaving other projects
-// out. Built once so the list query and the clear DELETE can't drift. Pushes
-// its bind param; "" for the "all" scope.
-fn scope_clause(
-    scope: &str,
-    _terminal_id: &str,
-    project_name: &str,
-    _terminal_label: &str,
-    args: &mut Vec<SqlValue>,
-) -> &'static str {
+// out. The project counts under its own name and as a paired computer's project
+// of that name (`peer-{slug}-{name}`), so what was typed for it on any computer
+// reads as one history. Built once so the list query and the clear DELETE can't
+// drift. Pushes its bind params; "" for the "all" scope.
+fn scope_clause(scope: &str, project_name: &str, args: &mut Vec<SqlValue>) -> &'static str {
     if scope != "project" {
         return "";
     }
-    args.push(project_name.to_string().into());
-    " AND project_name = ?"
+    let name = crate::message_history_machines::raw_name(project_name).to_string();
+    args.push(name.clone().into());
+    args.push(name.into());
+    " AND (project_name = ? OR (project_name GLOB 'peer-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-*' \
+     AND substr(project_name, 15) = ?))"
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryRow {
     pub seq: i64,
@@ -121,6 +120,12 @@ pub struct HistoryRow {
     // Map of "[Image #N]" token index -> resolved file path, so recall can
     // rebuild image chips instead of pasting the raw path.
     pub images: serde_json::Value,
+    // The paired computer a row was typed on (its slug) and its name; absent for
+    // this computer's own rows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub machine: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub machine_name: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -134,7 +139,7 @@ pub struct AddInput {
     pub images: std::collections::HashMap<String, String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryInput {
     pub scope: String, // "project" | "all"
@@ -146,6 +151,12 @@ pub struct QueryInput {
     pub cursor_at: Option<i64>,
     pub cursor_seq: Option<i64>,
     pub limit: i64,
+    // Merge in every connected paired computer's history (message_history_machines).
+    #[serde(default)]
+    pub machines: bool,
+    // The computer the cursor row came from (None = this one).
+    #[serde(default)]
+    pub cursor_machine: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -165,8 +176,19 @@ fn escape_like(s: &str) -> String {
 
 #[tauri::command(async)]
 pub fn message_history_query(
+    app: AppHandle,
     state: State<MessageHistoryState>,
     input: QueryInput,
+) -> Result<Vec<HistoryRow>, String> {
+    if input.machines {
+        return crate::message_history_machines::query(&app, &input);
+    }
+    query_local(&state, &input)
+}
+
+pub(crate) fn query_local(
+    state: &MessageHistoryState,
+    input: &QueryInput,
 ) -> Result<Vec<HistoryRow>, String> {
     state.with_conn(|conn| {
         let mut sql = String::from(
@@ -175,13 +197,7 @@ pub fn message_history_query(
         );
         let mut args: Vec<SqlValue> = Vec::new();
 
-        sql.push_str(scope_clause(
-            &input.scope,
-            &input.terminal_id,
-            &input.project_name,
-            &input.terminal_label,
-            &mut args,
-        ));
+        sql.push_str(scope_clause(&input.scope, &input.project_name, &mut args));
         if input.collection == "favorites" {
             sql.push_str(" AND favorite = 1");
         } else if input.collection == "drafts" {
@@ -226,6 +242,8 @@ pub fn message_history_query(
                     is_draft: r.get::<_, i64>(9)? != 0,
                     images: serde_json::from_str(&r.get::<_, String>(10)?)
                         .unwrap_or_else(|_| serde_json::json!({})),
+                    machine: None,
+                    machine_name: None,
                 })
             })
             .map_err(|e| e.to_string())?;
@@ -302,7 +320,20 @@ pub fn message_history_save_draft(
 }
 
 #[tauri::command(async)]
-pub fn message_history_delete(state: State<MessageHistoryState>, id: String) -> Result<(), String> {
+pub fn message_history_delete(
+    app: AppHandle,
+    state: State<MessageHistoryState>,
+    id: String,
+) -> Result<(), String> {
+    if let Some(sent) =
+        crate::message_history_machines::forward(&app, "message_history_delete", &id)
+    {
+        return sent.map(|_| ());
+    }
+    delete_local(&state, &id)
+}
+
+pub(crate) fn delete_local(state: &MessageHistoryState, id: &str) -> Result<(), String> {
     state.with_conn(|conn| {
         conn.execute("DELETE FROM message_history WHERE id = ?1", params![id])
             .map_err(|e| e.to_string())?;
@@ -312,22 +343,21 @@ pub fn message_history_delete(state: State<MessageHistoryState>, id: String) -> 
 
 #[tauri::command(async)]
 pub fn message_history_toggle_favorite(
+    app: AppHandle,
     state: State<MessageHistoryState>,
     id: String,
 ) -> Result<(), String> {
-    state.with_conn(|conn| {
-        conn.execute(
-            "UPDATE message_history SET favorite = 1 - favorite WHERE id = ?1",
-            params![id],
-        )
-        .map_err(|e| e.to_string())?;
-        Ok(())
-    })
+    if let Some(sent) =
+        crate::message_history_machines::forward(&app, "message_history_toggle_favorite", &id)
+    {
+        return sent.map(|_| ());
+    }
+    toggle_favorite_state(&state, &id).map(|_| ())
 }
 
 // Toggle a message's favorite flag and return the resulting state, so a caller
 // (the mobile remote) can ack with the new value without a second round-trip.
-pub fn toggle_favorite_state(state: State<MessageHistoryState>, id: &str) -> Result<bool, String> {
+pub fn toggle_favorite_state(state: &MessageHistoryState, id: &str) -> Result<bool, String> {
     state.with_conn(|conn| {
         conn.execute(
             "UPDATE message_history SET favorite = 1 - favorite WHERE id = ?1",
@@ -356,18 +386,14 @@ pub fn message_history_clear(
     project_name: String,
     terminal_label: String,
 ) -> Result<(), String> {
+    // Sent by every caller, but the project alone scopes a clear.
+    let _ = (terminal_id, terminal_label);
     state.with_conn(|conn| {
         let mut sql = String::from(
             "DELETE FROM message_history WHERE favorite = 0 AND folder_id IS NULL AND is_draft = 0",
         );
         let mut args: Vec<SqlValue> = Vec::new();
-        sql.push_str(scope_clause(
-            &scope,
-            &terminal_id,
-            &project_name,
-            &terminal_label,
-            &mut args,
-        ));
+        sql.push_str(scope_clause(&scope, &project_name, &mut args));
         conn.execute(&sql, params_from_iter(args))
             .map_err(|e| e.to_string())?;
         Ok(())

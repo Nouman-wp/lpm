@@ -244,7 +244,18 @@ class MiscModelTest {
         assertFalse(item.isDraft)
         assertNull(item.folder)
         assertEquals(mapOf("[Image 1]" to "/tmp/a.png"), item.images)
+        assertFalse(item.isFromOtherComputer)
         assertEquals("Folder", HistoryFolder.parse(obj("{}")).name)
+    }
+
+    @Test
+    fun historyItemFromAnotherComputer() {
+        val item = HistoryItem.parse(
+            obj("""{"id": "peer-0a1b2c3d-h1", "machine": "0a1b2c3d", "machineName": "MacBook"}""")
+        )
+        assertTrue(item.isFromOtherComputer)
+        assertEquals("0a1b2c3d", item.machine)
+        assertEquals("MacBook", item.machineName)
     }
 
     @Test

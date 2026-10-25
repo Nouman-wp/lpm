@@ -131,6 +131,7 @@ mod mediapeer;
 mod mediaproto;
 mod menu;
 mod message_history;
+mod message_history_machines;
 mod msysmounts;
 mod keepawake;
 mod sharelink;

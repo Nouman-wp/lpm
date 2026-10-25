@@ -342,6 +342,25 @@ the client asks the user to update it rather than send it the frames.
   `claudeLimitsEnabled` also installs or removes the host's usage-reading
   forwarder, as the host's own toggle does.
 
+**Message history.** Each Mac keeps what was typed on it, a paired Mac's
+terminals included: `message_history_*` never routes. A Mac's history popover
+(and its phones' history) merges in every connected host's, over the generic
+invoke. The host answers in Rust (a headless host keeps history too) and always
+from its own rows — it never asks its own hosts:
+
+- `{ "cmd": "message_history_query", "args": { "input": { scope, projectName,
+  collection, search, cursorAt, cursorSeq, limit, … } } }` → the host's rows,
+  newest first. `projectName` is the bare name, which the host matches under its
+  own name and as any of its peers' projects of that name. The client marks each
+  row's id `peer-{slug}-{id}`, names its project as it sees it, and orders the
+  merged page by (`at` desc, machine, `seq` desc). A folder is each Mac's own, so
+  a folder's page asks no host.
+- `{ "cmd": "message_history_toggle_favorite", "args": { "id" } }` → the new
+  favorite state (`null` from an older host).
+- `{ "cmd": "message_history_delete", "args": { "id" } }` → `null`.
+
+An older host answers the same commands through its page.
+
 **Host folders** (`hostFolders` feature). The host's folders (`groups.json` and
 its `sidebarOrder`) are the one layout every viewer of its projects shares — its
 own window, its phones, a paired Mac — so a client shows them in the host's

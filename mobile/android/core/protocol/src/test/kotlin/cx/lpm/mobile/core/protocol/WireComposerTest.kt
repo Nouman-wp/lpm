@@ -55,6 +55,16 @@ class WireComposerTest {
                 before = HistoryCursor(1_760_000_000_000, 4)
             )
         )
+        assertFrame(
+            """{ "t": "historyQuery", "before": { "at": 1760000000000, "seq": 4, "machine": "0a1b2c3d" } }""",
+            Wire.historyQuery(
+                null,
+                null,
+                favoritesOnly = false,
+                folder = null,
+                before = HistoryCursor(1_760_000_000_000, 4, "0a1b2c3d")
+            )
+        )
     }
 
     @Test

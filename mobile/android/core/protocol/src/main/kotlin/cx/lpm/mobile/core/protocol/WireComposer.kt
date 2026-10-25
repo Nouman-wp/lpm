@@ -62,6 +62,7 @@ sealed interface WireComposer {
             putJsonObject("before") {
                 put("at", before.at)
                 put("seq", before.seq)
+                before.machine?.let { put("machine", it) }
             }
         }
     }

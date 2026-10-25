@@ -2220,6 +2220,10 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
             }))
         }
         cmd if cmd.starts_with("peer_share") => crate::tabshare::answer_machine(app, cmd, args),
+        // This machine's message history, which a headless host keeps too.
+        cmd if cmd.starts_with("message_history_") => {
+            crate::message_history_machines::serve_peer(app, cmd, args)
+        }
         _ => None,
     }
 }

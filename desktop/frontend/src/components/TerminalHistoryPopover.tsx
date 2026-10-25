@@ -31,7 +31,7 @@ import {
   type HistoryMessage,
   type HistoryScope,
 } from "../store/messageHistory";
-import { peerSlugOf } from "../peer/markers";
+import { peerRawName, peerSlugOf } from "../peer/markers";
 import { relativeTime } from "../relativeTime";
 import { isImagePath, splitByImageTokens } from "./composerEditor";
 import { FolderIcon, HistoryIcon, PlusIcon, SearchIcon, SendIcon, SquarePenIcon, StarIcon, TrashIcon, XIcon } from "./icons";
@@ -107,10 +107,11 @@ export function TerminalHistoryPopover({
     queryFn: ({ pageParam }) => queryHistory(filter, pageParam),
     enabled: collection !== COLLECTION_SCHEDULED,
     initialPageParam: null as HistoryCursor | null,
-    getNextPageParam: (last) =>
-      last.length === HISTORY_PAGE_SIZE
-        ? { at: last[last.length - 1].at, seq: last[last.length - 1].seq }
-        : undefined,
+    getNextPageParam: (last) => {
+      if (last.length !== HISTORY_PAGE_SIZE) return undefined;
+      const { at, seq, machine } = last[last.length - 1];
+      return { at, seq, machine };
+    },
     // Collect abandoned search/scope permutations quickly instead of the 5-min default.
     gcTime: 60_000,
   });
@@ -148,11 +149,13 @@ export function TerminalHistoryPopover({
   );
 
   // Clear only removes transient history — favorited and foldered messages are
-  // kept — so it's offered solely on the unfiltered "All" view.
+  // kept — so it's offered solely on the unfiltered "All" view. It clears this
+  // computer's history; a connected computer's messages stay on it.
   const canClear =
     !search.trim() &&
     collection === COLLECTION_ALL &&
-    items.some((m) => !m.favorite && !m.folderId && !m.isDraft);
+    items.some((m) => !m.machine && !m.favorite && !m.folderId && !m.isDraft);
+  const othersKeep = items.some((m) => m.machine) ? " Connected computers keep their own history." : "";
   const clear = () => {
     clearHistory(filter);
     setConfirmingClear(false);
@@ -310,9 +313,10 @@ export function TerminalHistoryPopover({
         open={confirmingClear}
         title="Clear history"
         body={
-          scope === "all"
+          (scope === "all"
             ? "This clears the message history for all projects. Favorites, drafts, and messages saved to folders are kept."
-            : "This clears the message history for this project. Favorites, drafts, and messages saved to folders are kept."
+            : "This clears the message history for this project. Favorites, drafts, and messages saved to folders are kept.") +
+          othersKeep
         }
         confirmLabel="Clear"
         variant="destructive"
@@ -604,7 +608,9 @@ const HistoryRow = memo(function HistoryRow({
           />
         </span>
         <span className="truncate text-[10px] text-[var(--text-muted)]">
-          {source === "full" ? `${message.projectName} · ${message.terminalLabel}` : message.terminalLabel}
+          {[message.machineName, source === "full" && peerRawName(message.projectName), message.terminalLabel]
+            .filter(Boolean)
+            .join(" · ")}
         </span>
       </button>
 
@@ -650,21 +656,24 @@ const HistoryRow = memo(function HistoryRow({
               <SendIcon />
             </button>
           )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenFolderMenu(message, e.currentTarget.getBoundingClientRect());
-            }}
-            title="Move to folder"
-            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors group-hover:pointer-events-auto ${
-              message.folderId
-                ? "text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/15"
-                : "text-[var(--text-muted)] hover:bg-[var(--bg-active)] hover:text-[var(--text-secondary)]"
-            }`}
-          >
-            <FolderIcon />
-          </button>
+          {/* Folders are each computer's own. */}
+          {!message.machine && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenFolderMenu(message, e.currentTarget.getBoundingClientRect());
+              }}
+              title="Move to folder"
+              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors group-hover:pointer-events-auto ${
+                message.folderId
+                  ? "text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/15"
+                  : "text-[var(--text-muted)] hover:bg-[var(--bg-active)] hover:text-[var(--text-secondary)]"
+              }`}
+            >
+              <FolderIcon />
+            </button>
+          )}
           <button
             type="button"
             onClick={(e) => {

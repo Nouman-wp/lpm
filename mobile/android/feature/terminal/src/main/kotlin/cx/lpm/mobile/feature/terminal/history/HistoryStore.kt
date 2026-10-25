@@ -112,7 +112,7 @@ class HistoryStore(private val session: MacSession) : SessionStore {
             query.search,
             query.favoritesOnly,
             query.folder,
-            HistoryCursor(last.at, last.seq)
+            HistoryCursor(last.at, last.seq, last.machine)
         )
     }
 

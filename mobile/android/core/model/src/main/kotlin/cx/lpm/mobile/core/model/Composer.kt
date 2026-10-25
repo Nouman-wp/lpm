@@ -97,9 +97,13 @@ data class HistoryItem(
     val kind: String,
     val project: String,
     val at: Long,
-    val seq: Long
+    val seq: Long,
+    /** The paired computer it was typed on (slug); null for the Mac's own messages. */
+    val machine: String? = null,
+    val machineName: String? = null
 ) {
     val isDraft: Boolean get() = kind == "draft"
+    val isFromOtherComputer: Boolean get() = machine != null
 
     companion object {
         fun parse(o: JsonObject): HistoryItem = HistoryItem(
@@ -112,13 +116,15 @@ data class HistoryItem(
             kind = o.string("kind") ?: "sent",
             project = o.string("project").orEmpty(),
             at = o.long("at") ?: 0,
-            seq = o.long("seq") ?: 0
+            seq = o.long("seq") ?: 0,
+            machine = o.string("machine"),
+            machineName = o.string("machineName")
         )
     }
 }
 
-/** The keyset cursor `historyQuery` pages back from (Swift's `(at:, seq:)` tuple). */
-data class HistoryCursor(val at: Long, val seq: Long)
+/** The keyset cursor `historyQuery` pages back from (Swift's `(at:, seq:, machine:)` tuple). */
+data class HistoryCursor(val at: Long, val seq: Long, val machine: String? = null)
 
 /** A message-history folder with its message count, for the history filter UI. */
 data class HistoryFolder(val id: String, val name: String, val count: Int) {

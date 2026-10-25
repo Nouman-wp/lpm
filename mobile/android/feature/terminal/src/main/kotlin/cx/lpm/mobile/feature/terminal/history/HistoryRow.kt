@@ -88,9 +88,12 @@ internal fun HistoryRow(
                             .padding(horizontal = 5.dp, vertical = 1.dp)
                     )
                 }
-                if (item.project.isNotEmpty()) {
+                val source = listOfNotNull(item.machineName, item.project).filter {
+                    it.isNotEmpty()
+                }
+                if (source.isNotEmpty()) {
                     Text(
-                        item.project,
+                        source.joinToString(" · "),
                         fontSize = 11.sp,
                         color = colors.secondaryLabel,
                         maxLines = 1
@@ -130,11 +133,14 @@ internal fun HistoryRow(
                 ),
                 onClick = { actions.onToggleFavorite(item) }
             )
-            ContextMenuItem(
-                title = stringResource(R.string.history_move_to_folder),
-                icon = painterResource(DesignR.drawable.ic_folder),
-                onClick = { actions.onMove(item) }
-            )
+            // Folders are each computer's own.
+            if (!item.isFromOtherComputer) {
+                ContextMenuItem(
+                    title = stringResource(R.string.history_move_to_folder),
+                    icon = painterResource(DesignR.drawable.ic_folder),
+                    onClick = { actions.onMove(item) }
+                )
+            }
             ContextMenuItem(
                 title = stringResource(R.string.history_delete),
                 icon = painterResource(DesignR.drawable.ic_delete),
