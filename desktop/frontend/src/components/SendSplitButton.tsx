@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlarmClock } from "lucide-react";
+import { AlarmClock, ListEnd } from "lucide-react";
 import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import { useOverlay } from "../store/overlay";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
@@ -18,6 +18,9 @@ export interface SendSplitButtonProps {
   busy: boolean;
   onSend: () => void;
   onSaveDraft: () => void;
+  // Queue this prompt to go out once the terminal's agent finishes its turn;
+  // `hint` says what it waits for.
+  sendWhenDone?: { run: () => void; hint: string };
   // Open the picker for when to send this prompt instead of now.
   onSendLater?: () => void;
   // Open the picker for a tab elsewhere — another tab here, or one in another
@@ -36,11 +39,11 @@ const MAX_DUPES = 10;
 
 // The composer's send control: a split button whose primary half sends the
 // prompt (unchanged ↵ behaviour) and whose caret half opens a menu to send it
-// later, save it as a draft, send it to another tab, or run it across several
-// parallel duplicates instead. The
+// when the agent is done or later, save it as a draft, send it to another tab,
+// or run it across several parallel duplicates instead. The
 // menu is anchored above the button (the composer sits at the bottom of the
 // pane) and portaled so the composer's rounded, clipping ancestors can't cut it off.
-export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onSendLater, onSendElsewhere, onRunInDuplicates }: SendSplitButtonProps) {
+export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, sendWhenDone, onSendLater, onSendElsewhere, onRunInDuplicates }: SendSplitButtonProps) {
   const [open, setOpen] = useState(false);
   // How many copies "Run in duplicates" spins up; adjusted inline in the menu
   // and carried over as the seeded Copies count when the dialog opens.
@@ -120,6 +123,18 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onSendLat
         style &&
         createPortal(
           <div ref={panelRef} role="menu" style={style} className={`z-[80] ${MENU_PANEL_CLASS}`}>
+            {sendWhenDone && (
+              <ContextMenuItem
+                label="Send when done"
+                description={sendWhenDone.hint}
+                icon={<ListEnd size={13} strokeWidth={1.5} />}
+                shortcut={enterHint({ alt: true, shift: true })}
+                onClick={() => {
+                  setOpen(false);
+                  sendWhenDone.run();
+                }}
+              />
+            )}
             {onSendLater && (
               <ContextMenuItem
                 label="Send later"

@@ -77,10 +77,10 @@ describe("unsavedWorkPills", () => {
 describe("folder delete wording", () => {
   it("says the projects stay and nothing on disk changes", () => {
     expect(folderKeepText(4)).toBe(
-      "Its 4 projects move back to the top of the list. Nothing on disk changes.",
+      "Its 4 projects move out of the folder. Nothing on disk changes.",
     );
     expect(folderKeepText(1)).toBe(
-      "Its 1 project moves back to the top of the list. Nothing on disk changes.",
+      "Its 1 project moves out of the folder. Nothing on disk changes.",
     );
     expect(folderKeepText(0)).toBe("It's empty. Nothing on disk changes.");
   });

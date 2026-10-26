@@ -13,11 +13,11 @@ export const serviceAddress = (port: number) => `localhost:${port}`;
 // bar). Colors derive from the surrounding text, so it sits on the app surface
 // and on the browser's own light or dark surface alike.
 export function BrowserServiceList({
-  projectName,
+  projectLabel,
   services,
   onOpen,
 }: {
-  projectName: string;
+  projectLabel: string;
   services: BrowserService[];
   onOpen: (address: string) => void;
 }) {
@@ -27,7 +27,7 @@ export function BrowserServiceList({
       <div className="flex flex-col gap-1">
         <span className="text-[15px] font-semibold tracking-tight">Open a running service</span>
         <span className="text-xs opacity-55">
-          {projectName} has {count} serving pages right now
+          {projectLabel} has {count} serving pages right now
         </span>
       </div>
       <div className="overflow-hidden rounded-xl border border-[color-mix(in_srgb,currentColor_12%,transparent)] text-left">

@@ -12,7 +12,7 @@ interface GroupContextMenuProps {
   projectCount: number;
   onRename: () => void;
   onNewFolder: () => void;
-  // Drops the folder; its projects move back to the top of the list.
+  // Drops the folder; its projects move out of it.
   onDeleteFolder: () => void;
   // Absent where the folder's projects can't be deleted from here.
   onDeleteWithProjects?: () => void;

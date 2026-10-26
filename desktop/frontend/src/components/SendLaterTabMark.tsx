@@ -4,8 +4,8 @@ import { TONE_TEXT } from "../sendLater/toneStyles";
 import { useSendLater } from "../store/sendLater";
 
 // Marks on a terminal tab while prompts wait to go into it: a clock and how many
-// are scheduled, an hourglass for one that's due and waiting for the agent, and
-// a crossed-out clock for one that missed its time.
+// are scheduled, an hourglass and how many are due or queued and waiting for the
+// agent, and a crossed-out clock for one that missed its time.
 export function SendLaterTabMark({ historyKey }: { historyKey: string | undefined }) {
   const key = useSendLater((s) => (historyKey ? markKey(s.items, (i) => i.historyKey === historyKey) : ""));
   const mark = parseMarkKey(key);
@@ -19,8 +19,9 @@ export function SendLaterTabMark({ historyKey }: { historyKey: string | undefine
   return (
     <span title={what} aria-label={what} className="ml-1 flex shrink-0 items-center gap-1 text-[10px] tabular-nums">
       {mark.waiting > 0 && (
-        <span className={TONE_TEXT.waiting}>
+        <span className={`flex items-center gap-0.5 ${TONE_TEXT.waiting}`}>
           <Hourglass size={11} strokeWidth={1.75} />
+          {mark.waiting > 1 && mark.waiting}
         </span>
       )}
       {mark.missed > 0 && (

@@ -145,32 +145,6 @@ export function renameToken(cmd: string, from: string, to: string): string {
     .join(`{{${to}}}`);
 }
 
-// Mirrors shell_safe_value in actions.rs: values outside this set are
-// single-quoted before landing in a shell command.
-function shellSafeValue(v: string): boolean {
-  return /^[A-Za-z0-9_@%+=:,./-]+$/.test(v);
-}
-
-function shellEscapeValue(v: string): string {
-  return shellSafeValue(v) ? v : `'${v.replaceAll("'", "'\\''")}'`;
-}
-
-// Substitution for shell contexts (an action's cmd): values are quoted unless
-// plainly safe; `{{key|raw}}` splices verbatim. Matches substitute_inputs in
-// actions.rs so terminal/command actions behave like once/background ones.
-export function substituteCommand(
-  cmd: string,
-  values: Record<string, string>,
-): string {
-  return Object.entries(values).reduce(
-    (acc, [k, v]) =>
-      acc
-        .replaceAll(`{{${k}|raw}}`, v)
-        .replaceAll(`{{${k}}}`, shellEscapeValue(v)),
-    cmd,
-  );
-}
-
 // Substitution for non-shell text (prompt, cwd, env values): verbatim, both
 // token forms.
 export function substituteText(

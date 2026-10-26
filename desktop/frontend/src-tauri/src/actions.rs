@@ -188,36 +188,14 @@ pub(crate) struct ActionPlan {
     pub(crate) on_exit: Option<Box<dyn FnOnce() + Send>>,
 }
 
-/// Characters that pass through a POSIX shell unquoted. Values outside this
-/// set are single-quoted before they land in `cmd`, so a space stays one
-/// argument and a `;` stays data. Matches shellSafeValue in actionInputs.ts.
-fn shell_safe_value(v: &str) -> bool {
-    !v.is_empty()
-        && v.bytes().all(|b| {
-            b.is_ascii_alphanumeric()
-                | matches!(
-                    b,
-                    b'_' | b'@' | b'%' | b'+' | b'=' | b':' | b',' | b'.' | b'/' | b'-'
-                )
-        })
-}
-
 /// Substitute {{key}} inputs into the resolved action. `cmd` is a shell
-/// context, so values are quoted unless they're plainly safe; `{{key|raw}}`
-/// opts a token out for users deliberately splicing command fragments. `cwd`
-/// and `env` values are not shell text — they substitute verbatim. (The saved
-/// `prompt` substitutes frontend-side in useProjectActions.)
+/// context, so each answer is quoted for where its token sits (see
+/// cmd_inputs). `cwd` and `env` values are not shell text — they substitute
+/// verbatim. (The saved `prompt` substitutes frontend-side in
+/// useProjectActions.)
 fn substitute_inputs(a: &mut config::ActionResolved, input_values: &HashMap<String, String>) {
+    a.cmd = crate::cmd_inputs::substitute_cmd(&a.cmd, input_values);
     for (k, v) in input_values {
-        let escaped = if shell_safe_value(v) {
-            v.clone()
-        } else {
-            config::shell_quote(v)
-        };
-        a.cmd = a
-            .cmd
-            .replace(&format!("{{{{{k}|raw}}}}"), v)
-            .replace(&format!("{{{{{k}}}}}"), &escaped);
         a.cwd = a.cwd.replace(&format!("{{{{{k}}}}}"), v);
         for val in a.env.values_mut() {
             *val = val.replace(&format!("{{{{{k}}}}}"), v);

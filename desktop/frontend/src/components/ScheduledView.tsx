@@ -367,7 +367,7 @@ export function ScheduledView({ project, visible = true, focused = true }: Sched
               className="mt-4 flex items-center gap-1.5 rounded-lg bg-[var(--text-primary)] px-3.5 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition hover:opacity-90"
             >
               <PlusIcon />
-              New job
+              New automation
             </button>
           </EmptyState>
         ) : (

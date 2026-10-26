@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "../notifications/toast";
 import { registerComposerHost, unschedule } from "../sendLater/actions";
 import { choiceAt, loadLastChoice, saveLastChoice, type LastChoice } from "../sendLater/lastChoice";
+import { whenDoneSubject } from "../sendLater/status";
 import { shortWhenLabel } from "../sendLater/time";
 import {
   reschedulePrompt,
@@ -92,6 +93,36 @@ export function useComposerSendLater({
   const close = useCallback(() => setPicker(null), []);
   const closeDrafts = useCallback(() => setDraftsOpen(false), []);
 
+  // Take the prompt in the input onto the schedule, with Undo on the toast that
+  // says so. True once it's there.
+  const scheduleInput = useCallback(
+    async (at: number, kind: ScheduledPromptKind, done: string, failed: string): Promise<boolean> => {
+      const prompt = readPrompt();
+      if (!prompt || !claim(prompt.id)) return false;
+      try {
+        const item = await schedulePrompt({
+          projectName,
+          historyKey,
+          terminalLabel: targetLabel,
+          agent,
+          text: prompt.text,
+          images: prompt.images,
+          dueAt: at,
+          kind,
+        });
+        retire(prompt.id);
+        toast.success(done, { action: { label: "Undo", onClick: () => void unschedule(item) } });
+        return true;
+      } catch (err) {
+        toast.error(`${failed}: ${String(err)}`);
+        return false;
+      } finally {
+        release(prompt.id);
+      }
+    },
+    [readPrompt, claim, release, retire, projectName, historyKey, targetLabel, agent],
+  );
+
   const pick = useCallback(
     async (at: number, kind: ScheduledPromptKind, choice: LastChoice | null) => {
       const current = picker;
@@ -107,32 +138,30 @@ export function useComposerSendLater({
         }
         return;
       }
-      const prompt = readPrompt();
-      if (!prompt || !claim(prompt.id)) return;
-      try {
-        const item = await schedulePrompt({
-          projectName,
-          historyKey,
-          terminalLabel: targetLabel,
-          agent,
-          text: prompt.text,
-          images: prompt.images,
-          dueAt: at,
-          kind,
-        });
-        retire(prompt.id);
+      if (await scheduleInput(at, kind, `Scheduled for ${shortWhenLabel(at, Date.now())}`, "Couldn't schedule it")) {
         setPicker(null);
-        toast.success(`Scheduled for ${shortWhenLabel(at, Date.now())}`, {
-          action: { label: "Undo", onClick: () => void unschedule(item) },
-        });
-      } catch (err) {
-        toast.error(`Couldn't schedule it: ${String(err)}`);
-      } finally {
-        release(prompt.id);
       }
     },
-    [picker, readPrompt, claim, release, retire, projectName, historyKey, targetLabel, agent],
+    [picker, scheduleInput],
   );
 
-  return { picker, openForPrompt, openForItem, close, pick, draftsOpen: draftsOpen && shown, closeDrafts };
+  // Queue the prompt to go out once the agent (or a shell's command) finishes:
+  // due at once, held by the sender while the terminal is busy.
+  const subject = whenDoneSubject(agent, targetLabel);
+  const sendWhenDone = useCallback(
+    () => scheduleInput(Date.now(), "done", `Sends when ${subject} finishes`, "Couldn't queue it"),
+    [scheduleInput, subject],
+  );
+
+  return {
+    picker,
+    openForPrompt,
+    openForItem,
+    close,
+    pick,
+    sendWhenDone,
+    whenDoneHint: `Waits for ${subject} to finish, then sends`,
+    draftsOpen: draftsOpen && shown,
+    closeDrafts,
+  };
 }

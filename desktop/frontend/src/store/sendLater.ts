@@ -13,7 +13,8 @@ import { EventsOn } from "../../bridge/runtime";
 // the main window's runner does the sending.
 
 export type ScheduledPromptState = "scheduled" | "due" | "missed";
-export type ScheduledPromptKind = "time" | "limit";
+// "done": queued to go out once the agent finishes the turn it's on.
+export type ScheduledPromptKind = "time" | "limit" | "done";
 
 export interface ScheduledPrompt {
   id: string;
@@ -34,6 +35,10 @@ export interface ScheduledPrompt {
   force: boolean;
 }
 
+export function isWhenDone(item: Pick<ScheduledPrompt, "kind">): boolean {
+  return item.kind === "done";
+}
+
 export type NewScheduledPrompt = Pick<
   ScheduledPrompt,
   "projectName" | "historyKey" | "terminalLabel" | "agent" | "text" | "images" | "dueAt" | "kind"
@@ -46,7 +51,7 @@ interface Snapshot {
 }
 
 // Why a due prompt hasn't gone out yet. Known only to the window that sends.
-export type SendLaterHold = "busy" | "asking" | "starting" | "away";
+export type SendLaterHold = "busy" | "asking" | "starting" | "away" | "problem";
 
 interface SendLaterStoreState {
   items: ScheduledPrompt[];

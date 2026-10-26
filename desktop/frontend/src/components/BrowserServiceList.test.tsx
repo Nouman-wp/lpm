@@ -24,7 +24,7 @@ describe("BrowserServiceList", () => {
     act(() => {
       root.render(
         <BrowserServiceList
-          projectName="saas-app"
+          projectLabel="saas-app"
           services={[
             { name: "web", port: 3000 },
             { name: "api", port: 3001 },

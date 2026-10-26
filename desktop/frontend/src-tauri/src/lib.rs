@@ -1,5 +1,6 @@
 mod action_labels;
 mod actions;
+mod cmd_inputs;
 mod command_run;
 mod adopt;
 mod agent_last_answer;
@@ -183,6 +184,7 @@ mod portsprobe_windows;
 mod procinfo;
 mod proctree;
 mod procwin;
+mod project_labels;
 mod projects_crud;
 mod pty;
 mod pull_request;

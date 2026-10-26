@@ -11,10 +11,14 @@ export function useYamlEditor(
   const [content, setContent] = useState("");
   const [original, setOriginal] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // A failed save's message, kept with the text it was about: once the text
+  // changes the message no longer describes it.
+  const [saveFailure, setSaveFailure] = useState<{ message: string; content: string } | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   const dirty = content !== original;
+  const error = loadError ?? (saveFailure?.content === content ? saveFailure.message : null);
   const validationError = useMemo(
     () => validate?.(content) ?? null,
     [content, validate],
@@ -23,7 +27,7 @@ export function useYamlEditor(
   useEffect(() => {
     load()
       .then((data) => { setContent(data); setOriginal(data); setLoaded(true); })
-      .catch((err) => setError(`Failed to load: ${err}`));
+      .catch((err) => setLoadError(`Failed to load: ${err}`));
   }, [load]);
 
   // Puts `next` in the editor and saves it, for content that arrives whole
@@ -32,17 +36,18 @@ export function useYamlEditor(
     async (next: string) => {
       setContent(next);
       const invalid = validate?.(next) ?? null;
+      setLoadError(null);
       if (invalid) {
-        setError(invalid);
+        setSaveFailure({ message: invalid, content: next });
         return;
       }
       setSaving(true);
-      setError(null);
+      setSaveFailure(null);
       try {
         await save(next);
         setOriginal(next);
       } catch (err) {
-        setError(`${err}`);
+        setSaveFailure({ message: `${err}`, content: next });
       } finally {
         setSaving(false);
       }

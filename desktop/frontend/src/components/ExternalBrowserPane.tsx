@@ -17,7 +17,7 @@ function hostOf(addr: string): string {
 
 /** A browser tab whose pages open in the system browser, for platforms where a
  *  page can't be shown inside the pane. */
-export function ExternalBrowserPane({ projectName, active, services = [] }: BrowserPaneProps) {
+export function ExternalBrowserPane({ projectName, projectLabel, active, services = [] }: BrowserPaneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [address, setAddress] = useState("");
   const [opened, setOpened] = useState("");
@@ -65,7 +65,7 @@ export function ExternalBrowserPane({ projectName, active, services = [] }: Brow
       >
         {!opened && services.length > 0 ? (
           <div className="flex w-full justify-center text-[var(--text-primary)]">
-            <BrowserServiceList projectName={projectName} services={services} onOpen={(addr) => void open(addr)} />
+            <BrowserServiceList projectLabel={projectLabel} services={services} onOpen={(addr) => void open(addr)} />
           </div>
         ) : (
           <>

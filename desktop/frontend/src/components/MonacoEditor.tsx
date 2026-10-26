@@ -222,6 +222,17 @@ export function MonacoEditor({
       editor.trigger("menu", "editor.action.selectAll", null);
     };
     window.addEventListener("lpm-menu-select-all", menuSelectAllHandler);
+    // The menu's ⌘Z falls back to WebKit's undo, which never reaches Monaco when
+    // the edits so far weren't typed (a paste): WebKit then has no history.
+    const menuHistoryHandler = (action: "undo" | "redo") => (e: Event) => {
+      if (!editor.hasTextFocus()) return;
+      e.preventDefault();
+      editor.trigger("menu", action, null);
+    };
+    const menuUndoHandler = menuHistoryHandler("undo");
+    const menuRedoHandler = menuHistoryHandler("redo");
+    window.addEventListener("lpm-menu-undo", menuUndoHandler);
+    window.addEventListener("lpm-menu-redo", menuRedoHandler);
 
     if (model.getLanguageId() === "yaml") {
       editor.addCommand(
@@ -259,6 +270,8 @@ export function MonacoEditor({
       host?.removeEventListener("wheel", wheelHandler);
       host?.removeEventListener("beforeinput", beforeInputHandler, true);
       window.removeEventListener("lpm-menu-select-all", menuSelectAllHandler);
+      window.removeEventListener("lpm-menu-undo", menuUndoHandler);
+      window.removeEventListener("lpm-menu-redo", menuRedoHandler);
       sub.dispose();
       editor.dispose();
       model.dispose();

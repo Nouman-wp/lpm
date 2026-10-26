@@ -37,7 +37,8 @@ pub struct ScheduledPrompt {
     pub due_at: i64,
     pub created_at: i64,
     pub state: PromptState,
-    /// "limit" when it was set for the agent's usage limit to reset, else "time".
+    /// "limit" when it was set for the agent's usage limit to reset, "done" when
+    /// it waits for the agent to finish its turn, else "time".
     #[serde(default)]
     pub kind: String,
     /// Send now: goes out without waiting for the agent to finish its turn.
@@ -119,6 +120,9 @@ pub fn next_wait(items: &[ScheduledPrompt], now: i64) -> Option<Duration> {
 
 pub const PAST_TIME: &str = "That time has already passed. Pick a time ahead of now.";
 
+/// A prompt queued to go out once its agent finishes the turn it's on.
+pub const KIND_DONE: &str = "done";
+
 /// A time a prompt can be set for: still ahead of the clock.
 pub fn check_due_at(due_at: i64, now: i64) -> Result<(), String> {
     if due_at > now {
@@ -126,6 +130,17 @@ pub fn check_due_at(due_at: i64, now: i64) -> Result<(), String> {
     } else {
         Err(PAST_TIME.into())
     }
+}
+
+/// When a new prompt is due and the state it starts in. One queued for when its
+/// agent is done is due at once: the sending window holds it while the agent
+/// works, so it goes out the moment the turn ends.
+pub fn first_state(kind: &str, due_at: i64, now: i64) -> Result<(i64, PromptState), String> {
+    if kind == KIND_DONE {
+        return Ok((now, PromptState::Due));
+    }
+    check_due_at(due_at, now)?;
+    Ok((due_at, PromptState::Scheduled))
 }
 
 #[cfg(test)]
@@ -220,6 +235,23 @@ mod tests {
         assert!(check_due_at(1_001, 1_000).is_ok());
         assert_eq!(check_due_at(1_000, 1_000), Err(PAST_TIME.to_string()));
         assert!(check_due_at(0, 1_000).is_err());
+    }
+
+    #[test]
+    fn a_prompt_for_when_the_agent_is_done_is_due_at_once() {
+        assert_eq!(
+            first_state(KIND_DONE, 0, 1_000),
+            Ok((1_000, PromptState::Due))
+        );
+    }
+
+    #[test]
+    fn a_timed_prompt_starts_scheduled_for_a_time_ahead() {
+        assert_eq!(
+            first_state("time", 2_000, 1_000),
+            Ok((2_000, PromptState::Scheduled))
+        );
+        assert_eq!(first_state("limit", 900, 1_000), Err(PAST_TIME.to_string()));
     }
 
     #[test]

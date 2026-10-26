@@ -8,10 +8,8 @@ import {
 } from "../../bridge/commands";
 import type { TerminalViewHandle } from "../components/TerminalView";
 import type { ActionInfo } from "../types";
-import {
-  substituteCommand,
-  substituteText,
-} from "../components/project-detail/actionInputs";
+import { substituteText } from "../components/project-detail/actionInputs";
+import { substituteCommand } from "../components/project-detail/commandInputs";
 import { promptTextToSeed } from "../composerValue";
 import { useAppStore } from "../store/app";
 import {

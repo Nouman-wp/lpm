@@ -8,7 +8,7 @@ const state = () => useTerminalCommands.getState().byId.t1;
 
 beforeEach(() => {
   vi.useFakeTimers();
-  useTerminalCommands.setState({ byId: {} });
+  useTerminalCommands.setState({ byId: {}, atPrompt: {} });
 });
 
 afterEach(() => vi.useRealTimers());
@@ -32,6 +32,17 @@ describe("terminal commands", () => {
   it("ignores the prompt that comes before any command", () => {
     applyTerminalCommandEvent({ id: "t1", code: 0, at: 1000 });
     expect(state()).toBeUndefined();
+  });
+
+  it("knows when the shell sits at its own prompt", () => {
+    const atPrompt = () => useTerminalCommands.getState().atPrompt.t1;
+    expect(atPrompt()).toBeUndefined();
+    applyTerminalCommandEvent({ id: "t1", code: 0, at: 1000 });
+    expect(atPrompt()).toBe(true);
+    applyTerminalCommandEvent({ id: "t1", command: "claude", at: 2000 });
+    expect(atPrompt()).toBe(false);
+    applyTerminalCommandEvent({ id: "t1", code: 0, at: 9000 });
+    expect(atPrompt()).toBe(true);
   });
 
   it("keeps the last result while the next command runs", () => {

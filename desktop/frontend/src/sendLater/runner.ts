@@ -2,7 +2,7 @@ import { TerminalForegroundCommand } from "../../bridge/commands";
 import { interactivePaneOutputAt } from "../components/InteractivePane";
 import { buildTerminalPayload } from "../composerPayload";
 import { isSwitchingModel } from "../hooks/useAgentModelSwitch";
-import { derivePaneStatus } from "../hooks/usePaneStatus";
+import { derivePaneStatus, paneAgentStatus } from "../hooks/usePaneStatus";
 import { projectStatusEntries } from "../projectStatusEntries";
 import { useAppStore } from "../store/app";
 import { useGlobalAgentStatus } from "../store/globalAgentStatus";
@@ -12,7 +12,7 @@ import { sendToTerminal, useTerminalTargets, type TerminalTargetInfo } from "../
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import { announceMissed, announceSent } from "./announce";
 import { enableCloseout } from "./closeout";
-import { foregroundKind, readiness } from "./readiness";
+import { foregroundKind, readiness, stoppedOnProblem } from "./readiness";
 import { createClosedTabReconciler } from "./reconcile";
 
 // A terminal that refuses a prompt (a paste still going in, a session that
@@ -27,8 +27,8 @@ function findTarget(item: ScheduledPrompt): TerminalTargetInfo | null {
   return targets?.find((t) => t.historyKey === item.historyKey) ?? null;
 }
 
-function agentStateOf(projectName: string, terminalId: string) {
-  return derivePaneStatus(projectStatusEntries(projectName), Date.now()).agents.get(terminalId)?.state;
+function paneAgentOf(projectName: string, terminalId: string) {
+  return paneAgentStatus(derivePaneStatus(projectStatusEntries(projectName), Date.now()), terminalId);
 }
 
 function current(id: string): ScheduledPrompt | undefined {
@@ -44,7 +44,13 @@ export function startSendLaterRunner(): () => void {
   // Typed in already, waiting for the schedule to drop them: never typed again.
   const sent = new Set<string>();
   const lastSent = new Map<string, number>();
+  // Refused by its terminal: tried again after a growing pause.
   const retryAfter = new Map<string, number>();
+  // Not ready yet: left alone until its time to look again, or until its
+  // agent's state changes, whichever comes first. A turn ending sends what
+  // waited on it at once; a hold with no time (a question, a problem) isn't
+  // asked about again until something moves.
+  const held = new Map<string, { until: number; agentState: string }>();
   const failures = new Map<string, number>();
   const reconcile = createClosedTabReconciler();
   let timer: number | null = null;
@@ -89,19 +95,21 @@ export function startSendLaterRunner(): () => void {
       const due = current(item.id);
       if (!due || due.state !== "due") return;
       const outputAt = interactivePaneOutputAt(target.id);
+      const agent = paneAgentOf(due.projectName, target.id);
       const verdict = readiness({
         now: Date.now(),
         force: due.force,
         forAgent: due.agent !== "",
         foreground,
-        agent: agentStateOf(due.projectName, target.id),
+        agent: agent?.state,
         quietMs: outputAt > 0 ? performance.now() - outputAt : Infinity,
         switchingModel: isSwitchingModel(target.id),
         lastSentAt: lastSent.get(due.historyKey) ?? null,
+        stoppedOnProblem: stoppedOnProblem(due, agent),
       });
       if (!verdict.ready) {
         setHold(due.id, verdict.hold);
-        if (verdict.retryAt !== null) retryAfter.set(due.id, verdict.retryAt);
+        held.set(due.id, { until: verdict.retryAt ?? Infinity, agentState: agent?.state ?? "" });
         return;
       }
       const payload = await buildTerminalPayload(target.id, due.text, due.images);
@@ -159,6 +167,14 @@ export function startSendLaterRunner(): () => void {
         setHold(item.id, "away");
         continue;
       }
+      const wait = held.get(item.id);
+      if (wait) {
+        if (wait.until > now && wait.agentState === (paneAgentOf(item.projectName, target.id)?.state ?? "")) {
+          soonest = Math.min(soonest, wait.until);
+          continue;
+        }
+        held.delete(item.id);
+      }
       busyTerminals.add(item.historyKey);
       void attempt(item, target);
     }
@@ -179,6 +195,8 @@ export function startSendLaterRunner(): () => void {
       else if (s.items.some((i) => i.state === "missed" && prev.items.find((p) => p.id === i.id)?.state === "scheduled")) {
         announceMissed(s.items, false);
       }
+      // Send now, an edit or a cancel: every waiting prompt is looked at afresh.
+      held.clear();
       pumpSoon();
     }),
     useAppStore.subscribe((s, prev) => {

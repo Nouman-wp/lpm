@@ -5,6 +5,7 @@ import {
   STALE_WORKING_MS,
   foregroundKind,
   readiness,
+  stoppedOnProblem,
   type ReadinessInput,
 } from "./readiness";
 
@@ -18,6 +19,7 @@ const base: ReadinessInput = {
   quietMs: 60_000,
   switchingModel: false,
   lastSentAt: null,
+  stoppedOnProblem: false,
 };
 
 describe("readiness", () => {
@@ -69,6 +71,30 @@ describe("readiness", () => {
     expect(readiness({ ...shell, foreground: "shell", quietMs: 0 }).ready).toBe(true);
     expect(readiness({ ...shell, foreground: "program" })).toMatchObject({ ready: false, hold: "busy" });
     expect(readiness({ ...shell, foreground: "program", force: true }).ready).toBe(true);
+  });
+
+  it("pauses a queued prompt after a problem until it's sent anyway", () => {
+    const stopped = { ...base, agent: "error" as const, stoppedOnProblem: true };
+    expect(readiness(stopped)).toEqual({ ready: false, hold: "problem", retryAt: null });
+    expect(readiness({ ...stopped, force: true }).ready).toBe(true);
+  });
+});
+
+describe("stoppedOnProblem", () => {
+  const queued = { kind: "done" as const, createdAt: NOW };
+
+  it("stops on a problem that came after the prompt was queued", () => {
+    expect(stoppedOnProblem(queued, { state: "error", since: NOW + 1 })).toBe(true);
+  });
+
+  it("ignores a problem from before it was queued, and any other state", () => {
+    expect(stoppedOnProblem(queued, { state: "error", since: NOW - 1 })).toBe(false);
+    expect(stoppedOnProblem(queued, { state: "done", since: NOW + 1, until: NOW + 2 })).toBe(false);
+    expect(stoppedOnProblem(queued, null)).toBe(false);
+  });
+
+  it("leaves prompts set for a time to the usual rules", () => {
+    expect(stoppedOnProblem({ kind: "time", createdAt: NOW }, { state: "error", since: NOW + 1 })).toBe(false);
   });
 });
 

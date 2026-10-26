@@ -32,6 +32,7 @@ import { uploadPeerFile } from "../peer/uploadFiles";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { getSettings } from "../store/settings";
 import { useEndedTerminals } from "../store/endedTerminals";
+import { useTerminalCommands } from "../store/terminalCommands";
 import {
   useEnabledComposerActions,
   type ComposerAction,
@@ -359,8 +360,11 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     submit: (text) => onSubmit(text),
   });
   // "@" mentions work in every terminal composer, not just agent terminals — the
-  // referenced text is useful to any CLI. They load only while the composer is
-  // focused, so a background tab still pays nothing for the tree walk / git call.
+  // referenced text is useful to any CLI — except while the shell itself sits at
+  // its prompt: it would take "@README.md" as a literal file name. They load only
+  // while the composer is focused, so a background tab still pays nothing for
+  // the tree walk / git call.
+  const shellAtPrompt = useTerminalCommands((s) => s.atPrompt[terminalId] === true);
   const {
     items: memorySessions,
     byId: memorySessionById,
@@ -1601,7 +1605,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       return;
     }
     const argMatch = line !== null && !guest ? MEMORY_ARG_TRIGGER.exec(line) : null;
-    const match = !argMatch && line !== null && !guest ? MENTION_TRIGGER.exec(line) : null;
+    const match =
+      !argMatch && line !== null && !guest && !shellAtPrompt ? MENTION_TRIGGER.exec(line) : null;
     if (!argMatch && !match) {
       setMentionOpen(false);
       return;
@@ -2151,12 +2156,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       void saveCurrentDraft();
       return;
     }
-    // ⌥↵ opens Send later for the prompt. Checked before plain ↵, which would
-    // otherwise take the Option chord as a send.
-    if (e.key === "Enter" && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey && !isImeComposing(e)) {
+    // ⌥↵ opens Send later for the prompt, ⌥⇧↵ queues it for when the agent is
+    // done. Checked before plain ↵ and ⇧↵, which would otherwise take the
+    // Option chords as a send or a new line.
+    if (e.key === "Enter" && e.altKey && !e.metaKey && !e.ctrlKey && !isImeComposing(e)) {
       e.preventDefault();
       e.stopPropagation();
-      if (!guest) sendLater.openForPrompt();
+      if (guest) return;
+      if (e.shiftKey) void sendLater.sendWhenDone();
+      else sendLater.openForPrompt();
       return;
     }
     if (e.key === "Enter" && !e.shiftKey && !isImeComposing(e)) {
@@ -2462,6 +2470,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             busy,
             onSend: () => void send(),
             onSaveDraft: () => void saveCurrentDraft(),
+            sendWhenDone: guest
+              ? undefined
+              : { run: () => void sendLater.sendWhenDone(), hint: sendLater.whenDoneHint },
             onSendLater: guest ? undefined : sendLater.openForPrompt,
             onSendElsewhere: guest
               ? undefined

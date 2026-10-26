@@ -21,6 +21,8 @@ interface ProjectRenameModalProps {
   // The paired machine the project is on. `currentRoot` is then its path there,
   // and the folder is browsed and moved there.
   host?: { slug: string; alias: string };
+  // What the other projects beside it show as, so two can't end up the same.
+  takenNames: string[];
   onClose: () => void;
   onRenameLabel: (value: string) => void;
   onMoveFolder: (newRoot: string) => Promise<void>;
@@ -34,6 +36,7 @@ export function ProjectRenameModal({
   canRenameFolder,
   running,
   host,
+  takenNames,
   onClose,
   onRenameLabel,
   onMoveFolder,
@@ -77,12 +80,14 @@ export function ProjectRenameModal({
 
   const labelTrim = label.trim();
   const labelChanged = labelTrim.length > 0 && labelTrim !== displayName.trim();
+  const labelTaken =
+    labelChanged && takenNames.some((n) => n.trim().toLowerCase() === labelTrim.toLowerCase());
   const rootTrim = root.trim();
   const looksAbsolute = isAbsolutePath(rootTrim, win);
   const rootEdited = looksAbsolute && rootTrim !== currentRoot.trim();
   const folderChanged = expanded && canRenameFolder && !folderBusy && rootEdited;
   const target = folderMoveTarget(rootTrim, win);
-  const canSubmit = !submitting && (labelChanged || folderChanged);
+  const canSubmit = !submitting && !labelTaken && (labelChanged || folderChanged);
 
   const editRoot = (value: string) => {
     setRoot(value);
@@ -133,8 +138,14 @@ export function ProjectRenameModal({
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           {...modalInputDefaults}
+          aria-invalid={labelTaken}
           className="mt-2 w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2.5 text-base text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
         />
+        {labelTaken && (
+          <p role="alert" className="mt-1.5 pl-0.5 text-[11px] text-[var(--accent-red-text)]">
+            Another project is already called “{labelTrim}”.
+          </p>
+        )}
 
         {canRenameFolder && (
           <div className="mt-3">

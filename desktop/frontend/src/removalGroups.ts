@@ -59,7 +59,7 @@ export function folderKeepText(projects: number): string {
   if (projects === 0) return "It's empty. Nothing on disk changes.";
   const moves =
     projects === 1 ? "Its 1 project moves" : `Its ${projects} projects move`;
-  return `${moves} back to the top of the list. Nothing on disk changes.`;
+  return `${moves} out of the folder. Nothing on disk changes.`;
 }
 
 export const deleteWithProjectsLabel = (projects: number) =>

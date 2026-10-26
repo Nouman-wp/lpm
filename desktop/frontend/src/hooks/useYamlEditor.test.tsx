@@ -28,7 +28,9 @@ function EditorHarness({
       <button onClick={() => editor.setContent(invalidYaml)}>Break YAML</button>
       <button onClick={() => editor.setContent("name: fixed\n")}>Fix YAML</button>
       <button onClick={() => void editor.handleSave()}>Save</button>
+      <button onClick={() => editor.setContent(validYaml)}>Undo</button>
       <span>{editor.validationError}</span>
+      <output>{editor.error}</output>
     </div>
   );
 }
@@ -81,5 +83,27 @@ describe("useYamlEditor", () => {
 
     expect(save).toHaveBeenCalledOnce();
     expect(save).toHaveBeenCalledWith("name: fixed\n");
+  });
+
+  it("drops a failed save's error once the text changes, and shows it again on the same text", async () => {
+    const save = vi.fn(async () => {
+      throw new Error("port must be a number");
+    });
+
+    await act(async () => {
+      root.render(<EditorHarness save={save} />);
+      await Promise.resolve();
+    });
+
+    const shown = () => container.querySelector("output")!.textContent;
+    await act(async () => button("Fix YAML").click());
+    await act(async () => button("Save").click());
+    expect(shown()).toContain("port must be a number");
+
+    await act(async () => button("Undo").click());
+    expect(shown()).toBe("");
+
+    await act(async () => button("Fix YAML").click());
+    expect(shown()).toContain("port must be a number");
   });
 });

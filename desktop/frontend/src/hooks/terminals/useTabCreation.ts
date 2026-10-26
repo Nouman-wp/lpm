@@ -13,6 +13,7 @@ import { logDiagnostic } from "../../diagnostics";
 import { buildForkLaunch, claudeSessionIdOf } from "../../forkSession";
 import { claudeResumeSessionId } from "../../agentSession";
 import { isInteractivePaneSessionDead } from "../../components/InteractivePane";
+import { useTerminalCommands } from "../../store/terminalCommands";
 import {
   getProjectTerminals,
   removeHistoryEntry,
@@ -48,7 +49,7 @@ import {
 } from "../../terminalLabels";
 import { IS_MIRROR_WINDOW } from "../../mirror";
 import { noteOpenedByOtherMac } from "../../peer/openedByOtherMac";
-import { nextId, appendTerminal, configLaunchCmds, foldAgentPrompt } from "./util";
+import { nextId, appendTerminal, configLaunchCmds, foldAgentPrompt, reuseLaunch } from "./util";
 import { type TerminalStartOpts } from "./types";
 import { pinLaunchCommand } from "../../agentLaunchModel";
 
@@ -182,9 +183,11 @@ export function useTabCreation({
             // Always bring the reused tab into view: when it's already active no
             // pane state changes, so PaneView's activation effect wouldn't fire.
             if (!opts.background) useTabScroll.getState().requestScroll(pane.id);
-            const reused = foldAgentPrompt(cmd, opts.prompt);
-            await sendTerminalInput(pane.tabs[idx].id, reused.cmd + "\n");
-            scheduleSeedInject(pane.tabs[idx].id, reused.prompt);
+            const tabId = pane.tabs[idx].id;
+            const busy = Boolean(useTerminalCommands.getState().byId[tabId]?.running);
+            const reused = reuseLaunch(cmd, opts.prompt, busy);
+            if (reused.cmd) await sendTerminalInput(tabId, reused.cmd + "\n");
+            scheduleSeedInject(tabId, reused.prompt);
             return;
           }
         }

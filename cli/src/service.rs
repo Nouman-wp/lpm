@@ -1,5 +1,7 @@
-//! Shared running-state inference for a single service: a listen probe when a
-//! port is declared, otherwise the session's liveness.
+//! Shared running-state inference for a single service, matching the app: it is
+//! stopped unless its project's session runs, then a listen probe decides when
+//! a port is declared, otherwise the session's liveness. Another project on the
+//! same port — a duplicate, say — doesn't make this one's service running.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpListener, TcpStream};
 use std::time::Duration;
@@ -33,27 +35,22 @@ pub fn port_listening(port: i64) -> Option<bool> {
 pub struct ServiceStatus {
     pub running: bool,
     /// "port" (from a listen probe), "session" (portless, inferred from the
-    /// session), or "stopped".
+    /// session), or "stopped" (no session).
     pub source: &'static str,
     pub port_listening: Option<bool>,
 }
 
 pub fn service_status(port: i64, session_running: bool) -> ServiceStatus {
-    match port_listening(port) {
-        Some(listening) => ServiceStatus {
-            running: listening,
-            source: "port",
-            port_listening: Some(listening),
-        },
-        None => ServiceStatus {
-            running: session_running,
-            source: if session_running {
-                "session"
-            } else {
-                "stopped"
-            },
-            port_listening: None,
-        },
+    let listening = port_listening(port);
+    let (running, source) = match (session_running, listening) {
+        (false, _) => (false, "stopped"),
+        (true, Some(listening)) => (listening, "port"),
+        (true, None) => (true, "session"),
+    };
+    ServiceStatus {
+        running,
+        source,
+        port_listening: listening,
     }
 }
 
@@ -75,9 +72,19 @@ mod tests {
         };
         let port = listener.local_addr().unwrap().port() as i64;
         assert_eq!(port_listening(port), Some(true));
-        let status = service_status(port, false);
+        let status = service_status(port, true);
         assert!(status.running);
         assert_eq!(status.source, "port");
+    }
+
+    #[test]
+    fn a_port_held_without_the_session_is_not_this_service() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = listener.local_addr().unwrap().port() as i64;
+        let status = service_status(port, false);
+        assert!(!status.running);
+        assert_eq!(status.source, "stopped");
+        assert_eq!(status.port_listening, Some(true));
     }
 
     #[test]

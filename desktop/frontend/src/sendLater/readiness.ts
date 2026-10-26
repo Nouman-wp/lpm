@@ -1,5 +1,6 @@
 import type { AgentState } from "../agentStatus";
-import type { SendLaterHold } from "../store/sendLater";
+import type { PaneAgentStatus } from "../hooks/usePaneStatus";
+import { isWhenDone, type ScheduledPrompt, type SendLaterHold } from "../store/sendLater";
 
 // How long a terminal that just took a prompt is left alone: its agent reports
 // that it started only once its own hook runs, and until then it looks ready.
@@ -29,6 +30,9 @@ export interface ReadinessInput {
   quietMs: number;
   switchingModel: boolean;
   lastSentAt: number | null;
+  // Queued for when the agent is done, and the turn it waited for ended in a
+  // problem: "now commit it" mustn't follow a failure.
+  stoppedOnProblem: boolean;
 }
 
 export type Readiness =
@@ -50,6 +54,7 @@ export function readiness(input: ReadinessInput): Readiness {
     return hold("starting", now + (SETTLED_QUIET_MS - input.quietMs));
   }
   if (input.force) return { ready: true };
+  if (input.stoppedOnProblem) return hold("problem", null);
   if (!input.forAgent && input.foreground === "program") return hold("busy", now + OCCUPIED_RETRY_MS);
   if (input.lastSentAt !== null && now - input.lastSentAt < SENT_SETTLE_MS) {
     return hold("busy", input.lastSentAt + SENT_SETTLE_MS);
@@ -59,6 +64,12 @@ export function readiness(input: ReadinessInput): Readiness {
     return hold("busy", now + (STALE_WORKING_MS - input.quietMs));
   }
   return { ready: true };
+}
+
+// A problem from before the prompt was queued doesn't count: the turn it waits
+// for is one still to come.
+export function stoppedOnProblem(item: Pick<ScheduledPrompt, "kind" | "createdAt">, agent: PaneAgentStatus | null): boolean {
+  return isWhenDone(item) && agent?.state === "error" && (agent.since ?? 0) > item.createdAt;
 }
 
 const SHELLS = new Set(["zsh", "bash", "sh", "fish", "dash", "ksh", "tcsh", "csh", "nu", "login"]);

@@ -6,8 +6,8 @@
 
 use crate::config;
 use crate::send_later_model::{
-    check_due_at, next_wait, settle, settle_after_launch, NewPrompt, PromptState, ScheduledPrompt,
-    Snapshot,
+    check_due_at, first_state, next_wait, settle, settle_after_launch, NewPrompt, PromptState,
+    ScheduledPrompt, Snapshot,
 };
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -249,7 +249,8 @@ pub fn send_later_add(
     if prompt.text.trim().is_empty() {
         return Err("There's nothing to send.".into());
     }
-    check_due_at(prompt.due_at, now_ms())?;
+    let now = now_ms();
+    let (due_at, state) = first_state(&prompt.kind, prompt.due_at, now)?;
     if !store.is_sender() {
         return Err(NOT_SENDER.into());
     }
@@ -262,9 +263,9 @@ pub fn send_later_add(
         terminal_label: prompt.terminal_label,
         agent: prompt.agent,
         text: prompt.text,
-        due_at: prompt.due_at,
-        created_at: now_ms(),
-        state: PromptState::Scheduled,
+        due_at,
+        created_at: now,
+        state,
         kind: if prompt.kind.is_empty() {
             "time".into()
         } else {

@@ -176,6 +176,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
   const [outputs, setOutputs] = useState<string[]>([]);
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null);
   const [searchPaneId, setSearchPaneId] = useState<string | null>(null);
+  const [searchFocusRequest, setSearchFocusRequest] = useState(0);
   const [filterMode, setFilterMode] = useState(false);
   const [matchCount, setMatchCount] = useState(0);
   // Session the Memory tab should show, bumped per request so the same session
@@ -934,6 +935,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
         const pane = getFocusedPane();
         if (!pane) return;
         setSearchPaneId(pane.id);
+        setSearchFocusRequest((n) => n + 1);
         setFilterMode(getSettings().searchFilterMode ?? false);
         setMatchCount(0);
         return;
@@ -1230,12 +1232,14 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
           <PaneLayout
             node={tree}
             projectName={projectName}
+            projectLabel={projectLabel}
             visible={visible}
             // A side-by-side column the user isn't in has no focused pane, so
             // its pane-level keys, badges and inputs stay with the focused one.
             focusedPaneId={keysActive ? focusedPaneId : null}
             fullscreenPaneId={fullscreenPaneId}
             searchPaneId={searchPaneId}
+            searchFocusRequest={searchFocusRequest}
             filterMode={filterMode}
             matchCount={matchCount}
             canClose={tree.kind === "split"}

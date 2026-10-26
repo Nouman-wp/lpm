@@ -13,6 +13,7 @@ import {
 import { useTerminalTargets } from "../store/terminalTargets";
 import { keepAsDraft } from "./closeout";
 import { promptPreview } from "./preview";
+import { promptNoun } from "./status";
 
 // What a mounted composer lends to the actions below: putting a prompt back in
 // its input, opening its Send later picker for a prompt already scheduled, and
@@ -155,7 +156,7 @@ export async function editScheduled(item: ScheduledPrompt): Promise<void> {
 export async function cancelScheduled(item: ScheduledPrompt): Promise<void> {
   const removed = await removePrompt(item.id).catch(() => null);
   if (!removed) return;
-  toast("Scheduled prompt canceled", {
+  toast(`${promptNoun(removed)} prompt canceled`, {
     description: `“${promptPreview(removed.text, 60)}”`,
     action: {
       label: "Undo",

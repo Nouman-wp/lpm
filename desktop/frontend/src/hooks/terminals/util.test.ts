@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { configLaunchCmds } from "./util";
+import { configLaunchCmds, reuseLaunch } from "./util";
 
 describe("configLaunchCmds", () => {
   it("keeps both commands for a resumable launch", () => {
@@ -25,5 +25,19 @@ describe("configLaunchCmds", () => {
   it("keeps nothing for other commands, so a restart doesn't re-run them", () => {
     expect(configLaunchCmds({ startCmd: "npm run dev", resumeCmd: "" })).toEqual({});
     expect(configLaunchCmds({ startCmd: "", resumeCmd: "" })).toEqual({});
+  });
+});
+
+describe("reuseLaunch", () => {
+  it("types the command again once the tab is back at a prompt", () => {
+    expect(reuseLaunch("tail -f log", undefined, false)).toEqual({ cmd: "tail -f log", prompt: undefined });
+  });
+
+  it("types nothing into a run that is still going", () => {
+    expect(reuseLaunch("tail -f log", undefined, true)).toEqual({ prompt: undefined });
+  });
+
+  it("still hands a running agent its prompt", () => {
+    expect(reuseLaunch("claude", "fix the tests", true)).toEqual({ prompt: "fix the tests" });
   });
 });

@@ -175,10 +175,12 @@ export interface ServiceTabInfo {
 export interface PaneViewProps {
   pane: PaneLeaf;
   projectName: string;
+  projectLabel: string;
   visible: boolean;
   focused: boolean;
   fullscreen: boolean;
   searchActive: boolean;
+  searchFocusRequest: number;
   canClose: boolean;
   fontSize: number;
   composerOpen: boolean;
@@ -280,10 +282,12 @@ function PaneViewImpl(props: PaneViewProps) {
   const {
     pane,
     projectName,
+    projectLabel,
     visible,
     focused,
     fullscreen,
     searchActive,
+    searchFocusRequest,
     canClose,
     fontSize,
     composerOpen,
@@ -769,6 +773,7 @@ function PaneViewImpl(props: PaneViewProps) {
             onFilterChange={(query) => onFilterInPane(pane.id, query)}
             onToggleFilterMode={onToggleFilterMode}
             onClose={onCloseSearch}
+            focusRequest={searchFocusRequest}
           />
         )}
         {services.map((svc) => {
@@ -841,6 +846,7 @@ function PaneViewImpl(props: PaneViewProps) {
                   <BrowserPane
                     id={t.id}
                     projectName={projectName}
+                    projectLabel={projectLabel}
                     active={visible && isActive}
                     services={browserServices}
                   />

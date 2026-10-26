@@ -32,8 +32,15 @@ export interface TerminalCommandEvent {
 
 export const NAME_AFTER_MS = 700;
 
-export const useTerminalCommands = create<{ byId: Record<string, TerminalCommandState> }>(() => ({
+export const useTerminalCommands = create<{
+  byId: Record<string, TerminalCommandState>;
+  // Whether a terminal's shell last reported its own prompt, so typed input
+  // reaches the shell rather than a program it runs. Absent for a shell that
+  // doesn't report its commands.
+  atPrompt: Record<string, boolean>;
+}>(() => ({
   byId: {},
+  atPrompt: {},
 }));
 
 /** The entries for these terminals, for a shallow-compared selector. */
@@ -50,8 +57,14 @@ function put(id: string, next: TerminalCommandState) {
   useTerminalCommands.setState((s) => ({ byId: { ...s.byId, [id]: next } }));
 }
 
+function putAtPrompt(id: string, atPrompt: boolean) {
+  if (useTerminalCommands.getState().atPrompt[id] === atPrompt) return;
+  useTerminalCommands.setState((s) => ({ atPrompt: { ...s.atPrompt, [id]: atPrompt } }));
+}
+
 export function applyTerminalCommandEvent(e: TerminalCommandEvent) {
   const current = useTerminalCommands.getState().byId[e.id] ?? {};
+  putAtPrompt(e.id, e.command === undefined);
   if (e.command !== undefined) {
     put(e.id, { ...current, running: { command: e.command, since: e.at, named: false } });
     setTimeout(() => {

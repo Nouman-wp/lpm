@@ -18,6 +18,8 @@ interface TerminalSearchBarProps {
   onFilterChange: (query: string | null) => void;
   onToggleFilterMode: () => void;
   onClose: () => void;
+  // Bumped by every ⌘F, including one while the bar is already open.
+  focusRequest: number;
 }
 
 export function TerminalSearchBar({
@@ -28,6 +30,7 @@ export function TerminalSearchBar({
   onFilterChange,
   onToggleFilterMode,
   onClose,
+  focusRequest,
 }: TerminalSearchBarProps) {
   const [query, setQuery] = useState("");
   const [outcome, setOutcome] = useState<FindOutcome | null>(null);
@@ -36,11 +39,14 @@ export function TerminalSearchBar({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
     return onWatchResults(setResults);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [focusRequest]);
 
   // An empty query still goes to the terminal so it drops the highlights.
   const find = (value: string, direction: FindDirection, opts: FindOptions = options) => {
@@ -99,13 +105,13 @@ export function TerminalSearchBar({
         ? findResultsLabel(results)
         : null;
 
-  const inputClass = `w-40 bg-transparent font-mono text-[11px] outline-none placeholder:text-[var(--text-muted)] ${
-    !filterMode && query && noMatches ? "text-[var(--accent-red)]" : "text-[var(--text-primary)]"
+  const inputClass = `w-40 bg-transparent font-mono text-[11px] outline-none placeholder:text-[var(--terminal-header-text)] ${
+    !filterMode && query && noMatches ? "text-[var(--accent-red)]" : "text-[var(--terminal-tab-active)]"
   }`;
 
   return (
-    <div className="absolute right-2 top-2 z-30 flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--terminal-header)] px-2 py-1 shadow-md">
-      <span className="text-[var(--text-muted)]">
+    <div className="absolute right-2 top-2 z-30 flex items-center gap-1 rounded-md border border-[var(--terminal-header-border)] bg-[var(--terminal-header)] px-2 py-1 shadow-md">
+      <span className="text-[var(--terminal-header-text)]">
         <SearchIcon />
       </span>
       <input
@@ -119,7 +125,7 @@ export function TerminalSearchBar({
         aria-label={filterMode ? "Filter lines" : "Find in terminal"}
       />
       {filterMode && query && (
-        <span className="shrink-0 font-mono text-[10px] tabular-nums text-[var(--text-muted)]">
+        <span className="shrink-0 font-mono text-[10px] tabular-nums text-[var(--terminal-header-text)]">
           {matchCount}
         </span>
       )}
@@ -127,7 +133,7 @@ export function TerminalSearchBar({
         <span
           aria-live="polite"
           className={`shrink-0 whitespace-nowrap px-1 text-[10px] tabular-nums ${
-            noMatches ? "text-[var(--accent-red)]" : "text-[var(--text-muted)]"
+            noMatches ? "text-[var(--accent-red)]" : "text-[var(--terminal-header-text)]"
           }`}
         >
           {findLabel}

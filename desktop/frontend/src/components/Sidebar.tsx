@@ -96,7 +96,7 @@ import { syncSupported } from "../syncApi";
 import { FollowIndicator } from "./FollowIndicator";
 import { useFollowState } from "../hooks/useFollowState";
 import { followPause, followResume, followStop } from "../followApi";
-import { ProjectNameDisplay, projectDisplayName } from "./ProjectNameDisplay";
+import { ProjectNameDisplay, findParentProject, projectDisplayName } from "./ProjectNameDisplay";
 import { SidebarWorkStatusLine } from "./SidebarWorkStatusLine";
 import { WorkStatusMark } from "./WorkStatusMark";
 import { useWorkStatusDialogs } from "./useWorkStatusDialogs";
@@ -769,6 +769,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     (project) => project.parentName === renamingProject?.name && project.worktree,
   );
   const renamingSlug = peerSlugOf(renamingName);
+  const renamingTaken = projects
+    .filter((p) => p.name !== renamingName && peerSlugOf(p.name) === renamingSlug)
+    .map((p) => projectDisplayName(p, findParentProject(p, projects)));
   const renamingHost = renamingSlug
     ? { slug: renamingSlug, alias: peerAlias(peerState.peers, renamingSlug) }
     : undefined;
@@ -2021,6 +2024,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         }
         running={Boolean(renamingProject?.running)}
         host={renamingHost}
+        takenNames={renamingTaken}
         onClose={() => setRenamingName(null)}
         onRenameLabel={(value) => {
           if (renamingName) onRenameProject(renamingName, value);

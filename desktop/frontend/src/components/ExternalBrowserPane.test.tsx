@@ -23,7 +23,7 @@ beforeEach(() => {
 });
 
 function render(projectName: string) {
-  act(() => root.render(<ExternalBrowserPane id="b1" projectName={projectName} active />));
+  act(() => root.render(<ExternalBrowserPane id="b1" projectName={projectName} projectLabel={projectName} active />));
 }
 
 afterEach(() => {

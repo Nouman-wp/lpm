@@ -23,7 +23,10 @@ afterEach(() => {
 
 // The terminal answers each find with `outcome` and fires `results`, the way
 // the search add-on fires its results event from inside findNext.
-function render(answer: (query: string) => { outcome: FindOutcome; results: FindResults }) {
+function render(
+  answer: (query: string) => { outcome: FindOutcome; results: FindResults },
+  focusRequest = 1,
+) {
   onFind = vi.fn((query: string, _direction: FindDirection, _options: FindOptions) => {
     const { outcome, results } = answer(query);
     push(results);
@@ -42,6 +45,7 @@ function render(answer: (query: string) => { outcome: FindOutcome; results: Find
         onFilterChange={() => {}}
         onToggleFilterMode={() => {}}
         onClose={() => {}}
+        focusRequest={focusRequest}
       />,
     );
   });
@@ -93,6 +97,19 @@ describe("TerminalSearchBar", () => {
     expect(onFind).toHaveBeenLastCalledWith("Error", "next", { caseSensitive: true, regex: false });
     act(() => button("Use regular expression").click());
     expect(onFind).toHaveBeenLastCalledWith("Error", "next", { caseSensitive: true, regex: true });
+  });
+
+  it("takes the focus back when ⌘F is pressed while it is open", () => {
+    const answer = () => ({ outcome: "found" as const, results: { index: 0, count: 1 } });
+    render(answer);
+    type("line 7");
+    const input = container.querySelector("input")!;
+    input.blur();
+    expect(document.activeElement).not.toBe(input);
+    render(answer, 2);
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe("line 7");
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, 6]);
   });
 
   it("clears the highlights and the count when the query is emptied", () => {

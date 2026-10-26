@@ -28,6 +28,8 @@ export interface BrowserPaneProps {
   id: string;
   // A paired machine's project browses that machine's localhost.
   projectName: string;
+  // What the project shows as, for the services it offers.
+  projectLabel: string;
   active: boolean;
   // The project's services that are serving pages, offered before a page opens.
   services?: BrowserService[];
@@ -45,7 +47,7 @@ function hostOf(addr: string): string {
   }
 }
 
-function EmbeddedBrowserPane({ id, projectName, active, services = [] }: BrowserPaneProps) {
+function EmbeddedBrowserPane({ id, projectName, projectLabel, active, services = [] }: BrowserPaneProps) {
   const holeRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const openedRef = useRef(false);
@@ -240,7 +242,7 @@ function EmbeddedBrowserPane({ id, projectName, active, services = [] }: Browser
             className={`absolute inset-0 flex cursor-text select-none flex-col items-center justify-center gap-4 px-6 text-center ${services.length > 0 ? emptyTitle : ""}`}
           >
             {services.length > 0 ? (
-              <BrowserServiceList projectName={projectName} services={services} onOpen={openService} />
+              <BrowserServiceList projectLabel={projectLabel} services={services} onOpen={openService} />
             ) : (
               <>
                 <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border ${badge} [&>svg]:h-7 [&>svg]:w-7`}>

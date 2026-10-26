@@ -268,6 +268,10 @@ pub fn reorder_projects(app: AppHandle, order: Vec<String>) -> Result<(), String
 
 #[tauri::command(async)]
 pub fn set_project_label(app: AppHandle, name: String, label: String) -> Result<(), String> {
+    let wanted = label.trim();
+    if !wanted.is_empty() && crate::project_labels::taken_by(&name, wanted).is_some() {
+        return Err(format!("Another project is already called \"{wanted}\""));
+    }
     // Write to the project's own file: list_projects reads each label per-file,
     // so routing a duplicate's label to its parent would rename the parent.
     let wrote = config::edit_project_yaml(&name, |doc| {

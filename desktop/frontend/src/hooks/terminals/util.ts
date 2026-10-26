@@ -37,6 +37,16 @@ export function foldAgentPrompt(
   return { cmd, prompt };
 }
 
+// What a reused action tab is sent. While its last run is still going the
+// command isn't typed into that process — only an agent prompt is delivered.
+export function reuseLaunch(
+  cmd: string,
+  prompt: string | string[] | undefined,
+  busy: boolean,
+): { cmd?: string; prompt?: string | string[] } {
+  return busy ? { prompt } : foldAgentPrompt(cmd, prompt);
+}
+
 // The launch identity a config terminal's tab keeps. A resumable launch (Claude)
 // keeps both commands for restore. An agent CLI without a resume command yet
 // (Codex learns its session id later) still keeps its startCmd: it is how the
